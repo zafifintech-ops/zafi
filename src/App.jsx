@@ -1,0 +1,5056 @@
+import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
+
+/* =========================================================================
+   ZAFI — finanzas personales con IA
+   - Onboarding conversacional (chatbot tipo Claude) que arma categorías + cuentas
+   - Captura de ingresos / egresos
+   - Auto-categorización: palabras clave locales -> Claude API -> te pregunta
+   - Aprende de tus correcciones (guarda palabras clave)
+   - Persiste con window.storage (sobrevive entre sesiones)
+   ========================================================================= */
+
+/* ----------------------------- estilos ---------------------------------- */
+const STYLE = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600;700&display=swap');
+
+.cc-root *{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  /* Paleta Zafi — blanco limpio, acentos cálidos sutiles */
+  --bg:#FFFFFF;
+  --bg-2:#FAFAF7;
+  --paper:#FFFFFF;
+  --surface:#FFFFFF;
+  --surface-2:#F6F5F0;
+  --surface-3:#EBE9E0;
+  --ink:#1A1815;
+  --ink-soft:#6E6658;
+  --ink-faint:#ABA395;
+  --line:#EAE7DC;
+  --line-soft:#F3F0E7;
+  --green:#2D6F4E;
+  --green-2:#3B8862;
+  --green-soft:#E2EBDC;
+  --green-glow:rgba(45,111,78,.18);
+  --coral:#B8482A;
+  --coral-2:#D15A38;
+  --coral-soft:#F5DDCF;
+  --coral-glow:rgba(184,72,42,.16);
+  --gold:#B0863A;
+  --gold-soft:#F1E6C5;
+  --gold-glow:rgba(176,134,58,.22);
+
+  /* Sombras suaves y difusas — sin "rectángulo gris" */
+  --shadow-xs:0 2px 6px -2px rgba(31,27,20,.05);
+  --shadow-sm:0 4px 12px -3px rgba(31,27,20,.06), 0 1px 3px -1px rgba(31,27,20,.03);
+  --shadow-md:0 8px 24px -6px rgba(31,27,20,.08), 0 2px 6px -2px rgba(31,27,20,.04);
+  --shadow-lg:0 18px 40px -10px rgba(31,27,20,.12), 0 6px 14px -4px rgba(31,27,20,.05);
+  --shadow-xl:0 30px 60px -15px rgba(31,27,20,.16), 0 10px 24px -8px rgba(31,27,20,.06);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.8);
+}
+.cc-root{
+  font-family:'Inter Tight','Hanken Grotesk',sans-serif;
+  font-size:15px;
+  color:var(--ink); background:var(--bg);
+  min-height:100vh; width:100%;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(176,134,58,.025), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(45,111,78,.025), transparent 65%);
+  background-attachment:fixed;
+}
+
+.cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
+.cc-serif{font-family:'Fraunces',serif;letter-spacing:-.018em;font-feature-settings:"ss01";}
+
+.cc-wrap{max-width:760px;margin:0 auto;padding:6px 20px 130px;}
+
+/* ============== TOPBAR ============== */
+.cc-top{position:sticky;top:0;z-index:30;
+  background:linear-gradient(to bottom, var(--bg) 75%, rgba(255,255,255,0));
+  padding:14px 20px 8px;
+  transition:.25s cubic-bezier(.2,.7,.2,1);}
+.cc-top.scrolled{padding-top:9px;padding-bottom:6px;
+  background:rgba(255,255,255,.92);backdrop-filter:saturate(1.4) blur(14px);
+  -webkit-backdrop-filter:saturate(1.4) blur(14px);
+  box-shadow:0 1px 0 var(--line-soft), 0 6px 18px rgba(31,27,20,.04);}
+.cc-top-inner{max-width:760px;margin:0 auto;}
+
+.cc-masthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin-bottom:10px;transition:.2s;}
+.cc-top.scrolled .cc-masthead{margin-bottom:6px;}
+.cc-masthead-title{font-family:'Fraunces',serif;font-weight:600;font-size:27px;letter-spacing:-.045em;line-height:1;
+  display:flex;align-items:center;gap:9px;font-feature-settings:"ss01";}
+.cc-masthead-title::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px var(--green-soft),0 0 18px var(--green-glow);}
+
+/* Logo del onboarding */
+.cc-logo{font-family:'Fraunces',serif;font-weight:600;font-size:27px;letter-spacing:-.045em;
+  display:flex;align-items:center;gap:9px;color:var(--ink);font-feature-settings:"ss01";}
+.cc-logo-dot{width:10px;height:10px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px var(--green-soft),0 0 18px var(--green-glow);display:inline-block;}
+.cc-masthead-meta{font-size:10.5px;font-weight:500;color:var(--ink-faint);letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;}
+
+.cc-balance-row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:2px 0 14px;
+  transition:.2s;}
+.cc-top.scrolled .cc-balance-row{padding:0 0 8px;}
+.cc-top.scrolled .cc-balance-value{font-size:20px;}
+.cc-balance-display{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.cc-balance-label{font-size:11px;font-weight:600;color:var(--ink-soft);letter-spacing:-.005em;}
+.cc-balance-value{font-family:'Fraunces',serif;font-weight:500;font-size:32px;line-height:1;letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;transition:font-size .2s;}
+
+/* chip de rango — píldora suave con sombrita */
+.cc-range-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;
+  background:var(--paper);border:1px solid var(--line);border-radius:999px;
+  font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;
+  transition:all .2s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-range-chip:hover{transform:translateY(-1px);border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
+.cc-range-chip:active{transform:translateY(0);}
+.cc-range-chip .cc-range-emoji{font-size:13px;}
+.cc-range-chip .cc-range-arrow{color:var(--ink-faint);font-size:9px;}
+
+/* tabs — píldora flotante con indicador deslizante */
+.cc-tabs{display:flex;gap:3px;background:var(--surface-2);
+  border:1px solid var(--line-soft);border-radius:14px;padding:4px;
+  box-shadow:var(--shadow-xs),inset 0 1px 2px rgba(31,27,20,.03);
+  margin-top:4px;}
+.cc-tab{flex:1;font-family:inherit;font-size:12.5px;font-weight:600;
+  border:none;background:transparent;color:var(--ink-soft);
+  padding:9px 6px;border-radius:10px;cursor:pointer;
+  transition:all .25s cubic-bezier(.2,.7,.2,1);position:relative;}
+.cc-tab:hover{color:var(--ink);}
+.cc-tab.on{background:var(--paper);color:var(--ink);
+  box-shadow:var(--shadow-sm),var(--shadow-inset);}
+
+/* ============== TARJETAS ============== */
+.cc-card{background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:0;box-shadow:var(--shadow-sm);
+  transition:.25s cubic-bezier(.2,.7,.2,1);}
+.cc-card-boxed{background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:16px;box-shadow:var(--shadow-sm);}
+.cc-card-section{background:transparent;border:none;border-radius:0;padding-top:8px;padding-bottom:4px;
+  box-shadow:none;}
+.cc-fade{animation:ccUp .5s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes ccUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+/* ============== BOTONES ============== */
+.cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:12px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);padding:10px 17px;cursor:pointer;
+  transition:all .2s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-btn:hover{background:var(--surface-2);border-color:var(--gold);transform:translateY(-1px);
+  box-shadow:var(--shadow-sm);}
+.cc-btn:active{transform:translateY(0);box-shadow:var(--shadow-xs);}
+.cc-btn-primary{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.cc-btn-primary:hover{background:#2c2820;border-color:#2c2820;box-shadow:var(--shadow-md);}
+.cc-btn-green{background:linear-gradient(180deg,var(--green-2),var(--green));color:#fff;
+  border-color:var(--green);
+  box-shadow:var(--shadow-sm),var(--shadow-inset);}
+.cc-btn-green:hover{transform:translateY(-1px);
+  box-shadow:var(--shadow-md),var(--shadow-inset);
+  background:linear-gradient(180deg,var(--green-2),var(--green));}
+.cc-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:var(--shadow-xs);}
+.cc-btn:disabled:hover{background:var(--paper);border-color:var(--line);}
+
+/* ============== INPUTS ============== */
+.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:11px 14px;border-radius:12px;
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);outline:none;
+  transition:all .18s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-input:focus,.cc-select:focus{border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
+.cc-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;letter-spacing:-.005em;}
+
+/* ============== CHIPS — píldoras suaves ============== */
+.cc-chip{font-family:inherit;font-size:12.5px;font-weight:600;
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);
+  padding:7px 13px;border-radius:999px;cursor:pointer;
+  transition:all .2s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-chip:hover{border-color:var(--gold);transform:translateY(-1px);
+  box-shadow:var(--shadow-sm);}
+
+/* ============== FAB ============== */
+.cc-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;
+  background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:999px;
+  font-family:'Inter Tight','Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:600;
+  padding:13px 22px 13px 16px;cursor:pointer;
+  letter-spacing:-.005em;overflow:hidden;
+  box-shadow:0 18px 40px -12px rgba(31,27,20,.18), 0 8px 18px -8px rgba(31,27,20,.12);
+  display:flex;align-items:center;gap:11px;
+  transition:transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s cubic-bezier(.2,.7,.2,1);}
+.cc-fab:hover{transform:translateX(-50%) translateY(-3px);
+  box-shadow:0 24px 50px -14px rgba(31,27,20,.22), 0 12px 24px -10px rgba(31,27,20,.14);}
+.cc-fab:active{transform:translateX(-50%) scale(.96);}
+
+/* Gota morfando del asistente */
+.cc-blob-stage{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;position:relative;flex-shrink:0;}
+.cc-blob{width:18px;height:18px;background:var(--gold);animation:ccBlobMorph 4s ease-in-out infinite;}
+@keyframes ccBlobMorph{0%,100%{border-radius:50%}25%{border-radius:60% 40% 50% 50%}50%{border-radius:50% 50% 40% 60%}75%{border-radius:40% 60% 60% 40%}}
+.cc-fab-add{position:fixed;right:20px;bottom:22px;z-index:40;width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(160deg,#3a342a,var(--ink));color:var(--paper);border:none;font-size:28px;line-height:1;
+  cursor:pointer;font-weight:300;
+  box-shadow:0 16px 36px -12px rgba(31,27,20,.38), 0 6px 14px -6px rgba(31,27,20,.22), var(--shadow-inset);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .3s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-add:hover{transform:translateY(-3px) rotate(90deg);
+  box-shadow:0 22px 44px -14px rgba(31,27,20,.45), 0 10px 20px -8px rgba(31,27,20,.26), var(--shadow-inset);}
+.cc-fab-menu{position:fixed;right:20px;bottom:88px;z-index:42;display:flex;flex-direction:column;gap:10px;
+  align-items:flex-end;animation:ccUp .2s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:11px 16px;border-radius:999px;
+  background:var(--paper);color:var(--ink);border:1px solid var(--line-soft);cursor:pointer;
+  box-shadow:var(--shadow-md);
+  display:flex;align-items:center;gap:8px;
+  transition:all .2s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-mini:hover{background:var(--surface-2);transform:translateY(-2px);
+  box-shadow:var(--shadow-lg);}
+
+/* ============== TARJETAS DE CUENTAS ============== */
+.cc-acc-card{cursor:pointer;
+  border:1px solid var(--line);background:var(--paper);
+  border-radius:18px;padding:15px 16px;min-width:170px;text-align:left;
+  position:relative;overflow:hidden;
+  box-shadow:var(--shadow-sm);
+  transition:all .3s cubic-bezier(.2,.7,.2,1);}
+.cc-acc-card::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at top right, rgba(176,134,58,.10), transparent 60%);
+  pointer-events:none;opacity:0;transition:opacity .3s;}
+.cc-acc-card:hover{transform:translateY(-3px);border-color:var(--gold);
+  box-shadow:var(--shadow-lg);}
+.cc-acc-card:hover::before{opacity:1;}
+.cc-acc-card.on{border-color:var(--ink);
+  background:linear-gradient(155deg,#2c2820 0%,#1a1612 100%);
+  color:var(--paper);
+  box-shadow:0 24px 48px -18px rgba(31,27,20,.40), 0 10px 24px -12px rgba(31,27,20,.20);}
+.cc-acc-card.on:hover{transform:translateY(-3px);
+  box-shadow:0 32px 60px -20px rgba(31,27,20,.45), 0 14px 30px -14px rgba(31,27,20,.22);}
+.cc-acc-card.on::before{opacity:1;background:radial-gradient(ellipse at top right, rgba(176,134,58,.22), transparent 55%);}
+.cc-acc-card.on .cc-acc-label,.cc-acc-card.on .cc-acc-sub{color:rgba(253,250,242,.55);}
+.cc-acc-card.on .cc-acc-bal,.cc-acc-card.on .cc-acc-name{color:var(--paper);}
+.cc-acc-card.on .cc-acc-icon{background:rgba(253,250,242,.10);}
+.cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:9px;background:var(--surface-2);font-size:14px;margin-bottom:9px;
+  transition:.2s;}
+.cc-acc-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);}
+.cc-acc-name{font-weight:600;font-size:15px;margin:2px 0 9px;letter-spacing:-.012em;}
+.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:23px;letter-spacing:-.03em;line-height:1.05;}
+.cc-acc-sub{font-size:11px;color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums;font-weight:500;}
+.cc-scroll-x{display:flex;gap:11px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:none;}
+.cc-scroll-x::-webkit-scrollbar{display:none;}
+
+/* configurar */
+.cc-gear{background:var(--paper);border:1px solid var(--line);border-radius:10px;
+  padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+  display:inline-flex;align-items:center;gap:6px;
+  transition:.2s;box-shadow:var(--shadow-xs);}
+.cc-gear:hover{background:var(--surface-2);color:var(--ink);border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
+
+/* fila draggable */
+.cc-sortable{padding:11px 13px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper);display:flex;align-items:center;gap:10px;cursor:grab;
+  user-select:none;transition:.18s;box-shadow:var(--shadow-xs);}
+.cc-sortable:hover{border-color:var(--gold);box-shadow:var(--shadow-sm);}
+.cc-sortable.disabled{opacity:.5;background:var(--surface-2);}
+.cc-sortable .cc-grip-h{color:var(--ink-soft);font-size:18px;line-height:1;}
+
+/* ============== SEPARADOR DE DÍA ============== */
+.cc-day-sep{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 0 9px;border-bottom:1px solid var(--line-soft);margin-bottom:3px;
+  position:sticky;top:0;background:linear-gradient(to bottom, var(--bg) 70%, rgba(255,255,255,.0));
+  z-index:5;}
+.cc-day-sep:first-child{padding-top:6px;}
+.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:24px;line-height:1;letter-spacing:-.035em;
+  color:var(--ink);min-width:32px;}
+.cc-day-name{flex:1;font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:-.005em;
+  text-transform:capitalize;}
+.cc-day-totals{display:flex;gap:10px;align-items:center;font-size:11.5px;
+  font-variant-numeric:tabular-nums;font-weight:600;}
+.cc-day-totals .pos{color:var(--green);}
+.cc-day-totals .neg{color:var(--coral);}
+
+/* ============== MODAL ============== */
+.cc-overlay{position:fixed;inset:0;background:rgba(31,27,20,.38);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  z-index:50;display:flex;align-items:flex-end;justify-content:center;
+  animation:ccFadeIn .2s ease;}
+@keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
+.cc-sheet{background:var(--bg);border-radius:24px 24px 0 0;width:100%;max-width:760px;
+  max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
+  animation:ccSheet .35s cubic-bezier(.2,.7,.2,1);
+  box-shadow:0 -20px 60px rgba(31,27,20,.25),0 -1px 0 rgba(255,255,255,.5) inset;}
+@keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
+.cc-grip{width:40px;height:4px;background:var(--line);border-radius:99px;margin:8px auto 16px;}
+
+/* ============== CHAT ============== */
+.cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
+  letter-spacing:-.005em;}
+.cc-bubble.bot{background:var(--paper);border:1px solid var(--line-soft);
+  border-bottom-left-radius:6px;box-shadow:var(--shadow-sm);}
+.cc-bubble.me{background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
+  border-bottom-right-radius:6px;align-self:flex-end;
+  box-shadow:var(--shadow-md);}
+
+.cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
+  background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
+  padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:600;letter-spacing:-.005em;
+  box-shadow:0 12px 32px rgba(31,27,20,.32),var(--shadow-inset);
+  animation:ccUp .3s cubic-bezier(.2,.7,.2,1);}
+
+.cc-dots span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink-soft);margin:0 2px;
+  animation:ccDot 1s infinite;}
+.cc-dots span:nth-child(2){animation-delay:.15s;}
+.cc-dots span:nth-child(3){animation-delay:.3s;}
+@keyframes ccDot{0%,60%,100%{opacity:.25;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
+
+/* ============== ENCABEZADOS DE SECCIÓN ============== */
+.cc-eyebrow{font-size:11px;font-weight:600;color:var(--ink-soft);letter-spacing:.02em;
+  display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.cc-section-title{font-family:'Fraunces',serif;font-weight:500;font-size:22px;
+  letter-spacing:-.03em;line-height:1.15;margin-bottom:14px;}
+
+/* selection */
+::selection{background:var(--gold-glow);color:var(--ink);}
+`;
+
+/* --------------------------- datos por defecto --------------------------- */
+const DEFAULT_CATS = [
+  { name: "Sueldo", emoji: "💼", type: "income" },
+  { name: "Negocio", emoji: "🏢", type: "income" },
+  { name: "Freelance", emoji: "💻", type: "income" },
+  { name: "Otros ingresos", emoji: "💰", type: "income" },
+  { name: "Súper / Despensa", emoji: "🛒", type: "expense" },
+  { name: "Restaurantes", emoji: "🍔", type: "expense" },
+  { name: "Transporte / Gasolina", emoji: "⛽", type: "expense" },
+  { name: "Casa / Renta", emoji: "🏠", type: "expense" },
+  { name: "Servicios", emoji: "💡", type: "expense" },
+  { name: "Salud", emoji: "🏥", type: "expense" },
+  { name: "Entretenimiento", emoji: "🎬", type: "expense" },
+  { name: "Suscripciones", emoji: "📱", type: "expense" },
+  { name: "Otros gastos", emoji: "📦", type: "expense" },
+];
+
+const SEED_KW = {
+  "sueldo": ["sueldo", "salario", "nomina", "quincena"],
+  "negocio": ["venta", "cliente", "factura"],
+  "freelance": ["freelance", "proyecto", "honorarios"],
+  "super / despensa": ["super", "despensa", "walmart", "soriana", "calimax", "mercado", "verdura", "fruta", "leche"],
+  "restaurantes": ["restaurante", "taco", "tacos", "pizza", "comida", "cena", "almuerzo", "cafe", "starbucks", "sushi", "hamburguesa"],
+  "transporte / gasolina": ["gasolina", "uber", "didi", "taxi", "pasaje", "caseta", "estacionamiento", "pemex"],
+  "casa / renta": ["renta", "hipoteca", "mantenimiento"],
+  "servicios": ["luz", "cfe", "agua", "internet", "telmex", "izzi", "totalplay", "telefono"],
+  "salud": ["doctor", "medicina", "farmacia", "consulta", "dentista", "hospital"],
+  "entretenimiento": ["cine", "concierto", "boletos", "antro", "juego"],
+  "suscripciones": ["netflix", "spotify", "disney", "suscripcion", "prime", "youtube"],
+};
+
+/* ------------------------------ utilidades ------------------------------- */
+const uid = () => Math.random().toString(36).slice(2, 10);
+const today = () => new Date().toISOString().slice(0, 10);
+const fmt = (n) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 2 }).format(n || 0);
+const norm = (s) =>
+  (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
+const monthLabel = (mk) => {
+  const [y, m] = mk.split("-");
+  const names = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${names[+m - 1]} ${y}`;
+};
+const DAY_NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MONTH_NAMES_FULL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const dayLabel = (isoDate) => {
+  // YYYY-MM-DD → "jueves 19 de mayo 2026" sin desfase de zona horaria
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return isoDate;
+  const date = new Date(y, m - 1, d);
+  const todayD = new Date(today());
+  const yest = new Date(todayD); yest.setDate(yest.getDate() - 1);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(date, todayD)) return "Hoy";
+  if (sameDay(date, yest)) return "Ayer";
+  return `${DAY_NAMES[date.getDay()]} ${d} de ${MONTH_NAMES_FULL[m - 1]} ${y}`;
+};
+
+// Para el estilo editorial: número del día grande + descripción a un lado
+const dayParts = (isoDate) => {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return { num: "—", desc: isoDate, isSpecial: false };
+  const date = new Date(y, m - 1, d);
+  const todayD = new Date(today());
+  const yest = new Date(todayD); yest.setDate(yest.getDate() - 1);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(date, todayD)) return { num: String(d), desc: "HOY", isSpecial: true };
+  if (sameDay(date, yest)) return { num: String(d), desc: "AYER", isSpecial: true };
+  const mon = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"][m-1];
+  const day = ["DOMINGO","LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO"][date.getDay()];
+  return { num: String(d), desc: `${day} · ${mon} ${y}`, isSpecial: false };
+};
+const STOP = new Set(["para", "con", "los", "las", "del", "una", "uno", "este", "esta", "que", "por", "mas",
+  "muy", "pago", "compra", "gasto", "abono", "the", "and"]);
+
+function extractKW(desc) {
+  return norm(desc).split(/\s+/).filter((w) => w.length >= 4 && !STOP.has(w));
+}
+
+/* detección de duplicados: ¿existe ya un movimiento equivalente?
+   - misma cuenta, mismo tipo, mismo monto (a 2 decimales)
+   - fecha dentro de ±3 días (los bancos a veces ponen fecha de operación vs aplicación)
+   - descripción "parecida": comparten al menos una palabra clave significativa,
+     o las descripciones normalizadas son iguales */
+function findDuplicate(candidate, existing) {
+  const candDate = new Date(candidate.date).getTime();
+  const candKws = new Set(extractKW(candidate.description));
+  const candNorm = norm(candidate.description).trim();
+  const candAmt = Math.round(candidate.amount * 100);
+  for (const t of existing) {
+    if (t.accountId !== candidate.accountId) continue;
+    if (t.type !== candidate.type) continue;
+    if (Math.round(t.amount * 100) !== candAmt) continue;
+    const tDate = new Date(t.date).getTime();
+    const diffDays = Math.abs((tDate - candDate) / 86400000);
+    if (diffDays > 3) continue;
+    const tNorm = norm(t.description).trim();
+    if (candNorm && tNorm && candNorm === tNorm) return t;
+    const tKws = extractKW(t.description);
+    if (tKws.some((kw) => candKws.has(kw))) return t;
+    // si una descripción está vacía pero monto+fecha+cuenta+tipo coinciden, también es duplicado probable
+    if (!candNorm || !tNorm) return t;
+  }
+  return null;
+}
+
+/* saldos: saldo inicial + movimientos */
+function accountBalance(config, txs, accId) {
+  const acc = config.accounts.find((a) => a.id === accId);
+  const init = acc ? acc.initialBalance || 0 : 0;
+  return init + txs.filter((t) => t.accountId === accId)
+    .reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+}
+function grandTotal(config, txs) {
+  const init = config.accounts.reduce((s, a) => s + (a.initialBalance || 0), 0);
+  return init + txs.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+}
+
+/* Para estadísticas: separa entre movimientos reales (afectan ingresos/gastos)
+   y pass-through (dinero de paso). Los pass-through con el mismo groupId
+   forman un grupo: sumamos ingresos del grupo, restamos gastos del grupo,
+   la diferencia se cuenta como ingreso/gasto real (la "propina" o "lo que pusiste").
+   Soporta cualquier combinación: 1-1, 1-n, n-1, n-m. */
+function statTxs(txs) {
+  const real = [];
+  const synthetic = [];
+  const used = new Set();
+  // 1. agrupar pass-through por groupId
+  const groups = new Map();
+  for (const t of txs) {
+    if (!t.passThrough) { real.push(t); continue; }
+    if (!t.groupId) { used.add(t.id); continue; } // pass-through sin grupo → ignorar en stats
+    if (!groups.has(t.groupId)) groups.set(t.groupId, []);
+    groups.get(t.groupId).push(t);
+  }
+  // 2. para cada grupo: sumar ingresos vs gastos
+  for (const [gid, members] of groups) {
+    let totalIn = 0, totalOut = 0;
+    members.forEach((m) => {
+      used.add(m.id);
+      if (m.type === "income") totalIn += m.amount;
+      else totalOut += m.amount;
+    });
+    const diff = totalIn - totalOut;
+    if (Math.abs(diff) < 0.01) continue;
+    // fecha del sintético: la más reciente del grupo
+    const latest = members.reduce((a, b) => (a.date >= b.date ? a : b));
+    // descripción del sintético: tomar la de algún miembro
+    const sampleDesc = members.find((m) => m.description)?.description || "reembolso";
+    synthetic.push({
+      id: "synth-" + gid,
+      type: diff >= 0 ? "income" : "expense",
+      amount: Math.abs(diff),
+      description: `Diferencia neta · ${sampleDesc}`,
+      categoryId: null,
+      accountId: members[0].accountId,
+      date: latest.date,
+    });
+  }
+  return { real, synthetic, all: [...real, ...synthetic] };
+}
+
+/* ===================== RANGO TEMPORAL GLOBAL ============================ */
+/* El rango global vive en config.dateRange con forma:
+     { preset: "today"|"week"|"month"|"last-month"|"3m"|"6m"|"year"|"last-year"|"all"|"custom",
+       from?: "YYYY-MM-DD", to?: "YYYY-MM-DD" }
+   Si preset !== "custom", from/to se calculan dinámicamente con resolveRange().
+*/
+const DEFAULT_RANGE = { preset: "month" };
+
+function resolveRange(range) {
+  const r = range || DEFAULT_RANGE;
+  const t = today();
+  const td = new Date(t + "T12:00:00");
+  const iso = (d) => d.toISOString().slice(0, 10);
+  function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1, 12); }
+  function lastOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0, 12); }
+  switch (r.preset) {
+    case "today": return { from: t, to: t };
+    case "week": {
+      const dow = td.getDay();
+      const monOff = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(td); mon.setDate(mon.getDate() + monOff);
+      const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+      return { from: iso(mon), to: iso(sun) };
+    }
+    case "month": return { from: iso(firstOfMonth(td)), to: t };
+    case "last-month": {
+      const prev = new Date(td.getFullYear(), td.getMonth() - 1, 15, 12);
+      return { from: iso(firstOfMonth(prev)), to: iso(lastOfMonth(prev)) };
+    }
+    case "3m": {
+      const start = new Date(td.getFullYear(), td.getMonth() - 2, 1, 12);
+      return { from: iso(start), to: t };
+    }
+    case "6m": {
+      const start = new Date(td.getFullYear(), td.getMonth() - 5, 1, 12);
+      return { from: iso(start), to: t };
+    }
+    case "year": return { from: `${td.getFullYear()}-01-01`, to: t };
+    case "last-year": {
+      const y = td.getFullYear() - 1;
+      return { from: `${y}-01-01`, to: `${y}-12-31` };
+    }
+    case "all": return { from: "1970-01-01", to: t };
+    case "custom":
+      return { from: r.from || t, to: r.to || t };
+    default: return { from: iso(firstOfMonth(td)), to: t };
+  }
+}
+
+function rangeLabel(range) {
+  const r = range || DEFAULT_RANGE;
+  if (r.preset === "today") return "Hoy";
+  if (r.preset === "week") return "Esta semana";
+  if (r.preset === "month") return "Este mes";
+  if (r.preset === "last-month") return "Mes pasado";
+  if (r.preset === "3m") return "Últimos 3 meses";
+  if (r.preset === "6m") return "Últimos 6 meses";
+  if (r.preset === "year") return "Este año";
+  if (r.preset === "last-year") return "Año pasado";
+  if (r.preset === "all") return "Todo el historial";
+  // custom
+  const { from, to } = resolveRange(r);
+  if (from === to) return prettyDate(from);
+  return `${prettyDate(from)} – ${prettyDate(to)}`;
+}
+
+function prettyDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  const M = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${d} ${M[m - 1]} ${y}`;
+}
+
+/* filtra txs según rango (los movimientos fuera del rango se omiten) */
+function txsInRange(txs, range) {
+  const { from, to } = resolveRange(range);
+  return txs.filter((t) => t.date >= from && t.date <= to);
+}
+
+/* elige granularidad sensata según el ancho del rango */
+function rangeGranularity(range) {
+  const { from, to } = resolveRange(range);
+  const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000) + 1);
+  if (days <= 14) return "day";
+  if (days <= 92) return "week";
+  if (days <= 730) return "month";
+  return "month";
+}
+
+/* convierte una spec de gráfica del asistente en el payload que consume MiniChart */
+function buildChart(spec, config, txs) {
+  /* spec esperada del asistente:
+     { kind: "line"|"bars"|"pie",
+       title?: "string",
+       groupBy: "day"|"week"|"month"|"category"|"account",
+       metric: "income"|"expense"|"both"|"net"|"expense_by_category",
+       dateFrom: "YYYY-MM-DD", dateTo: "YYYY-MM-DD",
+       accountId?: "..." | null,
+       includePassThrough?: false  // default false }
+  */
+  if (!spec || !spec.kind) return null;
+  const kind = spec.kind;
+  const includePT = !!spec.includePassThrough;
+  const metric = spec.metric || "both";
+  const groupBy = spec.groupBy || "month";
+  // rango por defecto: mes actual
+  let dateFrom = spec.dateFrom || today().slice(0, 7) + "-01";
+  let dateTo = spec.dateTo || today();
+  if (dateFrom > dateTo) { const tmp = dateFrom; dateFrom = dateTo; dateTo = tmp; }
+
+  // filtrar
+  let pool = txs.filter((t) => t.date >= dateFrom && t.date <= dateTo);
+  if (spec.accountId) pool = pool.filter((t) => t.accountId === spec.accountId);
+  // aplicar statTxs (excluye pass-through, agrega diferencias netas)
+  pool = includePT ? pool : statTxs(pool).all;
+
+  // helpers de buckets
+  const buckets = [];
+  if (groupBy === "day") {
+    const d0 = new Date(dateFrom + "T12:00:00");
+    const d1 = new Date(dateTo + "T12:00:00");
+    for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().slice(0, 10);
+      buckets.push({ key: k, label: `${d.getDate()}` });
+    }
+  } else if (groupBy === "week") {
+    // semanas lunes-domingo
+    const d0 = new Date(dateFrom + "T12:00:00");
+    const d1 = new Date(dateTo + "T12:00:00");
+    const startMon = new Date(d0);
+    const dow = startMon.getDay(); // 0 dom, 1 lun
+    const offset = (dow === 0 ? -6 : 1 - dow);
+    startMon.setDate(startMon.getDate() + offset);
+    let n = 1;
+    for (let s = new Date(startMon); s <= d1; s.setDate(s.getDate() + 7)) {
+      const end = new Date(s); end.setDate(end.getDate() + 6);
+      buckets.push({
+        key: s.toISOString().slice(0, 10) + "..." + end.toISOString().slice(0, 10),
+        label: `S${n}`,
+        startISO: s.toISOString().slice(0, 10),
+        endISO: end.toISOString().slice(0, 10),
+      });
+      n++;
+    }
+  } else if (groupBy === "month") {
+    const [y0, m0] = dateFrom.split("-").map(Number);
+    const [y1, m1] = dateTo.split("-").map(Number);
+    let y = y0, m = m0;
+    const MNAMES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    while (y < y1 || (y === y1 && m <= m1)) {
+      buckets.push({ key: `${y}-${String(m).padStart(2, "0")}`, label: MNAMES[m - 1] });
+      m++; if (m > 12) { m = 1; y++; }
+    }
+  }
+
+  function bucketOf(date) {
+    if (groupBy === "day") return date;
+    if (groupBy === "month") return date.slice(0, 7);
+    if (groupBy === "week") {
+      const b = buckets.find((b) => date >= b.startISO && date <= b.endISO);
+      return b ? b.key : null;
+    }
+    return null;
+  }
+
+  // ===== gráfica de pastel: gastos por categoría =====
+  if (kind === "pie" || metric === "expense_by_category") {
+    const byCat = {};
+    pool.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    });
+    const segments = Object.entries(byCat)
+      .map(([id, value]) => {
+        const c = config.categories.find((x) => x.id === id);
+        return { label: c ? `${c.emoji} ${c.name}` : "Sin categoría", value };
+      })
+      .sort((a, b) => b.value - a.value);
+    return { kind: "pie", title: spec.title || "Gastos por categoría", segments };
+  }
+
+  // ===== series temporales (line/bars) =====
+  if (groupBy === "category") {
+    // barras por categoría
+    const byCat = {};
+    pool.filter((t) => t.type === (metric === "income" ? "income" : "expense") && t.categoryId).forEach((t) => {
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    });
+    const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const xLabels = sorted.map(([id]) => {
+      const c = config.categories.find((x) => x.id === id);
+      return c ? c.name : "—";
+    });
+    const values = sorted.map(([, v]) => v);
+    return {
+      kind: kind === "line" ? "bars" : kind, // forzar barras para categorías
+      title: spec.title || (metric === "income" ? "Ingresos por categoría" : "Gastos por categoría"),
+      xLabels,
+      series: [{ name: metric === "income" ? "Ingresos" : "Gastos", color: metric === "income" ? "#2E6F4E" : "#B8482A", values }],
+    };
+  }
+
+  // por tiempo
+  const incValues = buckets.map(() => 0);
+  const expValues = buckets.map(() => 0);
+  const netValues = buckets.map(() => 0);
+  for (const t of pool) {
+    const bk = bucketOf(t.date);
+    if (!bk) continue;
+    const idx = buckets.findIndex((b) => b.key === bk);
+    if (idx < 0) continue;
+    if (t.type === "income") { incValues[idx] += t.amount; netValues[idx] += t.amount; }
+    else { expValues[idx] += t.amount; netValues[idx] -= t.amount; }
+  }
+
+  const xLabels = buckets.map((b) => b.label);
+  let series = [];
+  if (metric === "income") series = [{ name: "Ingresos", color: "#2E6F4E", values: incValues }];
+  else if (metric === "expense") series = [{ name: "Gastos", color: "#B8482A", values: expValues }];
+  else if (metric === "net") series = [{ name: "Flujo neto", color: "#B0863A", values: netValues }];
+  else series = [
+    { name: "Ingresos", color: "#2E6F4E", values: incValues },
+    { name: "Gastos", color: "#B8482A", values: expValues },
+  ];
+
+  const titleMap = {
+    day: "por día", week: "por semana", month: "por mes",
+  };
+  const defaultTitle = spec.title
+    || (metric === "net" ? `Flujo neto ${titleMap[groupBy] || ""}` : `Ingresos vs gastos ${titleMap[groupBy] || ""}`);
+
+  return { kind, title: defaultTitle.trim(), xLabels, series };
+}
+
+/* buscar categoría / cuenta por id o por nombre */
+function findCat(config, ref, accountId) {
+  if (ref == null) return null;
+  const r = norm(String(ref)).trim();
+  const byId = config.categories.find((c) => c.id === ref);
+  if (byId) return byId;
+  const pool = accountId ? config.categories.filter((c) => c.accountId === accountId) : config.categories;
+  return pool.find((c) => norm(c.name).trim() === r)
+    || pool.find((c) => norm(c.name).includes(r) && r.length >= 3) || null;
+}
+function findAcc(config, ref) {
+  if (ref == null) return null;
+  const r = norm(String(ref)).trim();
+  return config.accounts.find((a) => a.id === ref)
+    || config.accounts.find((a) => norm(a.name).trim() === r)
+    || config.accounts.find((a) => norm(a.name).includes(r) && r.length >= 3) || null;
+}
+
+/* ========================== RECURRENCIAS ================================
+   config.recurring = [
+     {
+       id, type:"income"|"expense", amount, description,
+       categoryId, accountId,
+       freq:"daily"|"weekly"|"biweekly"|"monthly"|"yearly",
+       dayOfMonth?:number (para monthly/yearly, 1-31),
+       month?:number (para yearly, 1-12),
+       daysOfWeek?:[0..6] (para weekly: 0=domingo),
+       startDate:"YYYY-MM-DD",
+       endDate?:"YYYY-MM-DD",
+       paused?:boolean,
+       lastRunDate?:"YYYY-MM-DD" (última fecha cubierta — incluida)
+     }
+   ]
+   Cada movimiento generado por una recurrencia tiene t.fromRecurring = <id> */
+
+function dateKeyDaysAfter(iso, n) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/* todas las fechas en las que la recurrencia debe ejecutarse desde "fromDate" hasta "toDate" inclusivo */
+function recurringDatesBetween(rule, fromDate, toDate) {
+  const dates = [];
+  if (!rule || !rule.startDate) return dates;
+  const start = rule.startDate;
+  const end = rule.endDate || toDate;
+  // Empezar desde el día siguiente a lastRunDate, o desde startDate si nunca corrió
+  let cursor = rule.lastRunDate ? dateKeyDaysAfter(rule.lastRunDate, 1) : start;
+  if (cursor < start) cursor = start;
+  const realEnd = end < toDate ? end : toDate;
+  // safety: limita a 365 días por procesado para no colgarse
+  let safety = 0;
+  while (cursor <= realEnd && safety < 800) {
+    const d = new Date(cursor + "T12:00:00");
+    let matches = false;
+    if (rule.freq === "daily") matches = true;
+    else if (rule.freq === "weekly") {
+      const dow = d.getDay();
+      const days = Array.isArray(rule.daysOfWeek) && rule.daysOfWeek.length ? rule.daysOfWeek : [new Date(start + "T12:00:00").getDay()];
+      matches = days.includes(dow);
+    }
+    else if (rule.freq === "biweekly") {
+      const startD = new Date(start + "T12:00:00");
+      const diff = Math.round((d - startD) / 86400000);
+      matches = diff >= 0 && diff % 14 === 0;
+    }
+    else if (rule.freq === "monthly") {
+      const dom = rule.dayOfMonth || new Date(start + "T12:00:00").getDate();
+      // si dom > último día del mes, usar último día
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const targetDom = Math.min(dom, lastDay);
+      matches = d.getDate() === targetDom;
+    }
+    else if (rule.freq === "yearly") {
+      const startD = new Date(start + "T12:00:00");
+      const mon = (rule.month || (startD.getMonth() + 1)) - 1;
+      const dom = rule.dayOfMonth || startD.getDate();
+      matches = d.getMonth() === mon && d.getDate() === dom;
+    }
+    if (matches) dates.push(cursor);
+    cursor = dateKeyDaysAfter(cursor, 1);
+    safety++;
+  }
+  return dates;
+}
+
+/* Procesar todas las recurrencias activas. Devuelve { config, txs, generated } */
+function processRecurring(config, txs) {
+  const rules = Array.isArray(config.recurring) ? config.recurring : [];
+  if (!rules.length) return { config, txs, generated: 0 };
+  const todayK = today();
+  const newTxs = [];
+  const updatedRules = rules.map((rule) => {
+    if (rule.paused) return rule;
+    if (!rule.amount || !rule.accountId) return rule;
+    // si la categoría ya no existe o no pertenece a la cuenta, dejar null
+    let categoryId = rule.categoryId;
+    const cat = config.categories.find((c) => c.id === categoryId);
+    if (!cat || cat.accountId !== rule.accountId) categoryId = null;
+
+    const fires = recurringDatesBetween(rule, rule.startDate, todayK);
+    if (!fires.length) return rule;
+    fires.forEach((date) => {
+      newTxs.push({
+        id: uid(),
+        type: rule.type || "expense",
+        amount: Number(rule.amount) || 0,
+        description: rule.description || "(recurrencia)",
+        categoryId,
+        accountId: rule.accountId,
+        date,
+        fromRecurring: rule.id,
+      });
+    });
+    return { ...rule, lastRunDate: fires[fires.length - 1] };
+  });
+  if (!newTxs.length) return { config, txs, generated: 0 };
+  return {
+    config: { ...config, recurring: updatedRules },
+    txs: [...newTxs, ...txs],
+    generated: newTxs.length,
+  };
+}
+
+/* aplicar las acciones que devuelve el asistente */
+function applyActions(config0, txs0, actions) {
+  let config = { ...config0, categories: [...config0.categories], accounts: [...config0.accounts] };
+  let txs = [...txs0];
+  const log = [];
+  const ok = (text) => log.push({ ok: true, text });
+  const no = (text) => log.push({ ok: false, text });
+
+  for (const a of Array.isArray(actions) ? actions : []) {
+    if (!a || !a.type) continue;
+    try {
+      if (a.type === "add_category") {
+        const ac = findAcc(config, a.accountId ?? a.accountName) || config.accounts[0];
+        const seed = SEED_KW[norm(a.name || "").trim()];
+        config = { ...config, categories: [...config.categories, {
+          id: uid(), name: a.name || "Categoría", emoji: a.emoji || "📦",
+          type: a.categoryType === "income" ? "income" : "expense",
+          accountId: ac ? ac.id : null, keywords: seed ? [...seed] : [],
+        }] };
+        ok(`Categoría creada en ${ac ? ac.name : "?"}: ${a.emoji || "📦"} ${a.name || ""}`);
+
+      } else if (a.type === "remove_category") {
+        const c = findCat(config, a.id ?? a.name, findAcc(config, a.accountId ?? a.accountName)?.id);
+        if (c) { config = { ...config, categories: config.categories.filter((x) => x.id !== c.id) }; ok(`Categoría eliminada: ${c.name}`); }
+        else no(`No encontré la categoría «${a.name ?? a.id}»`);
+
+      } else if (a.type === "edit_category") {
+        const c = findCat(config, a.id ?? a.name, findAcc(config, a.accountId ?? a.accountName)?.id);
+        if (c) {
+          const u = { ...c };
+          if (a.newName) u.name = a.newName;
+          if (a.newEmoji) u.emoji = a.newEmoji;
+          if (a.newType) u.type = a.newType === "income" ? "income" : "expense";
+          config = { ...config, categories: config.categories.map((x) => x.id === c.id ? u : x) };
+          ok(`Categoría actualizada: ${u.emoji} ${u.name}`);
+        } else no(`No encontré la categoría «${a.name ?? a.id}»`);
+
+      } else if (a.type === "set_account_categories") {
+        const ac = findAcc(config, a.accountId ?? a.accountName);
+        const incoming = Array.isArray(a.categories) ? a.categories : [];
+        if (!ac) no(`No encontré la cuenta «${a.accountName ?? a.accountId}»`);
+        else if (!incoming.length) no(`No me diste las categorías para «${ac.name}»`);
+        else {
+          const ofAcc = config.categories.filter((c) => c.accountId === ac.id);
+          const oldExpense = ofAcc.filter((c) => c.type === "expense");
+          const keepIncome = ofAcc.filter((c) => c.type === "income");
+          const newExpense = incoming.map((it) => {
+            const nm = (it.name || "Categoría").trim();
+            const prev = oldExpense.find((c) => norm(c.name).trim() === norm(nm).trim());
+            const seed = SEED_KW[norm(nm).trim()];
+            return {
+              id: uid(), name: nm, emoji: it.emoji || (prev ? prev.emoji : "📦"),
+              type: "expense", accountId: ac.id,
+              keywords: prev ? [...(prev.keywords || [])] : (seed ? [...seed] : []),
+            };
+          });
+          // remapear movimientos por nombre para no perder historial
+          const nameToNew = {};
+          newExpense.forEach((c) => { nameToNew[norm(c.name).trim()] = c.id; });
+          txs = txs.map((t) => {
+            const oc = oldExpense.find((c) => c.id === t.categoryId);
+            if (!oc) return t;
+            const nid = nameToNew[norm(oc.name).trim()];
+            return { ...t, categoryId: nid || null };
+          });
+          const others = config.categories.filter((c) => c.accountId !== ac.id);
+          config = { ...config, categories: [...others, ...keepIncome, ...newExpense] };
+          ok(`Categorías de gasto de ${ac.name} actualizadas (${newExpense.length})`);
+        }
+
+      } else if (a.type === "add_account") {
+        const nid = uid();
+        config = {
+          ...config,
+          accounts: [...config.accounts, { id: nid, name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0 }],
+          categories: [...config.categories, ...defaultCatsForAccount(nid)],
+          accountMode: "multiple",
+        };
+        ok(`Cuenta creada: ${a.name || ""} (saldo inicial ${fmt(Number(a.initialBalance) || 0)})`);
+
+      } else if (a.type === "remove_account") {
+        const ac = findAcc(config, a.id ?? a.name);
+        if (!ac) no(`No encontré la cuenta «${a.name ?? a.id}»`);
+        else if (config.accounts.length <= 1) no(`No puedo eliminar la única cuenta.`);
+        else {
+          config = {
+            ...config,
+            accounts: config.accounts.filter((x) => x.id !== ac.id),
+            categories: config.categories.filter((c) => c.accountId !== ac.id),
+          };
+          config.accountMode = config.accounts.length > 1 ? "multiple" : "single";
+          ok(`Cuenta eliminada: ${ac.name}`);
+        }
+
+      } else if (a.type === "edit_account") {
+        const ac = findAcc(config, a.id ?? a.name);
+        if (ac) {
+          const u = { ...ac };
+          if (a.newName) u.name = a.newName;
+          if (a.newInitialBalance != null) u.initialBalance = Number(a.newInitialBalance) || 0;
+          config = { ...config, accounts: config.accounts.map((x) => x.id === ac.id ? u : x) };
+          ok(`Cuenta actualizada: ${u.name}`);
+        } else no(`No encontré la cuenta «${a.name ?? a.id}»`);
+
+      } else if (a.type === "add_transaction") {
+        const ac = findAcc(config, a.accountName) || config.accounts[0];
+        const c = findCat(config, a.categoryName, ac ? ac.id : null);
+        const tx = {
+          id: uid(), type: a.txType === "income" ? "income" : "expense",
+          amount: Math.abs(Number(a.amount) || 0), description: a.description || "",
+          categoryId: c ? c.id : null, accountId: ac ? ac.id : null, date: a.date || today(),
+          passThrough: !!a.passThrough, linkedTxId: a.linkedTxId || null,
+        };
+        txs = [tx, ...txs];
+        ok(`${tx.type === "income" ? "Ingreso" : "Gasto"}${tx.passThrough ? " (de paso)" : ""} registrado: ${tx.description || (c ? c.name : "")} · ${fmt(tx.amount)}`);
+
+      } else if (a.type === "delete_transaction") {
+        const t = txs.find((x) => x.id === a.id);
+        if (t) { txs = txs.filter((x) => x.id !== a.id); ok(`Movimiento eliminado: ${t.description || fmt(t.amount)}`); }
+        else no(`No encontré ese movimiento`);
+
+      } else if (a.type === "edit_transaction") {
+        const t = txs.find((x) => x.id === a.id);
+        if (t) {
+          const u = { ...t };
+          if (a.amount != null) u.amount = Math.abs(Number(a.amount) || 0);
+          if (a.description != null) u.description = a.description;
+          if (a.txType) u.type = a.txType === "income" ? "income" : "expense";
+          if (a.date) u.date = a.date;
+          if (a.accountName) { const ac = findAcc(config, a.accountName); if (ac) u.accountId = ac.id; }
+          if (a.categoryName) { const c = findCat(config, a.categoryName, u.accountId); if (c) u.categoryId = c.id; }
+          if (a.passThrough != null) u.passThrough = !!a.passThrough;
+          if (a.linkedTxId !== undefined) u.linkedTxId = a.linkedTxId || null;
+          txs = txs.map((x) => x.id === t.id ? u : x);
+          ok(`Movimiento actualizado: ${u.description || fmt(u.amount)}`);
+        } else no(`No encontré ese movimiento`);
+
+      } else if (a.type === "mark_passthrough") {
+        // marca uno o dos movimientos como "no real" y opcionalmente los vincula
+        const ids = Array.isArray(a.ids) ? a.ids : (a.id ? [a.id] : []);
+        const found = ids.map((id) => txs.find((x) => x.id === id)).filter(Boolean);
+        if (!found.length) { no(`No encontré los movimientos a marcar como dinero de paso`); }
+        else {
+          // si son exactamente 2 y son de tipos opuestos, vincularlos
+          let linkA = null, linkB = null;
+          if (found.length === 2 && found[0].type !== found[1].type) {
+            linkA = found[0].id; linkB = found[1].id;
+          }
+          const updates = new Map();
+          found.forEach((t) => {
+            const u = { ...t, passThrough: true };
+            if (linkA && linkB) u.linkedTxId = t.id === linkA ? linkB : linkA;
+            updates.set(t.id, u);
+          });
+          txs = txs.map((x) => updates.has(x.id) ? updates.get(x.id) : x);
+          if (linkA && linkB) {
+            const inc = found.find((t) => t.type === "income");
+            const exp = found.find((t) => t.type === "expense");
+            const diff = (inc?.amount || 0) - (exp?.amount || 0);
+            const note = Math.abs(diff) < 0.01 ? "Sin diferencia neta"
+              : diff > 0 ? `Ganancia neta: ${fmt(diff)}` : `Pusiste de tu bolsa: ${fmt(Math.abs(diff))}`;
+            ok(`Vinculados como reembolso: ${inc?.description || fmt(inc?.amount || 0)} ↔ ${exp?.description || fmt(exp?.amount || 0)}. ${note}`);
+          } else {
+            found.forEach((t) => ok(`Marcado como dinero de paso: ${t.description || fmt(t.amount)}`));
+          }
+        }
+
+      } else if (a.type === "unmark_passthrough") {
+        const ids = Array.isArray(a.ids) ? a.ids : (a.id ? [a.id] : []);
+        const targets = ids.map((id) => txs.find((x) => x.id === id)).filter(Boolean);
+        if (!targets.length) { no(`No encontré los movimientos a desmarcar`); }
+        else {
+          const setIds = new Set();
+          targets.forEach((t) => {
+            setIds.add(t.id);
+            if (t.linkedTxId) setIds.add(t.linkedTxId);
+          });
+          txs = txs.map((x) => setIds.has(x.id) ? { ...x, passThrough: false, linkedTxId: null } : x);
+          ok(`Desmarcados ${setIds.size} movimiento${setIds.size === 1 ? "" : "s"} (vuelven a contar como reales)`);
+        }
+
+      /* ============== RECURRENCIAS ============== */
+      } else if (a.type === "add_recurring") {
+        const ac = findAcc(config, a.accountId ?? a.accountName);
+        if (!ac) { no(`No encontré la cuenta «${a.accountName ?? a.accountId}»`); }
+        else {
+          const cat = a.categoryName || a.categoryId
+            ? findCat(config, a.categoryId ?? a.categoryName, ac.id)
+            : null;
+          const validFreqs = ["daily","weekly","biweekly","monthly","yearly"];
+          const freq = validFreqs.includes(a.freq) ? a.freq : "monthly";
+          const rule = {
+            id: uid(),
+            type: a.txType === "income" ? "income" : "expense",
+            amount: Number(a.amount) || 0,
+            description: a.description || "",
+            categoryId: cat ? cat.id : null,
+            accountId: ac.id,
+            freq,
+            dayOfMonth: a.dayOfMonth != null ? Number(a.dayOfMonth) : undefined,
+            month: a.month != null ? Number(a.month) : undefined,
+            daysOfWeek: Array.isArray(a.daysOfWeek) ? a.daysOfWeek.map(Number) : undefined,
+            startDate: a.startDate || today(),
+            endDate: a.endDate || undefined,
+            paused: false,
+          };
+          config = { ...config, recurring: [...(config.recurring || []), rule] };
+          // ejecutar de inmediato lo pendiente
+          const r = processRecurring(config, txs);
+          config = r.config; txs = r.txs;
+          const freqLabel = { daily: "diaria", weekly: "semanal", biweekly: "quincenal", monthly: "mensual", yearly: "anual" }[freq];
+          ok(`Recurrencia ${freqLabel} creada: ${rule.type === "income" ? "+" : "−"}$${rule.amount} en ${ac.name}${r.generated > 0 ? ` (se aplicaron ${r.generated} de inmediato)` : ""}`);
+        }
+
+      } else if (a.type === "edit_recurring") {
+        const rules = config.recurring || [];
+        const rule = rules.find((r) => r.id === a.id);
+        if (!rule) { no(`No encontré la recurrencia con id ${a.id}`); }
+        else {
+          const u = { ...rule };
+          if (a.amount != null) u.amount = Number(a.amount);
+          if (a.description != null) u.description = a.description;
+          if (a.txType) u.type = a.txType === "income" ? "income" : "expense";
+          if (a.freq) u.freq = a.freq;
+          if (a.dayOfMonth != null) u.dayOfMonth = Number(a.dayOfMonth);
+          if (a.month != null) u.month = Number(a.month);
+          if (Array.isArray(a.daysOfWeek)) u.daysOfWeek = a.daysOfWeek.map(Number);
+          if (a.startDate) u.startDate = a.startDate;
+          if (a.endDate !== undefined) u.endDate = a.endDate || undefined;
+          if (a.accountId || a.accountName) {
+            const ac = findAcc(config, a.accountId ?? a.accountName);
+            if (ac) u.accountId = ac.id;
+          }
+          if (a.categoryId || a.categoryName) {
+            const cat = findCat(config, a.categoryId ?? a.categoryName, u.accountId);
+            if (cat) u.categoryId = cat.id;
+          }
+          config = { ...config, recurring: rules.map((r) => r.id === u.id ? u : r) };
+          ok(`Recurrencia actualizada`);
+        }
+
+      } else if (a.type === "delete_recurring") {
+        const rules = config.recurring || [];
+        const before = rules.length;
+        const newRules = rules.filter((r) => r.id !== a.id);
+        if (newRules.length === before) { no(`No encontré esa recurrencia`); }
+        else {
+          config = { ...config, recurring: newRules };
+          // borrar también los movimientos ya generados, si el usuario lo pide explícito
+          if (a.alsoDeleteGenerated) {
+            const removed = txs.filter((t) => t.fromRecurring === a.id).length;
+            txs = txs.filter((t) => t.fromRecurring !== a.id);
+            ok(`Recurrencia eliminada y ${removed} movimientos generados también borrados`);
+          } else {
+            ok(`Recurrencia eliminada (los movimientos ya generados se mantienen)`);
+          }
+        }
+
+      } else if (a.type === "pause_recurring") {
+        const rules = config.recurring || [];
+        const rule = rules.find((r) => r.id === a.id);
+        if (!rule) { no(`No encontré esa recurrencia`); }
+        else {
+          config = { ...config, recurring: rules.map((r) => r.id === a.id ? { ...r, paused: true } : r) };
+          ok(`Recurrencia pausada`);
+        }
+
+      } else if (a.type === "resume_recurring") {
+        const rules = config.recurring || [];
+        const rule = rules.find((r) => r.id === a.id);
+        if (!rule) { no(`No encontré esa recurrencia`); }
+        else {
+          config = { ...config, recurring: rules.map((r) => r.id === a.id ? { ...r, paused: false } : r) };
+          // procesar lo pendiente
+          const r2 = processRecurring(config, txs);
+          config = r2.config; txs = r2.txs;
+          ok(`Recurrencia reanudada${r2.generated > 0 ? ` (se aplicaron ${r2.generated} movimientos pendientes)` : ""}`);
+        }
+
+      /* ============== ACCIONES MASIVAS (BULK) ============== */
+      } else if (a.type === "bulk_edit_category") {
+        // re-categoriza muchos movimientos. Filtros opcionales: ids, fromCategoryId, accountId, keyword, fromDate, toDate
+        const ac = a.accountId || a.accountName ? findAcc(config, a.accountId ?? a.accountName) : null;
+        const targetCat = findCat(config, a.toCategoryId ?? a.toCategoryName, ac?.id);
+        if (!targetCat) { no(`No encontré la categoría destino «${a.toCategoryName ?? a.toCategoryId}»`); }
+        else {
+          const fromCat = a.fromCategoryId || a.fromCategoryName ? findCat(config, a.fromCategoryId ?? a.fromCategoryName, ac?.id) : null;
+          const ids = Array.isArray(a.ids) ? new Set(a.ids) : null;
+          const kw = a.keyword ? norm(a.keyword) : null;
+          let touched = 0;
+          txs = txs.map((t) => {
+            if (ids && !ids.has(t.id)) return t;
+            if (!ids && ac && t.accountId !== ac.id) return t;
+            if (!ids && fromCat && t.categoryId !== fromCat.id) return t;
+            if (!ids && kw && !norm(t.description || "").includes(kw)) return t;
+            if (!ids && a.fromDate && t.date < a.fromDate) return t;
+            if (!ids && a.toDate && t.date > a.toDate) return t;
+            if (t.categoryId === targetCat.id) return t;
+            touched++;
+            return { ...t, categoryId: targetCat.id };
+          });
+          if (touched > 0) ok(`Re-categorizados ${touched} movimientos a ${targetCat.emoji} ${targetCat.name}`);
+          else no(`No encontré movimientos que coincidan con los filtros`);
+        }
+
+      } else if (a.type === "bulk_delete") {
+        const ids = Array.isArray(a.ids) ? new Set(a.ids) : null;
+        const ac = a.accountId || a.accountName ? findAcc(config, a.accountId ?? a.accountName) : null;
+        const fromCat = a.categoryId || a.categoryName ? findCat(config, a.categoryId ?? a.categoryName, ac?.id) : null;
+        const kw = a.keyword ? norm(a.keyword) : null;
+        const before = txs.length;
+        txs = txs.filter((t) => {
+          if (ids) return !ids.has(t.id);
+          // criterios combinables
+          let match = true;
+          if (ac && t.accountId !== ac.id) match = false;
+          if (fromCat && t.categoryId !== fromCat.id) match = false;
+          if (kw && !norm(t.description || "").includes(kw)) match = false;
+          if (a.fromDate && t.date < a.fromDate) match = false;
+          if (a.toDate && t.date > a.toDate) match = false;
+          if (a.txType && t.type !== a.txType) match = false;
+          return !match;  // si NO matchea todos los filtros, se conserva
+        });
+        const removed = before - txs.length;
+        if (removed > 0) ok(`Eliminados ${removed} movimientos`);
+        else no(`No encontré movimientos que coincidan con los filtros`);
+
+      } else if (a.type === "bulk_move_account") {
+        const target = findAcc(config, a.toAccountId ?? a.toAccountName);
+        if (!target) { no(`No encontré la cuenta destino`); }
+        else {
+          const ids = Array.isArray(a.ids) ? new Set(a.ids) : null;
+          const fromAc = a.fromAccountId || a.fromAccountName ? findAcc(config, a.fromAccountId ?? a.fromAccountName) : null;
+          const kw = a.keyword ? norm(a.keyword) : null;
+          let touched = 0;
+          txs = txs.map((t) => {
+            let match = true;
+            if (ids) match = ids.has(t.id);
+            else {
+              if (fromAc && t.accountId !== fromAc.id) match = false;
+              if (kw && !norm(t.description || "").includes(kw)) match = false;
+              if (a.fromDate && t.date < a.fromDate) match = false;
+              if (a.toDate && t.date > a.toDate) match = false;
+            }
+            if (!match) return t;
+            if (t.accountId === target.id) return t;
+            touched++;
+            // al mover de cuenta, la categoría ya no aplica (pertenece a otra cuenta)
+            return { ...t, accountId: target.id, categoryId: null };
+          });
+          if (touched > 0) ok(`Movidos ${touched} movimientos a ${target.name} (su categoría se reinició)`);
+          else no(`No encontré movimientos que coincidan`);
+        }
+
+      /* ============== CONFIGURACIÓN ============== */
+      } else if (a.type === "set_date_range") {
+        const validPresets = ["today","week","month","last-month","3m","6m","year","last-year","all","custom"];
+        const preset = validPresets.includes(a.preset) ? a.preset : "month";
+        const newRange = preset === "custom"
+          ? { preset: "custom", from: a.from || today(), to: a.to || today() }
+          : { preset };
+        config = { ...config, dateRange: newRange };
+        ok(`Rango cambiado a: ${rangeLabel(newRange)}`);
+
+      } else {
+        no(`Acción no reconocida: ${a.type}`);
+      }
+    } catch (e) {
+      no(`Hubo un error aplicando un cambio.`);
+    }
+  }
+  return { config, txs, log };
+}
+
+/* system prompt del asistente, con el estado actual de la app */
+function assistantSystem(config, txs) {
+  const cuentas = config.accounts.map((a) => ({
+    id: a.id, nombre: a.name, saldoInicial: a.initialBalance || 0, saldoActual: accountBalance(config, txs, a.id),
+    categorias: config.categories.filter((c) => c.accountId === a.id)
+      .map((c) => ({ id: c.id, nombre: c.name, emoji: c.emoji, tipo: c.type })),
+  }));
+  // hasta 100 movimientos recientes (de los más nuevos)
+  const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+  const recent = sorted.slice(0, 100).map((t) => ({
+    id: t.id, tipo: t.type, monto: t.amount, concepto: t.description,
+    categoria: (config.categories.find((c) => c.id === t.categoryId) || {}).name || null,
+    cuenta: (config.accounts.find((a) => a.id === t.accountId) || {}).name || null, fecha: t.date,
+    dineroDePaso: !!t.passThrough,
+    vinculadoCon: t.linkedTxId || null,
+    deRecurrencia: t.fromRecurring || null,
+  }));
+
+  /* ============ AGREGADOS PRE-CALCULADOS ============ */
+  // rango activo del usuario
+  const range = config.dateRange || DEFAULT_RANGE;
+  const { from: rangeFrom, to: rangeTo } = resolveRange(range);
+  const rangeTxs = txsInRange(txs, range);
+  const rangeStat = statTxs(rangeTxs).all;
+  const rangeIncome = rangeStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const rangeExpense = rangeStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  // top categorías de gasto e ingreso en el rango
+  const expByCat = {}, incByCat = {};
+  rangeStat.forEach((t) => {
+    if (!t.categoryId) return;
+    if (t.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
+    else incByCat[t.categoryId] = (incByCat[t.categoryId] || 0) + t.amount;
+  });
+  const topRows = (obj) => Object.entries(obj)
+    .map(([id, amt]) => {
+      const c = config.categories.find((x) => x.id === id);
+      return c ? { categoria: c.name, monto: amt } : null;
+    }).filter(Boolean).sort((a, b) => b.monto - a.monto).slice(0, 8);
+
+  // saldo neto histórico
+  const saldoNeto = config.accounts.reduce((s, a) => s + accountBalance(config, txs, a.id), 0);
+
+  // por mes (últimos 6 meses) para comparaciones
+  const monthly = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const mk = d.toISOString().slice(0, 7);
+    const monthTxs = txs.filter((t) => t.date.slice(0, 7) === mk);
+    const ms = statTxs(monthTxs).all;
+    monthly.push({
+      mes: mk,
+      ingresos: ms.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
+      gastos: ms.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+      movimientos: monthTxs.length,
+    });
+  }
+
+  const agregados = {
+    rango: { preset: range.preset, desde: rangeFrom, hasta: rangeTo, etiqueta: rangeLabel(range) },
+    enRango: { ingresos: rangeIncome, gastos: rangeExpense, flujoNeto: rangeIncome - rangeExpense, movimientos: rangeTxs.length },
+    topGastosEnRango: topRows(expByCat),
+    topIngresosEnRango: topRows(incByCat),
+    porMes6m: monthly,
+    saldoNetoGlobal: saldoNeto,
+  };
+
+  // recurrencias actuales
+  const recurrencias = (config.recurring || []).map((r) => ({
+    id: r.id,
+    tipo: r.type,
+    monto: r.amount,
+    concepto: r.description,
+    cuenta: (config.accounts.find((a) => a.id === r.accountId) || {}).name || null,
+    categoria: (config.categories.find((c) => c.id === r.categoryId) || {}).name || null,
+    frecuencia: r.freq,
+    diaDelMes: r.dayOfMonth || null,
+    diasDeSemana: r.daysOfWeek || null,
+    desde: r.startDate,
+    hasta: r.endDate || null,
+    pausada: !!r.paused,
+    ultimaCorrida: r.lastRunDate || null,
+  }));
+
+  return `Eres el asistente de "Zafi", una app de finanzas personales con IA. El usuario habla español de México. Te pide cosas en lenguaje natural y tú las ejecutas o respondes sus dudas.
+
+IMPORTANTE: cada CUENTA tiene SU PROPIA lista de categorías. Las categorías NO son globales; pertenecen a una cuenta.
+
+ESTADO ACTUAL DE LA APP:
+Cuentas (cada una con sus categorías): ${JSON.stringify(cuentas)}
+Movimientos recientes (últimos 100): ${JSON.stringify(recent)}
+Recurrencias activas: ${JSON.stringify(recurrencias)}
+Agregados pre-calculados: ${JSON.stringify(agregados)}
+Fecha de hoy: ${today()}
+
+RESPONDE SIEMPRE con UN SOLO objeto JSON válido, sin markdown ni texto fuera del JSON:
+{"message":"texto breve para el usuario","actions":[ ... ]}
+
+ACCIONES disponibles (usa "actions":[] si solo respondes una pregunta):
+- {"type":"set_account_categories","accountId":"<id de la cuenta>","categories":[{"name":"...","emoji":"<emoji>"},...]}  → REEMPLAZA todas las categorías de GASTO de esa cuenta por la lista dada. Úsala cuando el usuario pida "cambia/pon las categorías de <cuenta> a esto: ...". Ponle un emoji apropiado a cada una. Las categorías de ingreso de esa cuenta NO se tocan.
+- {"type":"add_category","accountId":"<id de la cuenta>","name":"...","emoji":"<emoji>","categoryType":"income"|"expense"}
+- {"type":"edit_category","id":"<id de la categoría>","newName":"...","newEmoji":"...","newType":"income"|"expense"}
+- {"type":"remove_category","id":"<id de la categoría>"}
+- {"type":"add_account","name":"...","initialBalance":<número>}
+- {"type":"edit_account","id":"<id de la cuenta>","newName":"...","newInitialBalance":<número>}
+- {"type":"remove_account","id":"<id de la cuenta>"}
+- {"type":"add_transaction","txType":"income"|"expense","amount":<número>,"description":"...","categoryName":"<categoría existente de esa cuenta>","accountName":"<nombre de cuenta>","date":"YYYY-MM-DD","passThrough":<true|false opcional>}
+- {"type":"edit_transaction","id":"<id del movimiento>","amount":<número>,"description":"...","categoryName":"...","accountName":"...","txType":"...","date":"...","passThrough":<true|false>,"linkedTxId":"<id o null>"}
+- {"type":"delete_transaction","id":"<id del movimiento>"}
+- {"type":"show_chart","spec":{ ... }}  → muestra una gráfica inline en el chat. La spec define qué graficar (ver sección 📊 abajo). Úsala cuando el usuario te PIDA una gráfica.
+
+🔁 RECURRENCIAS (movimientos automáticos):
+- {"type":"add_recurring","txType":"income"|"expense","amount":<n>,"description":"...","accountName":"...","categoryName":"...","freq":"daily"|"weekly"|"biweekly"|"monthly"|"yearly","dayOfMonth":<1-31 opc>,"month":<1-12 opc>,"daysOfWeek":[<0-6> opc],"startDate":"YYYY-MM-DD opc","endDate":"YYYY-MM-DD opc"}
+   Ejemplos para freq:
+   • "daily" → todos los días desde startDate (default: hoy)
+   • "weekly" + daysOfWeek:[1] → cada lunes (0=domingo, 1=lunes, ..., 6=sábado)
+   • "biweekly" → cada 14 días desde startDate
+   • "monthly" + dayOfMonth:15 → el día 15 de cada mes (si el mes no llega a ese día, se aplica el último)
+   • "yearly" + month:12 + dayOfMonth:25 → cada 25 de diciembre
+   Cuando creas una recurrencia, los movimientos pendientes desde startDate hasta hoy se aplican automáticamente.
+- {"type":"edit_recurring","id":"<id>","amount":...,"description":"...","freq":"...","dayOfMonth":...,"endDate":"..."} — solo incluye los campos que cambian
+- {"type":"delete_recurring","id":"<id>","alsoDeleteGenerated":<true|false opc>}  → si alsoDeleteGenerated=true, también borra todos los movimientos ya creados por esa recurrencia
+- {"type":"pause_recurring","id":"<id>"}  → la regla deja de ejecutarse hasta que la reanuden
+- {"type":"resume_recurring","id":"<id>"}  → al reanudar, aplica todos los movimientos pendientes desde lastRunDate hasta hoy
+
+📦 ACCIONES MASIVAS (BULK):
+- {"type":"bulk_edit_category","toCategoryName":"<categoría destino>","accountName":"<cuenta opc>","fromCategoryName":"<cuenta origen opc>","keyword":"<filtro opc>","fromDate":"YYYY-MM-DD opc","toDate":"YYYY-MM-DD opc","ids":["<id1>",...] (opc)}
+   Re-categoriza varios movimientos al mismo tiempo. Filtra por ids, o por cualquier combinación de: accountName + fromCategoryName + keyword (en concepto) + rango de fechas.
+   Ejemplos: "marca todo lo que diga OXXO como categoría Tiendas" → keyword:"OXXO", toCategoryName:"Tiendas".
+- {"type":"bulk_delete","ids":["<id1>",...] (opc),"accountName":"...","categoryName":"...","keyword":"...","txType":"income"|"expense","fromDate":"...","toDate":"..."}
+   Elimina varios movimientos. Filtra por ids, o por combinación de filtros (todos opcionales pero AL MENOS uno requerido).
+   Ejemplos: "borra todos los Spotify" → keyword:"Spotify". "borra los gastos del 15 de mayo" → fromDate:"2026-05-15", toDate:"2026-05-15", txType:"expense".
+- {"type":"bulk_move_account","toAccountName":"<cuenta destino>","fromAccountName":"<opc>","keyword":"<opc>","fromDate":"...","toDate":"...","ids":[...]}
+   Mueve movimientos a otra cuenta. NOTA: al cambiar de cuenta la categoría se reinicia (porque pertenecía a otra cuenta).
+
+⚙️ CONFIGURACIÓN:
+- {"type":"set_date_range","preset":"today"|"week"|"month"|"last-month"|"3m"|"6m"|"year"|"last-year"|"all"|"custom","from":"YYYY-MM-DD (custom)","to":"YYYY-MM-DD (custom)"}
+   Cambia el rango global de toda la app (afecta Inicio, Movimientos, Categorías y Estadísticas).
+
+REGLAS:
+- Para editar/eliminar categorías, cuentas o movimientos usa SIEMPRE el "id" exacto del estado de arriba.
+- Para set_account_categories y add_category usa el "id" de la cuenta correcta.
+- Si el usuario lista varias categorías para una cuenta, asume que son categorías de GASTO salvo que diga lo contrario.
+- Si pide cambiar categorías de varias cuentas, devuelve una acción set_account_categories por cada cuenta.
+- Para add_transaction, "categoryName" debe existir DENTRO de la cuenta indicada.
+- Cada categoría nueva necesita un emoji apropiado.
+- En edit_* incluye solo los campos que cambian.
+- "message" debe ser corto y confirmar en español lo que hiciste.
+- Si te piden algo que no puedes hacer, dilo en "message" sin inventar acciones.
+- Si la petición es ambigua, pregunta en "message" y NO ejecutes acciones todavía.
+- Para preguntas sobre gastos/ingresos usa los datos del estado de arriba.
+
+SALDO INICIAL DE UNA CUENTA — IMPORTANTE:
+El "saldoInicial" de cada cuenta es el monto base que tenía la cuenta antes de empezar a registrar movimientos. Es el campo "initialBalance" del modelo y se actualiza con la acción "edit_account" pasando "newInitialBalance".
+Cuando el usuario diga cosas como:
+- "ponle saldo inicial a Santander de 19039"
+- "el saldo inicial de BBVA es 5000"
+- "Santander empezó con 19039"
+- "saldo inicial de Santander mayo 19039" (interpreta el mes como contexto, no como campo separado)
+…SIEMPRE usa la acción {"type":"edit_account","id":"<id de la cuenta>","newInitialBalance":<número>}. Quita comas y signos del número: "19,039" → 19039.
+
+🧠 INTELIGENCIA ANALÍTICA:
+Tienes pre-calculado en "Agregados pre-calculados" todo lo necesario para responder preguntas analíticas SIN inventar números:
+- agregados.enRango → ingresos, gastos, flujo neto del rango activo
+- agregados.topGastosEnRango y topIngresosEnRango → categorías ordenadas con monto
+- agregados.porMes6m → últimos 6 meses (cada uno con ingresos, gastos, movimientos) para comparaciones
+- agregados.saldoNetoGlobal → patrimonio neto sumando todas las cuentas
+
+Cuando el usuario pregunte cosas como:
+- "¿cómo voy este mes?" → resume con agregados.enRango y top categorías
+- "compara mayo con abril" → usa porMes6m, calcula la diferencia porcentual
+- "¿en qué gasto más?" → top de topGastosEnRango
+- "¿cuánto he gastado en Uber?" → busca en "Movimientos recientes" los que tienen "uber" en concepto y suma. Si necesitas mostrarlos, NO uses una acción — solo describe en "message". Si quieres mostrarlos visualmente, usa show_chart.
+- "dame mis 10 gastos más grandes" → de "Movimientos recientes" filtra tipo expense, ordena por monto desc, toma los primeros 10, descríbelos
+- "¿cuándo me toca el sueldo?" → revisa "Recurrencias activas" y calcula la próxima fecha
+
+Siempre que respondas con números, redondea a pesos enteros (sin decimales) salvo que el usuario los pida explícitos. Formato: $1,234 con coma de miles.
+
+CAPTURA MÚLTIPLE EN UN MENSAJE:
+Si el usuario dice varios movimientos en una sola frase ("pagué 250 oxxo, recibí 5000, compré 1200 walmart"), devuelve UN array de varias acciones add_transaction. NO le preguntes uno por uno; intenta inferir todo y al final del "message" pregunta si algo quedó mal.
+
+EJEMPLOS de respuesta correcta:
+
+📊 GRÁFICAS — show_chart:
+Cuando el usuario pida ver una gráfica, devuelve una acción show_chart con una "spec" que la app convierte en gráfica inline. NO calcules los datos tú, solo describe qué quieres graficar.
+
+Formato de spec:
+{
+  "kind": "line" | "bars" | "pie",
+  "title": "Texto del título (opcional)",
+  "groupBy": "day" | "week" | "month" | "category" | "account",
+  "metric": "income" | "expense" | "both" | "net" | "expense_by_category",
+  "dateFrom": "YYYY-MM-DD",
+  "dateTo": "YYYY-MM-DD",
+  "accountId": "<id de cuenta o null para todas>",
+  "includePassThrough": false
+}
+
+GUÍA PARA ELEGIR kind:
+- "line" → tendencias en el tiempo (cómo evoluciona algo día/semana/mes)
+- "bars" → comparar periodos o categorías lado a lado
+- "pie" → distribución (gastos por categoría)
+
+GUÍA PARA metric:
+- "income" → solo ingresos
+- "expense" → solo gastos
+- "both" → dos series, ingresos y gastos por separado (lo más común para "ingresos vs gastos")
+- "net" → flujo neto (ingresos − gastos por periodo)
+- "expense_by_category" → gastos agrupados por categoría (se fuerza kind=pie)
+
+GUÍA PARA fechas:
+- "este mes" → dateFrom = primer día del mes actual, dateTo = hoy (${today()})
+- "mayo 2026" → dateFrom = "2026-05-01", dateTo = "2026-05-31"
+- "últimos 3 meses" → dateFrom = primer día de hace 3 meses, dateTo = hoy
+- "este año" → dateFrom = "${today().slice(0, 4)}-01-01", dateTo = hoy
+- "semana pasada" / "esta semana" → calcula el rango lunes-domingo correspondiente
+
+GUÍA PARA groupBy:
+- "day" → para rangos cortos (una semana o quincena)
+- "week" → para 1 a 3 meses
+- "month" → para 3 a 12 meses
+- "category" → cuando preguntan "por categoría" sin pastel
+- "account" → cuando comparan cuentas
+
+REGLAS DE GRÁFICAS:
+- Si el usuario menciona una sola cuenta ("solo de BBVA", "en Santander"), pon "accountId" con el id correcto.
+- Si no especifica cuenta, deja accountId en null para usar todas.
+- Por defecto, NO incluyas pass-through (includePassThrough: false) para que los reembolsos no inflen las cifras.
+- En "message" describe brevemente qué muestra la gráfica.
+- Puedes devolver más de una gráfica en una sola respuesta (varias show_chart en actions).
+
+EJEMPLOS DE GRÁFICAS:
+
+Usuario: "muéstrame una gráfica semana a semana del mes de mayo, ingresos vs gastos de líneas"
+Tu respuesta:
+{"message":"Aquí tienes mayo por semana 👇","actions":[{"type":"show_chart","spec":{"kind":"line","title":"Mayo · ingresos vs gastos","groupBy":"week","metric":"both","dateFrom":"${today().slice(0,4)}-05-01","dateTo":"${today().slice(0,4)}-05-31"}}]}
+
+Usuario: "pastel de mis gastos del mes"
+Tu respuesta:
+{"message":"Tus gastos del mes por categoría:","actions":[{"type":"show_chart","spec":{"kind":"pie","metric":"expense_by_category","dateFrom":"${today().slice(0,7)}-01","dateTo":"${today()}"}}]}
+
+Usuario: "barras de gastos por categoría este mes"
+Tu respuesta:
+{"message":"Aquí tienes:","actions":[{"type":"show_chart","spec":{"kind":"bars","groupBy":"category","metric":"expense","dateFrom":"${today().slice(0,7)}-01","dateTo":"${today()}"}}]}
+
+Usuario: "cómo van mis ingresos los últimos 6 meses"
+Tu respuesta (con cálculo de rango: hoy es ${today()}, hace 6 meses sería el primer día del mes que es 5 meses atrás):
+{"message":"Tus ingresos de los últimos 6 meses:","actions":[{"type":"show_chart","spec":{"kind":"line","groupBy":"month","metric":"income","dateFrom":"<calcula>","dateTo":"${today()}"}}]}
+
+Usuario: "compara BBVA y Santander este mes"
+Cuando el usuario quiere comparar 2 cuentas, devuelve DOS gráficas, una por cuenta:
+{"message":"Aquí los tienes lado a lado:","actions":[
+  {"type":"show_chart","spec":{"kind":"bars","title":"BBVA","groupBy":"week","metric":"both","accountId":"<id BBVA>","dateFrom":"${today().slice(0,7)}-01","dateTo":"${today()}"}},
+  {"type":"show_chart","spec":{"kind":"bars","title":"Santander","groupBy":"week","metric":"both","accountId":"<id Santander>","dateFrom":"${today().slice(0,7)}-01","dateTo":"${today()}"}}
+]}
+
+EJEMPLOS DE OTRAS ACCIONES:
+
+Usuario: "ponle saldo inicial a Santander de 19,039"
+Tu respuesta:
+{"message":"Listo, dejé el saldo inicial de Santander en $19,039.","actions":[{"type":"edit_account","id":"<id real de Santander>","newInitialBalance":19039}]}
+
+Usuario: "cambia el nombre de BBVA a Mi Banco"
+Tu respuesta:
+{"message":"Listo, BBVA ahora se llama Mi Banco.","actions":[{"type":"edit_account","id":"<id real de BBVA>","newName":"Mi Banco"}]}
+
+Usuario: "el deposito de 7500 y el pago de seguro de 6800 son un reembolso, vincúlalos"
+(asumiendo que en Movimientos recientes encuentras ingreso id="t-aa" de 7500 y gasto id="t-bb" de 6800)
+Tu respuesta:
+{"message":"Listo, los vinculé como reembolso. Solo cuenta como ingreso real la diferencia de $700.","actions":[{"type":"mark_passthrough","ids":["t-aa","t-bb"]}]}
+
+Usuario: "el ingreso de los 7500 no es real, era un encargo"
+(encuentras id="t-aa")
+Tu respuesta:
+{"message":"Marqué el ingreso de $7,500 como dinero de paso. No contará en tus estadísticas.","actions":[{"type":"mark_passthrough","ids":["t-aa"]}]}`;
+}
+
+/* persistencia */
+const hasStore = typeof window !== "undefined" && window.storage;
+async function loadAll() {
+  let config = null, txs = [];
+  if (hasStore) {
+    try { const r = await window.storage.get("cc:config"); if (r) config = JSON.parse(r.value); } catch (e) {}
+    try { const r = await window.storage.get("cc:txs"); if (r) txs = JSON.parse(r.value); } catch (e) {}
+  }
+  return { config, txs };
+}
+async function persist(key, val) {
+  if (!hasStore) return;
+  try { await window.storage.set(key, JSON.stringify(val)); } catch (e) { console.error("storage", e); }
+}
+
+/* llamada a Claude con imágenes (visión) */
+async function callClaudeVision(system, userText, imagesB64) {
+  const content = [
+    ...imagesB64.map((b) => ({
+      type: "image",
+      source: { type: "base64", media_type: b.mediaType, data: b.data },
+    })),
+    { type: "text", text: userText },
+  ];
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 4000, system,
+      messages: [{ role: "user", content }],
+    }),
+  });
+  if (!res.ok) throw new Error("vision " + res.status);
+  const data = await res.json();
+  return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+}
+
+/* leer File como base64 (sin el prefijo data:...) */
+function fileToB64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const result = String(r.result || "");
+      const [meta, data] = result.split(",");
+      const mediaType = (meta.match(/data:([^;]+)/) || [])[1] || "image/png";
+      resolve({ mediaType, data });
+    };
+    r.onerror = () => reject(new Error("read failed"));
+    r.readAsDataURL(file);
+  });
+}
+
+/* llamada a Claude */
+async function callClaude(system, messages) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system, messages }),
+  });
+  if (!res.ok) throw new Error("api " + res.status);
+  const data = await res.json();
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return text;
+}
+function parseJSON(text) {
+  const clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+  return JSON.parse(a >= 0 && b >= 0 ? clean.slice(a, b + 1) : clean);
+}
+
+/* categorías por defecto para una cuenta nueva */
+function defaultCatsForAccount(accId) {
+  return DEFAULT_CATS.map((t) => ({
+    id: uid(), name: t.name, emoji: t.emoji, type: t.type, accountId: accId,
+    keywords: SEED_KW[norm(t.name).trim()] ? [...SEED_KW[norm(t.name).trim()]] : [],
+  }));
+}
+
+/* construir config completa desde el chatbot o el set default */
+function buildConfig(raw) {
+  const accountMode = raw.accountMode === "multiple" ? "multiple" : "single";
+  let accounts = (raw.accounts || []).map((a) => ({
+    id: uid(), name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0,
+  }));
+  if (!accounts.length) accounts = [{ id: uid(), name: "Principal", initialBalance: 0 }];
+
+  let templates = (raw.categories || []).map((c) => ({
+    name: c.name || "Categoría", emoji: c.emoji || "📦",
+    type: c.type === "income" ? "income" : "expense",
+  }));
+  if (!templates.some((c) => c.type === "income")) templates.push({ name: "Otros ingresos", emoji: "💰", type: "income" });
+  if (!templates.some((c) => c.type === "expense")) templates.push({ name: "Otros gastos", emoji: "📦", type: "expense" });
+
+  // cada cuenta arranca con su propia copia de las categorías
+  const categories = [];
+  accounts.forEach((acc) => {
+    templates.forEach((t) => {
+      categories.push({
+        id: uid(), name: t.name, emoji: t.emoji, type: t.type, accountId: acc.id,
+        keywords: SEED_KW[norm(t.name).trim()] ? [...SEED_KW[norm(t.name).trim()]] : [],
+      });
+    });
+  });
+  return { setupComplete: true, accountMode, accounts, categories };
+}
+
+/* migración: convierte categorías globales (versión vieja) en categorías por cuenta */
+function migrate(config, txs) {
+  if (!config || !config.categories) return { config, txs };
+  let outConfig = config;
+  let outTxs = txs || [];
+
+  // Migración 1: categorías globales -> categorías por cuenta
+  if (config.categories.some((c) => !c.accountId)) {
+    const oldCats = config.categories;
+    const newCats = [];
+    const map = {};
+    config.accounts.forEach((acc) => {
+      oldCats.forEach((oc) => {
+        const nid = uid();
+        newCats.push({
+          id: nid, name: oc.name, emoji: oc.emoji || "📦",
+          type: oc.type === "income" ? "income" : "expense",
+          accountId: acc.id, keywords: [...(oc.keywords || [])],
+        });
+        map[`${acc.id}|${oc.id}`] = nid;
+      });
+    });
+    outTxs = outTxs.map((t) => {
+      const nid = map[`${t.accountId}|${t.categoryId}`];
+      return nid ? { ...t, categoryId: nid } : t;
+    });
+    outConfig = { ...config, categories: newCats };
+  }
+
+  // Migración 2: linkedTxId (uno a uno) -> groupId (muchos a muchos)
+  const hasLinked = outTxs.some((t) => t.linkedTxId);
+  if (hasLinked) {
+    const byId = new Map(outTxs.map((t) => [t.id, t]));
+    const groupOf = new Map(); // id -> groupId
+    function find(id) {
+      while (groupOf.get(id) && groupOf.get(id) !== id) id = groupOf.get(id);
+      return id;
+    }
+    outTxs.forEach((t) => { if (t.passThrough) groupOf.set(t.id, t.id); });
+    outTxs.forEach((t) => {
+      if (!t.passThrough || !t.linkedTxId) return;
+      const other = byId.get(t.linkedTxId);
+      if (!other || !other.passThrough) return;
+      const r1 = find(t.id), r2 = find(other.id);
+      if (r1 !== r2) groupOf.set(r2, r1);
+    });
+    outTxs = outTxs.map((t) => {
+      if (!t.passThrough) return t;
+      const root = groupOf.get(t.id) ? find(t.id) : null;
+      const { linkedTxId, ...rest } = t;
+      return root ? { ...rest, groupId: t.groupId || root } : rest;
+    });
+  }
+
+  // Migración 3: quitar pass-through del MVP — los movimientos viejos vuelven a contar como reales
+  const hadPassThrough = outTxs.some((t) => t.passThrough || t.linkedTxId || t.groupId);
+  if (hadPassThrough) {
+    outTxs = outTxs.map((t) => {
+      const { passThrough, linkedTxId, groupId, ...rest } = t;
+      return rest;
+    });
+  }
+
+  return { config: outConfig, txs: outTxs };
+}
+
+/* ========================================================================= */
+export default function App() {
+  const [loaded, setLoaded] = useState(false);
+  const [config, setConfig] = useState(null);
+  const [txs, setTxs] = useState([]);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") document.title = "Zafi · Finanzas personales con IA";
+  }, []);
+
+  useEffect(() => {
+    loadAll().then(({ config, txs }) => {
+      if (config) {
+        const m = migrate(config, txs || []);
+        // ejecutar recurrencias pendientes
+        const r = processRecurring(m.config, m.txs);
+        setConfig(r.config);
+        setTxs(r.txs);
+        const configChanged = m.config !== config || r.generated > 0;
+        const txsChanged = m.txs !== txs || r.generated > 0;
+        if (configChanged) persist("cc:config", r.config);
+        if (txsChanged) persist("cc:txs", r.txs);
+        if (r.generated > 0) {
+          setTimeout(() => {
+            setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
+            setTimeout(() => setToast(null), 2800);
+          }, 600);
+        }
+      } else if (txs) {
+        setTxs(txs);
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2400);
+  };
+  const saveConfig = (c) => { setConfig(c); persist("cc:config", c); };
+  const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
+  const resetAll = async () => {
+    // borrar storage
+    if (hasStore) {
+      try { await window.storage.delete("cc:config"); } catch (e) {}
+      try { await window.storage.delete("cc:txs"); } catch (e) {}
+    }
+    setConfig(null);
+    setTxs([]);
+    showToast("Listo, empezamos desde cero");
+  };
+
+  if (!loaded)
+    return (
+      <div className="cc-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+        <style>{STYLE}</style>
+        <div className="cc-dots"><span /><span /><span /></div>
+      </div>
+    );
+
+  return (
+    <div className="cc-root">
+      <style>{STYLE}</style>
+      {!config?.setupComplete ? (
+        <Onboarding onDone={saveConfig} />
+      ) : (
+        <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
+      )}
+      {toast && <div className="cc-toast">{toast}</div>}
+    </div>
+  );
+}
+
+/* ============================= ONBOARDING ================================ */
+function Onboarding({ onDone }) {
+  const GREETING =
+    "¡Hola! Bienvenido a Zafi 👋\n\nSoy tu asistente. Te ayudaré a configurar la app en menos de un minuto, platicando aquí mismo.\n\n¿Quieres que use un set de categorías recomendado, o prefieres armarlas tú?";
+  const [msgs, setMsgs] = useState([{ role: "bot", text: GREETING }]);
+  const [suggs, setSuggs] = useState(["Usa las recomendadas", "Quiero armarlas yo"]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [apiOk, setApiOk] = useState(true);
+  const history = useRef([]); // [{role, content}]
+  const scroller = useRef(null);
+
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+  }, [msgs, busy]);
+
+  const SYSTEM = `Eres el asistente de configuración de "Zafi", una app de finanzas personales con IA. El usuario habla español de México. Conversa de forma cálida, breve y natural.
+
+Debes averiguar 2 cosas:
+1) CATEGORÍAS para clasificar ingresos y gastos. Set recomendado: Sueldo, Negocio, Freelance, Otros ingresos (ingresos); Súper/Despensa, Restaurantes, Transporte/Gasolina, Casa/Renta, Servicios, Salud, Entretenimiento, Suscripciones, Otros gastos (gastos).
+2) CUENTAS: si maneja una sola cuenta para todo, o varias (efectivo, banco, tarjeta, etc.).
+
+REGLAS DE RESPUESTA:
+- Responde SIEMPRE con UN SOLO objeto JSON válido, sin markdown ni texto fuera del JSON.
+- Formato: {"message":"texto para el usuario","suggestions":["opción corta",...],"done":false,"config":null}
+- "message": 2-4 frases máximo, UNA pregunta a la vez.
+- "suggestions": hasta 4 respuestas rápidas cortas que el usuario puede tocar. Omite o usa [] si no aplica.
+- Cuando ya tengas categorías y modo de cuentas definidos, pon "done":true y llena "config":
+  {"accountMode":"single"|"multiple","accounts":[{"name":"...","initialBalance":<número: dinero que ya tiene en esa cuenta>}],"categories":[{"name":"...","emoji":"emoji","type":"income"|"expense"}]}
+- En modo "single" usa una cuenta llamada "Principal" salvo que el usuario diga otro nombre.
+- Si el usuario maneja varias cuentas, pregúntale el saldo inicial (dinero que tiene ahorita) de cada una y ponlo en "initialBalance". Si no lo sabe, usa 0.
+- Cada categoría necesita un emoji apropiado.
+- Si el usuario pide usar lo recomendado, ve directo a done:true con el set recomendado y pregunta el modo de cuentas si aún no lo sabes.`;
+
+  async function send(text) {
+    const userText = (text ?? input).trim();
+    if (!userText || busy) return;
+    setMsgs((m) => [...m, { role: "me", text: userText }]);
+    setInput("");
+    setSuggs([]);
+    setBusy(true);
+    history.current.push({ role: "user", content: userText });
+    try {
+      const raw = await callClaude(SYSTEM, history.current);
+      const parsed = parseJSON(raw);
+      history.current.push({ role: "assistant", content: parsed.message || raw });
+      setMsgs((m) => [...m, { role: "bot", text: parsed.message || "Listo." }]);
+      setSuggs(Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 4) : []);
+      if (parsed.done && parsed.config) {
+        setTimeout(() => onDone(buildConfig(parsed.config)), 700);
+      }
+    } catch (e) {
+      setApiOk(false);
+      setMsgs((m) => [
+        ...m,
+        { role: "bot", text: "Tuve un problema para conectar con la IA. No hay bronca: puedes usar la configuración recomendada con el botón de abajo. 👇" },
+      ]);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div>
+      <div className="cc-top">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+          <div className="cc-logo"><span className="cc-logo-dot" />zafi</div>
+          <div style={{ fontSize: 11, color: "var(--ink-soft)", marginLeft: 19, letterSpacing: "-.005em" }}>
+            Finanzas personales con IA
+          </div>
+        </div>
+      </div>
+      <div className="cc-wrap" style={{ paddingBottom: 40 }}>
+        <div
+          ref={scroller}
+          style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 2px 14px", maxHeight: "58vh", overflowY: "auto" }}
+        >
+          {msgs.map((m, i) => (
+            <div key={i} className={`cc-bubble ${m.role} cc-fade`} style={{ whiteSpace: "pre-wrap" }}>
+              {m.text}
+            </div>
+          ))}
+          {busy && (
+            <div className="cc-bubble bot"><span className="cc-dots"><span /><span /><span /></span></div>
+          )}
+        </div>
+
+        {suggs.length > 0 && !busy && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            {suggs.map((s, i) => (
+              <button key={i} className="cc-chip" onClick={() => send(s)}>{s}</button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <input
+            className="cc-input"
+            placeholder="Escribe tu respuesta…"
+            value={input}
+            disabled={busy}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+          />
+          <button className="cc-btn cc-btn-primary" disabled={busy || !input.trim()} onClick={() => send()}>
+            Enviar
+          </button>
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <button
+            className="cc-btn"
+            style={{ fontSize: 13 }}
+            onClick={() => onDone(buildConfig({ accountMode: "single", accounts: [{ name: "Principal" }], categories: DEFAULT_CATS }))}
+          >
+            {apiOk ? "Saltar — usar configuración recomendada" : "Usar configuración recomendada ahora"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =============================== MAIN ==================================== */
+function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
+  const [tab, setTab] = useState("inicio");
+  const [adding, setAdding] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [excelOpen, setExcelOpen] = useState(false);
+  const [rangeOpen, setRangeOpen] = useState(false);
+
+  const dateRange = config.dateRange || DEFAULT_RANGE;
+  const setDateRange = (newRange) => {
+    saveConfig({ ...config, dateRange: newRange });
+  };
+
+  const balance = grandTotal(config, txs);
+
+  const upsertTx = (tx, learnedCats, linkInfo) => {
+    const exists = txs.some((t) => t.id === tx.id);
+    let nextTxs = exists ? txs.map((t) => (t.id === tx.id ? tx : t)) : [tx, ...txs];
+
+    // Si nos pasaron información de vinculación, también marcamos a los demás
+    // miembros del grupo como passThrough con el mismo groupId
+    if (linkInfo && linkInfo.linkIds && linkInfo.linkIds.length && linkInfo.groupIdToUse) {
+      const ids = new Set(linkInfo.linkIds);
+      nextTxs = nextTxs.map((t) =>
+        ids.has(t.id)
+          ? { ...t, passThrough: true, groupId: linkInfo.groupIdToUse, categoryId: null }
+          : t
+      );
+    }
+
+    // Si dejamos de ser passThrough y antes estábamos en un grupo:
+    // quitamos también del grupo a los huérfanos del grupo si quedan menos de 2
+    if (exists && tx.passThrough === false) {
+      const old = txs.find((t) => t.id === tx.id);
+      if (old?.groupId) {
+        const others = nextTxs.filter((t) => t.id !== tx.id && t.groupId === old.groupId);
+        if (others.length <= 1) {
+          // grupo de 1 ya no tiene sentido: quitar passThrough y groupId al solitario
+          nextTxs = nextTxs.map((t) =>
+            t.groupId === old.groupId && t.id !== tx.id
+              ? { ...t, passThrough: false, groupId: null }
+              : t
+          );
+        }
+      }
+    }
+
+    saveTxs(nextTxs);
+    if (learnedCats) saveConfig({ ...config, categories: learnedCats });
+    setAdding(false);
+    setEditingTx(null);
+    showToast(exists ? "Movimiento actualizado" : `${tx.type === "income" ? "Ingreso" : "Gasto"} registrado`);
+  };
+
+  const saveManyTxs = (newTxs, learnedCats) => {
+    saveTxs([...newTxs, ...txs]);
+    if (learnedCats) saveConfig({ ...config, categories: learnedCats });
+    setImportOpen(false);
+    showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
+  };
+
+  return (
+    <div>
+      <StickyHeader balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)}
+        tab={tab} setTab={setTab} />
+
+      <div className="cc-wrap">
+        {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
+        {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
+        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} />}
+        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} />}
+      </div>
+
+      <AssistantFab onOpen={() => setChatOpen(true)} />
+
+
+      {addMenuOpen && (
+        <div className="cc-fab-menu">
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setExcelOpen(true); }}>
+            📊 Desde Excel
+          </button>
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setImportOpen(true); }}>
+            📸 Desde screenshot
+          </button>
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setAdding(true); }}>
+            ✏️ Capturar manual
+          </button>
+        </div>
+      )}
+      <button className="cc-fab-add"
+        onClick={() => setAddMenuOpen((v) => !v)}
+        style={addMenuOpen ? { transform: "rotate(45deg)" } : null}
+        aria-label="Nuevo movimiento">＋</button>
+
+      {(adding || editingTx) && (
+        <AddModal
+          config={config}
+          tx={editingTx}
+          txs={txs}
+          onClose={() => { setAdding(false); setEditingTx(null); }}
+          onSave={upsertTx}
+        />
+      )}
+
+      {importOpen && (
+        <ImportModal
+          config={config}
+          txs={txs}
+          onClose={() => setImportOpen(false)}
+          onSave={saveManyTxs}
+        />
+      )}
+
+      {chatOpen && (
+        <Assistant
+          config={config}
+          txs={txs}
+          saveConfig={saveConfig}
+          saveTxs={saveTxs}
+          onClose={() => setChatOpen(false)}
+          onOpenImport={() => setImportOpen(true)}
+        />
+      )}
+
+      {accountsOpen && (
+        <AccountsModal
+          config={config}
+          txs={txs}
+          saveConfig={saveConfig}
+          showToast={showToast}
+          resetAll={resetAll}
+          onClose={() => setAccountsOpen(false)}
+        />
+      )}
+
+      {excelOpen && (
+        <ExcelImportModal
+          config={config}
+          txs={txs}
+          onClose={() => setExcelOpen(false)}
+          onSave={saveManyTxs}
+        />
+      )}
+
+      {rangeOpen && (
+        <DateRangeModal
+          dateRange={dateRange}
+          onClose={() => setRangeOpen(false)}
+          onSave={(r) => { setDateRange(r); setRangeOpen(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* StickyHeader: header pegajoso con logo, balance, chip de rango y tabs */
+/* Botón flotante del asistente — se monta en document.body para evitar
+   problemas de stacking context (ancestros con transform/backdrop-filter
+   rompen position:fixed). DOM nativo, no usa react-dom/createPortal. */
+function AssistantFab({ onOpen }) {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const btn = document.createElement("button");
+    btn.className = "cc-fab";
+    btn.innerHTML = `
+      <span class="cc-blob-stage"><span class="cc-blob"></span></span>
+      <span>Asistente Zafi</span>
+    `;
+
+    const handler = (e) => {
+      const stage = btn.querySelector(".cc-blob-stage");
+      if (stage) {
+        const rect = stage.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        const cx = rect.left - btnRect.left + rect.width / 2;
+        const cy = rect.top - btnRect.top + rect.height / 2;
+        for (let i = 0; i < 6; i++) {
+          const p = document.createElement("span");
+          p.style.cssText = `position:absolute;width:4px;height:4px;border-radius:50%;background:var(--gold);pointer-events:none;left:${cx}px;top:${cy}px;`;
+          btn.appendChild(p);
+          const angle = (i / 6) * Math.PI * 2;
+          const dx = Math.cos(angle) * 18;
+          const dy = Math.sin(angle) * 18;
+          const anim = p.animate(
+            [{ transform: "translate(0,0) scale(1)", opacity: 1 },
+             { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
+            { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
+          );
+          anim.onfinish = () => p.remove();
+        }
+        stage.animate(
+          [{ transform: "scale(1)" },
+           { transform: "scale(.7)", offset: .3 },
+           { transform: "scale(1.1)", offset: .6 },
+           { transform: "scale(1)" }],
+          { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+        );
+      }
+      setTimeout(onOpen, 120);
+    };
+
+    btn.addEventListener("click", handler);
+    document.body.appendChild(btn);
+    return () => {
+      btn.removeEventListener("click", handler);
+      if (btn.parentNode) btn.parentNode.removeChild(btn);
+    };
+  }, [onOpen]);
+
+  return null;
+}
+
+function StickyHeader({ balance, dateRange, onOpenRange, tab, setTab }) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  // emoji que da pista del rango
+  const r = dateRange || DEFAULT_RANGE;
+  const emoji = r.preset === "today" ? "⚡"
+    : r.preset === "week" ? "📅"
+    : r.preset === "month" || r.preset === "last-month" ? "📆"
+    : r.preset === "3m" || r.preset === "6m" ? "📊"
+    : r.preset === "year" || r.preset === "last-year" ? "🗓️"
+    : r.preset === "all" ? "⏳"
+    : "✏️";
+
+  // fecha amigable, no tan editorial
+  const now = new Date();
+  const DAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const MONS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const issue = `${DAYS[now.getDay()]} ${now.getDate()} de ${MONS[now.getMonth()]}`;
+
+  const TABS = [
+    ["inicio", "Inicio"],
+    ["movs",   "Movimientos"],
+    ["cats",   "Categorías"],
+    ["stats",  "Estadísticas"],
+  ];
+
+  return (
+    <div className={`cc-top ${scrolled ? "scrolled" : ""}`}>
+      <div className="cc-top-inner">
+        {/* Masthead — título refinado con punto verde */}
+        <div className="cc-masthead">
+          <div className="cc-masthead-title">zafi</div>
+          <div className="cc-masthead-meta">
+            {issue}
+          </div>
+        </div>
+
+        {/* Balance + rango */}
+        <div className="cc-balance-row">
+          <div className="cc-balance-display">
+            <span className="cc-balance-label">Balance</span>
+            <span className="cc-balance-value" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
+              {fmt(balance)}
+            </span>
+          </div>
+          <button className="cc-range-chip" onClick={onOpenRange}>
+            <span className="cc-range-emoji">{emoji}</span>
+            <span>{rangeLabel(dateRange)}</span>
+            <span className="cc-range-arrow">▼</span>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="cc-tabs">
+          {TABS.map(([k, l]) => (
+            <button key={k} className={`cc-tab ${tab === k ? "on" : ""}`}
+              onClick={() => setTab(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* DateRangeModal: elegir el rango global de toda la app */
+function DateRangeModal({ dateRange, onClose, onSave }) {
+  const r = dateRange || DEFAULT_RANGE;
+  const [preset, setPreset] = useState(r.preset);
+  const resolved = resolveRange(r);
+  const [from, setFrom] = useState(r.from || resolved.from);
+  const [to, setTo] = useState(r.to || resolved.to);
+
+  const PRESETS = [
+    { id: "today",      label: "Hoy",              emoji: "⚡" },
+    { id: "week",       label: "Esta semana",      emoji: "📅" },
+    { id: "month",      label: "Este mes",         emoji: "📆" },
+    { id: "last-month", label: "Mes pasado",       emoji: "📆" },
+    { id: "3m",         label: "Últimos 3 meses",  emoji: "📊" },
+    { id: "6m",         label: "Últimos 6 meses",  emoji: "📊" },
+    { id: "year",       label: "Este año",         emoji: "🗓️" },
+    { id: "last-year",  label: "Año pasado",       emoji: "🗓️" },
+    { id: "all",        label: "Todo el historial", emoji: "⏳" },
+  ];
+
+  function apply() {
+    if (preset === "custom") {
+      if (!from || !to) return;
+      const f = from > to ? to : from;
+      const t = from > to ? from : to;
+      onSave({ preset: "custom", from: f, to: t });
+    } else {
+      onSave({ preset });
+    }
+  }
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 4 }}>Rango de tiempo</h2>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 14 }}>
+          Esta selección se aplica a todas las pestañas: Inicio, Movimientos, Categorías y Estadísticas.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+          {PRESETS.map((p) => (
+            <button key={p.id} onClick={() => setPreset(p.id)}
+              style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
+                background: preset === p.id ? "var(--green-soft)" : "var(--surface)",
+                border: `1px solid ${preset === p.id ? "var(--green)" : "var(--line)"}`,
+                borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
+                fontWeight: preset === p.id ? 700 : 500, textAlign: "left", color: "var(--ink)" }}>
+              <span style={{ fontSize: 17 }}>{p.emoji}</span>
+              <span style={{ flex: 1 }}>{p.label}</span>
+              {preset === p.id && <span style={{ color: "var(--green)", fontSize: 17, fontWeight: 700 }}>✓</span>}
+            </button>
+          ))}
+
+          <button onClick={() => setPreset("custom")}
+            style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
+              background: preset === "custom" ? "var(--green-soft)" : "var(--surface)",
+              border: `1px solid ${preset === "custom" ? "var(--green)" : "var(--line)"}`,
+              borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
+              fontWeight: preset === "custom" ? 700 : 500, textAlign: "left", color: "var(--ink)",
+              marginTop: 4 }}>
+            <span style={{ fontSize: 17 }}>✏️</span>
+            <span style={{ flex: 1 }}>Personalizado</span>
+            {preset === "custom" && <span style={{ color: "var(--green)", fontSize: 17, fontWeight: 700 }}>✓</span>}
+          </button>
+
+          {preset === "custom" && (
+            <div style={{ display: "flex", gap: 8, marginTop: 4, padding: "12px 13px",
+              background: "var(--surface-2)", borderRadius: 11 }}>
+              <div style={{ flex: 1 }}>
+                <label className="cc-label" style={{ marginBottom: 4 }}>Desde</label>
+                <input className="cc-input" type="date" value={from}
+                  onChange={(e) => setFrom(e.target.value)} style={{ fontSize: 13 }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="cc-label" style={{ marginBottom: 4 }}>Hasta</label>
+                <input className="cc-input" type="date" value={to}
+                  onChange={(e) => setTo(e.target.value)} style={{ fontSize: 13 }} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13, fontSize: 14 }}
+          onClick={apply}>
+          Aplicar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* secciones disponibles del inicio */
+const DEFAULT_SECTIONS = [
+  { id: "balance", label: "Saldo destacado", icon: "💰", on: true },
+  { id: "kpis", label: "Ingresos y gastos del mes", icon: "📊", on: true },
+  { id: "byCategory", label: "Gastos por categoría", icon: "🏷️", on: true },
+  { id: "trend", label: "Mini gráfica de saldo (30d)", icon: "📈", on: false },
+  { id: "topExpenses", label: "Gastos más grandes del mes", icon: "💸", on: false },
+  { id: "recent", label: "Movimientos recientes", icon: "🕐", on: true },
+];
+
+function loadSections(config) {
+  const saved = config.homeSections;
+  if (!Array.isArray(saved) || !saved.length) return DEFAULT_SECTIONS;
+  // sincronizar con DEFAULT por si agregamos nuevas
+  const known = new Set(DEFAULT_SECTIONS.map((s) => s.id));
+  const cleaned = saved.filter((s) => known.has(s.id));
+  DEFAULT_SECTIONS.forEach((d) => {
+    if (!cleaned.find((s) => s.id === d.id)) cleaned.push({ ...d });
+  });
+  return cleaned;
+}
+
+/* ============================= DASHBOARD ================================= */
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig }) {
+  const [view, setView] = useState("all"); // "all" o accountId
+  const [configuring, setConfiguring] = useState(false);
+  const sections = loadSections(config);
+
+  const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
+  // movimientos del rango global (en lugar de "mes actual")
+  const rangeTxs = txsInRange(scopedTxs, dateRange);
+  const monthStat = statTxs(rangeTxs).all;
+  const inc = monthStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const exp = monthStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+
+  const headerBalance = view === "all" ? balance : accountBalance(config, txs, view);
+  const accName = view === "all" ? "General" : (config.accounts.find((a) => a.id === view) || {}).name || "";
+  const headerLabel = view === "all" ? "Balance total" : `Saldo · ${accName}`;
+
+  const byCat = {};
+  monthStat.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
+    byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+  });
+  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const maxCat = rows.length ? rows[0][1] : 1;
+  const catOf = (id) => config.categories.find((c) => c.id === id);
+
+  // gastos más grandes del rango (excluyendo pass-through)
+  const topExpenses = rangeTxs.filter((t) => t.type === "expense" && !t.passThrough)
+    .sort((a, b) => b.amount - a.amount).slice(0, 5);
+
+  // mini-gráfica de saldo (30 días)
+  const trendPoints = (() => {
+    const initial = view === "all"
+      ? config.accounts.reduce((s, a) => s + (a.initialBalance || 0), 0)
+      : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
+    const start = new Date(); start.setDate(start.getDate() - 29);
+    const startK = start.toISOString().slice(0, 10);
+    const sorted = [...scopedTxs].sort((a, b) => a.date.localeCompare(b.date));
+    let running = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+    const map = new Map(); map.set(startK, running);
+    sorted.forEach((t) => {
+      if (t.date < startK) return;
+      running += t.type === "income" ? t.amount : -t.amount;
+      map.set(t.date, running);
+    });
+    const pts = [], todayD = new Date(today());
+    let last = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+    for (let d = new Date(start); d <= todayD; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().slice(0, 10);
+      if (map.has(k)) last = map.get(k);
+      pts.push({ date: k, val: last });
+    }
+    return pts;
+  })();
+
+  const isOn = (id) => sections.find((s) => s.id === id)?.on;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* === selector de cuentas mejorado === */}
+      {config.accounts.length > 0 && (
+        <div className="cc-fade">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div className="cc-label">Tus cuentas</div>
+            <button className="cc-gear" onClick={() => setConfiguring(true)}>⚙️ Personalizar</button>
+          </div>
+          <div className="cc-scroll-x">
+            {/* tarjeta General */}
+            <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
+              <div className="cc-acc-icon">∑</div>
+              <div className="cc-acc-label">Total</div>
+              <div className="cc-acc-name">General</div>
+              <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : (view === "all" ? "var(--surface)" : "var(--green)") }}>
+                {fmt(balance)}
+              </div>
+              <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
+            </button>
+            {/* tarjetas por cuenta */}
+            {config.accounts.map((a) => {
+              const b = accountBalance(config, txs, a.id);
+              const accTxs = txs.filter((t) => t.accountId === a.id);
+              const rangeAccStat = statTxs(txsInRange(accTxs, dateRange)).all;
+              const rangeFlow = rangeAccStat.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+              const active = view === a.id;
+              return (
+                <button key={a.id} className={`cc-acc-card ${active ? "on" : ""}`} onClick={() => setView(a.id)}>
+                  <div className="cc-acc-icon">🏦</div>
+                  <div className="cc-acc-label">Cuenta</div>
+                  <div className="cc-acc-name">{a.name}</div>
+                  <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : (active ? "var(--surface)" : "var(--green)") }}>
+                    {fmt(b)}
+                  </div>
+                  <div className="cc-acc-sub" style={{ color: rangeFlow < 0 ? "var(--coral)" : undefined }}>
+                    {rangeFlow >= 0 ? "▲" : "▼"} {fmt(Math.abs(rangeFlow))} en el periodo
+                  </div>
+                </button>
+              );
+            })}
+            {/* tarjeta agregar */}
+            <button className="cc-acc-card" onClick={onAddAccount}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                minWidth: 130, borderStyle: "dashed", color: "var(--ink-soft)" }}>
+              <div style={{ fontSize: 30, lineHeight: 1, marginBottom: 6, color: "var(--gold)" }}>＋</div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Agregar cuenta</div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* === secciones según orden y on/off === */}
+      {sections.filter((s) => s.on).map((s, idx) => {
+        const delay = `${idx * 60}ms`;
+
+        if (s.id === "balance") return (
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: "22px 22px", animationDelay: delay }}>
+            <div className="cc-label">{headerLabel}</div>
+            <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
+              {fmt(headerBalance)}
+            </div>
+          </div>
+        );
+
+        if (s.id === "kpis") return (
+          <div key={s.id} style={{ display: "flex", gap: 14 }} className="cc-fade">
+            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
+              <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
+              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--green)" }}>{fmt(inc)}</div>
+            </div>
+            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
+              <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
+              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--coral)" }}>{fmt(exp)}</div>
+            </div>
+          </div>
+        );
+
+        if (s.id === "byCategory") return (
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+            {rows.length === 0 ? (
+              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>
+                No hay gastos en el periodo.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+                {rows.map(([id, amt]) => {
+                  const c = catOf(id);
+                  return (
+                    <div key={id}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600 }}>{c ? `${c.emoji} ${c.name}` : "Sin categoría"}</span>
+                        <span className="cc-num" style={{ fontWeight: 700 }}>{fmt(amt)}</span>
+                      </div>
+                      <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--coral)", borderRadius: 99 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+
+        if (s.id === "trend") return (
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 8 }}>Saldo · últimos 30 días</div>
+            {trendPoints.length < 2 ? (
+              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Datos insuficientes.</div>
+            ) : (
+              <LineChart points={trendPoints} />
+            )}
+          </div>
+        );
+
+        if (s.id === "topExpenses") return (
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
+            {topExpenses.length === 0 ? (
+              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin gastos en el periodo.</div>
+            ) : (
+              topExpenses.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
+            )}
+          </div>
+        );
+
+        if (s.id === "recent") return (
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 10 }}>
+              Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
+            </div>
+            {scopedTxs.length === 0 ? (
+              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin movimientos todavía.</div>
+            ) : (
+              scopedTxs.slice(0, 5).map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
+            )}
+          </div>
+        );
+
+        return null;
+      })}
+
+      {configuring && (
+        <HomeConfigModal
+          sections={sections}
+          onClose={() => setConfiguring(false)}
+          onSave={(newSections) => {
+            saveConfig({ ...config, homeSections: newSections });
+            setConfiguring(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ============= MODAL: PERSONALIZAR INICIO ============================== */
+function HomeConfigModal({ sections, onClose, onSave }) {
+  const [items, setItems] = useState(sections);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+
+  const toggle = (id) => {
+    setItems((prev) => prev.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
+  };
+
+  // drag & drop con HTML5
+  const onDragStart = (i) => (e) => {
+    setDragIdx(i);
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", String(i)); } catch (_) {}
+  };
+  const onDragOver = (i) => (e) => {
+    e.preventDefault();
+    if (i !== overIdx) setOverIdx(i);
+  };
+  const onDrop = (i) => (e) => {
+    e.preventDefault();
+    if (dragIdx == null || dragIdx === i) { setDragIdx(null); setOverIdx(null); return; }
+    setItems((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(dragIdx, 1);
+      next.splice(i, 0, moved);
+      return next;
+    });
+    setDragIdx(null); setOverIdx(null);
+  };
+  const move = (i, dir) => {
+    setItems((prev) => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
+  const reset = () => setItems(DEFAULT_SECTIONS.map((s) => ({ ...s })));
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600 }}>Personalizar inicio</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cancelar</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
+          Activa o desactiva secciones, y arrastra para reordenarlas.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+          {items.map((s, i) => (
+            <div key={s.id}
+              draggable
+              onDragStart={onDragStart(i)}
+              onDragOver={onDragOver(i)}
+              onDrop={onDrop(i)}
+              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+              className={`cc-sortable ${!s.on ? "disabled" : ""}`}
+              style={{ borderColor: overIdx === i ? "var(--gold)" : "var(--line)",
+                opacity: dragIdx === i ? 0.4 : (s.on ? 1 : 0.55) }}>
+              <span className="cc-grip-h">⋮⋮</span>
+              <span style={{ fontSize: 18 }}>{s.icon}</span>
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{s.label}</span>
+              <button className="cc-btn" onClick={() => move(i, -1)} disabled={i === 0}
+                style={{ padding: "4px 8px", fontSize: 12 }}>↑</button>
+              <button className="cc-btn" onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                style={{ padding: "4px 8px", fontSize: 12 }}>↓</button>
+              <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", marginLeft: 4 }}>
+                <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)}
+                  style={{ width: 18, height: 18, accentColor: "var(--green)" }} />
+              </label>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="cc-btn" style={{ padding: 12 }} onClick={reset}>Restablecer</button>
+          <button className="cc-btn cc-btn-green" style={{ flex: 1, padding: 13, fontSize: 14 }}
+            onClick={() => onSave(items)}>
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* fila de transacción */
+function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) {
+  const c = config.categories.find((x) => x.id === t.categoryId);
+  const acc = config.accounts.find((a) => a.id === t.accountId);
+  const multi = config.accounts.length > 1;
+
+  // modo selección: toda la fila es checkbox
+  if (selectable) {
+    return (
+      <div
+        onClick={() => onToggle && onToggle(t.id)}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
+          borderBottom: "1px solid var(--line)", cursor: "pointer",
+          background: selected ? "var(--green-soft)" : "transparent",
+          margin: "0 -10px", paddingLeft: 10, paddingRight: 10, borderRadius: selected ? 8 : 0 }}>
+        <input type="checkbox" checked={!!selected} readOnly
+          style={{ width: 19, height: 19, accentColor: "var(--green)" }} />
+        <div style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {t.description || (c ? c.name : "Movimiento")}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
+          </div>
+        </div>
+        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15, color: t.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
+          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+      <div
+        onClick={() => onEdit && onEdit(t)}
+        style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}
+      >
+        <div style={{ fontSize: 22, width: 34, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {t.description || (c ? c.name : "Movimiento")}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
+          </div>
+        </div>
+        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15,
+          color: t.type === "income" ? "var(--green)" : "var(--coral)",
+          whiteSpace: "nowrap" }}>
+          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        </div>
+      </div>
+      {onDelete && (
+        <button className="cc-btn" style={{ padding: "5px 9px", fontSize: 12 }}
+          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>✕</button>
+      )}
+    </div>
+  );
+}
+
+/* agrupa la lista en [{type:'header', date, income, expense}, {type:'tx', t}, ...] */
+function renderGroupedByDay(list) {
+  const out = [];
+  let currentDate = null, headerRef = null;
+  for (const t of list) {
+    if (t.date !== currentDate) {
+      currentDate = t.date;
+      headerRef = { type: "header", date: t.date, income: 0, expense: 0 };
+      out.push(headerRef);
+    }
+    // los pass-through no inflan el total del día
+    if (!t.passThrough) {
+      if (t.type === "income") headerRef.income += t.amount;
+      else headerRef.expense += t.amount;
+    }
+    out.push({ type: "tx", t });
+  }
+  return out;
+}
+
+/* ============================ MOVIMIENTOS ================================ */
+function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
+  const [filter, setFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("date-desc"); // date-desc | date-asc | amount-desc | amount-asc | account
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
+
+  // primero filtrar por rango global, luego por tipo
+  const rangeTxs = txsInRange(txs, dateRange);
+  const filtered = rangeTxs.filter((t) => filter === "all" || t.type === filter);
+  const list = [...filtered].sort((a, b) => {
+    if (sortBy === "date-desc") return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
+    if (sortBy === "date-asc")  return a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+    if (sortBy === "amount-desc") return b.amount - a.amount;
+    if (sortBy === "amount-asc")  return a.amount - b.amount;
+    if (sortBy === "account") {
+      const an = (config.accounts.find((x) => x.id === a.accountId) || {}).name || "";
+      const bn = (config.accounts.find((x) => x.id === b.accountId) || {}).name || "";
+      return an.localeCompare(bn) || b.date.localeCompare(a.date);
+    }
+    return 0;
+  });
+
+  // resumen del periodo (excluyendo pass-through)
+  const rangeStat = statTxs(rangeTxs).all;
+  const totalIn = rangeStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalOut = rangeStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  // top 3 categorías del tipo filtrado (o de gastos para "Todos")
+  const topCatType = filter === "income" ? "income" : "expense";
+  const topByCat = {};
+  rangeStat.filter((t) => t.type === topCatType && t.categoryId).forEach((t) => {
+    topByCat[t.categoryId] = (topByCat[t.categoryId] || 0) + t.amount;
+  });
+  const topCatRows = Object.entries(topByCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topTotal = Object.values(topByCat).reduce((s, v) => s + v, 0);
+
+  const toggleOne = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const selectAll = () => setSelected(new Set(list.map((t) => t.id)));
+  const clearSel = () => setSelected(new Set());
+
+  const askDeleteOne = (id) => setConfirmDelete([id]);
+  const askDeleteMany = () => {
+    if (selected.size === 0) return;
+    setConfirmDelete(Array.from(selected));
+  };
+  const doDelete = () => {
+    if (!confirmDelete) return;
+    const set = new Set(confirmDelete);
+    saveTxs(txs.filter((t) => !set.has(t.id)));
+    showToast(`${confirmDelete.length} movimiento${confirmDelete.length === 1 ? "" : "s"} eliminado${confirmDelete.length === 1 ? "" : "s"}`);
+    setConfirmDelete(null);
+    setSelected(new Set());
+    setSelectMode(false);
+  };
+
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  return (
+    <div>
+      {/* barra superior: filtro normal o info de selección */}
+      {!selectMode ? (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div className="cc-tabs" style={{ flex: 1 }}>
+              {[["all", "Todos"], ["income", "Ingresos"], ["expense", "Gastos"]].map(([k, l]) => (
+                <button key={k} className={`cc-tab ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+              ))}
+            </div>
+            {list.length > 0 && (
+              <button className="cc-btn" style={{ padding: "8px 12px", fontSize: 12, whiteSpace: "nowrap" }}
+                onClick={() => setSelectMode(true)}>
+                Seleccionar
+              </button>
+            )}
+          </div>
+          {filtered.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: ".06em" }}>
+                Ordenar
+              </span>
+              <select className="cc-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+                style={{ flex: 1, fontSize: 13, padding: "7px 10px" }}>
+                <option value="date-desc">📅 Fecha — más reciente primero</option>
+                <option value="date-asc">📅 Fecha — más antiguo primero</option>
+                <option value="amount-desc">💰 Monto — mayor a menor</option>
+                <option value="amount-asc">💰 Monto — menor a mayor</option>
+                {config.accounts.length > 1 && (
+                  <option value="account">🏦 Por cuenta</option>
+                )}
+              </select>
+              <span style={{ fontSize: 11.5, color: "var(--ink-soft)", whiteSpace: "nowrap" }}>
+                {filtered.length} mov.
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "10px 12px",
+          background: "var(--ink)", color: "var(--surface)", borderRadius: 12 }}>
+          <button onClick={exitSelect}
+            style={{ background: "transparent", border: "none", color: "var(--surface)", cursor: "pointer", fontSize: 18, padding: "0 6px" }}>✕</button>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>
+            {selected.size} seleccionado{selected.size === 1 ? "" : "s"}
+          </span>
+          <button className="cc-btn" style={{ padding: "6px 11px", fontSize: 12 }}
+            onClick={selected.size === list.length ? clearSel : selectAll}>
+            {selected.size === list.length ? "Ninguno" : "Todos"}
+          </button>
+          <button className="cc-btn" style={{ padding: "6px 11px", fontSize: 12,
+            background: selected.size === 0 ? "var(--surface-2)" : "var(--coral)", color: selected.size === 0 ? "var(--ink-soft)" : "#fff",
+            borderColor: selected.size === 0 ? "var(--line)" : "var(--coral)" }}
+            disabled={selected.size === 0} onClick={askDeleteMany}>
+            🗑 Eliminar
+          </button>
+        </div>
+      )}
+
+      {/* tarjeta resumen del periodo */}
+      {!selectMode && rangeStat.length > 0 && (
+        <SummaryCard filter={filter} totalIn={totalIn} totalOut={totalOut}
+          topCatRows={topCatRows} topTotal={topTotal} config={config} />
+      )}
+
+      <div className="cc-card" style={{ padding: "6px 18px" }}>
+        {list.length === 0 ? (
+          <div style={{ color: "var(--ink-soft)", fontSize: 14, padding: "16px 0" }}>Nada por aquí todavía.</div>
+        ) : (sortBy === "date-desc" || sortBy === "date-asc") ? (
+          renderGroupedByDay(list).map((entry) =>
+            entry.type === "header" ? (
+              <div key={`h-${entry.date}`} className="cc-day-sep">
+                {(() => { const p = dayParts(entry.date); return (
+                  <>
+                    <span className="cc-day-num">{p.num}</span>
+                    <span className="cc-day-name">{p.desc}</span>
+                  </>
+                ); })()}
+                <div className="cc-day-totals">
+                  {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
+                  {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
+                </div>
+              </div>
+            ) : (
+              <TxRow key={entry.t.id} t={entry.t} config={config}
+                onEdit={selectMode ? null : onEdit}
+                onDelete={selectMode ? null : askDeleteOne}
+                selectable={selectMode}
+                selected={selected.has(entry.t.id)}
+                onToggle={toggleOne}
+              />
+            )
+          )
+        ) : (
+          list.map((t) => (
+            <TxRow key={t.id} t={t} config={config}
+              onEdit={selectMode ? null : onEdit}
+              onDelete={selectMode ? null : askDeleteOne}
+              selectable={selectMode}
+              selected={selected.has(t.id)}
+              onToggle={toggleOne}
+            />
+          ))
+        )}
+      </div>
+
+      {list.length > 0 && !selectMode && (
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", textAlign: "center", marginTop: 10 }}>
+          Toca un movimiento para editarlo · ✕ para eliminarlo
+        </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={confirmDelete.length === 1 ? "¿Eliminar este movimiento?" : `¿Eliminar ${confirmDelete.length} movimientos?`}
+          message="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
+          danger
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={doDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+/* diálogo de confirmación reutilizable */
+function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onCancel, onConfirm }) {
+  return (
+    <div className="cc-overlay" onClick={onCancel} style={{ alignItems: "center" }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: "var(--bg)", borderRadius: 18, maxWidth: 400, width: "90%", padding: 22, animation: "ccUp .25s" }}>
+        <h3 className="cc-serif" style={{ fontSize: 19, fontWeight: 600, marginBottom: 8 }}>{title}</h3>
+        {message && <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 18 }}>{message}</p>}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="cc-btn" style={{ flex: 1, padding: 12 }} onClick={onCancel}>Cancelar</button>
+          <button
+            className={danger ? "cc-btn" : "cc-btn cc-btn-green"}
+            style={{ flex: 1, padding: 12,
+              background: danger ? "var(--coral)" : undefined,
+              color: danger ? "#fff" : undefined,
+              borderColor: danger ? "var(--coral)" : undefined }}
+            onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ CATEGORÍAS ================================= */
+function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
+
+  const save = (cat) => {
+    let cats;
+    if (cat.id) cats = config.categories.map((c) => (c.id === cat.id ? cat : c));
+    else cats = [...config.categories, { ...cat, id: uid(), keywords: [] }];
+    saveConfig({ ...config, categories: cats });
+    setEditing(null);
+    showToast("Categoría guardada");
+  };
+  const askDel = (cat) => setConfirmDel(cat);
+  const doDel = () => {
+    if (!confirmDel) return;
+    saveConfig({ ...config, categories: config.categories.filter((c) => c.id !== confirmDel.id) });
+    showToast("Categoría eliminada");
+    setConfirmDel(null);
+  };
+
+  // calcular totales por categoría en el rango (excluyendo pass-through)
+  const rangeStat = statTxs(txsInRange(txs || [], dateRange)).all;
+  const totalsByCat = {};
+  rangeStat.forEach((t) => {
+    if (t.categoryId) totalsByCat[t.categoryId] = (totalsByCat[t.categoryId] || 0) + t.amount;
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
+        Cada cuenta tiene sus propias categorías. Los totales son de <b>{rangeLabel(dateRange)}</b>.
+      </div>
+      {config.accounts.map((acc) => {
+        const accCats = config.categories.filter((c) => c.accountId === acc.id);
+        return (
+          <div key={acc.id} className="cc-card" style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>🏦</span>
+              <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>{acc.name}</span>
+            </div>
+            {[["expense", "Gastos"], ["income", "Ingresos"]].map(([type, label]) => {
+              const list = accCats.filter((c) => c.type === type);
+              return (
+                <div key={type}>
+                  <div className="cc-label" style={{ marginTop: 12, marginBottom: 4 }}>{label}</div>
+                  {list.length === 0 && (
+                    <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "3px 0" }}>Sin categorías.</div>
+                  )}
+                  {list.map((c) => {
+                    const total = totalsByCat[c.id] || 0;
+                    return (
+                      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
+                        <span style={{ fontSize: 19 }}>{c.emoji}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+                          {total > 0 && (
+                            <div className="cc-num" style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                              {fmt(total)} en el periodo
+                            </div>
+                          )}
+                        </div>
+                        <button className="cc-btn" style={{ padding: "4px 9px", fontSize: 12 }} onClick={() => setEditing(c)}>Editar</button>
+                        <button className="cc-btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => askDel(c)}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <button className="cc-btn" style={{ marginTop: 12, fontSize: 13 }}
+              onClick={() => setEditing({ accountId: acc.id, type: "expense", emoji: "📦", name: "" })}>
+              ＋ Agregar categoría a {acc.name}
+            </button>
+          </div>
+        );
+      })}
+      {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
+      {confirmDel && (
+        <ConfirmDialog
+          title="¿Eliminar esta categoría?"
+          message={<>La categoría <b>{confirmDel.emoji} {confirmDel.name}</b> se eliminará. Los movimientos asociados quedarán sin categoría (no se borran).</>}
+          confirmLabel="Eliminar"
+          danger
+          onCancel={() => setConfirmDel(null)}
+          onConfirm={doDel}
+        />
+      )}
+    </div>
+  );
+}
+
+function CatModal({ cat, accounts, onClose, onSave }) {
+  const [name, setName] = useState(cat.name || "");
+  const [emoji, setEmoji] = useState(cat.emoji || "📦");
+  const [type, setType] = useState(cat.type || "expense");
+  const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {cat.id ? "Editar categoría" : "Nueva categoría"}
+        </h2>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 76 }}>
+            <label className="cc-label">Emoji</label>
+            <input className="cc-input" style={{ textAlign: "center", fontSize: 22 }} value={emoji}
+              onChange={(e) => setEmoji(e.target.value.slice(0, 2) || "📦")} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">Nombre</label>
+            <input className="cc-input" value={name} placeholder="Ej. Mascotas" onChange={(e) => setName(e.target.value)} />
+          </div>
+        </div>
+        {accounts.length > 1 && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="cc-label">Cuenta</label>
+            <select className="cc-select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+        )}
+        <label className="cc-label">Tipo</label>
+        <div className="cc-tabs" style={{ marginBottom: 22 }}>
+          {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
+            <button key={k} className={`cc-tab ${type === k ? "on" : ""}`} onClick={() => setType(k)}>{l}</button>
+          ))}
+        </div>
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13 }}
+          disabled={!name.trim()}
+          onClick={() => onSave({ ...cat, name: name.trim(), emoji, type, accountId })}>
+          Guardar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ================== MODAL: GESTIONAR CUENTAS ============================= */
+function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }) {
+  const [editing, setEditing] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const save = (acc) => {
+    let accounts, categories = config.categories;
+    if (acc.id) {
+      accounts = config.accounts.map((a) => (a.id === acc.id ? acc : a));
+    } else {
+      const nid = uid();
+      accounts = [...config.accounts, { ...acc, id: nid }];
+      categories = [...config.categories, ...defaultCatsForAccount(nid)];
+    }
+    saveConfig({ ...config, accounts, categories, accountMode: accounts.length > 1 ? "multiple" : "single" });
+    setEditing(null);
+    showToast("Cuenta guardada");
+  };
+  const askDel = (acc) => {
+    if (config.accounts.length <= 1) {
+      showToast("Esta es tu última cuenta. Si quieres reiniciar, usa 'Empezar desde cero' abajo");
+      return;
+    }
+    setConfirmDel(acc);
+  };
+  const doDel = () => {
+    if (!confirmDel) return;
+    const id = confirmDel.id;
+    const accounts = config.accounts.filter((a) => a.id !== id);
+    const categories = config.categories.filter((c) => c.accountId !== id);
+    saveConfig({ ...config, accounts, categories, accountMode: accounts.length > 1 ? "multiple" : "single" });
+    showToast("Cuenta eliminada");
+    setConfirmDel(null);
+  };
+  const doReset = async () => {
+    setConfirmReset(false);
+    onClose();
+    if (resetAll) await resetAll();
+  };
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600 }}>Tus cuentas</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+        </div>
+        <div className="cc-card" style={{ padding: 14, marginBottom: 12 }}>
+          {config.accounts.map((a) => {
+            const b = accountBalance(config, txs, a.id);
+            return (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
+                <span style={{ fontSize: 20 }}>🏦</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{a.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Saldo inicial: {fmt(a.initialBalance || 0)}</div>
+                </div>
+                <span className="cc-num" style={{ fontWeight: 700, color: b < 0 ? "var(--coral)" : "var(--green)" }}>{fmt(b)}</span>
+                <button className="cc-btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setEditing(a)}>Editar</button>
+                <button className="cc-btn" style={{ padding: "5px 9px", fontSize: 12 }} onClick={() => askDel(a)}>✕</button>
+              </div>
+            );
+          })}
+          <button className="cc-btn cc-btn-primary" style={{ marginTop: 14, fontSize: 13, width: "100%" }}
+            onClick={() => setEditing({ name: "", initialBalance: 0 })}>
+            ＋ Agregar cuenta
+          </button>
+        </div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
+          El <b>saldo inicial</b> es el dinero que ya tienes en cada cuenta. El saldo de la derecha es ese monto ajustado con tus movimientos.
+        </div>
+
+        {/* Zona peligrosa: empezar desde cero */}
+        {resetAll && (
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px dashed var(--line)" }}>
+            <div className="cc-label" style={{ color: "var(--coral)", marginBottom: 8 }}>Zona peligrosa</div>
+            <button
+              onClick={() => setConfirmReset(true)}
+              style={{ width: "100%", padding: "11px 14px", fontFamily: "inherit", fontSize: 13.5, fontWeight: 600,
+                background: "var(--coral-soft)", color: "var(--coral)",
+                border: "1px solid var(--coral)", borderRadius: 12, cursor: "pointer",
+                transition: ".2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              🔄 Empezar desde cero
+            </button>
+            <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 7, lineHeight: 1.4 }}>
+              Borra todas tus cuentas, categorías y movimientos. La app vuelve al onboarding inicial como usuario nuevo. No se puede deshacer.
+            </div>
+          </div>
+        )}
+
+        {editing && <AccountModal acc={editing} onClose={() => setEditing(null)} onSave={save} />}
+        {confirmDel && (
+          <ConfirmDialog
+            title="¿Eliminar esta cuenta?"
+            message={<>La cuenta <b>{confirmDel.name}</b> y todas sus categorías se eliminarán. Los movimientos en esa cuenta quedarán huérfanos.</>}
+            confirmLabel="Eliminar"
+            danger
+            onCancel={() => setConfirmDel(null)}
+            onConfirm={doDel}
+          />
+        )}
+        {confirmReset && (
+          <ConfirmDialog
+            title="¿Empezar desde cero?"
+            message={<>Esto eliminará <b>TODAS</b> tus cuentas, categorías y movimientos para siempre. La app volverá al onboarding como si fueras un usuario nuevo. <b>Esta acción no se puede deshacer.</b></>}
+            confirmLabel="Sí, borrar todo"
+            danger
+            onCancel={() => setConfirmReset(false)}
+            onConfirm={doReset}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountModal({ acc, onClose, onSave }) {
+  const [name, setName] = useState(acc.name || "");
+  const [bal, setBal] = useState(acc.initialBalance != null ? String(acc.initialBalance) : "");
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {acc.id ? "Editar cuenta" : "Nueva cuenta"}
+        </h2>
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">Nombre</label>
+          <input className="cc-input" placeholder="Efectivo, BBVA, Santander, Tarjeta…" value={name}
+            onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <label className="cc-label">Saldo inicial</label>
+          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00" value={bal}
+            onChange={(e) => setBal(e.target.value)} style={{ fontSize: 20, fontWeight: 700 }} />
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+            Dinero que tienes ahorita en esta cuenta. Puede ser 0.
+          </div>
+        </div>
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13 }}
+          disabled={!name.trim()}
+          onClick={() => onSave({ ...acc, name: name.trim(), initialBalance: parseFloat(bal) || 0 })}>
+          Guardar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== MODAL: NUEVO MOVIMIENTO =========================== */
+function AddModal({ config, tx, txs, onClose, onSave }) {
+  const editing = !!tx;
+  const [type, setType] = useState(tx ? tx.type : "expense");
+  const [amount, setAmount] = useState(tx ? String(tx.amount) : "");
+  const [desc, setDesc] = useState(tx ? tx.description : "");
+  const [accountId, setAccountId] = useState(
+    tx ? tx.accountId : (config.accounts.length === 1 ? config.accounts[0].id : "")
+  );
+  const [date, setDate] = useState(tx ? tx.date : today());
+  const [catId, setCatId] = useState(tx ? tx.categoryId : "auto");
+  const [phase, setPhase] = useState("form");
+
+  const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
+
+  /* categorizador: keywords locales -> Claude -> preguntar */
+  async function categorize() {
+    const nd = norm(desc);
+    // primero, claves locales de las categorías de ESTA cuenta
+    for (const c of cats) {
+      for (const kw of c.keywords || []) {
+        if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
+      }
+    }
+    // si no hay match, revisar claves aprendidas en otras cuentas con el mismo nombre/tipo
+    for (const c of cats) {
+      const twins = config.categories.filter(
+        (x) => x.id !== c.id && x.type === c.type && norm(x.name).trim() === norm(c.name).trim()
+      );
+      for (const twin of twins) {
+        for (const kw of twin.keywords || []) {
+          if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
+        }
+      }
+    }
+    try {
+      const sys =
+        'Eres un clasificador de transacciones personales. Responde SOLO con un objeto JSON, sin markdown ni texto extra: {"categoryId":"<id>" o null,"confident":true|false}. Devuelve null y confident:false si no estás razonablemente seguro.';
+      const user = `Tipo: ${type === "income" ? "ingreso" : "gasto"}. Descripción: "${desc}". Categorías disponibles: ${JSON.stringify(
+        cats.map((c) => ({ id: c.id, name: c.name }))
+      )}`;
+      const raw = await callClaude(sys, [{ role: "user", content: user }]);
+      const p = parseJSON(raw);
+      const valid = cats.some((c) => c.id === p.categoryId);
+      if (valid && p.confident) return { catId: p.categoryId, sure: true };
+      if (valid) return { catId: p.categoryId, sure: false };
+    } catch (e) { /* sin API: preguntar */ }
+    return { catId: null, sure: false };
+  }
+
+  function finalize(finalCatId, learn) {
+    let learnedCats = null;
+    if (learn && finalCatId && !passThrough) {
+      const kws = extractKW(desc).slice(0, 3);
+      if (kws.length) {
+        const target = config.categories.find((c) => c.id === finalCatId);
+        const sameName = target ? norm(target.name).trim() : null;
+        learnedCats = config.categories.map((c) =>
+          sameName && norm(c.name).trim() === sameName && c.type === target.type
+            ? { ...c, keywords: [...new Set([...(c.keywords || []), ...kws])] }
+            : c
+        );
+      }
+    }
+    onSave(
+      { id: tx ? tx.id : uid(), type, amount: Math.abs(parseFloat(amount)),
+        description: desc.trim(), categoryId: finalCatId, accountId, date },
+      learnedCats,
+      null
+    );
+  }
+
+  async function handleSave() {
+    if (!amount || parseFloat(amount) <= 0) return;
+    // categoría elegida a mano -> guardar y APRENDER de esa decisión
+    if (catId !== "auto") { finalize(catId, true); return; }
+    setPhase("detecting");
+    const r = await categorize();
+    if (r.catId && r.sure) {
+      finalize(r.catId, false);
+    } else if (r.catId) {
+      setCatId(r.catId);
+      setPhase("ask");
+    } else {
+      setPhase("ask");
+    }
+  }
+
+  /* pantalla: preguntar categoría */
+  if (phase === "ask") {
+    return (
+      <div className="cc-overlay" onClick={onClose}>
+        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="cc-grip" />
+          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 6 }}>¿Qué categoría es?</h2>
+          <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
+            No estoy seguro de la categoría para «{desc || "este movimiento"}». Elígela y la app aprenderá para la próxima.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+            {cats.map((c) => (
+              <button key={c.id} className="cc-card" onClick={() => finalize(c.id, true)}
+                style={{ padding: "13px 12px", textAlign: "left", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                  display: "flex", alignItems: "center", gap: 8,
+                  borderColor: catId === c.id ? "var(--gold)" : "var(--line)" }}>
+                <span style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {editing ? "Editar movimiento" : "Nuevo movimiento"}
+        </h2>
+
+        <div className="cc-tabs" style={{ marginBottom: 16 }}>
+          {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
+            <button key={k} className={`cc-tab ${type === k ? "on" : ""}`}
+              onClick={() => { setType(k); setCatId("auto"); }}>{l}</button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">Monto</label>
+          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00"
+            value={amount} onChange={(e) => setAmount(e.target.value)} style={{ fontSize: 22, fontWeight: 700 }} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">Concepto</label>
+          <input className="cc-input" placeholder="Ej. tacos con la familia, gasolina, pago de luz…"
+            value={desc} onChange={(e) => setDesc(e.target.value)} />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">Fecha</label>
+            <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          {config.accounts.length > 1 && (
+            <div style={{ flex: 1 }}>
+              <label className="cc-label">Cuenta</label>
+              <select className="cc-select" value={accountId}
+                onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
+                style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
+                <option value="">Elegir cuenta…</option>
+                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label className="cc-label">Categoría</label>
+          <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
+            disabled={!accountId}>
+            <option value="auto">✨ Detectar automáticamente</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
+          {!accountId ? (
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+              Elige primero una cuenta para ver sus categorías.
+            </div>
+          ) : catId === "auto" && (
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+              La app intentará detectar la categoría con el concepto. Si no está segura, te pregunta.
+            </div>
+          )}
+        </div>
+
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 14, fontSize: 15 }}
+          disabled={phase === "detecting" || !amount || parseFloat(amount) <= 0 || !accountId}
+          onClick={handleSave}>
+          {phase === "detecting"
+            ? "Detectando categoría…"
+            : editing ? "Guardar cambios" : `Guardar ${type === "income" ? "ingreso" : "gasto"}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== ASISTENTE DE CHAT ================================= */
+function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) {
+  const GREET =
+    "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
+  const QUICK = [
+    "Crea la categoría Mascotas 🐶",
+    "Registra un gasto de 250 en gasolina",
+    "¿Cuánto llevo gastado este mes?",
+  ];
+  const [msgs, setMsgs] = useState([{ role: "bot", text: GREET }]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const history = useRef([]);
+  const scroller = useRef(null);
+
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+  }, [msgs, busy]);
+
+  async function send(text) {
+    const userText = (text ?? input).trim();
+    if (!userText || busy) return;
+    setMsgs((m) => [...m, { role: "me", text: userText }]);
+    setInput("");
+    setBusy(true);
+    history.current.push({ role: "user", content: userText });
+    try {
+      const raw = await callClaude(assistantSystem(config, txs), history.current);
+      const parsed = parseJSON(raw);
+      history.current.push({ role: "assistant", content: parsed.message || raw });
+      let log = [], charts = [];
+      if (Array.isArray(parsed.actions) && parsed.actions.length) {
+        // separar show_chart de las demás acciones
+        const chartSpecs = parsed.actions.filter((a) => a && a.type === "show_chart");
+        const otherActions = parsed.actions.filter((a) => a && a.type !== "show_chart");
+
+        if (otherActions.length) {
+          const res = applyActions(config, txs, otherActions);
+          saveConfig(res.config);
+          saveTxs(res.txs);
+          log = res.log;
+        }
+        for (const cs of chartSpecs) {
+          const built = buildChart(cs.spec || cs, config, txs);
+          if (built) charts.push(built);
+        }
+      }
+      setMsgs((m) => [...m, { role: "bot", text: parsed.message || "Listo.", log, charts }]);
+    } catch (e) {
+      setMsgs((m) => [
+        ...m,
+        { role: "bot", text: "Tuve un problema para procesar eso. ¿Me lo dices de otra forma?" },
+      ]);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, display: "flex", alignItems: "center", gap: 9 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--green)", boxShadow: "0 0 0 4px var(--green-soft)" }} />
+            Asistente
+          </h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+        </div>
+
+        <div ref={scroller} style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: "52vh", padding: "2px 2px 6px" }}>
+          {msgs.map((m, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: m.role === "me" ? "flex-end" : "stretch" }}>
+              <div className={`cc-bubble ${m.role}`} style={{ whiteSpace: "pre-wrap" }}>
+                {m.text}
+                {m.log && m.log.length > 0 && (
+                  <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 5 }}>
+                    {m.log.map((l, j) => (
+                      <div key={j} style={{
+                        fontSize: 12.5, fontWeight: 600, padding: "5px 9px", borderRadius: 8,
+                        background: l.ok ? "var(--green-soft)" : "var(--coral-soft)",
+                        color: l.ok ? "var(--green)" : "var(--coral)",
+                      }}>
+                        {l.ok ? "✓" : "!"} {l.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* gráficas fuera de la burbuja, ancho completo */}
+              {m.charts && m.charts.length > 0 && m.charts.map((ch, j) => (
+                <MiniChart key={j} data={ch} />
+              ))}
+            </div>
+          ))}
+          {busy && (
+            <div className="cc-bubble bot"><span className="cc-dots"><span /><span /><span /></span></div>
+          )}
+        </div>
+
+        {msgs.length === 1 && !busy && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "12px 0 2px" }}>
+            {QUICK.map((q, i) => (
+              <button key={i} className="cc-chip" onClick={() => send(q)}>{q}</button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button className="cc-btn" title="Importar desde screenshot"
+            onClick={() => { onClose(); onOpenImport && onOpenImport(); }}
+            style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>📸</button>
+          <input
+            className="cc-input"
+            placeholder="Dile algo… ej. quita la categoría Ropa"
+            value={input}
+            disabled={busy}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+          />
+          <button className="cc-btn cc-btn-green" disabled={busy || !input.trim()} onClick={() => send()}>
+            Enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== MODAL: IMPORTAR DESDE SCREENSHOTS ================= */
+function ImportModal({ config, txs, onClose, onSave }) {
+  const [files, setFiles] = useState([]); // {file, previewUrl}
+  const [defaultAccountId, setDefaultAccountId] = useState(
+    config.accounts.length === 1 ? config.accounts[0].id : ""
+  );
+  const [phase, setPhase] = useState("upload"); // upload | processing | review
+  const [drafts, setDrafts] = useState([]); // movimientos extraídos editables
+  const [error, setError] = useState(null);
+  const inputRef = useRef(null);
+
+  const addFiles = (list) => {
+    const imgs = Array.from(list || []).filter((f) => f.type.startsWith("image/"));
+    const mapped = imgs.map((f) => ({ file: f, previewUrl: URL.createObjectURL(f) }));
+    setFiles((prev) => [...prev, ...mapped]);
+  };
+
+  const removeFile = (idx) => {
+    setFiles((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  async function process() {
+    if (!files.length || !defaultAccountId) return;
+    setError(null);
+    setPhase("processing");
+    try {
+      const imagesB64 = await Promise.all(files.map((f) => fileToB64(f.file)));
+      const acc = config.accounts.find((a) => a.id === defaultAccountId);
+      const cats = config.categories
+        .filter((c) => c.accountId === defaultAccountId)
+        .map((c) => ({ name: c.name, type: c.type, emoji: c.emoji }));
+
+      const sys = `Eres un extractor de movimientos bancarios mexicanos. Vas a recibir una o varias imágenes (screenshots de estados de cuenta o apps bancarias) y debes extraer TODOS los movimientos visibles.
+
+Cuenta destino: ${acc ? acc.name : "Principal"}
+Categorías disponibles para esa cuenta:
+${JSON.stringify(cats)}
+
+Responde SIEMPRE con UN SOLO objeto JSON sin markdown:
+{"movements":[{"date":"YYYY-MM-DD","amount":<número positivo>,"type":"income"|"expense","description":"comercio o concepto","categoryName":"<nombre de categoría existente, o null si no estás seguro>"},...]}
+
+REGLAS GENERALES:
+- "date" en formato YYYY-MM-DD. Si la imagen solo muestra día/mes, usa el año actual (${today().slice(0,4)}). Si no hay fecha, usa la de hoy: ${today()}.
+- "amount" SIEMPRE positivo, sin signo.
+- "type": "expense" si es un cargo/gasto/débito; "income" si es un abono/depósito/crédito.
+- "description": el comercio o concepto que aparece, breve (ej. "OXXO", "Uber", "Pago tarjeta", "Spotify").
+- "categoryName": elige una de las categorías de arriba que coincida con el tipo (gasto/ingreso). Si no estás seguro, usa null.
+- Ignora encabezados, saldos totales, comisiones que no sean movimientos reales.
+- Si la imagen no muestra movimientos, devuelve {"movements":[]}.
+
+🚨 CÓMO ASIGNAR LA FECHA — REGLA CRÍTICA, LEE CON CUIDADO:
+Muchas apps bancarias mexicanas (Santander, BBVA, Banorte) muestran los separadores de fecha como un ENCABEZADO que aplica a los movimientos que aparecen DEBAJO de ese separador, NO a los de arriba.
+
+Ejemplo del formato típico de Santander:
+  [movimiento A] ←  ¿de qué día es?
+  ─── sábado 02 de mayo 2026 ───
+  [movimiento B]
+  [movimiento C]
+  ─── viernes 01 de mayo 2026 ───
+  [movimiento D]
+
+En este ejemplo:
+- B y C son del SÁBADO 02 de mayo (debajo de su separador).
+- D es del VIERNES 01 de mayo.
+- A NO se le puede asignar fecha con certeza desde esta sola imagen porque su separador está cortado/fuera de pantalla (probablemente sea de un día más reciente, como lunes 04).
+
+REGLAS DE FECHA:
+1. La fecha de cada movimiento es la del separador que aparece JUSTO ARRIBA de él, o el más cercano hacia arriba.
+2. Si un movimiento aparece en la parte SUPERIOR de la imagen sin un separador de fecha visible arriba de él (porque la captura empieza en medio del scroll), NO INVENTES su fecha. En ese caso, omite ese movimiento — aparecerá completo en otro screenshot del lote.
+3. Las fechas dentro de la app van de más recientes (arriba) a más antiguas (abajo). Si ves un separador "sábado 02 mayo" y arriba hay movimientos sin separador visible, esos movimientos son de un día POSTERIOR al 02 (lunes 04, martes 05, etc.), no anterior.
+
+🚨 EVITA DUPLICADOS ENTRE IMÁGENES:
+Cuando subo varios screenshots de la misma app, los movimientos se traslapan entre fotos. Si detectas el mismo movimiento (mismo monto, mismo comercio) en dos imágenes distintas, inclúyelo UNA SOLA VEZ con la fecha correcta de su separador. Combina la información de ambas imágenes: si en una imagen el movimiento aparece cortado en la parte superior (sin fecha visible) y en otra imagen aparece bajo un separador claro, usa la fecha del separador.
+
+- Incluye TODOS los movimientos que puedas datar con certeza, en el orden en que aparecen.`;
+
+      const raw = await callClaudeVision(sys, "Extrae todos los movimientos visibles.", imagesB64);
+      const parsed = parseJSON(raw);
+      const list = Array.isArray(parsed.movements) ? parsed.movements : [];
+      if (!list.length) {
+        setError("No detecté movimientos en las imágenes. Verifica que se vean claros.");
+        setPhase("upload");
+        return;
+      }
+      // mapear a drafts con resolución de categoría y detección de duplicados
+      const ds = list.map((m, i) => {
+        const c = m.categoryName ? findCat({ ...config }, m.categoryName, defaultAccountId) : null;
+        const candidate = {
+          date: m.date || today(),
+          amount: Math.abs(Number(m.amount) || 0),
+          type: m.type === "income" ? "income" : "expense",
+          description: m.description || "",
+          accountId: defaultAccountId,
+        };
+        const dup = findDuplicate(candidate, txs || []);
+        return {
+          tempId: "draft" + i,
+          ...candidate,
+          categoryId: c ? c.id : "",
+          selected: !dup, // desmarcar duplicados por defecto
+          duplicate: dup ? { date: dup.date, amount: dup.amount, description: dup.description } : null,
+        };
+      });
+      setDrafts(ds);
+      setPhase("review");
+    } catch (e) {
+      console.error(e);
+      setError("Hubo un problema procesando las imágenes. Inténtalo de nuevo.");
+      setPhase("upload");
+    }
+  }
+
+  function updateDraft(tempId, patch) {
+    setDrafts((prev) => prev.map((d) => (d.tempId === tempId ? { ...d, ...patch } : d)));
+  }
+
+  function saveAll() {
+    const valid = drafts.filter((d) => d.selected && d.amount > 0);
+    if (!valid.length) return;
+    // aprender de cada categoría asignada manualmente
+    let cats = config.categories;
+    valid.forEach((d) => {
+      if (!d.categoryId || !d.description) return;
+      const target = cats.find((c) => c.id === d.categoryId);
+      if (!target) return;
+      const kws = extractKW(d.description).slice(0, 3);
+      if (!kws.length) return;
+      const sameName = norm(target.name).trim();
+      cats = cats.map((c) =>
+        norm(c.name).trim() === sameName && c.type === target.type
+          ? { ...c, keywords: [...new Set([...(c.keywords || []), ...kws])] }
+          : c
+      );
+    });
+    const txs = valid.map((d) => ({
+      id: uid(), type: d.type, amount: d.amount, description: d.description,
+      categoryId: d.categoryId || null, accountId: d.accountId, date: d.date,
+    }));
+    onSave(txs, cats);
+  }
+
+  /* ---------- pantalla: subir ---------- */
+  if (phase === "upload") {
+    return (
+      <div className="cc-overlay" onClick={onClose}>
+        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="cc-grip" />
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>📸 Importar desde screenshot</h2>
+          <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
+            Sube screenshots de tu app bancaria o estado de cuenta. La IA extrae los movimientos y tú los revisas.
+          </p>
+
+          {config.accounts.length > 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <label className="cc-label">Cuenta destino</label>
+              <select className="cc-select" value={defaultAccountId} onChange={(e) => setDefaultAccountId(e.target.value)}
+                style={{ borderColor: !defaultAccountId ? "var(--gold)" : "var(--line)" }}>
+                <option value="">Elegir cuenta…</option>
+                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+            onChange={(e) => addFiles(e.target.files)} />
+
+          <button className="cc-card" onClick={() => inputRef.current?.click()}
+            style={{ width: "100%", padding: 26, textAlign: "center", border: "2px dashed var(--line)",
+              background: "var(--surface-2)", cursor: "pointer", marginBottom: 14 }}>
+            <div style={{ fontSize: 30, marginBottom: 6 }}>📷</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Toca para elegir imágenes</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+              También puedes seleccionar varias a la vez
+            </div>
+          </button>
+
+          {files.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+              {files.map((f, i) => (
+                <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "1", border: "1px solid var(--line)" }}>
+                  <img src={f.previewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <button onClick={() => removeFile(i)}
+                    style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: "50%",
+                      border: "none", background: "rgba(0,0,0,.7)", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <div style={{ padding: 11, borderRadius: 10, background: "var(--coral-soft)", color: "var(--coral)", fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
+              {error}
+            </div>
+          )}
+
+          <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 14, fontSize: 15 }}
+            disabled={!files.length || !defaultAccountId} onClick={process}>
+            ✨ Extraer movimientos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- pantalla: procesando ---------- */
+  if (phase === "processing") {
+    return (
+      <div className="cc-overlay">
+        <div className="cc-sheet" style={{ padding: "40px 18px" }}>
+          <div className="cc-grip" />
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>🔍</div>
+            <div className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>
+              Leyendo tus movimientos…
+            </div>
+            <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 18 }}>
+              La IA está revisando {files.length} imagen{files.length > 1 ? "es" : ""}
+            </div>
+            <div className="cc-dots"><span /><span /><span /></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- pantalla: revisar ---------- */
+  const okCount = drafts.filter((d) => d.selected && d.amount > 0).length;
+  const accCats = (type) => config.categories.filter((c) => c.accountId === defaultAccountId && c.type === type);
+
+  return (
+    <ReviewScreen
+      drafts={drafts}
+      updateDraft={updateDraft}
+      accCats={accCats}
+      onBack={() => { setDrafts([]); setPhase("upload"); }}
+      onSave={saveAll}
+      onClose={onClose}
+      sourceLabel="Encontré"
+    />
+  );
+}
+
+/* ============================ ESTADÍSTICAS =============================== */
+function Estadisticas({ config, txs, dateRange, onEdit }) {
+  const [view, setView] = useState("all"); // all | accountId
+  const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
+
+  const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
+  const scopedInitial = view === "all"
+    ? config.accounts.reduce((s, a) => s + (a.initialBalance || 0), 0)
+    : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
+
+  // ============== datos del rango ==============
+  const rangeTxs = txsInRange(scopedTxs, dateRange);
+  const rangeStat = statTxs(rangeTxs).all;
+  const rangeIncome = rangeStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const rangeExpense = rangeStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const rangeFlow = rangeIncome - rangeExpense;
+
+  // categorías de gasto e ingreso por separado
+  const expByCat = {};
+  const incByCat = {};
+  rangeStat.forEach((t) => {
+    if (!t.categoryId) return;
+    if (t.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
+    else incByCat[t.categoryId] = (incByCat[t.categoryId] || 0) + t.amount;
+  });
+  const expRows = Object.entries(expByCat)
+    .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
+    .filter((x) => x.cat).sort((a, b) => b.amt - a.amt);
+  const incRows = Object.entries(incByCat)
+    .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
+    .filter((x) => x.cat).sort((a, b) => b.amt - a.amt);
+
+  // pie de gastos (siempre del rango)
+  const pieTotal = rangeExpense;
+
+  // ============== evolución de saldo (90 días o todo el rango) ==============
+  const { from: rfrom, to: rto } = resolveRange(dateRange);
+  const sorted = [...scopedTxs].sort((a, b) => a.date.localeCompare(b.date));
+  const balancePoints = [];
+  let running = scopedInitial;
+  for (const t of sorted) {
+    if (t.date < rfrom) running += t.type === "income" ? t.amount : -t.amount;
+  }
+  const dayMap = new Map();
+  dayMap.set(rfrom, running);
+  for (const t of sorted) {
+    if (t.date < rfrom || t.date > rto) continue;
+    running += t.type === "income" ? t.amount : -t.amount;
+    dayMap.set(t.date, running);
+  }
+  let lastVal = scopedInitial + sorted.filter((t) => t.date < rfrom).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  const startD = new Date(rfrom + "T12:00:00");
+  const endD = new Date(rto + "T12:00:00");
+  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+    const k = d.toISOString().slice(0, 10);
+    if (dayMap.has(k)) lastVal = dayMap.get(k);
+    balancePoints.push({ date: k, val: lastVal });
+  }
+
+  // ============== KPIs ==============
+  const days = Math.max(1, Math.round((endD - startD) / 86400000) + 1);
+  const avgDaily = rangeExpense / days;
+  const topCat = expRows[0];
+  const txCount = rangeTxs.length;
+
+  const showName = view === "all" ? "General" : (config.accounts.find((a) => a.id === view)?.name || "");
+
+  // helpers de drill-down
+  function openDetail(kind) {
+    if (kind === "income") {
+      const list = rangeStat.filter((t) => t.type === "income");
+      setDetail({ kind: "income", label: "Todos los ingresos", color: "var(--green)",
+        emoji: "📥", txs: list, total: rangeIncome });
+    } else if (kind === "expense") {
+      const list = rangeStat.filter((t) => t.type === "expense");
+      setDetail({ kind: "expense", label: "Todos los gastos", color: "var(--coral)",
+        emoji: "📤", txs: list, total: rangeExpense });
+    }
+  }
+  function openCategoryDetail(catId) {
+    const c = config.categories.find((x) => x.id === catId);
+    if (!c) return;
+    const list = rangeStat.filter((t) => t.categoryId === catId);
+    const total = list.reduce((s, t) => s + t.amount, 0);
+    setDetail({ kind: "category", label: c.name, color: c.type === "income" ? "var(--green)" : "var(--coral)",
+      emoji: c.emoji, txs: list, total });
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* selector de cuenta */}
+      <div className="cc-fade">
+        <div className="cc-label" style={{ marginBottom: 8 }}>Ver estadísticas de</div>
+        <div className="cc-scroll-x">
+          <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}
+            style={{ minWidth: 120 }}>
+            <div className="cc-acc-label">Todas</div>
+            <div className="cc-acc-name">General</div>
+          </button>
+          {config.accounts.map((a) => (
+            <button key={a.id} className={`cc-acc-card ${view === a.id ? "on" : ""}`} onClick={() => setView(a.id)}
+              style={{ minWidth: 120 }}>
+              <div className="cc-acc-label">🏦 Cuenta</div>
+              <div className="cc-acc-name">{a.name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {rangeTxs.length === 0 ? (
+        <div className="cc-card" style={{ padding: 26, textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 8 }}>📊</div>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>Sin movimientos en {showName}</div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
+            Para el periodo: <b>{rangeLabel(dateRange)}</b>. Cambia el rango arriba o registra movimientos.
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* ===== Tarjeta destacada: Ingresos vs Gastos (tappable) ===== */}
+          <div className="cc-card" style={{ padding: 18 }}>
+            <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => openDetail("income")}
+                style={{ flex: 1, padding: "13px 14px", background: "var(--green-soft)",
+                  border: "1px solid var(--green)", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>📥 Ingresos</div>
+                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--green)" }}>{fmt(rangeIncome)}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+              </button>
+              <button onClick={() => openDetail("expense")}
+                style={{ flex: 1, padding: "13px 14px", background: "var(--coral-soft)",
+                  border: "1px solid var(--coral)", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--coral)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>📤 Gastos</div>
+                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--coral)" }}>{fmt(rangeExpense)}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+              </button>
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
+              <span className="cc-num" style={{ fontSize: 17, fontWeight: 700,
+                color: rangeFlow >= 0 ? "var(--green)" : "var(--coral)" }}>
+                {rangeFlow >= 0 ? "+" : "−"}{fmt(Math.abs(rangeFlow))}
+              </span>
+            </div>
+          </div>
+
+          {/* KPIs secundarios */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
+            <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
+          </div>
+
+          {/* ===== Categorías de ingreso (tappables) ===== */}
+          {incRows.length > 0 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Ingresos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {incRows.map(({ cat, amt }) => {
+                  const pct = rangeIncome ? Math.round((amt / rangeIncome) * 100) : 0;
+                  return (
+                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                        background: "var(--surface)", border: "1px solid var(--line)",
+                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
+                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--green)", borderRadius: 99 }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--green)" }}>{fmt(amt)}</div>
+                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ===== Categorías de gasto (tappables) ===== */}
+          {expRows.length > 0 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {expRows.map(({ cat, amt }) => {
+                  const pct = rangeExpense ? Math.round((amt / rangeExpense) * 100) : 0;
+                  return (
+                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                        background: "var(--surface)", border: "1px solid var(--line)",
+                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
+                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--coral)", borderRadius: 99 }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--coral)" }}>{fmt(amt)}</div>
+                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Evolución de saldo en el rango */}
+          {balancePoints.length >= 2 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
+              <LineChart points={balancePoints} />
+            </div>
+          )}
+
+          {/* destacado */}
+          {topCat && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                <div style={{ flex: 1 }}>
+                  <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
+                  <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                    {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {detail && (
+        <DetailModal config={config} detail={detail} dateRange={dateRange}
+          onClose={() => setDetail(null)}
+          onEditTx={(t) => { setDetail(null); onEdit(t); }} />
+      )}
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color }) {
+  return (
+    <div className="cc-card cc-card-boxed" style={{ padding: 14, paddingTop: 14 }}>
+      <div className="cc-label" style={{ marginBottom: 6 }}>{label}</div>
+      <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: color || "var(--ink)", letterSpacing: "-.025em", lineHeight: 1 }}>{value}</div>
+      {sub && <div className="cc-num" style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ----------------------- gráfica de línea (SVG) -------------------------- */
+function LineChart({ points }) {
+  if (!points || points.length < 2) {
+    return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
+  }
+  const W = 600, H = 180, P = 10;
+  const min = Math.min(...points.map((p) => p.val));
+  const max = Math.max(...points.map((p) => p.val));
+  const range = max - min || 1;
+  const xOf = (i) => P + (i / (points.length - 1)) * (W - P * 2);
+  const yOf = (v) => H - P - ((v - min) / range) * (H - P * 2);
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
+  const area = `${path} L${xOf(points.length - 1).toFixed(1)},${H - P} L${P},${H - P} Z`;
+  const last = points[points.length - 1].val;
+  const first = points[0].val;
+  const up = last >= first;
+  const stroke = up ? "var(--green)" : "var(--coral)";
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "var(--ink-soft)" }}>
+        <span>{points[0].date}</span>
+        <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>{fmt(last)}</span>
+        <span>hoy</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        <defs>
+          <linearGradient id="ccLine" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#ccLine)" />
+        <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+/* --------------------- gráfica de pastel (SVG donut) --------------------- */
+const PIE_COLORS = ["#B8482A", "#B0863A", "#2E6F4E", "#7B5E2E", "#9E3F26", "#5C7A4C", "#A07344", "#7A4630"];
+
+function PieChart({ data, total }) {
+  const size = 160, cx = size / 2, cy = size / 2, r = 70, ir = 42;
+  let acc = 0;
+  const slices = data.map((d, i) => {
+    const frac = total ? d.amt / total : 0;
+    const start = acc; acc += frac;
+    return { ...d, start, end: acc, color: PIE_COLORS[i % PIE_COLORS.length] };
+  });
+
+  function arc(s, e) {
+    const a0 = s * Math.PI * 2 - Math.PI / 2;
+    const a1 = e * Math.PI * 2 - Math.PI / 2;
+    const large = e - s > 0.5 ? 1 : 0;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const xi0 = cx + ir * Math.cos(a0), yi0 = cy + ir * Math.sin(a0);
+    const xi1 = cx + ir * Math.cos(a1), yi1 = cy + ir * Math.sin(a1);
+    return `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${ir},${ir} 0 ${large} 0 ${xi0},${yi0} Z`;
+  }
+
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 160, height: 160, flexShrink: 0 }}>
+      {slices.map((s, i) =>
+        s.end - s.start < 0.001 ? null :
+        <path key={i} d={arc(s.start, s.end)} fill={s.color} />
+      )}
+      <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="13" fill="var(--ink-soft)">Total</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="15" fontWeight="600" fill="var(--ink)">{fmt(total)}</text>
+    </svg>
+  );
+}
+
+/* ---------------------- gráfica de barras (SVG) -------------------------- */
+function BarsChart({ bars }) {
+  const W = 600, H = 180, P = 18;
+  const max = Math.max(1, ...bars.map((b) => Math.max(b.expense, b.income)));
+  const groupW = (W - P * 2) / bars.length;
+  const barW = groupW * 0.38;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      {bars.map((b, i) => {
+        const cx = P + groupW * i + groupW / 2;
+        const hi = (b.income / max) * (H - P * 2);
+        const he = (b.expense / max) * (H - P * 2);
+        return (
+          <g key={i}>
+            <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3" />
+            <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3" />
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">
+              {monthLabel(b.key).split(" ")[0]}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* ============= MiniChart para el chat asistente ========================== */
+/* Recibe un payload tipo:
+   { kind: "line", title, xLabels:["sem 1",...], series:[{name,color,values:[]}], yLabel? }
+   { kind: "bars", title, xLabels, series:[{name,color,values}] }
+   { kind: "pie",  title, segments:[{label, value, color?}] }
+*/
+function MiniChart({ data }) {
+  if (!data || !data.kind) return null;
+  const title = data.title || "";
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, padding: 12, marginTop: 6 }}>
+      {title && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>{title}</div>}
+      {data.kind === "line" && <MiniLine series={data.series || []} xLabels={data.xLabels || []} />}
+      {data.kind === "bars" && <MiniBars series={data.series || []} xLabels={data.xLabels || []} />}
+      {data.kind === "pie" && <MiniPie segments={data.segments || []} />}
+      {/* leyenda */}
+      {(data.kind === "line" || data.kind === "bars") && data.series && data.series.length > 0 && (
+        <div style={{ display: "flex", gap: 14, fontSize: 11.5, color: "var(--ink-soft)", marginTop: 8, flexWrap: "wrap" }}>
+          {data.series.map((s, i) => (
+            <span key={i}>
+              <span style={{ display: "inline-block", width: 9, height: 9, background: s.color || PIE_COLORS[i % PIE_COLORS.length], borderRadius: 2, marginRight: 5, verticalAlign: "middle" }} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* helper para abreviar montos en ejes ($1.2k, $34k) */
+function shortMoney(v) {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
+/* genera ticks "redondos" para el eje Y */
+function niceTicks(min, max, count = 4) {
+  if (min === max) { min -= 1; max += 1; }
+  const range = max - min;
+  const rough = range / count;
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / pow;
+  let step;
+  if (norm < 1.5) step = 1;
+  else if (norm < 3) step = 2;
+  else if (norm < 7) step = 5;
+  else step = 10;
+  step *= pow;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = niceMin; v <= niceMax + 0.0001; v += step) ticks.push(v);
+  return { ticks, min: niceMin, max: niceMax };
+}
+
+function MiniLine({ series, xLabels }) {
+  const [hover, setHover] = useState(null); // índice de bucket bajo el cursor
+  if (!series.length) return null;
+  const W = 600, H = 220, PL = 50, PR = 14, PT = 14, PB = 38;
+  const all = series.flatMap((s) => s.values || []);
+  if (!all.length) return null;
+  const rawMin = Math.min(0, ...all);
+  const rawMax = Math.max(...all, 1);
+  const { ticks, min, max } = niceTicks(rawMin, rawMax, 4);
+  const range = max - min || 1;
+  const n = xLabels.length;
+  const innerW = W - PL - PR;
+  const innerH = H - PT - PB;
+  const xOf = (i) => PL + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
+  const yOf = (v) => PT + innerH - ((v - min) / range) * innerH;
+  const colWidth = innerW / Math.max(n, 1);
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+        onMouseLeave={() => setHover(null)}>
+        {/* grid horizontal */}
+        {ticks.map((tv, i) => (
+          <g key={i}>
+            <line x1={PL} x2={W - PR} y1={yOf(tv)} y2={yOf(tv)}
+              stroke={tv === 0 ? "var(--ink-soft)" : "var(--line)"}
+              strokeOpacity={tv === 0 ? 0.5 : 1}
+              strokeDasharray={tv === 0 ? "none" : "3 4"} />
+            <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
+              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
+          </g>
+        ))}
+        {/* etiquetas eje X */}
+        {xLabels.map((lbl, i) => (
+          <text key={i} x={xOf(i)} y={H - 16} textAnchor="middle" fontSize="11"
+            fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
+        ))}
+        {/* línea guía vertical */}
+        {hover != null && (
+          <line x1={xOf(hover)} x2={xOf(hover)} y1={PT} y2={PT + innerH}
+            stroke="var(--ink-soft)" strokeDasharray="3 3" strokeOpacity="0.5" />
+        )}
+        {/* series */}
+        {series.map((s, si) => {
+          const color = s.color || PIE_COLORS[si % PIE_COLORS.length];
+          const vals = s.values || [];
+          const pts = vals.map((v, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
+          return (
+            <g key={si}>
+              <path d={pts} fill="none" stroke={color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+              {vals.map((v, i) => (
+                <g key={i}>
+                  <circle cx={xOf(i)} cy={yOf(v)} r={hover === i ? 5 : 3.5} fill={color}
+                    stroke="var(--surface)" strokeWidth="1.5" />
+                </g>
+              ))}
+            </g>
+          );
+        })}
+        {/* columnas invisibles para captar hover/touch */}
+        {xLabels.map((_, i) => {
+          const cx = xOf(i);
+          return (
+            <rect key={i} x={cx - colWidth / 2} y={PT} width={colWidth} height={innerH}
+              fill="transparent" style={{ cursor: "pointer" }}
+              onMouseEnter={() => setHover(i)}
+              onTouchStart={() => setHover(i)} />
+          );
+        })}
+      </svg>
+      {/* tooltip */}
+      {hover != null && (
+        <ChartTooltip
+          label={xLabels[hover]}
+          rows={series.map((s, si) => ({
+            name: s.name, color: s.color || PIE_COLORS[si % PIE_COLORS.length],
+            value: (s.values || [])[hover] || 0,
+          }))}
+          x={(xOf(hover) / W) * 100}
+        />
+      )}
+    </div>
+  );
+}
+
+function MiniBars({ series, xLabels }) {
+  const [hover, setHover] = useState(null);
+  if (!series.length) return null;
+  const W = 600, H = 220, PL = 50, PR = 14, PT = 14, PB = 38;
+  const all = series.flatMap((s) => s.values || []);
+  if (!all.length) return null;
+  const { ticks, min, max } = niceTicks(0, Math.max(...all, 1), 4);
+  const range = max - min || 1;
+  const n = xLabels.length;
+  const innerW = W - PL - PR;
+  const innerH = H - PT - PB;
+  const groupW = innerW / Math.max(n, 1);
+  const sCount = series.length;
+  const barW = Math.min(30, (groupW * 0.7) / sCount);
+  const cxOf = (i) => PL + groupW * i + groupW / 2;
+  const yOf = (v) => PT + innerH - ((v - min) / range) * innerH;
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+        onMouseLeave={() => setHover(null)}>
+        {/* grid horizontal */}
+        {ticks.map((tv, i) => (
+          <g key={i}>
+            <line x1={PL} x2={W - PR} y1={yOf(tv)} y2={yOf(tv)}
+              stroke="var(--line)" strokeDasharray={tv === 0 ? "none" : "3 4"} />
+            <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
+              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
+          </g>
+        ))}
+        {/* highlight columna activa */}
+        {hover != null && (
+          <rect x={cxOf(hover) - groupW / 2} y={PT} width={groupW} height={innerH}
+            fill="var(--ink)" fillOpacity="0.04" />
+        )}
+        {/* barras */}
+        {xLabels.map((lbl, i) => {
+          const cx = cxOf(i);
+          return (
+            <g key={i}>
+              {series.map((s, si) => {
+                const color = s.color || PIE_COLORS[si % PIE_COLORS.length];
+                const v = (s.values && s.values[i]) || 0;
+                const h = (v / max) * innerH;
+                const x = cx + (si - (sCount - 1) / 2) * barW - barW / 2;
+                return <rect key={si} x={x} y={H - PB - h} width={barW - 2} height={Math.max(h, 0)}
+                  fill={color} rx="3" opacity={hover != null && hover !== i ? 0.55 : 1} />;
+              })}
+              <text x={cx} y={H - 16} textAnchor="middle" fontSize="11"
+                fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
+            </g>
+          );
+        })}
+        {/* columnas invisibles para hover */}
+        {xLabels.map((_, i) => (
+          <rect key={i} x={cxOf(i) - groupW / 2} y={PT} width={groupW} height={innerH}
+            fill="transparent" style={{ cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)}
+            onTouchStart={() => setHover(i)} />
+        ))}
+      </svg>
+      {hover != null && (
+        <ChartTooltip
+          label={xLabels[hover]}
+          rows={series.map((s, si) => ({
+            name: s.name, color: s.color || PIE_COLORS[si % PIE_COLORS.length],
+            value: (s.values || [])[hover] || 0,
+          }))}
+          x={(cxOf(hover) / W) * 100}
+        />
+      )}
+    </div>
+  );
+}
+
+/* tooltip flotante posicionado en porcentaje de ancho del contenedor */
+function ChartTooltip({ label, rows, x }) {
+  // si está a la derecha, anclar a la derecha; si a la izquierda, anclar a la izquierda
+  const anchorRight = x > 60;
+  return (
+    <div style={{
+      position: "absolute",
+      top: 6,
+      [anchorRight ? "right" : "left"]: anchorRight ? `${100 - x + 2}%` : `${x + 2}%`,
+      maxWidth: "44%",
+      background: "var(--ink)", color: "var(--surface)",
+      padding: "8px 11px", borderRadius: 9,
+      fontSize: 12, lineHeight: 1.4,
+      boxShadow: "0 6px 20px rgba(0,0,0,.25)",
+      pointerEvents: "none",
+      zIndex: 5,
+      whiteSpace: "nowrap",
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 11, opacity: 0.75, textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</div>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginTop: i === 0 ? 0 : 2 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: r.color, flexShrink: 0 }} />
+          <span style={{ flex: 1, opacity: 0.8 }}>{r.name}</span>
+          <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(r.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniPie({ segments }) {
+  const total = segments.reduce((s, x) => s + (x.value || 0), 0);
+  if (total <= 0) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Sin datos.</div>;
+  const size = 160, cx = size / 2, cy = size / 2, r = 70, ir = 42;
+  let acc = 0;
+  const slices = segments.map((seg, i) => {
+    const frac = seg.value / total;
+    const start = acc; acc += frac;
+    return { ...seg, start, end: acc, color: seg.color || PIE_COLORS[i % PIE_COLORS.length] };
+  });
+  function arc(s, e) {
+    const a0 = s * Math.PI * 2 - Math.PI / 2;
+    const a1 = e * Math.PI * 2 - Math.PI / 2;
+    const large = e - s > 0.5 ? 1 : 0;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const xi0 = cx + ir * Math.cos(a0), yi0 = cy + ir * Math.sin(a0);
+    const xi1 = cx + ir * Math.cos(a1), yi1 = cy + ir * Math.sin(a1);
+    return `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${ir},${ir} 0 ${large} 0 ${xi0},${yi0} Z`;
+  }
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 140, height: 140, flexShrink: 0 }}>
+        {slices.map((s, i) => s.end - s.start < 0.001 ? null : <path key={i} d={arc(s.start, s.end)} fill={s.color} />)}
+        <text x={cx} y={cy + 5} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="14" fontWeight="600" fill="var(--ink)">{fmt(total)}</text>
+      </svg>
+      <div style={{ flex: 1, minWidth: 140, display: "flex", flexDirection: "column", gap: 5 }}>
+        {slices.slice(0, 6).map((s, i) => {
+          const pct = Math.round((s.value / total) * 100);
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
+              <span className="cc-num" style={{ fontWeight: 700 }}>{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== MODAL: IMPORTAR DESDE EXCEL ======================= */
+function ExcelImportModal({ config, txs, onClose, onSave }) {
+  const [file, setFile] = useState(null);
+  const [rows, setRows] = useState([]); // todas las filas crudas
+  const [defaultAccountId, setDefaultAccountId] = useState(
+    config.accounts.length === 1 ? config.accounts[0].id : ""
+  );
+  const [phase, setPhase] = useState("upload"); // upload | processing | review
+  const [drafts, setDrafts] = useState([]);
+  const [error, setError] = useState(null);
+  const inputRef = useRef(null);
+
+  async function handleFile(f) {
+    if (!f) return;
+    setError(null);
+    setFile(f);
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+      const filtered = json.filter((r) => Array.isArray(r) && r.some((c) => c !== "" && c != null));
+      if (filtered.length < 2) {
+        setError("El archivo está vacío o no tiene suficientes filas.");
+        return;
+      }
+      setRows(filtered);
+    } catch (e) {
+      console.error(e);
+      setError("No pude leer el archivo. ¿Es un Excel válido (.xlsx, .xls, .csv)?");
+    }
+  }
+
+  async function process() {
+    if (!rows.length || !defaultAccountId) return;
+    setPhase("processing");
+    setError(null);
+    try {
+      // mandar sample a Claude para detectar columnas
+      const sample = rows.slice(0, Math.min(15, rows.length));
+      const cats = config.categories
+        .filter((c) => c.accountId === defaultAccountId)
+        .map((c) => ({ name: c.name, type: c.type }));
+
+      const sys = `Analiza una hoja de cálculo de movimientos bancarios y dime qué columna es cada cosa.
+Te paso las primeras filas como arreglo de arreglos. La fila 0 puede ser encabezado (o no).
+
+Devuelve UN SOLO objeto JSON, sin markdown:
+{
+  "headerRow": <índice de la fila de encabezado, o null si no hay>,
+  "columns": {
+    "date": <índice de columna de fecha, o null>,
+    "description": <índice de columna de concepto/descripción, o null>,
+    "amount": <índice de columna de monto, o null>,
+    "type": <índice de columna que indica tipo (gasto/ingreso/cargo/abono), o null>,
+    "expenseColumn": <índice si hay UNA columna SOLO para gastos (cargo/débito), o null>,
+    "incomeColumn": <índice si hay UNA columna SOLO para ingresos (abono/crédito), o null>
+  },
+  "amountSign": "negative-is-expense" | "positive-is-expense" | "separate-columns" | "type-column",
+  "dateFormat": "<descripción breve del formato observado, ej: DD/MM/YYYY>"
+}
+
+REGLAS:
+- Si hay UNA sola columna de monto y los gastos son negativos → "negative-is-expense"
+- Si hay UNA sola columna y todos son positivos pero una columna aparte dice tipo (gasto/ingreso) → "type-column"
+- Si hay DOS columnas separadas (una para cargos y otra para abonos) → "separate-columns" + llena expenseColumn e incomeColumn
+- Si no estás seguro, usa null en los campos.`;
+
+      const userMsg = `Filas: ${JSON.stringify(sample)}`;
+      const raw = await callClaude(sys, [{ role: "user", content: userMsg }]);
+      const mapping = parseJSON(raw);
+
+      // construir drafts
+      const headerIdx = mapping.headerRow != null ? mapping.headerRow : -1;
+      const dataRows = rows.filter((_, i) => i !== headerIdx);
+      const sign = mapping.amountSign;
+      const cols = mapping.columns || {};
+
+      const ds = [];
+      dataRows.forEach((r, idx) => {
+        if (!Array.isArray(r)) return;
+        const dateRaw = cols.date != null ? r[cols.date] : "";
+        const desc = cols.description != null ? String(r[cols.description] || "") : "";
+
+        let amount = 0, type = "expense";
+        if (sign === "separate-columns" && cols.expenseColumn != null && cols.incomeColumn != null) {
+          const e = parseAmount(r[cols.expenseColumn]);
+          const inc = parseAmount(r[cols.incomeColumn]);
+          if (inc > 0) { amount = inc; type = "income"; }
+          else if (e > 0) { amount = e; type = "expense"; }
+        } else if (sign === "type-column" && cols.amount != null && cols.type != null) {
+          amount = Math.abs(parseAmount(r[cols.amount]));
+          const tt = String(r[cols.type] || "").toLowerCase();
+          type = /ingres|abono|cr[eé]dito|depo/.test(tt) ? "income" : "expense";
+        } else if (cols.amount != null) {
+          const a = parseAmount(r[cols.amount]);
+          if (sign === "positive-is-expense") {
+            amount = Math.abs(a); type = a >= 0 ? "expense" : "income";
+          } else {
+            amount = Math.abs(a); type = a < 0 ? "expense" : "income";
+          }
+        }
+        if (amount <= 0) return; // sin monto, descartar
+
+        const date = parseDate(dateRaw) || today();
+        // auto-categorizar con keywords locales
+        const nd = norm(desc);
+        let catId = "";
+        const accCats = config.categories.filter((c) => c.accountId === defaultAccountId && c.type === type);
+        for (const c of accCats) {
+          if ((c.keywords || []).some((kw) => nd.includes(norm(kw)))) { catId = c.id; break; }
+        }
+        const candidate = { date, amount, type, description: desc.trim(), accountId: defaultAccountId };
+        const dup = findDuplicate(candidate, txs || []);
+        ds.push({
+          tempId: "x" + idx, ...candidate, categoryId: catId,
+          selected: !dup,
+          duplicate: dup ? { date: dup.date, amount: dup.amount, description: dup.description } : null,
+        });
+      });
+
+      if (!ds.length) {
+        setError("No detecté movimientos válidos. Revisa que el archivo tenga columnas de fecha y monto.");
+        setPhase("upload");
+        return;
+      }
+      setDrafts(ds);
+      setPhase("review");
+    } catch (e) {
+      console.error(e);
+      setError("Hubo un problema procesando el archivo. Inténtalo de nuevo.");
+      setPhase("upload");
+    }
+  }
+
+  function updateDraft(tempId, patch) {
+    setDrafts((prev) => prev.map((d) => (d.tempId === tempId ? { ...d, ...patch } : d)));
+  }
+
+  function saveAll() {
+    const valid = drafts.filter((d) => d.selected && d.amount > 0);
+    if (!valid.length) return;
+    let cats = config.categories;
+    valid.forEach((d) => {
+      if (!d.categoryId || !d.description) return;
+      const target = cats.find((c) => c.id === d.categoryId);
+      if (!target) return;
+      const kws = extractKW(d.description).slice(0, 3);
+      if (!kws.length) return;
+      const sameName = norm(target.name).trim();
+      cats = cats.map((c) =>
+        norm(c.name).trim() === sameName && c.type === target.type
+          ? { ...c, keywords: [...new Set([...(c.keywords || []), ...kws])] }
+          : c
+      );
+    });
+    const txs = valid.map((d) => ({
+      id: uid(), type: d.type, amount: d.amount, description: d.description,
+      categoryId: d.categoryId || null, accountId: d.accountId, date: d.date,
+    }));
+    onSave(txs, cats);
+  }
+
+  /* ---------- upload ---------- */
+  if (phase === "upload") {
+    return (
+      <div className="cc-overlay" onClick={onClose}>
+        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="cc-grip" />
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>📊 Importar desde Excel</h2>
+          <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
+            Sube un archivo de Excel (.xlsx, .xls) o CSV con tus movimientos. La IA detecta las columnas y los importa.
+          </p>
+
+          {config.accounts.length > 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <label className="cc-label">Cuenta destino</label>
+              <select className="cc-select" value={defaultAccountId} onChange={(e) => setDefaultAccountId(e.target.value)}
+                style={{ borderColor: !defaultAccountId ? "var(--gold)" : "var(--line)" }}>
+                <option value="">Elegir cuenta…</option>
+                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }}
+            onChange={(e) => handleFile(e.target.files?.[0])} />
+
+          <button className="cc-card" onClick={() => inputRef.current?.click()}
+            style={{ width: "100%", padding: 26, textAlign: "center", border: "2px dashed var(--line)",
+              background: "var(--surface-2)", cursor: "pointer", marginBottom: 14 }}>
+            <div style={{ fontSize: 30, marginBottom: 6 }}>📄</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>
+              {file ? file.name : "Toca para elegir tu archivo"}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+              {file ? `${rows.length} filas detectadas` : "Acepta .xlsx, .xls y .csv"}
+            </div>
+          </button>
+
+          {error && (
+            <div style={{ padding: 11, borderRadius: 10, background: "var(--coral-soft)", color: "var(--coral)", fontSize: 13, marginBottom: 14, fontWeight: 600 }}>
+              {error}
+            </div>
+          )}
+
+          <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 14, fontSize: 15 }}
+            disabled={!file || !rows.length || !defaultAccountId} onClick={process}>
+            ✨ Detectar e importar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- processing ---------- */
+  if (phase === "processing") {
+    return (
+      <div className="cc-overlay">
+        <div className="cc-sheet" style={{ padding: "40px 18px" }}>
+          <div className="cc-grip" />
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>🔍</div>
+            <div className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>
+              Analizando tu archivo…
+            </div>
+            <div style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 18 }}>
+              La IA está detectando las columnas
+            </div>
+            <div className="cc-dots"><span /><span /><span /></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- review ---------- */
+  const accCats = (type) => config.categories.filter((c) => c.accountId === defaultAccountId && c.type === type);
+
+  return (
+    <ReviewScreen
+      drafts={drafts}
+      updateDraft={updateDraft}
+      accCats={accCats}
+      onBack={() => { setDrafts([]); setPhase("upload"); }}
+      onSave={saveAll}
+      onClose={onClose}
+      sourceLabel="Detecté"
+    />
+  );
+}
+
+/* ----- helpers para Excel ----- */
+function parseAmount(v) {
+  if (v == null || v === "") return 0;
+  if (typeof v === "number") return v;
+  const s = String(v).replace(/[$\s]/g, "").replace(/,/g, "");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v).trim();
+  // ISO directo
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // DD/MM/YYYY o DD-MM-YYYY o DD.MM.YYYY
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    let [, dd, mm, yy] = m;
+    if (yy.length === 2) yy = "20" + yy;
+    return `${yy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+  // intentar Date.parse como último recurso
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return null;
+}
+
+/* ============= PANTALLA COMPARTIDA: REVISIÓN DE IMPORTACIÓN ============== */
+function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, sourceLabel }) {
+  const okCount = drafts.filter((d) => d.selected && d.amount > 0).length;
+  const dupCount = drafts.filter((d) => d.duplicate).length;
+  const dupSelected = drafts.filter((d) => d.duplicate && d.selected).length;
+
+  const markAllDupsOff = () => {
+    drafts.forEach((d) => { if (d.duplicate && d.selected) updateDraft(d.tempId, { selected: false }); });
+  };
+  const markAllDupsOn = () => {
+    drafts.forEach((d) => { if (d.duplicate && !d.selected) updateDraft(d.tempId, { selected: true }); });
+  };
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 4 }}>Revisa los movimientos</h2>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
+          {sourceLabel} <b>{drafts.length}</b>. Edita lo que esté mal o desmarca los que no quieras importar.
+        </p>
+
+        {dupCount > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 13px",
+            background: "#FFF6E0", border: "1px solid #E8C97A", borderRadius: 12, marginBottom: 14, fontSize: 13 }}>
+            <span style={{ fontSize: 17 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                Detecté {dupCount} posible{dupCount === 1 ? "" : "s"} duplicado{dupCount === 1 ? "" : "s"}
+              </div>
+              <div style={{ color: "var(--ink-soft)", fontSize: 12 }}>
+                Movimientos que ya tienes registrados. Están desmarcados por defecto.
+              </div>
+            </div>
+            <button className="cc-btn" style={{ padding: "5px 10px", fontSize: 11.5, whiteSpace: "nowrap" }}
+              onClick={dupSelected === dupCount ? markAllDupsOff : markAllDupsOn}>
+              {dupSelected === dupCount ? "Desmarcar todos" : "Marcar todos"}
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+          {drafts.map((d) => {
+            const isDup = !!d.duplicate;
+            return (
+              <div key={d.tempId} className="cc-card" style={{
+                padding: 12, opacity: d.selected ? 1 : 0.5,
+                borderColor: isDup ? "#E8C97A" : (!d.categoryId ? "var(--gold)" : "var(--line)"),
+                background: isDup ? "#FFFCF3" : "var(--surface)",
+              }}>
+                {isDup && (
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9A6B16",
+                    background: "#FFF0CC", padding: "3px 8px", borderRadius: 6,
+                    display: "inline-block", marginBottom: 8, letterSpacing: ".02em" }}>
+                    🔁 YA EXISTE · {d.duplicate.date}{d.duplicate.description ? ` · "${d.duplicate.description}"` : ""}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+                  <input type="checkbox" checked={d.selected}
+                    onChange={(e) => updateDraft(d.tempId, { selected: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: "var(--green)" }} />
+                  <input className="cc-input" value={d.description} placeholder="Concepto"
+                    onChange={(e) => updateDraft(d.tempId, { description: e.target.value })}
+                    style={{ flex: 1, fontSize: 14, padding: "7px 10px", fontWeight: 600 }} />
+                  <input className="cc-input cc-num" type="number" value={d.amount}
+                    onChange={(e) => updateDraft(d.tempId, { amount: parseFloat(e.target.value) || 0 })}
+                    style={{ width: 95, fontSize: 14, padding: "7px 10px", fontWeight: 700,
+                      color: d.type === "income" ? "var(--green)" : "var(--coral)" }} />
+                </div>
+                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                  <select className="cc-select" value={d.type}
+                    onChange={(e) => updateDraft(d.tempId, { type: e.target.value, categoryId: "" })}
+                    style={{ flex: "0 0 100px", fontSize: 13, padding: "6px 9px" }}>
+                    <option value="expense">Gasto</option>
+                    <option value="income">Ingreso</option>
+                  </select>
+                  <input className="cc-input" type="date" value={d.date}
+                    onChange={(e) => updateDraft(d.tempId, { date: e.target.value })}
+                    style={{ flex: "0 0 130px", fontSize: 13, padding: "6px 9px" }} />
+                  <select className="cc-select" value={d.categoryId}
+                    onChange={(e) => updateDraft(d.tempId, { categoryId: e.target.value })}
+                    style={{ flex: 1, fontSize: 13, padding: "6px 9px",
+                      borderColor: !d.categoryId ? "var(--gold)" : "var(--line)" }}>
+                    <option value="">⚠️ Elige categoría</option>
+                    {accCats(d.type).map((c) => (
+                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="cc-btn" style={{ flex: "0 0 auto", padding: 12 }} onClick={onBack}>← Volver</button>
+          <button className="cc-btn cc-btn-green" style={{ flex: 1, padding: 13, fontSize: 14 }}
+            disabled={okCount === 0} onClick={onSave}>
+            Guardar {okCount > 0 ? `(${okCount})` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============= MODAL: ELEGIR MOVIMIENTO A VINCULAR ======================= */
+function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeIds, initialSelectedIds, onClose, onPick }) {
+  const [query, setQuery] = useState("");
+  const [onlyOpposite, setOnlyOpposite] = useState(false); // por defecto OFF: permitir ambos tipos en el grupo
+  const [onlySameAccount, setOnlySameAccount] = useState(true);
+  const [selected, setSelected] = useState(new Set(initialSelectedIds || []));
+
+  const exclude = new Set(excludeIds || []);
+  const opposite = currentType === "income" ? "expense" : "income";
+
+  // filtrar
+  let list = txs.filter((t) => !exclude.has(t.id));
+  if (onlyOpposite) list = list.filter((t) => t.type === opposite);
+  if (onlySameAccount && currentAccountId) list = list.filter((t) => t.accountId === currentAccountId);
+  if (query.trim()) {
+    const q = norm(query.trim());
+    list = list.filter((t) => {
+      const desc = norm(t.description || "");
+      const amt = String(t.amount);
+      const cat = config.categories.find((c) => c.id === t.categoryId);
+      const catName = cat ? norm(cat.name) : "";
+      return desc.includes(q) || amt.includes(q) || catName.includes(q) || t.date.includes(query.trim());
+    });
+  }
+  list = [...list].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+
+  const accMulti = config.accounts.length > 1;
+  const toggle = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // resumen en vivo del grupo (incluyendo solo el actual)
+  const selectedTxs = Array.from(selected).map((id) => txs.find((t) => t.id === id)).filter(Boolean);
+  const totalIn = selectedTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalOut = selectedTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+
+  return (
+    <div className="cc-overlay" onClick={onClose} style={{ zIndex: 70 }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600 }}>Elegir movimientos</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cancelar</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
+          Marca todos los movimientos que forman parte del mismo reembolso o encargo. Puedes elegir varios ingresos y/o varios gastos.
+        </p>
+
+        <div style={{ marginBottom: 10 }}>
+          <input className="cc-input"
+            placeholder="🔍 Buscar por concepto, monto, fecha…"
+            value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+        </div>
+
+        <div style={{ display: "flex", gap: 7, marginBottom: 12, flexWrap: "wrap" }}>
+          <button onClick={() => setOnlyOpposite(!onlyOpposite)}
+            className="cc-chip"
+            style={{
+              background: onlyOpposite ? "var(--ink)" : "var(--surface)",
+              color: onlyOpposite ? "var(--surface)" : "var(--ink)",
+              borderColor: onlyOpposite ? "var(--ink)" : "var(--line)",
+            }}>
+            {onlyOpposite ? "✓ " : ""}Solo {opposite === "income" ? "ingresos" : "gastos"}
+          </button>
+          {accMulti && (
+            <button onClick={() => setOnlySameAccount(!onlySameAccount)}
+              className="cc-chip"
+              style={{
+                background: onlySameAccount ? "var(--ink)" : "var(--surface)",
+                color: onlySameAccount ? "var(--surface)" : "var(--ink)",
+                borderColor: onlySameAccount ? "var(--ink)" : "var(--line)",
+              }}>
+              {onlySameAccount ? "✓ " : ""}Misma cuenta
+            </button>
+          )}
+          <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 11.5, color: "var(--ink-soft)", whiteSpace: "nowrap" }}>
+            {list.length} resultado{list.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {/* lista con checkboxes */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 0,
+          maxHeight: selected.size > 0 ? "40vh" : "55vh", overflowY: "auto",
+          border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", padding: "4px 14px" }}>
+          {list.length === 0 ? (
+            <div style={{ padding: "26px 4px", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🔍</div>
+              No hay movimientos que coincidan.
+              {query && <div style={{ fontSize: 12, marginTop: 4 }}>Prueba con otros términos o quita los filtros.</div>}
+            </div>
+          ) : (
+            renderGroupedByDay(list).map((entry) =>
+              entry.type === "header" ? (
+                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
+                  {(() => { const p = dayParts(entry.date); return (
+                    <>
+                      <span className="cc-day-num">{p.num}</span>
+                      <span className="cc-day-name">{p.desc}</span>
+                    </>
+                  ); })()}
+                </div>
+              ) : (
+                <LinkPickRow key={entry.t.id} t={entry.t} config={config}
+                  selected={selected.has(entry.t.id)}
+                  onPick={() => toggle(entry.t.id)} />
+              )
+            )
+          )}
+        </div>
+
+        {/* resumen en vivo + botón confirmar */}
+        {selected.size > 0 && (
+          <div style={{ marginTop: 12, padding: "10px 12px", background: "#FFF6E0", border: "1px solid #E8C97A",
+            borderRadius: 11, fontSize: 12.5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+              <span>Ingresos seleccionados:</span>
+              <span className="cc-num" style={{ fontWeight: 700, color: "var(--green)" }}>{fmt(totalIn)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Gastos seleccionados:</span>
+              <span className="cc-num" style={{ fontWeight: 700, color: "var(--coral)" }}>{fmt(totalOut)}</span>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          {selected.size > 0 && (
+            <button className="cc-btn" style={{ padding: "12px 14px", fontSize: 13 }}
+              onClick={() => setSelected(new Set())}>
+              Limpiar
+            </button>
+          )}
+          <button className="cc-btn cc-btn-green" style={{ flex: 1, padding: 13, fontSize: 14 }}
+            disabled={selected.size === 0}
+            onClick={() => onPick(Array.from(selected))}>
+            {selected.size === 0 ? "Selecciona al menos uno" : `Vincular ${selected.size} ${selected.size === 1 ? "movimiento" : "movimientos"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LinkPickRow({ t, config, selected, onPick }) {
+  const c = config.categories.find((x) => x.id === t.categoryId);
+  const acc = config.accounts.find((a) => a.id === t.accountId);
+  const multi = config.accounts.length > 1;
+  return (
+    <div
+      onClick={onPick}
+      style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 0",
+        borderBottom: "1px solid var(--line)", cursor: "pointer",
+        background: selected ? "var(--green-soft)" : "transparent",
+        margin: "0 -10px", paddingLeft: 10, paddingRight: 10,
+        borderRadius: selected ? 8 : 0, transition: ".12s" }}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--surface-2)"; }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}>
+      <div style={{ fontSize: 22, width: 30, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {t.description || (c ? c.name : "Movimiento")}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+          {c ? c.name : "Sin categoría"}{multi && acc ? ` · ${acc.name}` : ""}
+        </div>
+      </div>
+      <div className="cc-num" style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap",
+        color: t.type === "income" ? "var(--green)" : "var(--coral)" }}>
+        {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+      </div>
+      {selected && <span style={{ color: "var(--green)", fontSize: 18, fontWeight: 700 }}>✓</span>}
+    </div>
+  );
+}
+
+/* ============= TARJETA RESUMEN del periodo (pestaña Movimientos) ========= */
+function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config }) {
+  const showIn = filter === "all" || filter === "income";
+  const showOut = filter === "all" || filter === "expense";
+  const net = totalIn - totalOut;
+  return (
+    <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12,
+      background: "var(--surface)", border: "1px solid var(--line)" }}>
+      <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
+        {showIn && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+              textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--green)" }}>{fmt(totalIn)}</div>
+          </div>
+        )}
+        {showOut && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
+            paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line)" : "none" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+              textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--coral)" }}>{fmt(totalOut)}</div>
+          </div>
+        )}
+        {filter === "all" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
+            paddingLeft: 12, borderLeft: "1px solid var(--line)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+              textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700,
+              color: net >= 0 ? "var(--green)" : "var(--coral)" }}>
+              {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {topCatRows.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)",
+          display: "flex", flexWrap: "wrap", gap: 8, fontSize: 11.5 }}>
+          {topCatRows.map(([id, amt]) => {
+            const c = config.categories.find((x) => x.id === id);
+            const pct = topTotal ? Math.round((amt / topTotal) * 100) : 0;
+            return (
+              <div key={id} style={{ display: "inline-flex", alignItems: "center", gap: 5,
+                background: "var(--surface-2)", padding: "4px 9px", borderRadius: 99 }}>
+                <span style={{ fontSize: 13 }}>{c ? c.emoji : "❔"}</span>
+                <span style={{ fontWeight: 600 }}>{c ? c.name : "Sin cat"}</span>
+                <span style={{ color: "var(--ink-soft)" }}>{pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============= MODAL DETALLE: drill-down de ingresos/gastos/categoría ==== */
+function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
+  // ordenar más recientes primero, agrupar por día
+  const list = [...(detail.txs || [])].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+  const count = list.length;
+
+  return (
+    <div className="cc-overlay" onClick={onClose} style={{ zIndex: 60 }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 2 }}>{detail.label}</h2>
+            <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+              {rangeLabel(dateRange)} · {count} movimiento{count === 1 ? "" : "s"}
+            </div>
+          </div>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+        </div>
+
+        {/* total */}
+        <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 14,
+          background: detail.kind === "income" ? "var(--green-soft)" : detail.kind === "expense" ? "var(--coral-soft)" : "var(--surface)" }}>
+          <div className="cc-label" style={{ marginBottom: 3 }}>Total</div>
+          <div className="cc-num" style={{ fontSize: 28, fontWeight: 700, color: detail.color, letterSpacing: "-.01em" }}>
+            {fmt(detail.total)}
+          </div>
+        </div>
+
+        {/* lista de movimientos */}
+        <div style={{ maxHeight: "55vh", overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12,
+          background: "var(--surface)", padding: "4px 14px" }}>
+          {list.length === 0 ? (
+            <div style={{ padding: "26px 4px", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
+              Sin movimientos en este filtro.
+            </div>
+          ) : (
+            renderGroupedByDay(list).map((entry) =>
+              entry.type === "header" ? (
+                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
+                  {(() => { const p = dayParts(entry.date); return (
+                    <>
+                      <span className="cc-day-num">{p.num}</span>
+                      <span className="cc-day-name">{p.desc}</span>
+                    </>
+                  ); })()}
+                  <div className="cc-day-totals">
+                    {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
+                    {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
+                  </div>
+                </div>
+              ) : (
+                <TxRow key={entry.t.id} t={entry.t} config={config}
+                  onEdit={entry.t.id && !entry.t.id.startsWith("synth-") ? onEditTx : null} />
+              )
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
