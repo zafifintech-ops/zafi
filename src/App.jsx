@@ -4,7 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
 /* Firebase config */
 const firebaseApp = initializeApp({
@@ -1506,19 +1506,29 @@ Tu respuesta:
 {"message":"Marqué el ingreso de $7,500 como dinero de paso. No contará en tus estadísticas.","actions":[{"type":"mark_passthrough","ids":["t-aa"]}]}`;
 }
 
-/* persistencia */
-const hasStore = typeof window !== "undefined" && window.storage;
+/* persistencia — Firestore */
 async function loadAll() {
+  const u = auth.currentUser;
+  if (!u) return { config: null, txs: [] };
   let config = null, txs = [];
-  if (hasStore) {
-    try { const r = await window.storage.get("cc:config"); if (r) config = JSON.parse(r.value); } catch (e) {}
-    try { const r = await window.storage.get("cc:txs"); if (r) txs = JSON.parse(r.value); } catch (e) {}
-  }
+  try {
+    const snap = await getDoc(doc(db, "users", u.uid, "data", "config"));
+    if (snap.exists()) config = snap.data().value;
+  } catch (e) { console.error("loadAll config", e); }
+  try {
+    const snap = await getDoc(doc(db, "users", u.uid, "data", "txs"));
+    if (snap.exists()) txs = snap.data().value || [];
+  } catch (e) { console.error("loadAll txs", e); }
   return { config, txs };
 }
+
 async function persist(key, val) {
-  if (!hasStore) return;
-  try { await window.storage.set(key, JSON.stringify(val)); } catch (e) { console.error("storage", e); }
+  const u = auth.currentUser;
+  if (!u) return;
+  const field = key === "cc:config" ? "config" : "txs";
+  try {
+    await setDoc(doc(db, "users", u.uid, "data", field), { value: val });
+  } catch (e) { console.error("persist", e); }
 }
 
 /* llamada a Claude con imágenes (visión) */
@@ -1945,10 +1955,10 @@ export default function App() {
   const saveConfig = (c) => { setConfig(c); persist("cc:config", c); };
   const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
   const resetAll = async () => {
-    // borrar storage
-    if (hasStore) {
-      try { await window.storage.delete("cc:config"); } catch (e) {}
-      try { await window.storage.delete("cc:txs"); } catch (e) {}
+    const u = auth.currentUser;
+    if (u) {
+      try { await deleteDoc(doc(db, "users", u.uid, "data", "config")); } catch (e) {}
+      try { await deleteDoc(doc(db, "users", u.uid, "data", "txs")); } catch (e) {}
     }
     setConfig(null);
     setTxs([]);
