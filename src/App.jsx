@@ -1533,7 +1533,6 @@ async function persist(key, val) {
 
 /* llamada a Claude con imágenes (visión) */
 async function callClaudeVision(system, userText, imagesB64) {
-  const key = import.meta.env.VITE_ANTHROPIC_KEY;
   const content = [
     ...imagesB64.map((b) => ({
       type: "image",
@@ -1541,19 +1540,19 @@ async function callClaudeVision(system, userText, imagesB64) {
     })),
     { type: "text", text: userText },
   ];
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-request-browser": "true",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6", max_tokens: 4000, system,
-      messages: [{ role: "user", content }],
-    }),
-  });
+  const body = { model: "claude-sonnet-4-6", max_tokens: 4000, system, messages: [{ role: "user", content }] };
+  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  let res;
+  if (isLocal) {
+    const key = import.meta.env.VITE_ANTHROPIC_KEY;
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
+      body: JSON.stringify(body),
+    });
+  } else {
+    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  }
   if (!res.ok) throw new Error("vision " + res.status);
   const data = await res.json();
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -1576,17 +1575,19 @@ function fileToB64(file) {
 
 /* llamada a Claude */
 async function callClaude(system, messages) {
-  const key = import.meta.env.VITE_ANTHROPIC_KEY;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-request-browser": "true",
-    },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system, messages }),
-  });
+  const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
+  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  let res;
+  if (isLocal) {
+    const key = import.meta.env.VITE_ANTHROPIC_KEY;
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
+      body: JSON.stringify(body),
+    });
+  } else {
+    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  }
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -3498,7 +3499,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
   function finalize(finalCatId, learn) {
     let learnedCats = null;
-    if (learn && finalCatId && !passThrough) {
+    if (learn && finalCatId) {
       const kws = extractKW(desc).slice(0, 3);
       if (kws.length) {
         const target = config.categories.find((c) => c.id === finalCatId);
@@ -3520,18 +3521,25 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
   async function handleSave() {
     if (!amount || parseFloat(amount) <= 0) return;
-    // categoría elegida a mano -> guardar y APRENDER de esa decisión
     if (catId !== "auto") { finalize(catId, true); return; }
-    setPhase("detecting");
-    const r = await categorize();
-    if (r.catId && r.sure) {
-      finalize(r.catId, false);
-    } else if (r.catId) {
-      setCatId(r.catId);
-      setPhase("ask");
-    } else {
-      setPhase("ask");
+    // Si solo hay una categoría disponible, usarla directo
+    if (cats.length === 1) { finalize(cats[0].id, true); return; }
+    // Intentar detectar con keywords locales primero (sin IA)
+    const nd = norm(desc);
+    for (const c of cats) {
+      for (const kw of c.keywords || []) {
+        if (nd.includes(norm(kw))) { finalize(c.id, false); return; }
+      }
     }
+    // Si hay desc, intentar con IA — pero si falla, ir directo a preguntar
+    if (desc.trim()) {
+      setPhase("detecting");
+      const r = await categorize();
+      if (r.catId && r.sure) { finalize(r.catId, false); return; }
+      if (r.catId) setCatId(r.catId);
+    }
+    // Sin match seguro → preguntar al usuario
+    setPhase("ask");
   }
 
   /* pantalla: preguntar categoría */
