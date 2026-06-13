@@ -293,7 +293,7 @@ const STYLE = `
 /* ============== MODAL ============== */
 .cc-overlay{position:fixed;inset:0;background:rgba(31,27,20,.38);
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  z-index:50;display:flex;align-items:flex-end;justify-content:center;
+  z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 .cc-sheet{background:var(--bg);border-radius:24px 24px 0 0;width:100%;max-width:760px;
@@ -2286,6 +2286,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
    problemas de stacking context (ancestros con transform/backdrop-filter
    rompen position:fixed). DOM nativo, no usa react-dom/createPortal. */
 function AssistantFab({ onOpen, hidden }) {
+  const btnRef = useRef(null);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -2295,8 +2297,9 @@ function AssistantFab({ onOpen, hidden }) {
       <span class="cc-blob-stage"><span class="cc-blob"></span></span>
       <span>Asistente Zafi</span>
     `;
+    btnRef.current = btn;
 
-    const handler = (e) => {
+    const handler = () => {
       const stage = btn.querySelector(".cc-blob-stage");
       if (stage) {
         const rect = stage.getBoundingClientRect();
@@ -2333,19 +2336,20 @@ function AssistantFab({ onOpen, hidden }) {
     return () => {
       btn.removeEventListener("click", handler);
       if (btn.parentNode) btn.parentNode.removeChild(btn);
+      btnRef.current = null;
     };
   }, [onOpen]);
 
-  // Mostrar/ocultar según si hay modal abierto
+  // Mostrar/ocultar cuando cambia hidden
   useEffect(() => {
-    const btn = document.querySelector(".cc-fab");
+    const btn = btnRef.current;
     if (!btn) return;
+    btn.style.transition = "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)";
     btn.style.opacity = hidden ? "0" : "1";
     btn.style.pointerEvents = hidden ? "none" : "auto";
     btn.style.transform = hidden
-      ? "translateX(-50%) translateY(20px)"
+      ? "translateX(-50%) translateY(16px)"
       : "translateX(-50%) translateY(0)";
-    btn.style.transition = "opacity .2s, transform .2s";
   }, [hidden]);
 
   return null;
