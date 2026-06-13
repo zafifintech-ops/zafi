@@ -3554,10 +3554,13 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
             {cats.map((c) => (
-              <button key={c.id} className="cc-card" onClick={() => finalize(c.id, true)}
+              <button key={c.id} type="button"
+                onClick={() => { finalize(c.id, true); }}
                 style={{ padding: "13px 12px", textAlign: "left", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  display: "flex", alignItems: "center", gap: 8,
-                  borderColor: catId === c.id ? "var(--gold)" : "var(--line)" }}>
+                  display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit",
+                  background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14,
+                  boxShadow: "var(--shadow-xs)", WebkitTapHighlightColor: "transparent",
+                  position: "relative", zIndex: 1 }}>
                 <span style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
               </button>
             ))}
