@@ -1,5 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, signOut,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendPasswordResetEmail } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+/* Firebase config */
+const firebaseApp = initializeApp({
+  apiKey: "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w",
+  authDomain: "zafi-524b8.firebaseapp.com",
+  projectId: "zafi-524b8",
+  storageBucket: "zafi-524b8.firebasestorage.app",
+  messagingSenderId: "308516673564",
+  appId: "1:308516673564:web:9410954d5fc50fd56667d9"
+});
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 /* =========================================================================
    ZAFI — finanzas personales con IA
@@ -1662,21 +1679,227 @@ function migrate(config, txs) {
 }
 
 /* ========================================================================= */
+/* =========================================================================
+   AUTH — pantallas de bienvenida, login, registro, recuperar contraseña
+   ========================================================================= */
+
+const AUTH_INK = "#1A1815";
+const AUTH_INK_SOFT = "#6E6658";
+const AUTH_GREEN = "#2D6F4E";
+const AUTH_LINE = "#EAE7DC";
+const AUTH_CORAL = "#B8482A";
+
+function ZafiLogo() {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <span style={{ width:12, height:12, borderRadius:"50%", background:AUTH_GREEN,
+          boxShadow:"0 0 0 4px rgba(45,111,78,.15),0 0 20px rgba(45,111,78,.25)",
+          display:"inline-block", flexShrink:0 }} />
+        <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:36,
+          letterSpacing:"-.045em", color:AUTH_INK, fontFeatureSettings:'"ss01"', lineHeight:1 }}>
+          zafi
+        </span>
+      </div>
+      <div style={{ fontSize:12.5, color:AUTH_INK_SOFT, letterSpacing:"-.005em" }}>
+        Finanzas personales con IA
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen() {
+  const [screen, setScreen] = useState("welcome");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+
+  function reset() { setEmail(""); setPassword(""); setConfirm(""); setErr(""); setOk(""); }
+  function go(s) { reset(); setScreen(s); }
+
+  function ferr(code) {
+    return ({
+      "auth/email-already-in-use": "Ya existe una cuenta con ese correo.",
+      "auth/invalid-email": "El correo no es válido.",
+      "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
+      "auth/user-not-found": "No encontramos una cuenta con ese correo.",
+      "auth/wrong-password": "Contraseña incorrecta.",
+      "auth/invalid-credential": "Correo o contraseña incorrectos.",
+      "auth/too-many-requests": "Demasiados intentos. Espera un momento.",
+      "auth/network-request-failed": "Sin conexión a internet.",
+    })[code] || "Algo salió mal. Intenta de nuevo.";
+  }
+
+  async function doRegister() {
+    if (!email || !password || !confirm) { setErr("Llena todos los campos."); return; }
+    if (password !== confirm) { setErr("Las contraseñas no coinciden."); return; }
+    if (password.length < 6) { setErr("Mínimo 6 caracteres en la contraseña."); return; }
+    setBusy(true); setErr("");
+    try { await createUserWithEmailAndPassword(auth, email, password); }
+    catch(e) { setErr(ferr(e.code)); }
+    finally { setBusy(false); }
+  }
+
+  async function doLogin() {
+    if (!email || !password) { setErr("Llena todos los campos."); return; }
+    setBusy(true); setErr("");
+    try { await signInWithEmailAndPassword(auth, email, password); }
+    catch(e) { setErr(ferr(e.code)); }
+    finally { setBusy(false); }
+  }
+
+  async function doForgot() {
+    if (!email) { setErr("Escribe tu correo primero."); return; }
+    setBusy(true); setErr(""); setOk("");
+    try { await sendPasswordResetEmail(auth, email); setOk("Te enviamos un correo para restablecer tu contraseña."); }
+    catch(e) { setErr(ferr(e.code)); }
+    finally { setBusy(false); }
+  }
+
+  const inp = {
+    width:"100%", padding:"13px 16px", borderRadius:12,
+    border:`1px solid ${AUTH_LINE}`, fontSize:15, fontFamily:"inherit",
+    background:"#fff", color:AUTH_INK, outline:"none",
+  };
+  const btnP = {
+    width:"100%", padding:14, borderRadius:12, border:"none",
+    background:AUTH_INK, color:"#fff", fontSize:15, fontWeight:600,
+    fontFamily:"inherit", cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1,
+    letterSpacing:"-.01em",
+  };
+  const btnS = {
+    width:"100%", padding:13, borderRadius:12,
+    border:`1px solid ${AUTH_LINE}`, background:"#fff",
+    color:AUTH_INK, fontSize:15, fontWeight:500,
+    fontFamily:"inherit", cursor:"pointer", letterSpacing:"-.01em",
+  };
+  const lnk = {
+    background:"none", border:"none", color:AUTH_GREEN,
+    fontSize:14, fontFamily:"inherit", cursor:"pointer",
+    fontWeight:600, padding:0, textDecoration:"underline", textUnderlineOffset:3,
+  };
+  const wrap = {
+    minHeight:"100vh", display:"flex", flexDirection:"column",
+    alignItems:"center", justifyContent:"center", padding:"40px 24px", background:"#fff",
+  };
+  const box = {
+    width:"100%", maxWidth:360, display:"flex", flexDirection:"column", gap:24,
+  };
+
+  if (screen === "welcome") return (
+    <div style={wrap}>
+      <div style={{ ...box, alignItems:"center", gap:48 }}>
+        <ZafiLogo />
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+          <button style={btnP} onClick={() => go("register")}>Crear cuenta gratis</button>
+          <button style={btnS} onClick={() => go("login")}>Ya tengo cuenta</button>
+        </div>
+        <div style={{ fontSize:12, color:AUTH_INK_SOFT, textAlign:"center", maxWidth:300, lineHeight:1.5 }}>
+          Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
+        </div>
+      </div>
+    </div>
+  );
+
+  if (screen === "register") return (
+    <div style={wrap}>
+      <div style={box}>
+        <ZafiLogo />
+        <div>
+          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Crear cuenta</div>
+          <div style={{ fontSize:14, color:AUTH_INK_SOFT }}>Empieza gratis, sin tarjeta de crédito.</div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
+          <input style={inp} type="password" placeholder="Contraseña (mínimo 6 caracteres)" value={password} onChange={e=>setPassword(e.target.value)} />
+          <input style={inp} type="password" placeholder="Confirmar contraseña" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+        </div>
+        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <button style={btnP} onClick={doRegister} disabled={busy}>{busy?"Creando cuenta…":"Crear cuenta"}</button>
+          <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
+        </div>
+        <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT }}>
+          ¿Ya tienes cuenta?{" "}<button style={lnk} onClick={() => go("login")}>Inicia sesión</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (screen === "login") return (
+    <div style={wrap}>
+      <div style={box}>
+        <ZafiLogo />
+        <div>
+          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Bienvenido de vuelta</div>
+          <div style={{ fontSize:14, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
+          <input style={inp} type="password" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
+        </div>
+        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <button style={btnP} onClick={doLogin} disabled={busy}>{busy?"Entrando…":"Iniciar sesión"}</button>
+          <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
+        </div>
+        <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT, display:"flex", flexDirection:"column", gap:8 }}>
+          <button style={lnk} onClick={() => go("forgot")}>¿Olvidaste tu contraseña?</button>
+          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("register")}>Crear cuenta</button></span>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (screen === "forgot") return (
+    <div style={wrap}>
+      <div style={box}>
+        <ZafiLogo />
+        <div>
+          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
+          <div style={{ fontSize:14, color:AUTH_INK_SOFT, lineHeight:1.5 }}>Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.</div>
+        </div>
+        <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
+        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        {ok && <div style={{ fontSize:13.5, color:AUTH_GREEN, fontWeight:500 }}>{ok}</div>}
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <button style={btnP} onClick={doForgot} disabled={busy}>{busy?"Enviando…":"Enviar correo"}</button>
+          <button style={btnS} onClick={() => go("login")}>← Regresar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   APP — componente principal
+   ========================================================================= */
 export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [config, setConfig] = useState(null);
   const [txs, setTxs] = useState([]);
   const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(undefined); // undefined=cargando, null=no logueado
 
   useEffect(() => {
     if (typeof document !== "undefined") document.title = "Zafi · Finanzas personales con IA";
   }, []);
 
+  // Escuchar sesión de Firebase
   useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
+
+  // Cargar datos locales — siempre se define, solo corre cuando hay usuario
+  useEffect(() => {
+    if (!user) return; // sin usuario no cargamos nada
     loadAll().then(({ config, txs }) => {
       if (config) {
         const m = migrate(config, txs || []);
-        // ejecutar recurrencias pendientes
         const r = processRecurring(m.config, m.txs);
         setConfig(r.config);
         setTxs(r.txs);
@@ -1695,7 +1918,25 @@ export default function App() {
       }
       setLoaded(true);
     });
-  }, []);
+  }, [user]); // re-corre cuando cambia el usuario
+
+  // Pantalla de carga mientras Firebase verifica sesión
+  if (user === undefined) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center",
+      justifyContent:"center", background:"#fff" }}>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ width:10, height:10, borderRadius:"50%", background:"#2D6F4E", display:"inline-block" }} />
+          <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:28,
+            letterSpacing:"-.045em", color:"#1A1815" }}>zafi</span>
+        </div>
+        <div style={{ fontSize:13, color:"#6E6658" }}>Cargando…</div>
+      </div>
+    </div>
+  );
+
+  // Sin sesión → pantalla de Auth
+  if (!user) return <AuthScreen />;
 
   const showToast = (msg) => {
     setToast(msg);
@@ -3074,6 +3315,17 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
           El <b>saldo inicial</b> es el dinero que ya tienes en cada cuenta. El saldo de la derecha es ese monto ajustado con tus movimientos.
+        </div>
+
+        {/* Cerrar sesión */}
+        <div style={{ marginTop:22, paddingTop:18, borderTop:"1px solid var(--line)" }}>
+          <button onClick={() => signOut(auth)}
+            style={{ width:"100%", padding:"11px 14px", fontSize:14, fontFamily:"inherit",
+              background:"var(--surface-2)", color:"var(--ink-soft)",
+              border:"1px solid var(--line)", borderRadius:12, cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            🚪 Cerrar sesión
+          </button>
         </div>
 
         {/* Zona peligrosa: empezar desde cero */}
