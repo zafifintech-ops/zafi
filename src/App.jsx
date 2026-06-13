@@ -1533,6 +1533,7 @@ async function persist(key, val) {
 
 /* llamada a Claude con imágenes (visión) */
 async function callClaudeVision(system, userText, imagesB64) {
+  const key = import.meta.env.VITE_ANTHROPIC_KEY;
   const content = [
     ...imagesB64.map((b) => ({
       type: "image",
@@ -1542,9 +1543,14 @@ async function callClaudeVision(system, userText, imagesB64) {
   ];
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-request-browser": "true",
+    },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514", max_tokens: 4000, system,
+      model: "claude-sonnet-4-6", max_tokens: 4000, system,
       messages: [{ role: "user", content }],
     }),
   });
@@ -1570,15 +1576,20 @@ function fileToB64(file) {
 
 /* llamada a Claude */
 async function callClaude(system, messages) {
+  const key = import.meta.env.VITE_ANTHROPIC_KEY;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system, messages }),
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-request-browser": "true",
+    },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system, messages }),
   });
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
-  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-  return text;
+  return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
 }
 function parseJSON(text) {
   const clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -2185,7 +2196,10 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} />}
       </div>
 
-      <AssistantFab onOpen={() => setChatOpen(true)} />
+      <AssistantFab
+        onOpen={() => setChatOpen(true)}
+        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen}
+      />
 
 
       {addMenuOpen && (
@@ -2271,7 +2285,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 /* Botón flotante del asistente — se monta en document.body para evitar
    problemas de stacking context (ancestros con transform/backdrop-filter
    rompen position:fixed). DOM nativo, no usa react-dom/createPortal. */
-function AssistantFab({ onOpen }) {
+function AssistantFab({ onOpen, hidden }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -2321,6 +2335,18 @@ function AssistantFab({ onOpen }) {
       if (btn.parentNode) btn.parentNode.removeChild(btn);
     };
   }, [onOpen]);
+
+  // Mostrar/ocultar según si hay modal abierto
+  useEffect(() => {
+    const btn = document.querySelector(".cc-fab");
+    if (!btn) return;
+    btn.style.opacity = hidden ? "0" : "1";
+    btn.style.pointerEvents = hidden ? "none" : "auto";
+    btn.style.transform = hidden
+      ? "translateX(-50%) translateY(20px)"
+      : "translateX(-50%) translateY(0)";
+    btn.style.transition = "opacity .2s, transform .2s";
+  }, [hidden]);
 
   return null;
 }
