@@ -33,37 +33,41 @@ const STYLE = `
 
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  /* Paleta Zafi — fintech moderna */
-  --bg:#FFFFFF;
-  --bg-2:#F8F8F6;
-  --paper:#FFFFFF;
-  --surface:#FFFFFF;
-  --surface-2:#F4F3EF;
-  --surface-3:#E8E7E2;
+  /* Paleta Zafi — glassmorphism cálido */
+  --bg:#F3EDE4;
+  --bg-2:#EDE6DB;
+  --paper:rgba(255,255,255,.55);
+  --paper-solid:#FFFFFF;
+  --surface:rgba(255,255,255,.45);
+  --surface-2:rgba(255,255,255,.35);
+  --surface-3:rgba(0,0,0,.04);
   --ink:#111110;
-  --ink-soft:#636360;
-  --ink-faint:#9E9D98;
-  --line:#E5E4DF;
-  --line-soft:#F0EFEB;
+  --ink-soft:#5C5A55;
+  --ink-faint:#9E9B94;
+  --line:rgba(0,0,0,.08);
+  --line-soft:rgba(0,0,0,.04);
   --green:#1A7A4C;
   --green-2:#22915B;
-  --green-soft:#DBF0E4;
-  --green-glow:rgba(26,122,76,.14);
+  --green-soft:rgba(26,122,76,.10);
+  --green-glow:rgba(26,122,76,.20);
   --coral:#C03E20;
   --coral-2:#D84E2E;
-  --coral-soft:#FDECE7;
+  --coral-soft:rgba(192,62,32,.08);
   --coral-glow:rgba(192,62,32,.12);
   --gold:#A07830;
-  --gold-soft:#F5EDDA;
+  --gold-soft:rgba(160,120,48,.10);
   --gold-glow:rgba(160,120,48,.18);
 
-  /* Sombras fintech — casi imperceptibles */
-  --shadow-xs:0 1px 2px rgba(0,0,0,.04);
-  --shadow-sm:0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-md:0 4px 12px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
-  --shadow-lg:0 8px 24px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
-  --shadow-xl:0 16px 48px rgba(0,0,0,.10), 0 4px 12px rgba(0,0,0,.05);
-  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
+  /* Sombras cálidas difusas */
+  --shadow-xs:0 1px 3px rgba(0,0,0,.03);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.05);
+  --shadow-md:0 4px 16px rgba(0,0,0,.06);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.08);
+  --shadow-xl:0 16px 48px rgba(0,0,0,.10);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.6);
+  --glass:rgba(255,255,255,.55);
+  --glass-border:rgba(255,255,255,.45);
+  --blur:blur(20px) saturate(1.3);
 }
 .cc-root{
   font-family:'Inter Tight','Hanken Grotesk',-apple-system,sans-serif;
@@ -84,9 +88,9 @@ const STYLE = `
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(255,255,255,.95);backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);}
+  background:rgba(243,237,228,.85);backdrop-filter:blur(16px) saturate(1.4);
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);
+  border-bottom:1px solid rgba(0,0,0,.06);}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 .cc-masthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
@@ -114,58 +118,63 @@ const STYLE = `
 
 /* chip de rango */
 .cc-range-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;
-  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;
   transition:all .15s ease;}
-.cc-range-chip:hover{border-color:var(--ink-faint);}
+.cc-range-chip:hover{background:rgba(255,255,255,.7);}
 .cc-range-chip:active{transform:scale(.98);}
 .cc-range-chip .cc-range-emoji{font-size:13px;}
 .cc-range-chip .cc-range-arrow{color:var(--ink-faint);font-size:9px;}
 
-/* tabs — segmented control moderno */
-.cc-tabs{display:flex;gap:2px;background:var(--surface-2);
-  border:1px solid var(--line);border-radius:10px;padding:3px;
+/* tabs — segmented control glass */
+.cc-tabs{display:flex;gap:2px;background:rgba(0,0,0,.04);
+  border:1px solid var(--glass-border);border-radius:16px;padding:3px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   margin-top:4px;}
 .cc-tab{flex:1;font-family:inherit;font-size:12.5px;font-weight:600;
   border:none;background:transparent;color:var(--ink-faint);
-  padding:8px 6px;border-radius:7px;cursor:pointer;
+  padding:8px 6px;border-radius:13px;cursor:pointer;
   transition:all .15s ease;position:relative;}
 .cc-tab:hover{color:var(--ink);}
-.cc-tab.on{background:var(--paper);color:var(--ink);
+.cc-tab.on{background:rgba(255,255,255,.7);color:var(--ink);
   box-shadow:var(--shadow-sm);}
 
 /* ============== TARJETAS ============== */
-.cc-card{background:var(--paper);border:1px solid var(--line);
-  border-radius:14px;padding:0;box-shadow:none;
-  transition:.2s cubic-bezier(.2,.7,.2,1);}
-.cc-card-boxed{background:var(--paper);border:1px solid var(--line);
-  border-radius:14px;padding:16px;box-shadow:none;}
+.cc-card{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border:1px solid var(--glass-border);
+  border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
+  transition:.2s ease;}
+.cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border:1px solid var(--glass-border);
+  border-radius:20px;padding:16px;box-shadow:var(--shadow-sm);}
 .cc-card-section{background:transparent;border:none;border-radius:0;padding-top:8px;padding-bottom:4px;
   box-shadow:none;}
 .cc-fade{animation:ccUp .4s cubic-bezier(.16,1,.3,1) both;}
 @keyframes ccUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
 
 /* ============== BOTONES ============== */
-.cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:10px;border:1px solid var(--line);
-  background:var(--paper);color:var(--ink);padding:10px 17px;cursor:pointer;
-  transition:all .15s ease;
-  box-shadow:none;}
-.cc-btn:hover{background:var(--surface-2);border-color:var(--ink-faint);}
+.cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:14px;border:1px solid var(--glass-border);
+  background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  color:var(--ink);padding:10px 17px;cursor:pointer;
+  transition:all .15s ease;box-shadow:none;}
+.cc-btn:hover{background:rgba(255,255,255,.7);}
 .cc-btn:active{transform:scale(.98);}
-.cc-btn-primary{background:var(--ink);color:var(--paper);border-color:var(--ink);}
-.cc-btn-primary:hover{background:#222;border-color:#222;}
-.cc-btn-green{background:var(--green);color:#fff;
-  border-color:var(--green);box-shadow:none;}
-.cc-btn-green:hover{background:var(--green-2);border-color:var(--green-2);}
+.cc-btn-primary{background:var(--ink);color:#fff;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;}
+.cc-btn-primary:hover{background:#222;}
+.cc-btn-green{background:var(--ink);color:#fff;
+  border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;}
+.cc-btn-green:hover{background:#222;}
 .cc-btn-green:active{transform:scale(.98);}
 .cc-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
 .cc-btn:disabled:hover{background:var(--paper);border-color:var(--line);}
 
 /* ============== INPUTS ============== */
-.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:11px 14px;border-radius:10px;
-  border:1px solid var(--line);background:var(--bg-2);color:var(--ink);outline:none;
+.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:12px 16px;border-radius:16px;
+  border:1px solid var(--glass-border);background:var(--glass);color:var(--ink);outline:none;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   transition:border-color .15s ease;}
-.cc-input:focus,.cc-select:focus{border-color:var(--green);background:var(--paper);}
+.cc-input:focus,.cc-select:focus{border-color:rgba(0,0,0,.15);background:rgba(255,255,255,.7);}
 .cc-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;letter-spacing:-.005em;}
 
 /* ============== CHIPS — píldoras suaves ============== */
@@ -179,14 +188,15 @@ const STYLE = `
 
 /* ============== FAB ============== */
 .cc-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;
-  background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:12px;
+  background:var(--glass);color:var(--ink);border:1px solid var(--glass-border);border-radius:20px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   font-family:'Inter Tight','Hanken Grotesk',-apple-system,sans-serif;font-size:14px;font-weight:600;
   padding:12px 20px 12px 14px;cursor:pointer;
   letter-spacing:-.005em;overflow:hidden;
   box-shadow:var(--shadow-lg);
   display:flex;align-items:center;gap:10px;
   transition:transform .15s ease, box-shadow .15s ease;}
-.cc-fab:hover{box-shadow:var(--shadow-xl);}
+.cc-fab:hover{background:rgba(255,255,255,.7);box-shadow:var(--shadow-xl);}
 .cc-fab:active{transform:translateX(-50%) scale(.97);}
 
 /* Gota morfando del asistente */
@@ -212,19 +222,16 @@ const STYLE = `
 
 /* ============== TARJETAS DE CUENTAS ============== */
 .cc-acc-card{cursor:pointer;
-  border:1px solid var(--line);background:var(--paper);
-  border-radius:14px;padding:15px 16px;min-width:170px;text-align:left;
+  border:1px solid var(--glass-border);background:var(--glass);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border-radius:20px;padding:15px 16px;min-width:170px;text-align:left;
   position:relative;overflow:hidden;
   transition:all .2s ease;}
-.cc-acc-card:hover{border-color:var(--ink-faint);}
-.cc-acc-card.on{border-color:var(--green);
-  background:var(--green-soft);
-  box-shadow:0 0 0 1px var(--green);}
-.cc-acc-card.on:hover{border-color:var(--green);}
+.cc-acc-card:hover{background:rgba(255,255,255,.7);}
+.cc-acc-card.on{border-color:rgba(26,122,76,.3);
+  background:rgba(26,122,76,.08);
+  box-shadow:0 0 0 1px rgba(26,122,76,.2);}
 .cc-acc-card.on .cc-acc-label{color:var(--green);}
-.cc-acc-card.on .cc-acc-name{color:var(--ink);}
-.cc-acc-card.on .cc-acc-bal{color:var(--ink);}
-.cc-acc-card.on .cc-acc-sub{color:var(--ink-soft);}
 .cc-acc-card.on .cc-acc-icon{background:rgba(26,122,76,.12);}
 .cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
   border-radius:8px;background:var(--surface-2);font-size:14px;margin-bottom:9px;
@@ -237,11 +244,12 @@ const STYLE = `
 .cc-scroll-x::-webkit-scrollbar{display:none;}
 
 /* configurar */
-.cc-gear{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+.cc-gear{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-soft);
   display:inline-flex;align-items:center;gap:6px;
   transition:.15s ease;}
-.cc-gear:hover{background:var(--surface-3);color:var(--ink);}
+.cc-gear:hover{background:rgba(255,255,255,.7);color:var(--ink);}
 
 /* fila draggable */
 .cc-sortable{padding:11px 13px;border:1px solid var(--line);border-radius:12px;
@@ -267,22 +275,24 @@ const STYLE = `
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-width:760px;
+.cc-sheet{background:rgba(243,237,228,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
-  box-shadow:0 -8px 30px rgba(0,0,0,.12);}
+  box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
-.cc-grip{width:36px;height:4px;background:var(--line);border-radius:99px;margin:8px auto 16px;}
+.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;}
 
 /* ============== CHAT ============== */
-.cc-bubble{padding:12px 15px;border-radius:14px;font-size:14.5px;line-height:1.5;max-width:84%;
+.cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
   letter-spacing:-.005em;}
-.cc-bubble.bot{background:var(--surface-2);border:none;
+.cc-bubble.bot{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border:1px solid var(--glass-border);
   border-bottom-left-radius:4px;}
 .cc-bubble.me{background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
   border-bottom-right-radius:6px;align-self:flex-end;
@@ -1761,19 +1771,21 @@ function AuthScreen() {
   }
 
   const inp = {
-    width:"100%", padding:"14px 16px", borderRadius:10,
-    border:`1px solid ${AUTH_LINE}`, fontSize:15, fontFamily:"inherit",
-    background:"#F8F8F6", color:AUTH_INK, outline:"none",
+    width:"100%", padding:"14px 16px", borderRadius:16,
+    border:"1px solid rgba(255,255,255,.5)", fontSize:15, fontFamily:"inherit",
+    background:"rgba(255,255,255,.5)", color:AUTH_INK, outline:"none",
+    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
   };
   const btnP = {
-    width:"100%", padding:15, borderRadius:12, border:"none",
+    width:"100%", padding:15, borderRadius:16, border:"none",
     background:AUTH_INK, color:"#fff", fontSize:15, fontWeight:600,
     fontFamily:"inherit", cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1,
     letterSpacing:"-.01em", transition:"transform .1s ease",
   };
   const btnS = {
-    width:"100%", padding:14, borderRadius:12,
-    border:`1px solid ${AUTH_LINE}`, background:"#fff",
+    width:"100%", padding:14, borderRadius:16,
+    border:"1px solid rgba(255,255,255,.5)", background:"rgba(255,255,255,.45)",
+    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
     color:AUTH_INK, fontSize:15, fontWeight:500,
     fontFamily:"inherit", cursor:"pointer", letterSpacing:"-.01em",
   };
@@ -1784,7 +1796,18 @@ function AuthScreen() {
   };
   const wrap = {
     minHeight:"100vh", display:"flex", flexDirection:"column",
-    alignItems:"center", justifyContent:"center", padding:"40px 24px", background:"#fff",
+    alignItems:"center", justifyContent:"center", padding:"40px 24px",
+    background:"#F3EDE4", position:"relative", overflow:"hidden",
+  };
+  const blob = {
+    position:"absolute", width:280, height:280, borderRadius:"50%",
+    background:"radial-gradient(circle, rgba(26,122,76,.25) 0%, rgba(26,122,76,.05) 60%, transparent 80%)",
+    filter:"blur(40px)", top:"15%", right:"-10%", pointerEvents:"none",
+  };
+  const blob2 = {
+    position:"absolute", width:200, height:200, borderRadius:"50%",
+    background:"radial-gradient(circle, rgba(160,120,48,.18) 0%, rgba(160,120,48,.04) 60%, transparent 80%)",
+    filter:"blur(30px)", bottom:"20%", left:"-5%", pointerEvents:"none",
   };
   const box = {
     width:"100%", maxWidth:360, display:"flex", flexDirection:"column", gap:24,
@@ -1792,7 +1815,9 @@ function AuthScreen() {
 
   if (screen === "welcome") return (
     <div style={wrap}>
-      <div style={{ ...box, alignItems:"center", gap:40 }}>
+      <div style={blob} />
+      <div style={blob2} />
+      <div style={{ ...box, alignItems:"center", gap:40, position:"relative", zIndex:1 }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:28 }}>
           <ZafiLogo />
           <p style={{ fontSize:15, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.6, maxWidth:280 }}>
@@ -1929,14 +1954,14 @@ export default function App() {
   // Pantalla de carga mientras Firebase verifica sesión
   if (user === undefined) return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center",
-      justifyContent:"center", background:"#fff" }}>
+      justifyContent:"center", background:"#F3EDE4" }}>
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ width:8, height:8, borderRadius:"50%", background:"#1A7A4C", display:"inline-block" }} />
           <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:26,
             letterSpacing:"-.045em", color:"#111110" }}>zafi</span>
         </div>
-        <div style={{ fontSize:13, color:"#9E9D98" }}>Cargando…</div>
+        <div style={{ fontSize:13, color:"#9E9B94" }}>Cargando…</div>
       </div>
     </div>
   );
