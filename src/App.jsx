@@ -280,10 +280,11 @@ const STYLE = `
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(243,237,228,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+.cc-sheet{background:rgba(255,255,255,.55);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
+  border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;}
