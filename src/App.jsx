@@ -29,7 +29,7 @@ const db = getFirestore(firebaseApp);
 
 /* ----------------------------- estilos ---------------------------------- */
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Montserrat:wght@300;400;500;600;700&display=swap');
 
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -63,6 +63,11 @@ const STYLE = `
   --orb-blue:#60A5FA;
   --orb-mint:#5EEAD4;
 
+  /* Degradado de acento (barras de categoría, cuenta seleccionada) */
+  --accent-grad:linear-gradient(90deg, #1E1B4B 0%, #4338CA 45%, #7C5CFC 100%);
+  --accent-grad-soft:linear-gradient(135deg, rgba(30,27,75,.10) 0%, rgba(124,92,252,.14) 100%);
+  --accent-solid:#4338CA;
+
   /* Sombras frías difusas */
   --shadow-xs:0 1px 3px rgba(30,40,60,.04);
   --shadow-sm:0 2px 8px rgba(30,40,60,.06);
@@ -75,7 +80,8 @@ const STYLE = `
   --blur:blur(22px) saturate(1.5);
 }
 .cc-root{
-  font-family:'Inter Tight','Hanken Grotesk',-apple-system,sans-serif;
+  font-family:'Montserrat',-apple-system,sans-serif;
+  font-weight:300;
   font-size:15px;
   color:var(--ink); background:transparent;
   min-height:100vh; width:100%;
@@ -294,11 +300,11 @@ const STYLE = `
   position:relative;overflow:hidden;
   transition:all .2s ease;}
 .cc-acc-card:hover{background:rgba(255,255,255,.7);}
-.cc-acc-card.on{border-color:rgba(26,122,76,.3);
-  background:rgba(26,122,76,.08);
-  box-shadow:0 0 0 1px rgba(26,122,76,.2);}
-.cc-acc-card.on .cc-acc-label{color:var(--green);}
-.cc-acc-card.on .cc-acc-icon{background:rgba(26,122,76,.12);}
+.cc-acc-card.on{border-color:rgba(67,56,202,.3);
+  background:var(--accent-grad-soft);
+  box-shadow:0 0 0 1px rgba(67,56,202,.2);}
+.cc-acc-card.on .cc-acc-label{color:var(--accent-solid);}
+.cc-acc-card.on .cc-acc-icon{background:rgba(67,56,202,.12);}
 .cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
   border-radius:8px;background:var(--surface-2);font-size:14px;margin-bottom:9px;
   transition:.2s;}
@@ -436,6 +442,7 @@ const fmt = (n) => {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN",
     minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: hasDecimals ? 2 : 0 }).format(v);
 };
+const fmtMxn = (n) => `${fmt(n)} mxn`;
 const norm = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
 const monthLabel = (mk) => {
@@ -2847,10 +2854,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                     <div key={id}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
                         <span style={{ fontWeight: 600 }}>{c ? `${c.emoji} ${c.name}` : "Sin categoría"}</span>
-                        <span className="cc-num" style={{ fontWeight: 700 }}>{fmt(amt)}</span>
+                        <span className="cc-num" style={{ fontWeight: 700 }}>{fmtMxn(amt)}</span>
                       </div>
                       <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--coral)", borderRadius: 99 }} />
+                        <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--accent-grad)", borderRadius: 99 }} />
                       </div>
                     </div>
                   );
@@ -4383,11 +4390,11 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
                         <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--coral)", borderRadius: 99 }} />
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--accent-grad)", borderRadius: 99 }} />
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--coral)" }}>{fmt(amt)}</div>
+                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--accent-solid)" }}>{fmtMxn(amt)}</div>
                         <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
                       </div>
                     </button>
@@ -4532,7 +4539,7 @@ function BarsChart({ bars }) {
           <g key={i}>
             <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3" />
             <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3" />
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">
               {monthLabel(b.key).split(" ")[0]}
             </text>
           </g>
@@ -4630,13 +4637,13 @@ function MiniLine({ series, xLabels }) {
               strokeOpacity={tv === 0 ? 0.5 : 1}
               strokeDasharray={tv === 0 ? "none" : "3 4"} />
             <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
-              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
+              fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{shortMoney(tv)}</text>
           </g>
         ))}
         {/* etiquetas eje X */}
         {xLabels.map((lbl, i) => (
           <text key={i} x={xOf(i)} y={H - 16} textAnchor="middle" fontSize="11"
-            fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
+            fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{lbl}</text>
         ))}
         {/* línea guía vertical */}
         {hover != null && (
@@ -4713,7 +4720,7 @@ function MiniBars({ series, xLabels }) {
             <line x1={PL} x2={W - PR} y1={yOf(tv)} y2={yOf(tv)}
               stroke="var(--line)" strokeDasharray={tv === 0 ? "none" : "3 4"} />
             <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
-              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
+              fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{shortMoney(tv)}</text>
           </g>
         ))}
         {/* highlight columna activa */}
@@ -4735,7 +4742,7 @@ function MiniBars({ series, xLabels }) {
                   fill={color} rx="3" opacity={hover != null && hover !== i ? 0.55 : 1} />;
               })}
               <text x={cx} y={H - 16} textAnchor="middle" fontSize="11"
-                fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
+                fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{lbl}</text>
             </g>
           );
         })}
