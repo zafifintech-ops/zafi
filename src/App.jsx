@@ -240,7 +240,7 @@ body{
 .cc-bottomnav-inner{pointer-events:auto;
   width:100%;max-width:420px;height:62px;
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(255,255,255,.25);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.2);border:1px solid var(--glass-border);
   border-radius:31px;padding:0 10px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   box-shadow:var(--shadow-lg);
@@ -374,11 +374,16 @@ body{
 
 /* monto grande centrado — estilo "Nueva transacción" */
 .cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:6px;
-  padding:18px 0;margin-bottom:6px;}
-.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink-soft);}
+  padding:18px 0;margin-bottom:6px;width:100%;}
+.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink-soft);flex-shrink:0;}
+.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;}
 .cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
-  width:auto;max-width:220px;font-feature-settings:"tnum";}
+  width:auto;max-width:240px;min-width:30px;font-feature-settings:"tnum";
+  -moz-appearance:textfield;appearance:textfield;}
+.cc-amount-display input::-webkit-outer-spin-button,
+.cc-amount-display input::-webkit-inner-spin-button{-webkit-appearance:none;-moz-appearance:none;appearance:none;margin:0;display:none;}
+.cc-amount-display input[type=number]{-moz-appearance:textfield;}
 .cc-amount-display input::placeholder{color:var(--ink-soft);opacity:.55;}
 
 /* ============== CHAT ============== */
@@ -447,13 +452,14 @@ const SEED_KW = {
 /* ------------------------------ utilidades ------------------------------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
-const fmt = (n) => {
+const fmtBare = (n) => {
   const v = n || 0;
   const hasDecimals = v % 1 !== 0;
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN",
     minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: hasDecimals ? 2 : 0 }).format(v);
 };
-const fmtMxn = (n) => `${fmt(n)} mxn`;
+const fmt = (n) => `${fmtBare(n)} mxn`;
+const fmtMxn = (n) => fmt(n);
 const norm = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
 const monthLabel = (mk) => {
@@ -2836,7 +2842,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const delay = `${idx * 60}ms`;
 
         if (s.id === "balance") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: "22px 22px", animationDelay: delay }}>
+          <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
             <div className="cc-label">{headerLabel}</div>
             <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
               {fmt(headerBalance)}
@@ -2858,7 +2864,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "byCategory") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: 16, animationDelay: delay }}>
+          <div key={s.id} className="cc-card" style={{ padding: 16 }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
             {rows.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 13 }}>
@@ -2886,7 +2892,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "trend") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
             <div className="cc-label" style={{ marginBottom: 8 }}>Saldo · últimos 30 días</div>
             {trendPoints.length < 2 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Datos insuficientes.</div>
@@ -2897,7 +2903,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "topExpenses") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
             {topExpenses.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin gastos en el periodo.</div>
@@ -2908,7 +2914,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "recent") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>
               Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
             </div>
@@ -3055,8 +3061,9 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
             {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
           </div>
         </div>
-        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15, color: t.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
-          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, fontSize: 15, color: t.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
+          {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
+          <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
         </div>
       </div>
     );
@@ -3090,11 +3097,12 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
       <div
         onClick={() => onEdit && onEdit(t)}
         className="cc-num"
-        style={{ fontWeight: 700, fontSize: 14.5,
+        style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, fontSize: 15,
           color: t.type === "income" ? "var(--green)" : "var(--coral)",
           whiteSpace: "nowrap", letterSpacing: "-.01em",
           cursor: onEdit ? "pointer" : "default" }}>
-        {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
+        <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
       </div>
       {/* delete × */}
       {onDelete && (
@@ -3270,8 +3278,8 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
                   </>
                 ); })()}
                 <div className="cc-day-totals">
-                  {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
-                  {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
+                  {entry.income > 0 && <span className="pos">+{fmtBare(entry.income)}</span>}
+                  {entry.expense > 0 && <span className="neg">−{fmtBare(entry.expense)}</span>}
                 </div>
               </div>
             ) : (
@@ -3788,8 +3796,14 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="number" inputMode="decimal" placeholder="0.00"
-            value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
+            value={amount}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9.]/g, "");
+              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
+            }}
+            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
+          <span className="cc-amount-mxn">mxn</span>
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -5554,8 +5568,8 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
                     </>
                   ); })()}
                   <div className="cc-day-totals">
-                    {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
-                    {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
+                    {entry.income > 0 && <span className="pos">+{fmtBare(entry.income)}</span>}
+                    {entry.expense > 0 && <span className="neg">−{fmtBare(entry.expense)}</span>}
                   </div>
                 </div>
               ) : (
