@@ -46,10 +46,10 @@ body{
   /* Paleta Zafi — glassmorphism plata/azul frío */
   --bg:#DCE1E8;
   --bg-2:#D2D8E1;
-  --paper:rgba(255,255,255,.34);
+  --paper:rgba(220,225,235,.55);
   --paper-solid:#FFFFFF;
-  --surface:rgba(255,255,255,.34);
-  --surface-2:rgba(255,255,255,.28);
+  --surface:rgba(220,225,235,.45);
+  --surface-2:rgba(210,218,228,.35);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
@@ -85,8 +85,8 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.34);
-  --glass-border:rgba(255,255,255,.45);
+  --glass:rgba(215,222,235,.52);
+  --glass-border:rgba(255,255,255,.55);
   --blur:blur(22px) saturate(1.5);
 }
 .cc-root{
@@ -357,7 +357,7 @@ body{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.78);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+.cc-sheet{background:rgba(218,224,236,.88);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
