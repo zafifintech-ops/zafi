@@ -36,10 +36,10 @@ const STYLE = `
   /* Paleta Zafi — glassmorphism plata/azul frío */
   --bg:#DCE1E8;
   --bg-2:#D2D8E1;
-  --paper:rgba(255,255,255,.62);
+  --paper:rgba(255,255,255,.48);
   --paper-solid:#FFFFFF;
-  --surface:rgba(255,255,255,.50);
-  --surface-2:rgba(255,255,255,.38);
+  --surface:rgba(255,255,255,.36);
+  --surface-2:rgba(255,255,255,.26);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
@@ -70,9 +70,9 @@ const STYLE = `
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.55);
-  --glass-border:rgba(255,255,255,.55);
-  --blur:blur(20px) saturate(1.3);
+  --glass:rgba(255,255,255,.38);
+  --glass-border:rgba(255,255,255,.5);
+  --blur:blur(22px) saturate(1.5);
 }
 .cc-root{
   font-family:'Inter Tight','Hanken Grotesk',-apple-system,sans-serif;
@@ -84,14 +84,14 @@ const STYLE = `
 }
 .cc-bg-wave{
   position:fixed; inset:0; z-index:-1;
-  background-image:url('https://images.unsplash.com/photo-1620641622044-09ce5d294e6f?q=80&w=1200&auto=format&fit=crop');
-  background-size:cover; background-position:center; background-repeat:no-repeat;
+  background-image:url('/bg-wave.jpg');
+  background-size:cover; background-position:center top; background-repeat:no-repeat;
   background-color:var(--bg);
 }
 .cc-bg-wave::after{
   content:"";
   position:absolute; inset:0;
-  background:linear-gradient(180deg, rgba(220,225,232,.55) 0%, rgba(220,225,232,.78) 60%, rgba(220,225,232,.92) 100%);
+  background:linear-gradient(180deg, rgba(220,225,232,.18) 0%, rgba(220,225,232,.38) 55%, rgba(220,225,232,.62) 100%);
 }
 
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
@@ -232,7 +232,7 @@ const STYLE = `
 .cc-bottomnav-inner{pointer-events:auto;
   width:100%;max-width:420px;
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(255,255,255,.55);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.4);border:1px solid var(--glass-border);
   border-radius:28px;padding:8px 6px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   box-shadow:var(--shadow-lg);
@@ -344,7 +344,7 @@ const STYLE = `
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.55);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
+.cc-sheet{background:rgba(255,255,255,.42);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
@@ -2274,7 +2274,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
   return (
     <div>
-      <StickyHeader config={config} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} />
+      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} />
 
       <div className="cc-wrap">
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
@@ -2463,8 +2463,9 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, h
   );
 }
 
-function StickyHeader({ config, balance, dateRange, onOpenRange }) {
+function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange }) {
   const [scrolled, setScrolled] = useState(false);
+  const [editingName, setEditingName] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -2480,15 +2481,16 @@ function StickyHeader({ config, balance, dateRange, onOpenRange }) {
     : r.preset === "all" ? "⏳"
     : "✏️";
 
-  // nombre del usuario — placeholder a partir del correo
+  // nombre del usuario — config.userName si existe, si no, derivado del correo
   const email = auth.currentUser?.email || "";
   const rawName = email.split("@")[0] || "Usuario";
-  const displayName = rawName
+  const emailName = rawName
     .replace(/[._\-]+/g, " ")
     .split(" ")
     .filter(Boolean)
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(" ") || "Usuario";
+  const displayName = config?.userName || emailName;
   const initial = displayName[0]?.toUpperCase() || "U";
 
   return (
@@ -2499,11 +2501,15 @@ function StickyHeader({ config, balance, dateRange, onOpenRange }) {
 
         {/* Perfil: avatar + nombre + plan */}
         <div className="cc-profile-row">
-          <div className="cc-avatar">{initial}</div>
-          <div style={{ minWidth: 0 }}>
-            <div className="cc-profile-name">{displayName}</div>
-            <div className="cc-profile-plan">Plan semanal</div>
-          </div>
+          <button onClick={() => setEditingName(true)}
+            style={{ display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent",
+              cursor: "pointer", padding: 0, textAlign: "left", minWidth: 0 }}>
+            <div className="cc-avatar">{initial}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="cc-profile-name">{displayName}</div>
+              <div className="cc-profile-plan">Plan semanal</div>
+            </div>
+          </button>
           <div style={{ flex: 1 }} />
           <button className="cc-range-chip" onClick={onOpenRange}>
             <span className="cc-range-emoji">{emoji}</span>
@@ -2511,6 +2517,36 @@ function StickyHeader({ config, balance, dateRange, onOpenRange }) {
             <span className="cc-range-arrow">▼</span>
           </button>
         </div>
+      </div>
+
+      {editingName && (
+        <ProfileNameModal
+          current={displayName}
+          onClose={() => setEditingName(false)}
+          onSave={(name) => { saveConfig({ ...config, userName: name }); setEditingName(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ProfileNameModal: editar el nombre que se muestra en el header */
+function ProfileNameModal({ current, onClose, onSave }) {
+  const [name, setName] = useState(current || "");
+  return (
+    <div className="cc-overlay" onClick={onClose} style={{ alignItems: "center" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
+        style={{ borderRadius: 24, maxWidth: 360, width: "calc(100% - 40px)" }}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 14 }}>Tu nombre</h2>
+        <input className="cc-input" placeholder="Ej. Luis Ángel" value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && name.trim() && onSave(name.trim())}
+          style={{ marginBottom: 14 }} autoFocus />
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13, fontSize: 14 }}
+          disabled={!name.trim()} onClick={() => onSave(name.trim())}>
+          Guardar
+        </button>
       </div>
     </div>
   );
