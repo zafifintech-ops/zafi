@@ -85,7 +85,7 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(215,222,235,.52);
+  --glass:rgba(215,222,235,.38);
   --glass-border:rgba(255,255,255,.55);
   --blur:blur(22px) saturate(1.5);
 }
@@ -197,7 +197,7 @@ body{
 .cc-card-section{background:transparent;border:none;border-radius:0;padding-top:8px;padding-bottom:4px;
   box-shadow:none;}
 .cc-fade{animation:ccUp .4s cubic-bezier(.16,1,.3,1) both;}
-@keyframes ccUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+@keyframes ccUp{from{opacity:0;}to{opacity:1;}}
 
 /* ============== BOTONES ============== */
 .cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:14px;border:1px solid var(--glass-border);
