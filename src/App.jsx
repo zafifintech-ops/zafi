@@ -46,10 +46,10 @@ body{
   /* Paleta Zafi — glassmorphism plata/azul frío */
   --bg:#DCE1E8;
   --bg-2:#D2D8E1;
-  --paper:rgba(220,225,235,.55);
+  --paper:rgba(220,225,235,.28);
   --paper-solid:#FFFFFF;
-  --surface:rgba(220,225,235,.45);
-  --surface-2:rgba(210,218,228,.35);
+  --surface:rgba(220,225,235,.22);
+  --surface-2:rgba(210,218,228,.18);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
@@ -85,7 +85,7 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(215,222,235,.38);
+  --glass:rgba(215,222,235,.19);
   --glass-border:rgba(255,255,255,.55);
   --blur:blur(22px) saturate(1.5);
 }
@@ -113,7 +113,7 @@ body{
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(210,216,225,.38);
+  background:rgba(210,216,225,.19);
   backdrop-filter:blur(20px) saturate(1.6);
   -webkit-backdrop-filter:blur(20px) saturate(1.6);
   border-bottom:none;}
@@ -240,7 +240,7 @@ body{
 .cc-bottomnav-inner{pointer-events:auto;
   width:100%;max-width:420px;height:62px;
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(255,255,255,.2);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.14);border:1px solid var(--glass-border);
   border-radius:31px;padding:0 10px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   box-shadow:var(--shadow-lg);
@@ -342,12 +342,12 @@ body{
   position:sticky;top:0;background:transparent;
   z-index:5;}
 .cc-day-sep:first-child{padding-top:6px;}
-.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:22px;line-height:1;letter-spacing:-.03em;
-  color:var(--ink);min-width:28px;}
-.cc-day-name{flex:1;font-size:11.5px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
+.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:19px;line-height:1;letter-spacing:-.03em;
+  color:var(--ink);min-width:24px;}
+.cc-day-name{flex:1;font-size:10.5px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
   text-transform:uppercase;}
-.cc-day-totals{display:flex;gap:10px;align-items:center;font-size:11.5px;
-  font-variant-numeric:tabular-nums;font-weight:600;}
+.cc-day-totals{display:flex;gap:9px;align-items:center;font-size:11px;
+  font-variant-numeric:tabular-nums;font-weight:500;opacity:.7;}
 .cc-day-totals .pos{color:var(--green);}
 .cc-day-totals .neg{color:var(--coral);}
 
@@ -357,7 +357,7 @@ body{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(218,224,236,.88);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+.cc-sheet{background:rgba(218,224,236,.44);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
@@ -3070,26 +3070,26 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 0",
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
       borderBottom: "1px solid var(--line-soft)" }}>
       {/* emoji pill */}
       <div
         onClick={() => onEdit && onEdit(t)}
-        style={{ width: 38, height: 38, borderRadius: 11, background: "var(--surface)",
+        style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 19, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
+          fontSize: 17, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
         {c ? c.emoji : "❔"}
       </div>
       {/* text */}
       <div
         onClick={() => onEdit && onEdit(t)}
         style={{ flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
+        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)",
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           letterSpacing: "-.01em" }}>
           {t.description || (c ? c.name : "Movimiento")}
         </div>
-        <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2, fontWeight: 500 }}>
+        <div style={{ fontSize: 10.5, color: "var(--ink-soft)", marginTop: 1.5, fontWeight: 500 }}>
           {c ? c.name : "Sin categoría"}{multi && acc ? ` · ${acc.name}` : ""}
         </div>
       </div>
@@ -3097,7 +3097,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
       <div
         onClick={() => onEdit && onEdit(t)}
         className="cc-num"
-        style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, fontSize: 15,
+        style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 15,
           color: t.type === "income" ? "var(--green)" : "var(--coral)",
           whiteSpace: "nowrap", letterSpacing: "-.01em",
           cursor: onEdit ? "pointer" : "default" }}>
