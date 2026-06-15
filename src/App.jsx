@@ -82,7 +82,7 @@ const STYLE = `
 .cc-root{
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
-  font-size:15px;
+  font-size:14px;
   color:var(--ink); background:transparent;
   min-height:100vh; width:100%;
   -webkit-font-smoothing:antialiased;
@@ -104,7 +104,7 @@ const STYLE = `
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
 .cc-serif{font-family:'Fraunces',serif;letter-spacing:-.018em;font-feature-settings:"ss01";}
 
-.cc-wrap{max-width:760px;margin:0 auto;padding:6px 20px 130px;}
+.cc-wrap{max-width:760px;margin:0 auto;padding:4px 16px 130px;}
 
 /* ============== TOPBAR ============== */
 .cc-top{position:sticky;top:0;z-index:30;
@@ -118,24 +118,24 @@ const STYLE = `
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
-.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:600;font-size:20px;
+.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:600;font-size:16px;
   letter-spacing:-.03em;text-align:center;color:var(--ink);
-  font-feature-settings:"ss01"; margin-bottom:14px; transition:.2s;}
-.cc-top.scrolled .cc-zafi-wordmark{margin-bottom:8px;font-size:17px;}
+  font-feature-settings:"ss01"; margin-bottom:12px; transition:.2s;}
+.cc-top.scrolled .cc-zafi-wordmark{margin-bottom:6px;font-size:14px;}
 
 /* fila de perfil: avatar + nombre + plan */
-.cc-profile-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;transition:.2s;}
-.cc-top.scrolled .cc-profile-row{margin-bottom:8px;}
-.cc-avatar{width:44px;height:44px;border-radius:50%;flex-shrink:0;
+.cc-profile-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;transition:.2s;}
+.cc-top.scrolled .cc-profile-row{margin-bottom:6px;}
+.cc-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;
   background:var(--ink);color:#fff;
   display:flex;align-items:center;justify-content:center;
-  font-family:'Fraunces',serif;font-weight:600;font-size:18px;
+  font-family:'Fraunces',serif;font-weight:600;font-size:15px;
   box-shadow:var(--shadow-sm);transition:.2s;}
-.cc-top.scrolled .cc-avatar{width:34px;height:34px;font-size:15px;}
-.cc-profile-name{font-family:'Fraunces',serif;font-weight:600;font-size:22px;
-  letter-spacing:-.03em;line-height:1.15;color:var(--ink);transition:.2s;}
-.cc-top.scrolled .cc-profile-name{font-size:17px;}
-.cc-profile-plan{font-size:12px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;}
+.cc-top.scrolled .cc-avatar{width:30px;height:30px;font-size:13px;}
+.cc-profile-name{font-family:'Fraunces',serif;font-weight:600;font-size:18px;
+  letter-spacing:-.03em;line-height:1.2;color:var(--ink);transition:.2s;}
+.cc-top.scrolled .cc-profile-name{font-size:15px;}
+.cc-profile-plan{font-size:11px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;}
 .cc-top.scrolled .cc-profile-plan{display:none;}
 
 .cc-masthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
@@ -239,7 +239,7 @@ const STYLE = `
 .cc-bottomnav-inner{pointer-events:auto;
   width:100%;max-width:420px;height:62px;
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(255,255,255,.4);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.25);border:1px solid var(--glass-border);
   border-radius:31px;padding:0 10px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   box-shadow:var(--shadow-lg);
@@ -296,7 +296,7 @@ const STYLE = `
 .cc-acc-card{cursor:pointer;
   border:1px solid var(--glass-border);background:var(--glass);
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  border-radius:20px;padding:15px 16px;min-width:170px;text-align:left;
+  border-radius:18px;padding:13px 14px;min-width:148px;text-align:left;
   position:relative;overflow:hidden;
   transition:all .2s ease;}
 .cc-acc-card:hover{background:rgba(255,255,255,.7);}
@@ -305,16 +305,16 @@ const STYLE = `
   box-shadow:0 0 0 1px rgba(67,56,202,.2);}
 .cc-acc-card.on .cc-acc-label{color:var(--accent-solid);}
 .cc-acc-card.on .cc-acc-icon{background:rgba(67,56,202,.12);}
-.cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
-  border-radius:8px;background:var(--surface-2);font-size:14px;margin-bottom:9px;
+.cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:7px;background:var(--surface-2);font-size:13px;margin-bottom:7px;
   transition:.2s;}
-.cc-acc-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);}
-.cc-acc-name{font-weight:600;font-size:15px;margin:2px 0 9px;letter-spacing:-.012em;color:var(--ink);}
-.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:22px;letter-spacing:-.03em;line-height:1.05;}
+.cc-acc-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);}
+.cc-acc-name{font-weight:600;font-size:14px;margin:2px 0 7px;letter-spacing:-.012em;color:var(--ink);}
+.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:19px;letter-spacing:-.03em;line-height:1.05;}
 .cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-fill-color:transparent;}
-.cc-acc-sub{font-size:11px;color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums;font-weight:500;}
-.cc-scroll-x{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:none;}
+.cc-acc-sub{font-size:10.5px;color:var(--ink-soft);margin-top:4px;font-variant-numeric:tabular-nums;font-weight:500;}
+.cc-scroll-x{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
 
 /* configurar */
@@ -2764,7 +2764,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const isOn = (id) => sections.find((s) => s.id === id)?.on;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* === selector de cuentas mejorado === */}
       {config.accounts.length > 0 && (
         <div className="cc-fade">
@@ -2829,36 +2829,36 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "kpis") return (
-          <div key={s.id} style={{ display: "flex", gap: 14 }} className="cc-fade">
-            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
+          <div key={s.id} style={{ display: "flex", gap: 10 }} className="cc-fade">
+            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
               <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 26, fontWeight: 500, color: "var(--green)" }}>{fmt(inc)}</div>
+              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--green)" }}>{fmt(inc)}</div>
             </div>
-            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
+            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
               <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 26, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
+              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
             </div>
           </div>
         );
 
         if (s.id === "byCategory") return (
-          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
-            <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 16, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
             {rows.length === 0 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>
+              <div style={{ color: "var(--ink-soft)", fontSize: 13 }}>
                 No hay gastos en el periodo.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {rows.map(([id, amt]) => {
                   const c = catOf(id);
                   return (
                     <div key={id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
                         <span style={{ fontWeight: 600 }}>{c ? `${c.emoji} ${c.name}` : "Sin categoría"}</span>
                         <span className="cc-num" style={{ fontWeight: 700 }}>{fmtMxn(amt)}</span>
                       </div>
-                      <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
+                      <div style={{ height: 7, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--accent-grad)", borderRadius: 99 }} />
                       </div>
                     </div>
