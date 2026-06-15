@@ -60,6 +60,7 @@ body::before{
   --surface-2:rgba(255,255,255,.1);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
+  --bar-fill:#7E8AA0;
   --ink-soft:#6B7585;
   --ink-faint:#8B95A6;
   --line:rgba(30,40,60,.09);
@@ -111,7 +112,7 @@ body::before{
 
 
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
-.cc-emoji{filter:grayscale(1);opacity:.85;}
+.cc-emoji{}
 .cc-serif{font-family:'Fraunces',serif;letter-spacing:-.018em;font-feature-settings:"ss01";}
 
 .cc-wrap{max-width:760px;margin:0 auto;padding:4px 16px 130px;}
@@ -2872,24 +2873,34 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "byCategory") return (
-          <div key={s.id} className="cc-card" style={{ padding: 16 }}>
-            <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+          <div key={s.id} className="cc-card" style={{ padding: "6px 18px" }}>
+            <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
             {rows.length === 0 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 13 }}>
+              <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>
                 No hay gastos en el periodo.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {rows.map(([id, amt]) => {
                   const c = catOf(id);
+                  const pct = maxCat ? Math.round((amt / maxCat) * 100) : 0;
                   return (
-                    <div key={id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                        <span style={{ fontWeight: 600 }}>{c ? `${c.emoji} ${c.name}` : "Sin categoría"}</span>
-                        <span className="cc-num" style={{ fontWeight: 700 }}>{fmtMxn(amt)}</span>
+                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                      borderBottom: "1px solid var(--line-soft)" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                        {c ? c.emoji : "❔"}
                       </div>
-                      <div style={{ height: 7, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--accent-grad)", borderRadius: 99 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>
+                          {c ? c.name : "Sin categoría"}
+                        </div>
+                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--bar-fill)", borderRadius: 99 }} />
+                        </div>
+                      </div>
+                      <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--coral)", whiteSpace: "nowrap" }}>
+                        {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
                       </div>
                     </div>
                   );
@@ -4462,7 +4473,7 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{cat.name}</div>
                         <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--coral)", borderRadius: 99 }} />
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--bar-fill)", borderRadius: 99 }} />
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
