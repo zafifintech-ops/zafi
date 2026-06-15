@@ -46,10 +46,10 @@ body{
   /* Paleta Zafi — glassmorphism plata/azul frío */
   --bg:#DCE1E8;
   --bg-2:#D2D8E1;
-  --paper:rgba(220,225,235,.05);
+  --paper:rgba(255,255,255,.12);
   --paper-solid:#FFFFFF;
-  --surface:rgba(220,225,235,.05);
-  --surface-2:rgba(210,218,228,.05);
+  --surface:rgba(255,255,255,.14);
+  --surface-2:rgba(255,255,255,.1);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
@@ -85,9 +85,9 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(215,222,235,.05);
+  --glass:rgba(255,255,255,.12);
   --glass-border:rgba(255,255,255,.55);
-  --blur:blur(22px) saturate(1.5);
+  --blur:blur(8px);
 }
 .cc-root{
   font-family:'Montserrat',-apple-system,sans-serif;
@@ -113,9 +113,9 @@ body{
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(210,216,225,.05);
-  backdrop-filter:blur(20px) saturate(1.6);
-  -webkit-backdrop-filter:blur(20px) saturate(1.6);
+  background:rgba(255,255,255,.12);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
   border-bottom:none;}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
@@ -357,7 +357,7 @@ body{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(218,224,236,.1);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+.cc-sheet{background:rgba(255,255,255,.2);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
