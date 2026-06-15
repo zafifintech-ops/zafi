@@ -311,6 +311,8 @@ const STYLE = `
 .cc-acc-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);}
 .cc-acc-name{font-weight:600;font-size:15px;margin:2px 0 9px;letter-spacing:-.012em;color:var(--ink);}
 .cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:22px;letter-spacing:-.03em;line-height:1.05;}
+.cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;}
 .cc-acc-sub{font-size:11px;color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums;font-weight:500;}
 .cc-scroll-x{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:none;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
@@ -2776,7 +2778,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               <div className="cc-acc-icon">∑</div>
               <div className="cc-acc-label">Total</div>
               <div className="cc-acc-name">General</div>
-              <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--green)" }}>
+              <div className={`cc-acc-bal cc-num ${balance < 0 ? "cc-grad-text" : ""}`} style={balance < 0 ? undefined : { color: "var(--green)" }}>
                 {fmt(balance)}
               </div>
               <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
@@ -2793,7 +2795,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   <div className="cc-acc-icon">🏦</div>
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
-                  <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : "var(--green)" }}>
+                  <div className={`cc-acc-bal cc-num ${b < 0 ? "cc-grad-text" : ""}`} style={b < 0 ? undefined : { color: "var(--green)" }}>
                     {fmt(b)}
                   </div>
                   <div className="cc-acc-sub" style={{ color: rangeFlow < 0 ? "var(--coral)" : undefined }}>
@@ -2830,11 +2832,11 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           <div key={s.id} style={{ display: "flex", gap: 14 }} className="cc-fade">
             <div className="cc-card" style={{ flex: 1, padding: 18 }}>
               <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
-              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--green)" }}>{fmt(inc)}</div>
+              <div className="cc-serif cc-num" style={{ fontSize: 26, fontWeight: 500, color: "var(--green)" }}>{fmt(inc)}</div>
             </div>
             <div className="cc-card" style={{ flex: 1, padding: 18 }}>
               <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
-              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--coral)" }}>{fmt(exp)}</div>
+              <div className="cc-serif cc-num" style={{ fontSize: 26, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
             </div>
           </div>
         );
