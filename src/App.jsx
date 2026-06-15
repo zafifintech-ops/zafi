@@ -364,7 +364,7 @@ body::before{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.2);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+.cc-sheet{background:rgba(255,255,255,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
@@ -3245,11 +3245,11 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
           )}
         </>
       ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "10px 12px",
-          background: "var(--ink)", color: "var(--surface)", borderRadius: 12 }}>
-          <button onClick={exitSelect}
-            style={{ background: "transparent", border: "none", color: "var(--surface)", cursor: "pointer", fontSize: 18, padding: "0 6px" }}>✕</button>
-          <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>
+        <div className="cc-card" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "9px 12px",
+          borderRadius: 14 }}>
+          <button className="cc-sheet-close" onClick={exitSelect}
+            style={{ width: 30, height: 30, fontSize: 17, flexShrink: 0 }}>×</button>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>
             {selected.size} seleccionado{selected.size === 1 ? "" : "s"}
           </span>
           <button className="cc-btn" style={{ padding: "6px 11px", fontSize: 12 }}
@@ -4370,30 +4370,30 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
             <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => openDetail("income")}
-                style={{ flex: 1, padding: "13px 14px", background: "var(--green-soft)",
-                  border: "1px solid var(--green)", borderRadius: 12, cursor: "pointer", textAlign: "left",
-                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)",
-                  textTransform: "uppercase", letterSpacing: ".06em" }}>📥 Ingresos</div>
-                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--green)" }}>{fmt(rangeIncome)}</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+                style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+                  border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
+                <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
               </button>
               <button onClick={() => openDetail("expense")}
-                style={{ flex: 1, padding: "13px 14px", background: "var(--coral-soft)",
-                  border: "1px solid var(--coral)", borderRadius: 12, cursor: "pointer", textAlign: "left",
-                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--coral)",
-                  textTransform: "uppercase", letterSpacing: ".06em" }}>📤 Gastos</div>
-                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--coral)" }}>{fmt(rangeExpense)}</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+                style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+                  border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
+                <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
               </button>
             </div>
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)",
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
               display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
-              <span className="cc-num" style={{ fontSize: 17, fontWeight: 700,
-                color: rangeFlow >= 0 ? "var(--green)" : "var(--coral)" }}>
-                {rangeFlow >= 0 ? "+" : "−"}{fmt(Math.abs(rangeFlow))}
+              <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
+                color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)" }}>
+                {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
               </span>
             </div>
           </div>
@@ -4406,26 +4406,32 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
 
           {/* ===== Categorías de ingreso (tappables) ===== */}
           {incRows.length > 0 && (
-            <div className="cc-card" style={{ padding: 18 }}>
-              <div className="cc-label" style={{ marginBottom: 10 }}>Ingresos por categoría</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="cc-card" style={{ padding: "6px 18px" }}>
+              <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Ingresos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {incRows.map(({ cat, amt }) => {
                   const pct = rangeIncome ? Math.round((amt / rangeIncome) * 100) : 0;
                   return (
                     <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
-                        background: "var(--surface)", border: "1px solid var(--line)",
-                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                        background: "transparent", border: "none",
+                        borderBottom: "1px solid var(--line-soft)",
+                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                        {cat.emoji}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
-                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{cat.name}</div>
+                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
                           <div style={{ height: "100%", width: `${pct}%`, background: "var(--green)", borderRadius: 99 }} />
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--green)" }}>{fmt(amt)}</div>
-                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--green)" }}>
+                          {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
                       </div>
                     </button>
                   );
@@ -4436,26 +4442,32 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
 
           {/* ===== Categorías de gasto (tappables) ===== */}
           {expRows.length > 0 && (
-            <div className="cc-card" style={{ padding: 18 }}>
-              <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="cc-card" style={{ padding: "6px 18px" }}>
+              <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Gastos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {expRows.map(({ cat, amt }) => {
                   const pct = rangeExpense ? Math.round((amt / rangeExpense) * 100) : 0;
                   return (
                     <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
-                        background: "var(--surface)", border: "1px solid var(--line)",
-                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                        background: "transparent", border: "none",
+                        borderBottom: "1px solid var(--line-soft)",
+                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                        {cat.emoji}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
-                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--accent-grad)", borderRadius: 99 }} />
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{cat.name}</div>
+                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--coral)", borderRadius: 99 }} />
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--accent-solid)" }}>{fmtMxn(amt)}</div>
-                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--coral)" }}>
+                          {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
                       </div>
                     </button>
                   );
