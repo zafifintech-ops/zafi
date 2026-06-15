@@ -113,10 +113,10 @@ body{
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(210,216,225,.72);
+  background:rgba(210,216,225,.38);
   backdrop-filter:blur(20px) saturate(1.6);
   -webkit-backdrop-filter:blur(20px) saturate(1.6);
-  border-bottom:1px solid rgba(255,255,255,.35);}
+  border-bottom:none;}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
@@ -338,14 +338,14 @@ body{
 
 /* ============== SEPARADOR DE DÍA ============== */
 .cc-day-sep{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:14px 0 9px;border-bottom:1px solid var(--line-soft);margin-bottom:3px;
-  position:sticky;top:0;background:linear-gradient(to bottom, var(--bg) 70%, rgba(255,255,255,.0));
+  padding:13px 0 8px;border-bottom:1px solid var(--line-soft);margin-bottom:2px;
+  position:sticky;top:0;background:transparent;
   z-index:5;}
 .cc-day-sep:first-child{padding-top:6px;}
-.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:24px;line-height:1;letter-spacing:-.035em;
-  color:var(--ink);min-width:32px;}
-.cc-day-name{flex:1;font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:-.005em;
-  text-transform:capitalize;}
+.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:22px;line-height:1;letter-spacing:-.03em;
+  color:var(--ink);min-width:28px;}
+.cc-day-name{flex:1;font-size:11.5px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
+  text-transform:uppercase;}
 .cc-day-totals{display:flex;gap:10px;align-items:center;font-size:11.5px;
   font-variant-numeric:tabular-nums;font-weight:600;}
 .cc-day-totals .pos{color:var(--green);}
@@ -3063,29 +3063,44 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 0",
+      borderBottom: "1px solid var(--line-soft)" }}>
+      {/* emoji pill */}
       <div
         onClick={() => onEdit && onEdit(t)}
-        style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}
-      >
-        <div style={{ fontSize: 22, width: 34, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {t.description || (c ? c.name : "Movimiento")}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-            {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
-          </div>
+        style={{ width: 38, height: 38, borderRadius: 11, background: "var(--surface)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 19, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
+        {c ? c.emoji : "❔"}
+      </div>
+      {/* text */}
+      <div
+        onClick={() => onEdit && onEdit(t)}
+        style={{ flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          letterSpacing: "-.01em" }}>
+          {t.description || (c ? c.name : "Movimiento")}
         </div>
-        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15,
-          color: t.type === "income" ? "var(--green)" : "var(--coral)",
-          whiteSpace: "nowrap" }}>
-          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2, fontWeight: 500 }}>
+          {c ? c.name : "Sin categoría"}{multi && acc ? ` · ${acc.name}` : ""}
         </div>
       </div>
+      {/* amount */}
+      <div
+        onClick={() => onEdit && onEdit(t)}
+        className="cc-num"
+        style={{ fontWeight: 700, fontSize: 14.5,
+          color: t.type === "income" ? "var(--green)" : "var(--coral)",
+          whiteSpace: "nowrap", letterSpacing: "-.01em",
+          cursor: onEdit ? "pointer" : "default" }}>
+        {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+      </div>
+      {/* delete × */}
       {onDelete && (
-        <button className="cc-btn" style={{ padding: "5px 9px", fontSize: 12 }}
-          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>✕</button>
+        <button className="cc-sheet-close"
+          style={{ width: 28, height: 28, fontSize: 16, flexShrink: 0 }}
+          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>×</button>
       )}
     </div>
   );
@@ -5352,7 +5367,7 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
           ) : (
             renderGroupedByDay(list).map((entry) =>
               entry.type === "header" ? (
-                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
+                <div key={`h-${entry.date}`} className="cc-day-sep">
                   {(() => { const p = dayParts(entry.date); return (
                     <>
                       <span className="cc-day-num">{p.num}</span>
@@ -5440,31 +5455,30 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config }
   const showOut = filter === "all" || filter === "expense";
   const net = totalIn - totalOut;
   return (
-    <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12,
-      background: "var(--surface)", border: "1px solid var(--line)" }}>
+    <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
         {showIn && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--green)" }}>{fmt(totalIn)}</div>
+            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--ink)" }}>{fmt(totalIn)}</div>
           </div>
         )}
         {showOut && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-            paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line)" : "none" }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+            paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--coral)" }}>{fmt(totalOut)}</div>
+            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--coral)" }}>{fmt(totalOut)}</div>
           </div>
         )}
         {filter === "all" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-            paddingLeft: 12, borderLeft: "1px solid var(--line)" }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+            paddingLeft: 12, borderLeft: "1px solid var(--line-soft)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
-            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700,
-              color: net >= 0 ? "var(--green)" : "var(--coral)" }}>
+            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500,
+              color: net >= 0 ? "var(--ink)" : "var(--coral)" }}>
               {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
             </div>
           </div>
@@ -5532,7 +5546,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
           ) : (
             renderGroupedByDay(list).map((entry) =>
               entry.type === "header" ? (
-                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
+                <div key={`h-${entry.date}`} className="cc-day-sep">
                   {(() => { const p = dayParts(entry.date); return (
                     <>
                       <span className="cc-day-num">{p.num}</span>
