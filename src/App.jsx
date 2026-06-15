@@ -36,10 +36,10 @@ const STYLE = `
   /* Paleta Zafi — glassmorphism plata/azul frío */
   --bg:#DCE1E8;
   --bg-2:#D2D8E1;
-  --paper:rgba(255,255,255,.48);
+  --paper:rgba(255,255,255,.41);
   --paper-solid:#FFFFFF;
-  --surface:rgba(255,255,255,.36);
-  --surface-2:rgba(255,255,255,.26);
+  --surface:rgba(255,255,255,.31);
+  --surface-2:rgba(255,255,255,.22);
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
@@ -75,8 +75,8 @@ const STYLE = `
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.38);
-  --glass-border:rgba(255,255,255,.5);
+  --glass:rgba(255,255,255,.32);
+  --glass-border:rgba(255,255,255,.42);
   --blur:blur(22px) saturate(1.5);
 }
 .cc-root{
@@ -112,9 +112,10 @@ const STYLE = `
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(220,225,232,.78);backdrop-filter:blur(16px) saturate(1.4);
+  background:linear-gradient(180deg, rgba(220,225,232,.78) 0%, rgba(220,225,232,.78) 60%, rgba(220,225,232,0) 100%);
+  backdrop-filter:blur(16px) saturate(1.4);
   -webkit-backdrop-filter:blur(16px) saturate(1.4);
-  border-bottom:1px solid var(--line-soft);}
+  border-bottom:none;}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
