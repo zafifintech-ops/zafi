@@ -45,7 +45,7 @@ body::before{
   background-position:center top;
   background-repeat:no-repeat;
   background-attachment:fixed;
-  filter:blur(6px);
+  filter:blur(10px);
   transform:scale(1.04);
 }
 #root{background:transparent!important;min-height:100vh;}
@@ -122,8 +122,8 @@ body::before{
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
   background:rgba(255,255,255,.1);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
   border-bottom:none;}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
@@ -250,7 +250,7 @@ body::before{
   display:flex;align-items:center;justify-content:space-between;
   background:rgba(255,255,255,.08);border:1px solid var(--glass-border);
   border-radius:31px;padding:0 10px;
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
   box-shadow:var(--shadow-lg);
   position:relative;}
 .cc-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -364,7 +364,7 @@ body::before{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.2);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+.cc-sheet{background:rgba(255,255,255,.2);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
