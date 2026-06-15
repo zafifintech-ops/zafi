@@ -33,40 +33,45 @@ const STYLE = `
 
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  /* Paleta Zafi — glassmorphism cálido */
-  --bg:#F3EDE4;
-  --bg-2:#EDE6DB;
-  --paper:rgba(255,255,255,.55);
+  /* Paleta Zafi — glassmorphism plata/azul frío */
+  --bg:#DCE1E8;
+  --bg-2:#D2D8E1;
+  --paper:rgba(255,255,255,.62);
   --paper-solid:#FFFFFF;
-  --surface:rgba(255,255,255,.45);
-  --surface-2:rgba(255,255,255,.35);
-  --surface-3:rgba(0,0,0,.04);
-  --ink:#111110;
-  --ink-soft:#5C5A55;
-  --ink-faint:#9E9B94;
-  --line:rgba(0,0,0,.08);
-  --line-soft:rgba(0,0,0,.04);
-  --green:#1A7A4C;
-  --green-2:#22915B;
-  --green-soft:rgba(26,122,76,.10);
-  --green-glow:rgba(26,122,76,.20);
-  --coral:#C03E20;
-  --coral-2:#D84E2E;
-  --coral-soft:rgba(192,62,32,.08);
-  --coral-glow:rgba(192,62,32,.12);
-  --gold:#A07830;
-  --gold-soft:rgba(160,120,48,.10);
-  --gold-glow:rgba(160,120,48,.18);
+  --surface:rgba(255,255,255,.50);
+  --surface-2:rgba(255,255,255,.38);
+  --surface-3:rgba(20,30,45,.05);
+  --ink:#1B2230;
+  --ink-soft:#6B7585;
+  --ink-faint:#A4ACBA;
+  --line:rgba(30,40,60,.09);
+  --line-soft:rgba(30,40,60,.045);
+  --green:#1A7A6E;
+  --green-2:#22917F;
+  --green-soft:rgba(26,122,110,.10);
+  --green-glow:rgba(26,122,110,.20);
+  --coral:#B5453A;
+  --coral-2:#CC5548;
+  --coral-soft:rgba(181,69,58,.08);
+  --coral-glow:rgba(181,69,58,.12);
+  --gold:#8C7FAE;
+  --gold-soft:rgba(140,127,174,.10);
+  --gold-glow:rgba(140,127,174,.18);
 
-  /* Sombras cálidas difusas */
-  --shadow-xs:0 1px 3px rgba(0,0,0,.03);
-  --shadow-sm:0 2px 8px rgba(0,0,0,.05);
-  --shadow-md:0 4px 16px rgba(0,0,0,.06);
-  --shadow-lg:0 8px 32px rgba(0,0,0,.08);
-  --shadow-xl:0 16px 48px rgba(0,0,0,.10);
-  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.6);
+  /* Acentos del orb IA — iridiscente */
+  --orb-purple:#A78BFA;
+  --orb-blue:#60A5FA;
+  --orb-mint:#5EEAD4;
+
+  /* Sombras frías difusas */
+  --shadow-xs:0 1px 3px rgba(30,40,60,.04);
+  --shadow-sm:0 2px 8px rgba(30,40,60,.06);
+  --shadow-md:0 4px 16px rgba(30,40,60,.08);
+  --shadow-lg:0 8px 32px rgba(30,40,60,.10);
+  --shadow-xl:0 16px 48px rgba(30,40,60,.13);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
   --glass:rgba(255,255,255,.55);
-  --glass-border:rgba(255,255,255,.45);
+  --glass-border:rgba(255,255,255,.55);
   --blur:blur(20px) saturate(1.3);
 }
 .cc-root{
@@ -75,6 +80,18 @@ const STYLE = `
   color:var(--ink); background:var(--bg);
   min-height:100vh; width:100%;
   -webkit-font-smoothing:antialiased;
+  position:relative;
+}
+.cc-bg-wave{
+  position:fixed; inset:0; z-index:-1;
+  background-image:url('https://images.unsplash.com/photo-1620641622044-09ce5d294e6f?q=80&w=1200&auto=format&fit=crop');
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+  background-color:var(--bg);
+}
+.cc-bg-wave::after{
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(220,225,232,.55) 0%, rgba(220,225,232,.78) 60%, rgba(220,225,232,.92) 100%);
 }
 
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
@@ -84,14 +101,35 @@ const STYLE = `
 
 /* ============== TOPBAR ============== */
 .cc-top{position:sticky;top:0;z-index:30;
-  background:var(--bg);
+  background:transparent;
   padding:14px 20px 8px;
   transition:.2s ease;}
 .cc-top.scrolled{padding-top:9px;padding-bottom:6px;
-  background:rgba(243,237,228,.85);backdrop-filter:blur(16px) saturate(1.4);
+  background:rgba(220,225,232,.78);backdrop-filter:blur(16px) saturate(1.4);
   -webkit-backdrop-filter:blur(16px) saturate(1.4);
-  border-bottom:1px solid rgba(0,0,0,.06);}
+  border-bottom:1px solid var(--line-soft);}
 .cc-top-inner{max-width:760px;margin:0 auto;}
+
+/* logo centrado estilo Canva */
+.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:600;font-size:20px;
+  letter-spacing:-.03em;text-align:center;color:var(--ink);
+  font-feature-settings:"ss01"; margin-bottom:14px; transition:.2s;}
+.cc-top.scrolled .cc-zafi-wordmark{margin-bottom:8px;font-size:17px;}
+
+/* fila de perfil: avatar + nombre + plan */
+.cc-profile-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;transition:.2s;}
+.cc-top.scrolled .cc-profile-row{margin-bottom:8px;}
+.cc-avatar{width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  background:var(--ink);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Fraunces',serif;font-weight:600;font-size:18px;
+  box-shadow:var(--shadow-sm);transition:.2s;}
+.cc-top.scrolled .cc-avatar{width:34px;height:34px;font-size:15px;}
+.cc-profile-name{font-family:'Fraunces',serif;font-weight:600;font-size:22px;
+  letter-spacing:-.03em;line-height:1.15;color:var(--ink);transition:.2s;}
+.cc-top.scrolled .cc-profile-name{font-size:17px;}
+.cc-profile-plan{font-size:12px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;}
+.cc-top.scrolled .cc-profile-plan{display:none;}
 
 .cc-masthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
   margin-bottom:10px;transition:.2s;}
@@ -127,7 +165,7 @@ const STYLE = `
 .cc-range-chip .cc-range-emoji{font-size:13px;}
 .cc-range-chip .cc-range-arrow{color:var(--ink-faint);font-size:9px;}
 
-/* tabs — segmented control glass */
+/* tabs — segmented control glass (legado, ya no se usa en header) */
 .cc-tabs{display:flex;gap:2px;background:rgba(0,0,0,.04);
   border:1px solid var(--glass-border);border-radius:16px;padding:3px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
@@ -186,32 +224,58 @@ const STYLE = `
 .cc-chip:hover{border-color:var(--gold);transform:translateY(-1px);
   box-shadow:var(--shadow-sm);}
 
-/* ============== FAB ============== */
-.cc-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;
-  background:var(--glass);color:var(--ink);border:1px solid var(--glass-border);border-radius:20px;
+/* ============== BOTTOM NAV ============== */
+.cc-bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;
+  display:flex;justify-content:center;
+  padding:0 16px calc(14px + env(safe-area-inset-bottom));
+  pointer-events:none;}
+.cc-bottomnav-inner{pointer-events:auto;
+  width:100%;max-width:420px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(255,255,255,.55);border:1px solid var(--glass-border);
+  border-radius:28px;padding:8px 6px;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  font-family:'Inter Tight','Hanken Grotesk',-apple-system,sans-serif;font-size:14px;font-weight:600;
-  padding:12px 20px 12px 14px;cursor:pointer;
-  letter-spacing:-.005em;overflow:hidden;
   box-shadow:var(--shadow-lg);
-  display:flex;align-items:center;gap:10px;
-  transition:transform .15s ease, box-shadow .15s ease;}
-.cc-fab:hover{background:rgba(255,255,255,.7);box-shadow:var(--shadow-xl);}
-.cc-fab:active{transform:translateX(-50%) scale(.97);}
+  position:relative;}
+.cc-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  border:none;background:transparent;cursor:pointer;
+  padding:8px 4px 6px;border-radius:18px;
+  color:var(--ink-faint);font-family:inherit;
+  transition:color .15s ease, background .15s ease;}
+.cc-nav-item.on{color:var(--ink);}
+.cc-nav-item:hover{color:var(--ink);}
+.cc-nav-icon{font-size:19px;line-height:1;}
+.cc-nav-label{font-size:10px;font-weight:600;letter-spacing:.01em;}
 
-/* Gota morfando del asistente */
-.cc-blob-stage{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;position:relative;flex-shrink:0;}
-.cc-blob{width:16px;height:16px;background:var(--green);animation:ccBlobMorph 4s ease-in-out infinite;}
-@keyframes ccBlobMorph{0%,100%{border-radius:50%}25%{border-radius:60% 40% 50% 50%}50%{border-radius:50% 50% 40% 60%}75%{border-radius:40% 60% 60% 40%}}
-.cc-fab-add{position:fixed;right:20px;bottom:22px;z-index:40;width:52px;height:52px;border-radius:50%;
-  background:var(--ink);color:#fff;border:none;font-size:26px;line-height:1;
-  cursor:pointer;font-weight:300;
-  box-shadow:var(--shadow-lg);
+/* Orb central de IA — protruye arriba de la barra */
+.cc-orb-slot{flex:1;display:flex;align-items:center;justify-content:center;position:relative;height:46px;}
+.cc-orb-btn{position:absolute;top:-26px;left:50%;transform:translateX(-50%);
+  width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow-lg);
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
+.cc-orb-btn:active{transform:translateX(-50%) scale(.93);}
+.cc-orb{width:58px;height:58px;border-radius:50%;
+  background:conic-gradient(from 0deg, var(--orb-purple), var(--orb-blue), var(--orb-mint), var(--orb-purple));
+  filter:saturate(1.3);
+  animation:ccOrbBreathe 4.5s ease-in-out infinite, ccOrbSpin 12s linear infinite;
+  border:2px solid rgba(255,255,255,.6);}
+@keyframes ccOrbBreathe{0%,100%{transform:scale(1);filter:saturate(1.3) brightness(1);}50%{transform:scale(1.08);filter:saturate(1.5) brightness(1.08);}}
+@keyframes ccOrbSpin{from{filter:hue-rotate(0deg) saturate(1.3);}to{filter:hue-rotate(360deg) saturate(1.3);}}
+
+/* ============== FAB superior (+) ============== */
+.cc-fab-top{position:fixed;top:18px;right:18px;z-index:45;
+  width:46px;height:46px;border-radius:50%;
+  background:var(--glass);color:var(--ink);border:1px solid var(--glass-border);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  font-size:24px;font-weight:300;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow-md);
   transition:all .15s ease;}
-.cc-fab-add:hover{box-shadow:var(--shadow-xl);}
-.cc-fab-add:active{transform:scale(.93);}
-.cc-fab-menu{position:fixed;right:20px;bottom:84px;z-index:42;display:flex;flex-direction:column;gap:8px;
+.cc-fab-top:hover{background:rgba(255,255,255,.75);box-shadow:var(--shadow-lg);}
+.cc-fab-top:active{transform:scale(.93);}
+.cc-fab-top.open{transform:rotate(45deg);}
+.cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
   background:var(--paper);color:var(--ink);border:1px solid var(--line);cursor:pointer;
@@ -288,6 +352,15 @@ const STYLE = `
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;}
+
+/* monto grande centrado — estilo "Nueva transacción" */
+.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:6px;
+  padding:18px 0;margin-bottom:6px;}
+.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink-soft);}
+.cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:500;letter-spacing:-.02em;
+  text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
+  width:auto;max-width:220px;font-feature-settings:"tnum";}
+.cc-amount-display input::placeholder{color:var(--ink-faint);}
 
 /* ============== CHAT ============== */
 .cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
@@ -1696,11 +1769,11 @@ function migrate(config, txs) {
    AUTH — pantallas de bienvenida, login, registro, recuperar contraseña
    ========================================================================= */
 
-const AUTH_INK = "#111110";
-const AUTH_INK_SOFT = "#636360";
-const AUTH_GREEN = "#1A7A4C";
-const AUTH_LINE = "#E5E4DF";
-const AUTH_CORAL = "#C03E20";
+const AUTH_INK = "#1B2230";
+const AUTH_INK_SOFT = "#6B7585";
+const AUTH_GREEN = "#1A7A6E";
+const AUTH_LINE = "#DDE2E9";
+const AUTH_CORAL = "#B5453A";
 
 function ZafiLogo() {
   return (
@@ -1798,16 +1871,16 @@ function AuthScreen() {
   const wrap = {
     minHeight:"100vh", display:"flex", flexDirection:"column",
     alignItems:"center", justifyContent:"center", padding:"40px 24px",
-    background:"#F3EDE4", position:"relative", overflow:"hidden",
+    background:"#DCE1E8", position:"relative", overflow:"hidden",
   };
   const blob = {
     position:"absolute", width:280, height:280, borderRadius:"50%",
-    background:"radial-gradient(circle, rgba(26,122,76,.25) 0%, rgba(26,122,76,.05) 60%, transparent 80%)",
+    background:"radial-gradient(circle, rgba(96,165,250,.25) 0%, rgba(96,165,250,.05) 60%, transparent 80%)",
     filter:"blur(40px)", top:"15%", right:"-10%", pointerEvents:"none",
   };
   const blob2 = {
     position:"absolute", width:200, height:200, borderRadius:"50%",
-    background:"radial-gradient(circle, rgba(160,120,48,.18) 0%, rgba(160,120,48,.04) 60%, transparent 80%)",
+    background:"radial-gradient(circle, rgba(167,139,250,.18) 0%, rgba(167,139,250,.04) 60%, transparent 80%)",
     filter:"blur(30px)", bottom:"20%", left:"-5%", pointerEvents:"none",
   };
   const box = {
@@ -1955,14 +2028,14 @@ export default function App() {
   // Pantalla de carga mientras Firebase verifica sesión
   if (user === undefined) return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center",
-      justifyContent:"center", background:"#F3EDE4" }}>
+      justifyContent:"center", background:"#DCE1E8" }}>
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ width:8, height:8, borderRadius:"50%", background:"#1A7A4C", display:"inline-block" }} />
+          <span style={{ width:8, height:8, borderRadius:"50%", background:"#1A7A6E", display:"inline-block" }} />
           <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:26,
-            letterSpacing:"-.045em", color:"#111110" }}>zafi</span>
+            letterSpacing:"-.045em", color:"#1B2230" }}>zafi</span>
         </div>
-        <div style={{ fontSize:13, color:"#9E9B94" }}>Cargando…</div>
+        <div style={{ fontSize:13, color:"#A4ACBA" }}>Cargando…</div>
       </div>
     </div>
   );
@@ -1991,6 +2064,7 @@ export default function App() {
     return (
       <div className="cc-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <style>{STYLE}</style>
+        <div className="cc-bg-wave" />
         <div className="cc-dots"><span /><span /><span /></div>
       </div>
     );
@@ -1998,6 +2072,7 @@ export default function App() {
   return (
     <div className="cc-root">
       <style>{STYLE}</style>
+      <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
         <Onboarding onDone={saveConfig} />
       ) : (
@@ -2195,10 +2270,11 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
 
+  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen;
+
   return (
     <div>
-      <StickyHeader balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)}
-        tab={tab} setTab={setTab} />
+      <StickyHeader config={config} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} />
 
       <div className="cc-wrap">
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
@@ -2207,29 +2283,21 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} />}
       </div>
 
-      <AssistantFab
-        onOpen={() => setChatOpen(true)}
-        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen}
+      <BottomNav
+        tab={tab}
+        setTab={setTab}
+        onOpenAssistant={() => setChatOpen(true)}
+        hidden={overlayOpen}
       />
 
-
-      {addMenuOpen && (
-        <div className="cc-fab-menu">
-          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setExcelOpen(true); }}>
-            📊 Desde Excel
-          </button>
-          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setImportOpen(true); }}>
-            📸 Desde screenshot
-          </button>
-          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setAdding(true); }}>
-            ✏️ Capturar manual
-          </button>
-        </div>
-      )}
-      <button className="cc-fab-add"
-        onClick={() => setAddMenuOpen((v) => !v)}
-        style={addMenuOpen ? { transform: "rotate(45deg)" } : null}
-        aria-label="Nuevo movimiento">＋</button>
+      <TopFab
+        open={addMenuOpen}
+        onToggle={() => setAddMenuOpen((v) => !v)}
+        onPickExcel={() => { setAddMenuOpen(false); setExcelOpen(true); }}
+        onPickScreenshot={() => { setAddMenuOpen(false); setImportOpen(true); }}
+        onPickManual={() => { setAddMenuOpen(false); setAdding(true); }}
+        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen}
+      />
 
       {(adding || editingTx) && (
         <AddModal
@@ -2296,77 +2364,106 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 /* Botón flotante del asistente — se monta en document.body para evitar
    problemas de stacking context (ancestros con transform/backdrop-filter
    rompen position:fixed). DOM nativo, no usa react-dom/createPortal. */
-function AssistantFab({ onOpen, hidden }) {
-  const btnRef = useRef(null);
+/* BottomNav: barra inferior con Home / History / Orb IA / Categories / Statistics */
+function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
+  const orbRef = useRef(null);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    const btn = document.createElement("button");
-    btn.className = "cc-fab";
-    btn.innerHTML = `
-      <span class="cc-blob-stage"><span class="cc-blob"></span></span>
-      <span>Asistente Zafi</span>
-    `;
-    btnRef.current = btn;
-
-    const handler = () => {
-      const stage = btn.querySelector(".cc-blob-stage");
-      if (stage) {
-        const rect = stage.getBoundingClientRect();
-        const btnRect = btn.getBoundingClientRect();
-        const cx = rect.left - btnRect.left + rect.width / 2;
-        const cy = rect.top - btnRect.top + rect.height / 2;
-        for (let i = 0; i < 6; i++) {
-          const p = document.createElement("span");
-          p.style.cssText = `position:absolute;width:4px;height:4px;border-radius:50%;background:var(--green);pointer-events:none;left:${cx}px;top:${cy}px;`;
-          btn.appendChild(p);
-          const angle = (i / 6) * Math.PI * 2;
-          const dx = Math.cos(angle) * 18;
-          const dy = Math.sin(angle) * 18;
-          const anim = p.animate(
-            [{ transform: "translate(0,0) scale(1)", opacity: 1 },
-             { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
-            { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
-          );
-          anim.onfinish = () => p.remove();
-        }
-        stage.animate(
-          [{ transform: "scale(1)" },
-           { transform: "scale(.7)", offset: .3 },
-           { transform: "scale(1.1)", offset: .6 },
-           { transform: "scale(1)" }],
-          { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+  const handleOrbClick = () => {
+    const orb = orbRef.current;
+    if (orb) {
+      const rect = orb.getBoundingClientRect();
+      for (let i = 0; i < 6; i++) {
+        const p = document.createElement("span");
+        p.style.cssText = `position:fixed;width:4px;height:4px;border-radius:50%;background:var(--orb-mint);pointer-events:none;left:${rect.left + rect.width / 2}px;top:${rect.top + rect.height / 2}px;z-index:9999;`;
+        document.body.appendChild(p);
+        const angle = (i / 6) * Math.PI * 2;
+        const dx = Math.cos(angle) * 22;
+        const dy = Math.sin(angle) * 22;
+        const anim = p.animate(
+          [{ transform: "translate(0,0) scale(1)", opacity: 1 },
+           { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
+          { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
         );
+        anim.onfinish = () => p.remove();
       }
-      setTimeout(onOpen, 120);
-    };
+      orb.animate(
+        [{ transform: "translateX(-50%) scale(1)" },
+         { transform: "translateX(-50%) scale(.8)", offset: .3 },
+         { transform: "translateX(-50%) scale(1.12)", offset: .6 },
+         { transform: "translateX(-50%) scale(1)" }],
+        { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+      );
+    }
+    setTimeout(onOpenAssistant, 120);
+  };
 
-    btn.addEventListener("click", handler);
-    document.body.appendChild(btn);
-    return () => {
-      btn.removeEventListener("click", handler);
-      if (btn.parentNode) btn.parentNode.removeChild(btn);
-      btnRef.current = null;
-    };
-  }, [onOpen]);
+  const NAV_ITEMS = [
+    ["inicio", "Home",       "🏠"],
+    ["movs",   "History",    "🕘"],
+  ];
+  const NAV_ITEMS_2 = [
+    ["cats",  "Categories",  "▦"],
+    ["stats", "Statistics",  "📊"],
+  ];
 
-  // Mostrar/ocultar cuando cambia hidden
-  useEffect(() => {
-    const btn = btnRef.current;
-    if (!btn) return;
-    btn.style.transition = "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)";
-    btn.style.opacity = hidden ? "0" : "1";
-    btn.style.pointerEvents = hidden ? "none" : "auto";
-    btn.style.transform = hidden
-      ? "translateX(-50%) translateY(16px)"
-      : "translateX(-50%) translateY(0)";
-  }, [hidden]);
+  return (
+    <div className="cc-bottomnav" style={{
+      opacity: hidden ? 0 : 1,
+      transform: hidden ? "translateY(16px)" : "translateY(0)",
+      pointerEvents: hidden ? "none" : "auto",
+      transition: "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)",
+    }}>
+      <div className="cc-bottomnav-inner">
+        {NAV_ITEMS.map(([k, label, icon]) => (
+          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
+            <span className="cc-nav-icon">{icon}</span>
+            <span className="cc-nav-label">{label}</span>
+          </button>
+        ))}
 
-  return null;
+        <div className="cc-orb-slot">
+          <button ref={orbRef} className="cc-orb-btn" onClick={handleOrbClick} aria-label="Asistente Zafi">
+            <span className="cc-orb" />
+          </button>
+        </div>
+
+        {NAV_ITEMS_2.map(([k, label, icon]) => (
+          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
+            <span className="cc-nav-icon">{icon}</span>
+            <span className="cc-nav-label">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function StickyHeader({ balance, dateRange, onOpenRange, tab, setTab }) {
+/* TopFab: botón circular (+) arriba a la derecha con menú de captura */
+function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, hidden }) {
+  return (
+    <>
+      <button className={`cc-fab-top ${open ? "open" : ""}`}
+        onClick={onToggle}
+        style={{
+          opacity: hidden ? 0 : 1,
+          transform: hidden ? `${open ? "rotate(45deg) " : ""}translateY(-16px)` : (open ? "rotate(45deg)" : "none"),
+          pointerEvents: hidden ? "none" : "auto",
+          transition: "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)",
+        }}
+        aria-label="Nueva transacción">＋</button>
+
+      {open && !hidden && (
+        <div className="cc-fab-menu">
+          <button className="cc-fab-mini" onClick={onPickExcel}>📊 Desde Excel</button>
+          <button className="cc-fab-mini" onClick={onPickScreenshot}>📸 Desde screenshot</button>
+          <button className="cc-fab-mini" onClick={onPickManual}>✏️ Capturar manual</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function StickyHeader({ config, balance, dateRange, onOpenRange }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
@@ -2383,53 +2480,36 @@ function StickyHeader({ balance, dateRange, onOpenRange, tab, setTab }) {
     : r.preset === "all" ? "⏳"
     : "✏️";
 
-  // fecha amigable, no tan editorial
-  const now = new Date();
-  const DAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-  const MONS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-  const issue = `${DAYS[now.getDay()]} ${now.getDate()} de ${MONS[now.getMonth()]}`;
-
-  const TABS = [
-    ["inicio", "Inicio"],
-    ["movs",   "Movimientos"],
-    ["cats",   "Categorías"],
-    ["stats",  "Estadísticas"],
-  ];
+  // nombre del usuario — placeholder a partir del correo
+  const email = auth.currentUser?.email || "";
+  const rawName = email.split("@")[0] || "Usuario";
+  const displayName = rawName
+    .replace(/[._\-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ") || "Usuario";
+  const initial = displayName[0]?.toUpperCase() || "U";
 
   return (
     <div className={`cc-top ${scrolled ? "scrolled" : ""}`}>
       <div className="cc-top-inner">
-        {/* Masthead — título refinado con punto verde */}
-        <div className="cc-masthead">
-          <div className="cc-masthead-title">zafi</div>
-          <div className="cc-masthead-meta">
-            {issue}
-          </div>
-        </div>
+        {/* Logo centrado */}
+        <div className="cc-zafi-wordmark">zafi</div>
 
-        {/* Balance + rango */}
-        <div className="cc-balance-row">
-          <div className="cc-balance-display">
-            <span className="cc-balance-label">Balance</span>
-            <span className="cc-balance-value" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
-              {fmt(balance)}
-            </span>
+        {/* Perfil: avatar + nombre + plan */}
+        <div className="cc-profile-row">
+          <div className="cc-avatar">{initial}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="cc-profile-name">{displayName}</div>
+            <div className="cc-profile-plan">Plan semanal</div>
           </div>
+          <div style={{ flex: 1 }} />
           <button className="cc-range-chip" onClick={onOpenRange}>
             <span className="cc-range-emoji">{emoji}</span>
             <span>{rangeLabel(dateRange)}</span>
             <span className="cc-range-arrow">▼</span>
           </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="cc-tabs">
-          {TABS.map(([k, l]) => (
-            <button key={k} className={`cc-tab ${tab === k ? "on" : ""}`}
-              onClick={() => setTab(k)}>
-              {l}
-            </button>
-          ))}
         </div>
       </div>
     </div>
@@ -3585,20 +3665,20 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
-          {editing ? "Editar movimiento" : "Nuevo movimiento"}
+          {editing ? "Editar transacción" : "Nueva transacción"}
         </h2>
 
-        <div className="cc-tabs" style={{ marginBottom: 16 }}>
+        <div className="cc-tabs" style={{ marginBottom: 4 }}>
           {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
             <button key={k} className={`cc-tab ${type === k ? "on" : ""}`}
               onClick={() => { setType(k); setCatId("auto"); }}>{l}</button>
           ))}
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <label className="cc-label">Monto</label>
-          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00"
-            value={amount} onChange={(e) => setAmount(e.target.value)} style={{ fontSize: 22, fontWeight: 700 }} />
+        <div className="cc-amount-display">
+          <span className="cc-amount-currency">$</span>
+          <input className="cc-num" type="number" inputMode="decimal" placeholder="0.00"
+            value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -3612,32 +3692,35 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
             <label className="cc-label">Fecha</label>
             <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          {config.accounts.length > 1 && (
-            <div style={{ flex: 1 }}>
-              <label className="cc-label">Cuenta</label>
-              <select className="cc-select" value={accountId}
-                onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
-                style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
-                <option value="">Elegir cuenta…</option>
-                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
-          )}
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">Categoría</label>
+            <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
+              disabled={!accountId}>
+              <option value="auto">✨ Detectar automáticamente</option>
+              {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+            </select>
+          </div>
         </div>
 
+        {config.accounts.length > 1 && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="cc-label">Cuenta</label>
+            <select className="cc-select" value={accountId}
+              onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
+              style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
+              <option value="">Elegir cuenta…</option>
+              {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+        )}
+
         <div style={{ marginBottom: 20 }}>
-          <label className="cc-label">Categoría</label>
-          <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
-            disabled={!accountId}>
-            <option value="auto">✨ Detectar automáticamente</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-          </select>
           {!accountId ? (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
               Elige primero una cuenta para ver sus categorías.
             </div>
           ) : catId === "auto" && (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
               La app intentará detectar la categoría con el concepto. Si no está segura, te pregunta.
             </div>
           )}
