@@ -1781,6 +1781,44 @@ function parseJSON(text) {
   return JSON.parse(a >= 0 && b >= 0 ? clean.slice(a, b + 1) : clean);
 }
 
+/* Categorizador compartido: keywords locales -> Claude.
+ * Devuelve { catId, sure }. catId=null si no encuentra nada seguro. */
+async function autoCategorize(desc, type, accountId, config) {
+  const nd = norm(desc);
+  const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
+  // 1) claves locales de las categorías de ESTA cuenta
+  for (const c of cats) {
+    for (const kw of c.keywords || []) {
+      if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
+    }
+  }
+  // 2) claves aprendidas en otras cuentas con mismo nombre/tipo
+  for (const c of cats) {
+    const twins = config.categories.filter(
+      (x) => x.id !== c.id && x.type === c.type && norm(x.name).trim() === norm(c.name).trim()
+    );
+    for (const twin of twins) {
+      for (const kw of twin.keywords || []) {
+        if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
+      }
+    }
+  }
+  // 3) Claude
+  try {
+    const sys =
+      'Eres un clasificador de transacciones personales. Responde SOLO con un objeto JSON, sin markdown ni texto extra: {"categoryId":"<id>" o null,"confident":true|false}. Devuelve null y confident:false si no estás razonablemente seguro.';
+    const user = `Tipo: ${type === "income" ? "ingreso" : "gasto"}. Descripción: "${desc}". Categorías disponibles: ${JSON.stringify(
+      cats.map((c) => ({ id: c.id, name: c.name }))
+    )}`;
+    const raw = await callClaude(sys, [{ role: "user", content: user }]);
+    const p = parseJSON(raw);
+    const valid = cats.some((c) => c.id === p.categoryId);
+    if (valid && p.confident) return { catId: p.categoryId, sure: true };
+    if (valid) return { catId: p.categoryId, sure: false };
+  } catch (e) { /* sin API */ }
+  return { catId: null, sure: false };
+}
+
 /* categorías por defecto para una cuenta nueva */
 function defaultCatsForAccount(accId) {
   return DEFAULT_CATS.map((t) => ({
@@ -2426,7 +2464,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
         {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
         {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} />}
-        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} />}
+        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
       </div>
 
       <BottomNav
@@ -4143,36 +4181,47 @@ function RecurringModal({ config, onClose, onSave }) {
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [accountId, setAccountId] = useState(config.accounts.length === 1 ? config.accounts[0].id : "");
-  const [catId, setCatId] = useState("");
+  const [catId, setCatId] = useState("auto");
   const [freq, setFreq] = useState("monthly");
   const [startDate, setStartDate] = useState(today());
+  const [detecting, setDetecting] = useState(false);
 
   const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
 
   const resetForm = () => {
     setType("expense"); setAmount(""); setDesc("");
     setAccountId(config.accounts.length === 1 ? config.accounts[0].id : "");
-    setCatId(""); setFreq("monthly"); setStartDate(today()); setEditingId(null);
+    setCatId("auto"); setFreq("monthly"); setStartDate(today()); setEditingId(null);
   };
 
   const startNew = () => { resetForm(); setView("form"); };
 
   const startEdit = (r) => {
     setType(r.type); setAmount(String(r.amount)); setDesc(r.description);
-    setAccountId(r.accountId); setCatId(r.categoryId || "");
+    setAccountId(r.accountId); setCatId(r.categoryId || "auto");
     setFreq(r.freq); setStartDate(r.startDate); setEditingId(r.id);
     setView("form");
   };
 
   const canSave = amount && parseFloat(amount) > 0 && desc.trim() && accountId;
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
+    // detección automática de categoría si está en "auto"
+    let finalCat = catId === "auto" ? null : (catId || null);
+    if (catId === "auto") {
+      setDetecting(true);
+      try {
+        const res = await autoCategorize(desc.trim(), type, accountId, config);
+        finalCat = res.catId;
+      } catch (e) { finalCat = null; }
+      setDetecting(false);
+    }
     const rule = {
       id: editingId || uid(),
       type, amount: Math.abs(parseFloat(amount)),
       description: desc.trim(), accountId,
-      categoryId: catId || null,
+      categoryId: finalCat,
       freq, startDate,
       lastRun: editingId ? (rules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
       active: true,
@@ -4323,18 +4372,24 @@ function RecurringModal({ config, onClose, onSave }) {
         <div style={{ marginBottom: 18 }}>
           <label className="cc-label">Categoría {accountId ? "" : "(elige cuenta primero)"}</label>
           <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)} disabled={!accountId}>
+            <option value="auto">✨ Detectar automáticamente</option>
             <option value="">Sin categoría</option>
             {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
           </select>
+          {catId === "auto" && (
+            <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 6 }}>
+              Zafi elegirá la categoría según el concepto al guardar.
+            </div>
+          )}
         </div>
 
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.5 }}>
           Se generará un {type === "income" ? "ingreso" : "gasto"} de <b>{amount ? fmtBare(parseFloat(amount) || 0) : "$0"}</b> {FREQ_LABELS[freq].toLowerCase()} a partir del {startDate}. Si la fecha de inicio ya pasó, se crearán los movimientos faltantes al guardar.
         </div>
 
-        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14, opacity: canSave ? 1 : 0.4 }}
-          disabled={!canSave} onClick={save}>
-          {editingId ? "Guardar cambios" : "Crear recurrente"}
+        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14, opacity: (canSave && !detecting) ? 1 : 0.4 }}
+          disabled={!canSave || detecting} onClick={save}>
+          {detecting ? "Detectando categoría…" : (editingId ? "Guardar cambios" : "Crear recurrente")}
         </button>
       </div>
     </div>
@@ -4590,9 +4645,172 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 }
 
 /* ============================ ESTADÍSTICAS =============================== */
-function Estadisticas({ config, txs, dateRange, onEdit }) {
+/* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
+const CHART_PALETTE = ["#5B6EE8", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
+
+function CategoryChart({ rows, type, onPick }) {
+  // rows: [{cat, amt}]
+  const [chartType, setChartType] = useState(type === "income" ? "donut" : "bars");
+  const [activeIdx, setActiveIdx] = useState(null);
+  const total = rows.reduce((s, r) => s + r.amt, 0);
+  if (!rows.length) return <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>No hay datos en el periodo.</div>;
+
+  const data = rows.map((r, i) => ({ ...r, color: CHART_PALETTE[i % CHART_PALETTE.length] }));
+  const accentColor = type === "income" ? "var(--green)" : "var(--coral)";
+
+  const TYPES = [["bars", "Barras"], ["pie", "Pastel"], ["donut", "Dona"]];
+
+  return (
+    <div>
+      {/* switch de tipo */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {TYPES.map(([k, l]) => (
+          <button key={k} onClick={() => { setChartType(k); setActiveIdx(null); }}
+            style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+              fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
+              background: chartType === k ? "var(--ink)" : "var(--surface)",
+              color: chartType === k ? "#fff" : "var(--ink-soft)",
+              border: `1px solid ${chartType === k ? "var(--ink)" : "var(--line)"}` }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {(chartType === "pie" || chartType === "donut") && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <CatPie data={data} total={total} donut={chartType === "donut"}
+            active={activeIdx} onHover={setActiveIdx} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
+            {data.map((d, i) => {
+              const pct = total ? Math.round((d.amt / total) * 100) : 0;
+              return (
+                <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
+                  onMouseEnter={() => setActiveIdx(i)} onMouseLeave={() => setActiveIdx(null)}
+                  style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 6px",
+                    background: activeIdx === i ? "var(--surface)" : "transparent", border: "none",
+                    borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
+                    transition: "background .12s" }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                  <span className="cc-emoji" style={{ fontSize: 15 }}>{d.cat.emoji}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.cat.name}</span>
+                  <span className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 13, color: accentColor }}>
+                    {fmtBare(d.amt)}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: "var(--ink-faint)", width: 30, textAlign: "right" }}>{pct}%</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {chartType === "bars" && (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {data.map((d) => {
+            const pct = total ? Math.round((d.amt / total) * 100) : 0;
+            const maxAmt = data[0].amt;
+            const w = maxAmt ? (d.amt / maxAmt) * 100 : 0;
+            return (
+              <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
+                  background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
+                  cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                  <span className="cc-emoji">{d.cat.emoji}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{d.cat.name}</div>
+                  <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
+                    <div style={{ height: "100%", width: `${w}%`, background: type === "income" ? "var(--green)" : "var(--bar-fill)", borderRadius: 99 }} />
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: accentColor }}>
+                    {fmtBare(d.amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Pastel/dona interactivo con segmento activo resaltado */
+function CatPie({ data, total, donut, active, onHover }) {
+  const size = 180, cx = size / 2, cy = size / 2, r = 78, ir = donut ? 46 : 0;
+  let acc = 0;
+  const slices = data.map((d) => {
+    const frac = total ? d.amt / total : 0;
+    const start = acc; acc += frac;
+    return { ...d, start, end: acc };
+  });
+  function arc(s, e, rad, innerRad) {
+    const a0 = s * Math.PI * 2 - Math.PI / 2;
+    const a1 = e * Math.PI * 2 - Math.PI / 2;
+    const large = e - s > 0.5 ? 1 : 0;
+    const x0 = cx + rad * Math.cos(a0), y0 = cy + rad * Math.sin(a0);
+    const x1 = cx + rad * Math.cos(a1), y1 = cy + rad * Math.sin(a1);
+    if (innerRad === 0) {
+      return `M${cx},${cy} L${x0},${y0} A${rad},${rad} 0 ${large} 1 ${x1},${y1} Z`;
+    }
+    const xi0 = cx + innerRad * Math.cos(a0), yi0 = cy + innerRad * Math.sin(a0);
+    const xi1 = cx + innerRad * Math.cos(a1), yi1 = cy + innerRad * Math.sin(a1);
+    return `M${x0},${y0} A${rad},${rad} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${innerRad},${innerRad} 0 ${large} 0 ${xi0},${yi0} Z`;
+  }
+  const activeSlice = active != null ? slices[active] : null;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 180, height: 180, flexShrink: 0 }}>
+      {slices.map((s, i) =>
+        s.end - s.start < 0.001 ? null :
+        <path key={i} d={arc(s.start, s.end, active === i ? r + 4 : r, ir)} fill={s.color}
+          opacity={active == null || active === i ? 1 : 0.45}
+          style={{ transition: "opacity .15s, d .15s", cursor: "pointer" }}
+          onMouseEnter={() => onHover && onHover(i)} onMouseLeave={() => onHover && onHover(null)} />
+      )}
+      {donut && (
+        <>
+          <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="12" fill="var(--ink-soft)">
+            {activeSlice ? activeSlice.cat.name : "Total"}
+          </text>
+          <text x={cx} y={cy + 15} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="16" fontWeight="600" fill="var(--ink)">
+            {fmtBare(activeSlice ? activeSlice.amt : total)}
+          </text>
+        </>
+      )}
+    </svg>
+  );
+}
+
+function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
   const [view, setView] = useState("all"); // all | accountId
   const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
+  const [configOpen, setConfigOpen] = useState(false);
+
+  // secciones configurables (orden + visibilidad)
+  const STATS_DEFAULT = [
+    { id: "summary", label: "Resumen ingresos/gastos", on: true },
+    { id: "kpis", label: "Indicadores (KPIs)", on: true },
+    { id: "incCats", label: "Ingresos por categoría", on: true },
+    { id: "expCats", label: "Gastos por categoría", on: true },
+    { id: "trend", label: "Evolución de saldo", on: true },
+    { id: "topCat", label: "En lo que más gastaste", on: true },
+  ];
+  const statsSections = (() => {
+    const saved = config.statsSections || [];
+    // merge: respeta orden guardado, agrega nuevas que falten
+    const byId = Object.fromEntries(saved.map((s) => [s.id, s]));
+    const merged = saved
+      .filter((s) => STATS_DEFAULT.some((d) => d.id === s.id))
+      .map((s) => ({ ...STATS_DEFAULT.find((d) => d.id === s.id), ...s }));
+    STATS_DEFAULT.forEach((d) => { if (!byId[d.id]) merged.push(d); });
+    return merged.length ? merged : STATS_DEFAULT;
+  })();
+  const saveStatsSections = (next) => saveConfig({ ...config, statsSections: next });
 
   const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
   const scopedInitial = view === "all"
@@ -4681,7 +4899,12 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* selector de cuenta */}
       <div className="cc-fade">
-        <div className="cc-label" style={{ marginBottom: 8 }}>Ver estadísticas de</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div className="cc-label" style={{ marginBottom: 0 }}>Ver estadísticas de</div>
+          <button className="cc-gear" onClick={() => setConfigOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", width: "auto" }}>
+            ⚙️ Personalizar
+          </button>
+        </div>
         <div className="cc-scroll-x">
           <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}
             style={{ minWidth: 120 }}>
@@ -4708,141 +4931,98 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
         </div>
       ) : (
         <>
-          {/* ===== Tarjeta destacada: Ingresos vs Gastos (tappable) ===== */}
-          <div className="cc-card" style={{ padding: 18 }}>
-            <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => openDetail("income")}
-                style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                  border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                  textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-                <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
-              </button>
-              <button onClick={() => openDetail("expense")}
-                style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                  border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                  textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-                <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
-              </button>
-            </div>
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
-              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
-              <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
-                color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)" }}>
-                {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-              </span>
-            </div>
-          </div>
-
-          {/* KPIs secundarios */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
-            <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
-          </div>
-
-          {/* ===== Categorías de ingreso (tappables) ===== */}
-          {incRows.length > 0 && (
-            <div className="cc-card" style={{ padding: "6px 18px" }}>
-              <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Ingresos por categoría</div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {incRows.map(({ cat, amt }) => {
-                  const pct = rangeIncome ? Math.round((amt / rangeIncome) * 100) : 0;
-                  return (
-                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
-                        background: "transparent", border: "none",
-                        borderBottom: "1px solid var(--line-soft)",
-                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                        {cat.emoji}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{cat.name}</div>
-                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--green)", borderRadius: 99 }} />
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--green)" }}>
-                          {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                        </div>
-                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
-                      </div>
-                    </button>
-                  );
-                })}
+          {statsSections.filter((s) => s.on).map((s) => {
+            if (s.id === "summary") return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => openDetail("income")}
+                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                      textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
+                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
+                  </button>
+                  <button onClick={() => openDetail("expense")}
+                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                      textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
+                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
+                  </button>
+                </div>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
+                  display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
+                  <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
+                    color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)" }}>
+                    {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            );
 
-          {/* ===== Categorías de gasto (tappables) ===== */}
-          {expRows.length > 0 && (
-            <div className="cc-card" style={{ padding: "6px 18px" }}>
-              <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Gastos por categoría</div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {expRows.map(({ cat, amt }) => {
-                  const pct = rangeExpense ? Math.round((amt / rangeExpense) * 100) : 0;
-                  return (
-                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
-                        background: "transparent", border: "none",
-                        borderBottom: "1px solid var(--line-soft)",
-                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                        {cat.emoji}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{cat.name}</div>
-                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--bar-fill)", borderRadius: 99 }} />
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--coral)" }}>
-                          {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                        </div>
-                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
-                      </div>
-                    </button>
-                  );
-                })}
+            if (s.id === "kpis") return (
+              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
+                <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
               </div>
-            </div>
-          )}
+            );
 
-          {/* Evolución de saldo en el rango */}
-          {balancePoints.length >= 2 && (
-            <div className="cc-card" style={{ padding: 18 }}>
-              <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
-              <LineChart points={balancePoints} />
-            </div>
-          )}
+            if (s.id === "incCats" && incRows.length > 0) return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 12 }}>Ingresos por categoría</div>
+                <CategoryChart rows={incRows} type="income" onPick={openCategoryDetail} />
+              </div>
+            );
 
-          {/* destacado */}
-          {topCat && (
-            <div className="cc-card" style={{ padding: 18 }}>
-              <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
-                <div style={{ flex: 1 }}>
-                  <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
-                  <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
-                    {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
+            if (s.id === "expCats" && expRows.length > 0) return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría</div>
+                <CategoryChart rows={expRows} type="expense" onPick={openCategoryDetail} />
+              </div>
+            );
+
+            if (s.id === "trend" && balancePoints.length >= 2) return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
+                <LineChart points={balancePoints} />
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
+                  Desliza sobre la gráfica para ver cualquier día
+                </div>
+              </div>
+            );
+
+            if (s.id === "topCat" && topCat) return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
+                    <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                      {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+
+            return null;
+          })}
         </>
+      )}
+
+      {configOpen && (
+        <StatsConfigModal
+          sections={statsSections}
+          onClose={() => setConfigOpen(false)}
+          onSave={(next) => { saveStatsSections(next); setConfigOpen(false); }}
+        />
       )}
 
       {detail && (
@@ -4850,6 +5030,60 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
           onClose={() => setDetail(null)}
           onEditTx={(t) => { setDetail(null); onEdit(t); }} />
       )}
+    </div>
+  );
+}
+
+/* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
+function StatsConfigModal({ sections, onClose, onSave }) {
+  const [items, setItems] = useState(sections.map((s) => ({ ...s })));
+
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    setItems(next);
+  };
+  const toggle = (i) => {
+    setItems(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
+  };
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Personalizar estadísticas</h2>
+          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
+          Reordena con las flechas y muestra u oculta cada sección.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+          {items.map((s, i) => (
+            <div key={s.id} className="cc-card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, opacity: s.on ? 1 : 0.55 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <button onClick={() => move(i, -1)} disabled={i === 0}
+                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▲</button>
+                <button onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === items.length - 1 ? "default" : "pointer", opacity: i === items.length - 1 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▼</button>
+              </div>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.label}</span>
+              <button onClick={() => toggle(i)}
+                style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
+                  background: s.on ? "var(--green)" : "var(--surface-2)", transition: "background .15s" }}>
+                <span style={{ position: "absolute", top: 3, left: s.on ? 22 : 3, width: 21, height: 21, borderRadius: "50%",
+                  background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14 }}
+          onClick={() => onSave(items)}>Guardar</button>
+      </div>
     </div>
   );
 }
@@ -4865,39 +5099,76 @@ function KpiCard({ label, value, sub, color }) {
 }
 
 /* ----------------------- gráfica de línea (SVG) -------------------------- */
-function LineChart({ points }) {
+function LineChart({ points, area: showArea = true }) {
+  const [hover, setHover] = useState(null); // index hovered
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
   }
-  const W = 600, H = 180, P = 10;
-  const min = Math.min(...points.map((p) => p.val));
-  const max = Math.max(...points.map((p) => p.val));
+  const W = 600, H = 200, P = 10, PB = 22; // PB: padding inferior para etiquetas
+  const vals = points.map((p) => p.val);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
   const range = max - min || 1;
   const xOf = (i) => P + (i / (points.length - 1)) * (W - P * 2);
-  const yOf = (v) => H - P - ((v - min) / range) * (H - P * 2);
+  const yOf = (v) => H - PB - ((v - min) / range) * (H - P - PB);
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
-  const area = `${path} L${xOf(points.length - 1).toFixed(1)},${H - P} L${P},${H - P} Z`;
+  const areaPath = `${path} L${xOf(points.length - 1).toFixed(1)},${H - PB} L${P},${H - PB} Z`;
   const last = points[points.length - 1].val;
   const first = points[0].val;
   const up = last >= first;
   const stroke = up ? "var(--green)" : "var(--coral)";
+  const avgY = yOf(avg);
+
+  const maxIdx = vals.indexOf(max);
+  const minIdx = vals.indexOf(min);
+
+  const handleMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const x = ((clientX - rect.left) / rect.width) * W;
+    const i = Math.round(((x - P) / (W - P * 2)) * (points.length - 1));
+    setHover(Math.max(0, Math.min(points.length - 1, i)));
+  };
+
+  const hp = hover != null ? points[hover] : null;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "var(--ink-soft)" }}>
-        <span>{points[0].date}</span>
-        <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>{fmt(last)}</span>
-        <span>hoy</span>
+        <span>{hp ? hp.date : points[0].date}</span>
+        <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>
+          {hp ? fmt(hp.val) : fmt(last)}
+        </span>
+        <span>{hp ? "" : "hoy"}</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none" }}
+        onMouseMove={handleMove} onMouseLeave={() => setHover(null)}
+        onTouchStart={handleMove} onTouchMove={handleMove} onTouchEnd={() => setHover(null)}>
         <defs>
           <linearGradient id="ccLine" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={area} fill="url(#ccLine)" />
+        {/* promedio */}
+        <line x1={P} y1={avgY} x2={W - P} y2={avgY} stroke="var(--ink-faint)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)">prom {fmtBare(avg)}</text>
+        {showArea && <path d={areaPath} fill="url(#ccLine)" />}
         <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        {/* máximo y mínimo */}
+        <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill="var(--green)" />
+        <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--green)">{fmtBare(max)}</text>
+        <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill="var(--coral)" />
+        <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--coral)">{fmtBare(min)}</text>
+        {/* cursor hover */}
+        {hp && (
+          <>
+            <line x1={xOf(hover)} y1={P} x2={xOf(hover)} y2={H - PB} stroke="var(--ink-soft)" strokeWidth="1" opacity="0.4" />
+            <circle cx={xOf(hover)} cy={yOf(hp.val)} r="5" fill="#fff" stroke={stroke} strokeWidth="2.5" />
+          </>
+        )}
       </svg>
     </div>
   );
