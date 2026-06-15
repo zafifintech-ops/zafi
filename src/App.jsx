@@ -61,7 +61,7 @@ body::before{
   --surface-3:rgba(20,30,45,.05);
   --ink:#1B2230;
   --ink-soft:#6B7585;
-  --ink-faint:#A4ACBA;
+  --ink-faint:#8B95A6;
   --line:rgba(30,40,60,.09);
   --line-soft:rgba(30,40,60,.045);
   --green:#1A7A6E;
@@ -111,6 +111,7 @@ body::before{
 
 
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
+.cc-emoji{filter:grayscale(1);opacity:.85;}
 .cc-serif{font-family:'Fraunces',serif;letter-spacing:-.018em;font-feature-settings:"ss01";}
 
 .cc-wrap{max-width:760px;margin:0 auto;padding:4px 16px 130px;}
@@ -364,7 +365,7 @@ body::before{
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .15s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+.cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
@@ -3059,7 +3060,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
           margin: "0 -10px", paddingLeft: 10, paddingRight: 10, borderRadius: selected ? 8 : 0 }}>
         <input type="checkbox" checked={!!selected} readOnly
           style={{ width: 19, height: 19, accentColor: "var(--green)" }} />
-        <div style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div className="cc-emoji" style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {t.description || (c ? c.name : "Movimiento")}
@@ -3082,6 +3083,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
       {/* emoji pill */}
       <div
         onClick={() => onEdit && onEdit(t)}
+        className="cc-emoji"
         style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 17, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
@@ -3410,7 +3412,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
                     const total = totalsByCat[c.id] || 0;
                     return (
                       <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
-                        <span style={{ fontSize: 19 }}>{c.emoji}</span>
+                        <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                           {total > 0 && (
@@ -3776,7 +3778,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
                   background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14,
                   boxShadow: "var(--shadow-xs)", WebkitTapHighlightColor: "transparent",
                   position: "relative", zIndex: 1 }}>
-                <span style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
+                <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
               </button>
             ))}
           </div>
@@ -4417,7 +4419,7 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
                         background: "transparent", border: "none",
                         borderBottom: "1px solid var(--line-soft)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                      <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
                         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
                         {cat.emoji}
                       </div>
@@ -4453,7 +4455,7 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
                         background: "transparent", border: "none",
                         borderBottom: "1px solid var(--line-soft)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                      <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
                         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
                         {cat.emoji}
                       </div>
@@ -4489,7 +4491,7 @@ function Estadisticas({ config, txs, dateRange, onEdit }) {
             <div className="cc-card" style={{ padding: 18 }}>
               <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
                   <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
@@ -5550,7 +5552,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
-          <div style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
+          <div className="cc-emoji" style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 2 }}>{detail.label}</h2>
             <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
