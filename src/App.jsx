@@ -274,13 +274,30 @@ body::before{
   box-shadow:var(--shadow-lg);
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
-.cc-orb{width:78px;height:78px;border-radius:50%;
-  background:conic-gradient(from 0deg, var(--orb-purple), var(--orb-blue), var(--orb-mint), var(--orb-purple));
-  filter:saturate(1.3);
-  animation:ccOrbBreathe 4.5s ease-in-out infinite, ccOrbSpin 12s linear infinite;
-  border:2px solid rgba(255,255,255,.6);}
-@keyframes ccOrbBreathe{0%,100%{transform:scale(1);filter:saturate(1.3) brightness(1);}50%{transform:scale(1.08);filter:saturate(1.5) brightness(1.08);}}
-@keyframes ccOrbSpin{from{filter:hue-rotate(0deg) saturate(1.3);}to{filter:hue-rotate(360deg) saturate(1.3);}}
+.cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
+  background:
+    radial-gradient(circle at 35% 75%, rgba(99,102,241,.95) 0%, rgba(99,102,241,0) 45%),
+    radial-gradient(circle at 70% 55%, rgba(96,165,250,.9) 0%, rgba(96,165,250,0) 50%),
+    radial-gradient(circle at 55% 25%, rgba(94,234,212,.55) 0%, rgba(94,234,212,0) 40%),
+    radial-gradient(circle at 25% 30%, rgba(167,139,250,.85) 0%, rgba(167,139,250,0) 55%),
+    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
+  filter:saturate(1.25);
+  border:2px solid rgba(255,255,255,.55);
+  box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.35);
+  animation:ccOrbBreathe 4s ease-in-out infinite, ccOrbDrift 8s ease-in-out infinite;}
+.cc-orb::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 30% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 28%);
+  animation:ccOrbShine 4s ease-in-out infinite;}
+.cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
+  background:radial-gradient(circle, rgba(124,139,245,.55) 0%, rgba(167,139,250,.25) 45%, rgba(124,139,245,0) 70%);
+  animation:ccOrbGlow 4s ease-in-out infinite;}
+@keyframes ccOrbBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+@keyframes ccOrbDrift{
+  0%,100%{background-position:35% 75%, 70% 55%, 55% 25%, 25% 30%, 50% 50%;filter:saturate(1.25) hue-rotate(0deg);}
+  33%{background-position:55% 65%, 45% 70%, 70% 35%, 35% 45%, 50% 50%;filter:saturate(1.4) hue-rotate(-12deg);}
+  66%{background-position:25% 60%, 75% 45%, 40% 30%, 50% 25%, 50% 50%;filter:saturate(1.35) hue-rotate(14deg);}}
+@keyframes ccOrbShine{0%,100%{opacity:.85;transform:scale(1);}50%{opacity:1;transform:scale(1.04) translate(2px,2px);}}
+@keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
 
 /* ============== FAB superior (+) ============== */
 .cc-fab-top{position:fixed;top:18px;right:18px;z-index:45;
