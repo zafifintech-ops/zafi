@@ -461,6 +461,73 @@ const SEED_KW = {
 /* ------------------------------ utilidades ------------------------------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
+
+/* ===== Motor de movimientos recurrentes =====
+ * Una regla recurrente vive en config.recurring[] con forma:
+ * { id, type:"expense"|"income", amount, description, accountId, categoryId,
+ *   freq:"daily"|"weekly"|"biweekly"|"monthly"|"yearly", startDate:"YYYY-MM-DD",
+ *   lastRun:"YYYY-MM-DD"|null, active:true }
+ */
+const FREQ_LABELS = {
+  daily: "Diario",
+  weekly: "Semanal",
+  biweekly: "Quincenal",
+  monthly: "Mensual",
+  yearly: "Anual",
+};
+const isoToDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+const dateToIso = (dt) => {
+  const y = dt.getFullYear(); const m = String(dt.getMonth() + 1).padStart(2, "0"); const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+// avanza una fecha según la frecuencia
+const advanceDate = (dt, freq) => {
+  const n = new Date(dt);
+  if (freq === "daily") n.setDate(n.getDate() + 1);
+  else if (freq === "weekly") n.setDate(n.getDate() + 7);
+  else if (freq === "biweekly") n.setDate(n.getDate() + 14);
+  else if (freq === "monthly") n.setMonth(n.getMonth() + 1);
+  else if (freq === "yearly") n.setFullYear(n.getFullYear() + 1);
+  return n;
+};
+// genera todos los movimientos pendientes de una regla, desde startDate (o lastRun) hasta hoy
+const runRecurringRules = (recurring) => {
+  if (!recurring || !recurring.length) return { newTxs: [], updatedRecurring: recurring || [] };
+  const todayIso = today();
+  const todayD = isoToDate(todayIso);
+  const newTxs = [];
+  const updatedRecurring = recurring.map((r) => {
+    if (!r.active) return r;
+    // primera fecha pendiente
+    let cursor;
+    if (r.lastRun) {
+      cursor = advanceDate(isoToDate(r.lastRun), r.freq);
+    } else {
+      cursor = isoToDate(r.startDate);
+    }
+    let lastRun = r.lastRun;
+    let guard = 0;
+    while (cursor <= todayD && guard < 1000) {
+      const iso = dateToIso(cursor);
+      newTxs.push({
+        id: uid(),
+        type: r.type,
+        amount: r.amount,
+        description: r.description,
+        categoryId: r.categoryId || null,
+        accountId: r.accountId,
+        date: iso,
+        recurringId: r.id,
+      });
+      lastRun = iso;
+      cursor = advanceDate(cursor, r.freq);
+      guard++;
+    }
+    return { ...r, lastRun };
+  });
+  return { newTxs, updatedRecurring };
+};
+
 const fmtBare = (n) => {
   const v = n || 0;
   const hasDecimals = v % 1 !== 0;
@@ -2251,6 +2318,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
   const setDateRange = (newRange) => {
@@ -2258,6 +2326,32 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   };
 
   const balance = grandTotal(config, txs);
+
+  // === Motor de recurrentes: al cargar, genera movimientos pendientes ===
+  const recurringRanRef = useRef(false);
+  useEffect(() => {
+    if (recurringRanRef.current) return;
+    const rules = config.recurring || [];
+    if (!rules.length) return;
+    const { newTxs, updatedRecurring } = runRecurringRules(rules);
+    if (newTxs.length > 0) {
+      recurringRanRef.current = true;
+      saveTxs([...newTxs, ...txs]);
+      saveConfig({ ...config, recurring: updatedRecurring });
+      showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.recurring]);
+
+  const saveRecurring = (rules) => {
+    // al guardar reglas, corre inmediatamente las que ya tengan fechas vencidas
+    const { newTxs, updatedRecurring } = runRecurringRules(rules);
+    if (newTxs.length > 0) {
+      saveTxs([...newTxs, ...txs]);
+      showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
+    }
+    saveConfig({ ...config, recurring: updatedRecurring });
+  };
 
   const upsertTx = (tx, learnedCats, linkInfo) => {
     const exists = txs.some((t) => t.id === tx.id);
@@ -2305,7 +2399,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
 
-  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen;
+  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen;
 
   return (
     <div>
@@ -2331,7 +2425,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         onPickExcel={() => { setAddMenuOpen(false); setExcelOpen(true); }}
         onPickScreenshot={() => { setAddMenuOpen(false); setImportOpen(true); }}
         onPickManual={() => { setAddMenuOpen(false); setAdding(true); }}
-        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen}
+        onPickRecurring={() => { setAddMenuOpen(false); setRecurringOpen(true); }}
+        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || recurringOpen}
       />
 
       {(adding || editingTx) && (
@@ -2381,6 +2476,14 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           txs={txs}
           onClose={() => setExcelOpen(false)}
           onSave={saveManyTxs}
+        />
+      )}
+
+      {recurringOpen && (
+        <RecurringModal
+          config={config}
+          onClose={() => setRecurringOpen(false)}
+          onSave={saveRecurring}
         />
       )}
 
@@ -2518,7 +2621,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 }
 
 /* TopFab: botón circular (+) arriba a la derecha con menú de captura */
-function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, hidden }) {
+function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
   return (
     <>
       <button className={`cc-fab-top ${open ? "open" : ""}`}
@@ -2533,9 +2636,10 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, h
 
       {open && !hidden && (
         <div className="cc-fab-menu">
-          <button className="cc-fab-mini" onClick={onPickExcel}>📊 Desde Excel</button>
-          <button className="cc-fab-mini" onClick={onPickScreenshot}>📸 Desde screenshot</button>
           <button className="cc-fab-mini" onClick={onPickManual}>✏️ Capturar manual</button>
+          <button className="cc-fab-mini" onClick={onPickRecurring}>🔁 Movimiento recurrente</button>
+          <button className="cc-fab-mini" onClick={onPickScreenshot}>📸 Desde screenshot</button>
+          <button className="cc-fab-mini" onClick={onPickExcel}>📊 Desde Excel</button>
         </div>
       )}
     </>
@@ -4006,6 +4110,215 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) 
             Enviar
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== MODAL: MOVIMIENTOS RECURRENTES =================== */
+function RecurringModal({ config, onClose, onSave }) {
+  const rules = config.recurring || [];
+  const [view, setView] = useState(rules.length ? "list" : "form"); // list | form
+  const [editingId, setEditingId] = useState(null);
+
+  // form state
+  const [type, setType] = useState("expense");
+  const [amount, setAmount] = useState("");
+  const [desc, setDesc] = useState("");
+  const [accountId, setAccountId] = useState(config.accounts.length === 1 ? config.accounts[0].id : "");
+  const [catId, setCatId] = useState("");
+  const [freq, setFreq] = useState("monthly");
+  const [startDate, setStartDate] = useState(today());
+
+  const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
+
+  const resetForm = () => {
+    setType("expense"); setAmount(""); setDesc("");
+    setAccountId(config.accounts.length === 1 ? config.accounts[0].id : "");
+    setCatId(""); setFreq("monthly"); setStartDate(today()); setEditingId(null);
+  };
+
+  const startNew = () => { resetForm(); setView("form"); };
+
+  const startEdit = (r) => {
+    setType(r.type); setAmount(String(r.amount)); setDesc(r.description);
+    setAccountId(r.accountId); setCatId(r.categoryId || "");
+    setFreq(r.freq); setStartDate(r.startDate); setEditingId(r.id);
+    setView("form");
+  };
+
+  const canSave = amount && parseFloat(amount) > 0 && desc.trim() && accountId;
+
+  const save = () => {
+    if (!canSave) return;
+    const rule = {
+      id: editingId || uid(),
+      type, amount: Math.abs(parseFloat(amount)),
+      description: desc.trim(), accountId,
+      categoryId: catId || null,
+      freq, startDate,
+      lastRun: editingId ? (rules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
+      active: true,
+    };
+    const next = editingId
+      ? rules.map((r) => (r.id === editingId ? rule : r))
+      : [...rules, rule];
+    onSave(next);
+    onClose();
+  };
+
+  const toggleActive = (id) => {
+    onSave(rules.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+  };
+
+  const remove = (id) => {
+    onSave(rules.filter((r) => r.id !== id));
+  };
+
+  const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
+  const catEmoji = (id) => config.categories.find((c) => c.id === id)?.emoji || "🔁";
+
+  // ===== Vista LISTA =====
+  if (view === "list") {
+    return (
+      <div className="cc-overlay" onClick={onClose}>
+        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="cc-grip" />
+          <div className="cc-sheet-top">
+            <h2>Movimientos recurrentes</h2>
+            <button className="cc-sheet-close" onClick={onClose}>×</button>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
+            Se generan automáticamente en su fecha. Puedes editarlos como cualquier movimiento.
+          </p>
+
+          {rules.length === 0 ? (
+            <div style={{ color: "var(--ink-soft)", fontSize: 14, padding: "8px 0 18px" }}>
+              Aún no tienes movimientos recurrentes.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {rules.map((r) => (
+                <div key={r.id} className="cc-card" style={{ padding: "12px 14px", opacity: r.active ? 1 : 0.5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="cc-emoji" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface)",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                      {catEmoji(r.categoryId)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", letterSpacing: "-.01em" }}>{r.description}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>
+                        {FREQ_LABELS[r.freq]} · {accName(r.accountId)}
+                      </div>
+                    </div>
+                    <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
+                      color: r.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
+                      {r.type === "income" ? "+" : "−"}{fmtBare(r.amount)}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+                    <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
+                      onClick={() => startEdit(r)}>Editar</button>
+                    <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
+                      onClick={() => toggleActive(r.id)}>{r.active ? "Pausar" : "Activar"}</button>
+                    <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 12, color: "var(--coral)" }}
+                      onClick={() => remove(r.id)}>Eliminar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 13 }}
+            onClick={startNew}>＋ Nuevo recurrente</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Vista FORM =====
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>{editingId ? "Editar recurrente" : "Nuevo recurrente"}</h2>
+          <button className="cc-sheet-close" onClick={() => (rules.length ? setView("list") : onClose())}>×</button>
+        </div>
+
+        <div className="cc-tabs" style={{ marginBottom: 4 }}>
+          {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
+            <button key={k} className={`cc-tab ${type === k ? "on" : ""}`}
+              onClick={() => { setType(k); setCatId(""); }}>{l}</button>
+          ))}
+        </div>
+
+        <div className="cc-amount-display">
+          <span className="cc-amount-currency">$</span>
+          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
+            value={amount}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9.]/g, "");
+              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
+            }}
+            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
+          <span className="cc-amount-mxn">mxn</span>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">Concepto</label>
+          <input className="cc-input" placeholder="Ej. renta, Netflix, sueldo…"
+            value={desc} onChange={(e) => setDesc(e.target.value)} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">¿Cada cuánto?</label>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            {Object.entries(FREQ_LABELS).map(([k, l]) => (
+              <button key={k} onClick={() => setFreq(k)}
+                style={{ padding: "9px 14px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 13, fontWeight: freq === k ? 700 : 500,
+                  background: freq === k ? "var(--ink)" : "var(--surface)",
+                  color: freq === k ? "#fff" : "var(--ink)",
+                  border: `1px solid ${freq === k ? "var(--ink)" : "var(--line)"}` }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">Empieza el</label>
+            <input className="cc-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          {config.accounts.length > 1 && (
+            <div style={{ flex: 1 }}>
+              <label className="cc-label">Cuenta</label>
+              <select className="cc-select" value={accountId} onChange={(e) => { setAccountId(e.target.value); setCatId(""); }}>
+                <option value="">Elegir…</option>
+                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label className="cc-label">Categoría {accountId ? "" : "(elige cuenta primero)"}</label>
+          <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)} disabled={!accountId}>
+            <option value="">Sin categoría</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.5 }}>
+          Se generará un {type === "income" ? "ingreso" : "gasto"} de <b>{amount ? fmtBare(parseFloat(amount) || 0) : "$0"}</b> {FREQ_LABELS[freq].toLowerCase()} a partir del {startDate}. Si la fecha de inicio ya pasó, se crearán los movimientos faltantes al guardar.
+        </div>
+
+        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14, opacity: canSave ? 1 : 0.4 }}
+          disabled={!canSave} onClick={save}>
+          {editingId ? "Guardar cambios" : "Crear recurrente"}
+        </button>
       </div>
     </div>
   );
