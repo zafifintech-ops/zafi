@@ -4170,6 +4170,10 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 }
 
 /* ===================== ASISTENTE DE CHAT ================================= */
+// El historial del chat persiste en memoria mientras la app esté abierta,
+// para que no se pierda al cerrar y reabrir el asistente.
+let CHAT_MSGS_STORE = null;
+let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
   const GREET =
     "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
@@ -4178,17 +4182,22 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
     "Registra un gasto de 250 en gasolina",
     "¿Cuánto llevo gastado este mes?",
   ];
-  const [msgs, setMsgs] = useState([{ role: "bot", text: GREET }]);
+  const [msgs, setMsgs] = useState(() => CHAT_MSGS_STORE || [{ role: "bot", text: GREET }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const history = useRef([]);
+  const history = useRef(CHAT_HISTORY_STORE);
   const scroller = useRef(null);
+
+  // mantener el store sincronizado para que persista al cerrar/reabrir
+  useEffect(() => { CHAT_MSGS_STORE = msgs; }, [msgs]);
 
   // ===== Dictado por voz =====
   const [listening, setListening] = useState(false);
   const listeningRef = useRef(false);
   const recRef = useRef(null);
   const finalRef = useRef("");
+  const lastHeardRef = useRef("");
+  const sendOnEndRef = useRef(false);
 
   const setListen = (v) => { listeningRef.current = v; setListening(v); };
 
@@ -4200,6 +4209,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
       rec.continuous = true;
       rec.interimResults = true;
       finalRef.current = "";
+      lastHeardRef.current = "";
       rec.onresult = (e) => {
         let interim = "";
         let final = "";
@@ -4209,10 +4219,20 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           else interim += t;
         }
         if (final) finalRef.current += final;
-        setInput((finalRef.current + interim).trim());
+        const full = (finalRef.current + interim).trim();
+        lastHeardRef.current = full; // captura también lo provisional
+        setInput(full);
       };
       rec.onerror = () => { setListen(false); };
-      rec.onend = () => { setListen(false); };
+      rec.onend = () => {
+        setListen(false);
+        // al terminar (tras soltar) ya están todos los resultados: enviar
+        if (sendOnEndRef.current) {
+          sendOnEndRef.current = false;
+          const text = (lastHeardRef.current || finalRef.current).trim();
+          if (text) send(text);
+        }
+      };
       recRef.current = rec;
       rec.start();
       setListen(true);
@@ -4222,14 +4242,9 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
 
   const stopVoice = (autoSend = true) => {
     if (!listeningRef.current) return;
+    sendOnEndRef.current = autoSend; // el envío ocurre en onend (cuando ya hay texto final)
     try { recRef.current && recRef.current.stop(); } catch (e) {}
-    setListen(false);
-    const text = finalRef.current.trim();
     if (navigator.vibrate) navigator.vibrate(8);
-    // soltar = enviar automáticamente
-    if (autoSend && text) {
-      setTimeout(() => send(text), 120);
-    }
   };
 
   // Si se abrió manteniendo presionado el orbe, empieza a escuchar y
@@ -4299,7 +4314,18 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--green)", boxShadow: "0 0 0 4px var(--green-soft)" }} />
             Asistente
           </h2>
-          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+          <div style={{ display: "flex", gap: 7 }}>
+            {msgs.length > 1 && (
+              <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 13 }}
+                onClick={() => {
+                  setMsgs([{ role: "bot", text: GREET }]);
+                  history.current.length = 0;
+                  CHAT_MSGS_STORE = null;
+                }}
+                title="Limpiar conversación">🗑</button>
+            )}
+            <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+          </div>
         </div>
 
         <div ref={scroller} style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: "52vh", padding: "2px 2px 6px" }}>
