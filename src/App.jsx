@@ -3540,8 +3540,8 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
                 cursor: "pointer", padding: 0, background: "var(--surface)",
                 boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "var(--shadow-sm)",
                 transition: "border .15s, box-shadow .15s" }}>
-              <img src={a.url} alt={a.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                loading="lazy" />
+              <img src={a.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                loading="lazy" onError={(e) => { e.target.style.display = "none"; }} />
             </button>
           ))}
         </div>
@@ -4862,9 +4862,18 @@ function AccountModal({ acc, onClose, onSave }) {
         </div>
         <div style={{ marginBottom: 22 }}>
           <label className="cc-label">Saldo inicial</label>
-          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00" value={bal}
-            onChange={(e) => setBal(e.target.value)} style={{ fontSize: 20, fontWeight: 700 }} />
-          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
+          <div className="cc-amount-display">
+            <span className="cc-amount-currency">$</span>
+            <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
+              value={bal}
+              onChange={(e) => {
+                const v = e.target.value.replace(/[^0-9.]/g, "");
+                if ((v.match(/\./g) || []).length <= 1) setBal(v);
+              }}
+              style={{ width: `${Math.max((bal || "0.00").length, 4)}ch` }} />
+            <span className="cc-amount-mxn">mxn</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
             Dinero que tienes ahorita en esta cuenta. Puede ser 0.
           </div>
         </div>
