@@ -2591,33 +2591,42 @@ export default function App() {
 
   // Cargar datos locales — siempre se define, solo corre cuando hay usuario
   useEffect(() => {
-    if (!user) { setProfileDone(false); return; }
-    loadAll().then(async ({ config, txs }) => {
-      if (config) {
-        const m = migrate(config, txs || []);
-        const r = processRecurring(m.config, m.txs);
-        setConfig(r.config);
-        setTxs(r.txs);
-        const configChanged = m.config !== config || r.generated > 0;
-        const txsChanged = m.txs !== txs || r.generated > 0;
-        if (configChanged) persist("cc:config", r.config);
-        if (txsChanged) persist("cc:txs", r.txs);
-        if (r.generated > 0) {
-          setTimeout(() => {
-            setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
-            setTimeout(() => setToast(null), 2800);
-          }, 600);
-        }
-      } else if (txs) {
-        setTxs(txs);
-      }
-      // Check if user has a profile name
+    if (!user) { setProfileDone(false); setLoaded(false); return; }
+    let cancelled = false;
+    (async () => {
       try {
-        const snap = await getDoc(doc(db, "users", user.uid, "data", "profile"));
-        setProfileDone(!!(snap.exists() && snap.data().name));
-      } catch (e) { setProfileDone(false); }
-      setLoaded(true);
-    });
+        const { config: c, txs: t } = await loadAll();
+        if (cancelled) return;
+        if (c) {
+          const m = migrate(c, t || []);
+          const r = processRecurring(m.config, m.txs);
+          setConfig(r.config);
+          setTxs(r.txs);
+          const configChanged = m.config !== c || r.generated > 0;
+          const txsChanged = m.txs !== t || r.generated > 0;
+          if (configChanged) persist("cc:config", r.config);
+          if (txsChanged) persist("cc:txs", r.txs);
+          if (r.generated > 0) {
+            setTimeout(() => {
+              setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
+              setTimeout(() => setToast(null), 2800);
+            }, 600);
+          }
+        } else if (t) {
+          setTxs(t);
+        }
+        // Check if user has a profile name
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid, "data", "profile"));
+          if (!cancelled) setProfileDone(!!(snap.exists() && snap.data().name));
+        } catch (e) { if (!cancelled) setProfileDone(false); }
+      } catch (e) {
+        console.error("load error", e);
+        if (!cancelled) setProfileDone(false);
+      }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, [user]); // re-corre cuando cambia el usuario
 
   // Splash de bienvenida — siempre primero al abrir la app
@@ -2817,6 +2826,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [excelOpen, setExcelOpen] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
   const setDateRange = (newRange) => {
@@ -2897,11 +2907,11 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
 
-  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen;
+  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen || settingsOpen;
 
   return (
     <div>
-      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} />
+      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="cc-wrap">
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
@@ -2983,6 +2993,16 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           config={config}
           onClose={() => setRecurringOpen(false)}
           onSave={saveRecurring}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal
+          config={config}
+          saveConfig={saveConfig}
+          onClose={() => setSettingsOpen(false)}
+          showToast={showToast}
+          resetAll={resetAll}
         />
       )}
 
@@ -3195,9 +3215,8 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
   );
 }
 
-function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange }) {
+function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onOpenSettings }) {
   const [scrolled, setScrolled] = useState(false);
-  const [editingName, setEditingName] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -3223,7 +3242,7 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange }) {
 
         {/* Perfil: avatar + nombre + plan */}
         <div className="cc-profile-row">
-          <button onClick={() => setEditingName(true)}
+          <button onClick={onOpenSettings}
             style={{ display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent",
               cursor: "pointer", padding: 0, textAlign: "left", minWidth: 0 }}>
             <div className="cc-avatar">{initial}</div>
@@ -3240,14 +3259,181 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {editingName && (
-        <ProfileNameModal
-          current={displayName}
-          onClose={() => setEditingName(false)}
-          onSave={(name) => { saveConfig({ ...config, userName: name }); setEditingName(false); }}
-        />
-      )}
+/* ===================== MODAL: AJUSTES GENERALES ========================= */
+function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
+  const user = auth.currentUser;
+  const email = user?.email || "";
+  const [userName, setUserName] = useState(config.userName || "");
+  const [phone, setPhone] = useState(config.phone || "");
+  const [lang, setLang] = useState(config.language || "es");
+  const [currency, setCurrency] = useState(config.currency || "MXN");
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
+
+  const savePersonal = () => {
+    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim() });
+    // update Firestore profile too
+    if (user) {
+      setDoc(doc(db, "users", user.uid, "data", "profile"), {
+        name: userName.trim(), phone: phone.trim(), email,
+      }, { merge: true }).catch(() => {});
+    }
+    showToast("Información actualizada");
+  };
+
+  const saveLang = (l) => {
+    setLang(l);
+    saveConfig({ ...config, language: l });
+    showToast(l === "es" ? "Idioma: Español" : "Language: English");
+  };
+
+  const saveCurrency = (c) => {
+    setCurrency(c);
+    saveConfig({ ...config, currency: c });
+    showToast(`Moneda: ${c}`);
+  };
+
+  const doSignOut = async () => {
+    setBusy(true);
+    try { await signOut(auth); } catch (e) {}
+    setBusy(false);
+    onClose();
+  };
+
+  const doReset = () => {
+    resetAll();
+    setConfirmReset(false);
+    onClose();
+  };
+
+  const ROW = { display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "14px 0", borderBottom: "1px solid var(--line-soft)" };
+  const SECTION_TITLE = { fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
+    color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
+    marginTop: 20, marginBottom: 6 };
+  const ITEM_LABEL = { fontSize: 14, fontWeight: 500, color: "var(--ink)" };
+  const ITEM_VALUE = { fontSize: 13, color: "var(--ink-soft)", textAlign: "right" };
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Ajustes</h2>
+          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        </div>
+
+        {/* --- Perfil header --- */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 0 14px",
+          borderBottom: "1px solid var(--line-soft)" }}>
+          <div className="cc-avatar" style={{ width: 52, height: 52, fontSize: 22 }}>{initial}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 17, color: "var(--ink)" }}>{userName || "Usuario"}</div>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{email}</div>
+          </div>
+        </div>
+
+        {/* --- Información personal --- */}
+        <div style={SECTION_TITLE}>Información personal</div>
+        <div style={{ marginBottom: 6 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Nombre</label>
+          <input className="cc-input" value={userName} onChange={(e) => setUserName(e.target.value)}
+            placeholder="Tu nombre" style={{ marginBottom: 10 }} />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Teléfono</label>
+          <input className="cc-input" value={phone} onChange={(e) => setPhone(e.target.value)}
+            placeholder="+52 664 123 4567" type="tel" style={{ marginBottom: 10 }} />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Correo electrónico</label>
+          <input className="cc-input" value={email} disabled
+            style={{ marginBottom: 10, opacity: 0.6 }} />
+          <button className="cc-btn" style={{ fontSize: 13, padding: "8px 16px" }} onClick={savePersonal}>
+            Guardar cambios
+          </button>
+        </div>
+
+        {/* --- Idioma --- */}
+        <div style={SECTION_TITLE}>Idioma</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          {[["es", "🇲🇽 Español"], ["en", "🇺🇸 English"]].map(([k, l]) => (
+            <button key={k} onClick={() => saveLang(k)}
+              style={{ flex: 1, padding: "11px 8px", borderRadius: 12, cursor: "pointer",
+                fontFamily: "'Montserrat', sans-serif", fontSize: 13.5,
+                fontWeight: lang === k ? 600 : 400,
+                background: lang === k ? "var(--ink)" : "var(--surface)",
+                color: lang === k ? "#fff" : "var(--ink)",
+                border: `1px solid ${lang === k ? "var(--ink)" : "var(--line)"}` }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* --- Moneda --- */}
+        <div style={SECTION_TITLE}>Moneda</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          {[["MXN", "🇲🇽 MXN"], ["USD", "🇺🇸 USD"], ["EUR", "🇪🇺 EUR"]].map(([k, l]) => (
+            <button key={k} onClick={() => saveCurrency(k)}
+              style={{ flex: 1, padding: "11px 8px", borderRadius: 12, cursor: "pointer",
+                fontFamily: "'Montserrat', sans-serif", fontSize: 13.5,
+                fontWeight: currency === k ? 600 : 400,
+                background: currency === k ? "var(--ink)" : "var(--surface)",
+                color: currency === k ? "#fff" : "var(--ink)",
+                border: `1px solid ${currency === k ? "var(--ink)" : "var(--line)"}` }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* --- Notificaciones (placeholder) --- */}
+        <div style={SECTION_TITLE}>Notificaciones</div>
+        <div style={ROW}>
+          <span style={ITEM_LABEL}>Recordatorios de gastos</span>
+          <span style={ITEM_VALUE}>Próximamente</span>
+        </div>
+
+        {/* --- Datos --- */}
+        <div style={SECTION_TITLE}>Datos y privacidad</div>
+        <div style={ROW}>
+          <span style={ITEM_LABEL}>Exportar mis datos</span>
+          <span style={ITEM_VALUE}>Próximamente</span>
+        </div>
+        {!confirmReset ? (
+          <button onClick={() => setConfirmReset(true)}
+            style={{ ...ROW, width: "100%", border: "none", borderBottom: "1px solid var(--line-soft)",
+              background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+            <span style={{ ...ITEM_LABEL, color: "var(--coral)" }}>Reiniciar app (borrar todo)</span>
+          </button>
+        ) : (
+          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--line-soft)" }}>
+            <div style={{ fontSize: 13, color: "var(--coral)", fontWeight: 600, marginBottom: 8 }}>
+              ¿Estás seguro? Esto borrará todas tus categorías, cuentas y movimientos.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="cc-btn" style={{ flex: 1, padding: "8px 12px", fontSize: 13 }}
+                onClick={() => setConfirmReset(false)}>Cancelar</button>
+              <button className="cc-btn" style={{ flex: 1, padding: "8px 12px", fontSize: 13,
+                background: "var(--coral)", color: "#fff", borderColor: "var(--coral)" }}
+                onClick={doReset}>Sí, borrar todo</button>
+            </div>
+          </div>
+        )}
+
+        {/* --- Sesión --- */}
+        <div style={{ marginTop: 20, marginBottom: 8 }}>
+          <button className="cc-btn" onClick={doSignOut} disabled={busy}
+            style={{ width: "100%", padding: 14, fontSize: 15, fontWeight: 600 }}>
+            {busy ? "Cerrando sesión…" : "Cerrar sesión"}
+          </button>
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 11, color: "var(--ink-faint)", padding: "6px 0 4px" }}>
+          Zafi · Finanzas personales con IA · v1.0
+        </div>
+      </div>
     </div>
   );
 }
