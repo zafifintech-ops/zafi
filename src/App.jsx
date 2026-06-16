@@ -4301,9 +4301,12 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
+  const [accView, setAccView] = useState("all"); // account filter
+  const multi = config.accounts.length > 1;
 
-  // primero filtrar por rango global, luego por tipo
-  const rangeTxs = txsInRange(txs, dateRange);
+  // filtrar por cuenta, luego por rango global, luego por tipo
+  const accTxs = accView === "all" ? txs : txs.filter((t) => t.accountId === accView);
+  const rangeTxs = txsInRange(accTxs, dateRange);
   const filtered = rangeTxs.filter((t) => filter === "all" || t.type === filter);
   const list = [...filtered].sort((a, b) => {
     if (sortBy === "date-desc") return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
@@ -4360,6 +4363,25 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
 
   return (
     <div>
+      {/* selector de cuenta */}
+      {multi && (
+        <div style={{ marginBottom: 12 }}>
+          <div className="cc-scroll-x">
+            <button className={`cc-acc-card ${accView === "all" ? "on" : ""}`} onClick={() => setAccView("all")}
+              style={{ minWidth: 100 }}>
+              <div className="cc-acc-label">Todas</div>
+              <div className="cc-acc-name">General</div>
+            </button>
+            {config.accounts.map((a) => (
+              <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
+                style={{ minWidth: 100 }}>
+                <div className="cc-acc-label">🏦</div>
+                <div className="cc-acc-name">{a.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* barra superior: filtro normal o info de selección */}
       {!selectMode ? (
         <>
@@ -4515,6 +4537,9 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [accView, setAccView] = useState("all");
+  const multi = config.accounts.length > 1;
+  const visibleAccounts = accView === "all" ? config.accounts : config.accounts.filter((a) => a.id === accView);
 
   const save = (cat) => {
     let cats;
@@ -4549,6 +4574,26 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
       <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
         Cada cuenta tiene sus propias categorías. Los totales son de <b>{rangeLabel(dateRange)}</b>.
       </div>
+
+      {/* selector de cuenta */}
+      {multi && (
+        <div style={{ marginBottom: 4 }}>
+          <div className="cc-scroll-x">
+            <button className={`cc-acc-card ${accView === "all" ? "on" : ""}`} onClick={() => setAccView("all")}
+              style={{ minWidth: 100 }}>
+              <div className="cc-acc-label">Todas</div>
+              <div className="cc-acc-name">General</div>
+            </button>
+            {config.accounts.map((a) => (
+              <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
+                style={{ minWidth: 100 }}>
+                <div className="cc-acc-label">🏦</div>
+                <div className="cc-acc-name">{a.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ===== Movimientos recurrentes ===== */}
       <div className="cc-card" style={{ padding: 18 }}>
@@ -4603,7 +4648,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
         )}
       </div>
 
-      {config.accounts.map((acc) => {
+      {visibleAccounts.map((acc) => {
         const accCats = config.categories.filter((c) => c.accountId === acc.id);
         return (
           <div key={acc.id} className="cc-card" style={{ padding: 18 }}>
