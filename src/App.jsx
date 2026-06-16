@@ -2749,7 +2749,18 @@ export default function App() {
         // Check if user has a profile name
         try {
           const snap = await getDoc(doc(db, "users", user.uid, "data", "profile"));
-          if (!cancelled) setProfileDone(!!(snap.exists() && snap.data().name));
+          const hasProfile = !!(snap.exists() && snap.data().name);
+          if (!cancelled) setProfileDone(hasProfile);
+          // Auto-assign avatar based on gender if config exists but has no avatar
+          if (hasProfile && c && !c.avatarId && !c.avatarData) {
+            const profile = snap.data();
+            const defaultAvatar = defaultAvatarForGender(profile.gender);
+            if (defaultAvatar) {
+              const updated = { ...r ? r.config : c, avatarId: defaultAvatar };
+              setConfig(updated);
+              persist("cc:config", updated);
+            }
+          }
         } catch (e) { if (!cancelled) setProfileDone(false); }
       } catch (e) {
         console.error("load error", e);
@@ -3399,21 +3410,19 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
 }
 
 /* ===================== AVATARES ========================================= */
-// DiceBear illustrated avatars (API gratuita)
 const AVATAR_STYLES = [
-  { id: "av1",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m1&backgroundColor=b6e3f4" },
-  { id: "av2",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m2&backgroundColor=c0aede" },
-  { id: "av3",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m3&backgroundColor=d1d4f9" },
-  { id: "av4",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m4&backgroundColor=ffd5dc" },
-  { id: "av5",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f1&backgroundColor=ffd5dc" },
-  { id: "av6",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f2&backgroundColor=c0aede" },
-  { id: "av7",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f3&backgroundColor=b6e3f4" },
-  { id: "av8",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f4&backgroundColor=d1d4f9" },
-  { id: "av9",  cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o1&backgroundColor=b6e3f4" },
-  { id: "av10", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o2&backgroundColor=d1d4f9" },
-  { id: "av11", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o3&backgroundColor=ffd5dc" },
-  { id: "av12", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o4&backgroundColor=c0aede" },
+  { id: "male-default",   label: "Chico lentes",   url: "/avatars/male-default.png" },
+  { id: "female-default", label: "Chica lentes",   url: "/avatars/female-default.jpg" },
+  { id: "option-beanie",  label: "Gorro",           url: "/avatars/option-beanie.jpg" },
+  { id: "option-hoodie",  label: "Hoodie",          url: "/avatars/option-hoodie.jpg" },
 ];
+
+// Asigna avatar por defecto según el género del registro
+function defaultAvatarForGender(gender) {
+  if (gender === "male") return "male-default";
+  if (gender === "female") return "female-default";
+  return null; // "other" → solo inicial
+}
 
 // Resizes an image file to a small square base64 for storage
 function resizeImageToBase64(file, size = 200) {
@@ -3475,8 +3484,6 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
     onClose();
   };
 
-  const CATS = [["male", t("male")], ["female", t("female")], ["other", t("other")]];
-
   return (
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
@@ -3527,27 +3534,23 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
           </button>
         </div>
 
-        {/* Illustrated preset avatars */}
-        {CATS.map(([cat, label]) => (
-          <div key={cat} style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
-              color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
-              marginBottom: 8 }}>{label}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
-              {AVATAR_STYLES.filter(a => a.cat === cat).map(a => (
-                <button key={a.id} onClick={() => pickPreset(a.id)}
-                  style={{ width: "100%", aspectRatio: "1", borderRadius: 16, overflow: "hidden",
-                    border: config.avatarId === a.id ? "3px solid var(--green)" : "2px solid var(--glass-border)",
-                    cursor: "pointer", padding: 0, background: "var(--surface)",
-                    boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "none",
-                    transition: "border .15s, box-shadow .15s" }}>
-                  <img src={a.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    loading="lazy" />
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+        {/* Preset avatars grid */}
+        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
+          color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
+          marginBottom: 10 }}>Avatares</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {AVATAR_STYLES.map(a => (
+            <button key={a.id} onClick={() => pickPreset(a.id)}
+              style={{ aspectRatio: "1", borderRadius: 18, overflow: "hidden",
+                border: config.avatarId === a.id ? "3px solid var(--green)" : "2px solid var(--glass-border)",
+                cursor: "pointer", padding: 0, background: "var(--surface)",
+                boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "var(--shadow-sm)",
+                transition: "border .15s, box-shadow .15s" }}>
+              <img src={a.url} alt={a.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                loading="lazy" />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
