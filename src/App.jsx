@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail, signInWithPopup, signInWithRedirect,
+  sendPasswordResetEmail, signInWithPopup,
   GoogleAuthProvider, OAuthProvider } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
@@ -17,8 +17,6 @@ const firebaseApp = initializeApp({
   appId: "1:308516673564:web:9410954d5fc50fd56667d9"
 });
 const auth = getAuth(firebaseApp);
-const googleProvider = new GoogleAuthProvider();
-const appleProvider = new OAuthProvider("apple.com");
 const db = getFirestore(firebaseApp);
 
 /* =========================================================================
@@ -527,7 +525,7 @@ const STRINGS = {
   categories: { es: "Categorías", en: "Categories" },
   statistics: { es: "Estadísticas", en: "Statistics" },
   // Header
-  weeklyPlan: { es: t("weeklyPlan"), en: "Weekly plan" },
+  weeklyPlan: { es: "Plan semanal", en: "Weekly plan" },
   // Home sections
   yourAccounts: { es: "Tus cuentas", en: "Your accounts" },
   addAccount: { es: "Agregar cuenta", en: "Add account" },
@@ -590,8 +588,8 @@ const STRINGS = {
   cancel: { es: "Cancelar", en: "Cancel" },
   yesDeleteAll: { es: "Sí, borrar todo", en: "Yes, delete all" },
   signOut: { es: "Cerrar sesión", en: "Sign out" },
-  signingOut: { es: t("signingOut"), en: "Signing out…" },
-  infoUpdated: { es: t("infoUpdated"), en: "Information updated" },
+  signingOut: { es: "Cerrando sesión…", en: "Signing out…" },
+  infoUpdated: { es: "Información actualizada", en: "Information updated" },
   chooseAvatar: { es: "Elige tu avatar", en: "Choose your avatar" },
   avatarUpdated: { es: "Avatar actualizado", en: "Avatar updated" },
   avatarRemoved: { es: "Avatar eliminado", en: "Avatar removed" },
@@ -2359,12 +2357,11 @@ function AuthScreen() {
           display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
           onClick={async () => {
             setBusy(true); setErr("");
-            try { await signInWithPopup(auth, googleProvider); }
-            catch(e) {
-              if (e.code === "auth/popup-blocked") {
-                try { await signInWithRedirect(auth, googleProvider); } catch(e2) { setErr(ferr(e2.code)); }
-              } else { setErr(ferr(e.code)); }
+            try {
+              const gp = new GoogleAuthProvider();
+              await signInWithPopup(auth, gp);
             }
+            catch(e) { setErr(ferr(e.code)); }
             setBusy(false);
           }}
           disabled={busy}>
@@ -2377,12 +2374,11 @@ function AuthScreen() {
           display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
           onClick={async () => {
             setBusy(true); setErr("");
-            try { await signInWithPopup(auth, appleProvider); }
-            catch(e) {
-              if (e.code === "auth/popup-blocked") {
-                try { await signInWithRedirect(auth, appleProvider); } catch(e2) { setErr(ferr(e2.code)); }
-              } else { setErr(ferr(e.code)); }
+            try {
+              const ap = new OAuthProvider("apple.com");
+              await signInWithPopup(auth, ap);
             }
+            catch(e) { setErr(ferr(e.code)); }
             setBusy(false);
           }}
           disabled={busy}>
