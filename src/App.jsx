@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail, signInWithPopup,
+  sendPasswordResetEmail, signInWithPopup, deleteUser,
   GoogleAuthProvider, OAuthProvider } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
@@ -38,8 +38,9 @@ body{
 }
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
-.cc-video-bg video{width:100%;height:100%;object-fit:cover;
-  filter:blur(10px);transform:scale(1.06);}
+.cc-video-bg video{width:100%;height:120%;object-fit:cover;
+  filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
+  transition:transform .05s linear;}
 #root{background:transparent!important;min-height:100vh;}
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -2955,6 +2956,16 @@ REGLAS DE RESPUESTA:
 /* =============================== MAIN ==================================== */
 function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   setAppLang(config.language || "es");
+
+  // Parallax del fondo de video
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY * -0.25;
+      document.documentElement.style.setProperty("--parallax-y", `${y}px`);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const [tab, setTab] = useState("inicio");
   const [adding, setAdding] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
@@ -3560,9 +3571,11 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const [section, setSection] = useState("menu"); // menu | personal | langcurrency | legal | data
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
+  const [age, setAge] = useState(config.userAge ? String(config.userAge) : "");
   const [lang, setLang] = useState(config.language || "es");
   const [currency, setCurrency] = useState(config.currency || "MXN");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
@@ -3570,7 +3583,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const avatarSrc = getAvatarSrc(config);
 
   const savePersonal = () => {
-    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim() });
+    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim(), userAge: Number(age) || null });
     showToast(t("infoUpdated"));
   };
   const saveLang = (l) => {
@@ -3589,13 +3602,37 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
     setBusy(false); onClose();
   };
   const doReset = () => { resetAll(); setConfirmReset(false); onClose(); };
+  const doDeleteAccount = async () => {
+    setBusy(true);
+    try {
+      // borrar datos de Firestore
+      if (user) {
+        try { await deleteDoc(doc(db, "users", user.uid, "data", "config")); } catch (e) {}
+        try { await deleteDoc(doc(db, "users", user.uid, "data", "txs")); } catch (e) {}
+        try { await deleteDoc(doc(db, "users", user.uid, "data", "profile")); } catch (e) {}
+      }
+      // borrar la cuenta de Firebase Auth
+      if (user) await deleteUser(user);
+    } catch (e) {
+      showToast("Error al eliminar. Cierra sesión, vuelve a entrar e intenta de nuevo.");
+    }
+    setBusy(false); onClose();
+  };
 
-  const ROW = (icon, label, value, onClick) => (
+  // SVG icons for menu rows
+  const IconPerson = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg>;
+  const IconLang = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>;
+  const IconCoin = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12h6M12 9v6"/></svg>;
+  const IconBell = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>;
+  const IconDoc = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>;
+  const IconShield = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+
+  const ROW = (Icon, label, value, onClick) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%",
-      padding: "15px 0", borderBottom: "1px solid var(--line-soft)", background: "transparent",
+      padding: "15px 0", background: "transparent",
       border: "none", borderBottom: "1px solid var(--line-soft)", cursor: "pointer",
       fontFamily: "inherit", textAlign: "left" }}>
-      <span style={{ fontSize: 20, width: 28, textAlign: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ width: 28, display: "flex", justifyContent: "center", flexShrink: 0 }}><Icon /></span>
       <span style={{ flex: 1, fontSize: 15, fontWeight: 500, color: "var(--ink)" }}>{label}</span>
       {value && <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{value}</span>}
       <span style={{ fontSize: 16, color: "var(--ink-faint)" }}>›</span>
@@ -3657,12 +3694,12 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
 
             {/* Menu rows */}
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {ROW("👤", t("personalInfo"), "", () => setSection("personal"))}
-              {ROW("🌐", t("language"), lang === "es" ? "Español" : "English", () => setSection("langcurrency"))}
-              {ROW("💰", t("currency"), currency, () => setSection("langcurrency"))}
-              {ROW("🔔", t("notifications"), t("comingSoon"), () => {})}
-              {ROW("📜", "Aviso legal", "", () => setSection("legal"))}
-              {ROW("🗂", t("dataPrivacy"), "", () => setSection("data"))}
+              {ROW(IconPerson, t("personalInfo"), "", () => setSection("personal"))}
+              {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("langcurrency"))}
+              {ROW(IconCoin, t("currency"), currency, () => setSection("langcurrency"))}
+              {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
+              {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
+              {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
             </div>
 
             {/* Sign out */}
@@ -3685,6 +3722,12 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               <div>
                 <label className="cc-label">{t("name")}</label>
                 <input className="cc-input" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Tu nombre" />
+              </div>
+              <div>
+                <label className="cc-label">Edad</label>
+                <input className="cc-input" value={age} type="text" inputMode="numeric" placeholder="00"
+                  onChange={(e) => setAge(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+                  style={{ width: 100 }} />
               </div>
               <div>
                 <label className="cc-label">{t("phone")}</label>
@@ -3757,7 +3800,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                   <span style={{ fontSize: 14, fontWeight: 500, color: "var(--coral)" }}>{t("resetApp")}</span>
                 </button>
               ) : (
-                <div style={{ padding: "14px 0" }}>
+                <div style={{ padding: "14px 0", borderBottom: "1px solid var(--line-soft)" }}>
                   <div style={{ fontSize: 13, color: "var(--coral)", fontWeight: 600, marginBottom: 10 }}>
                     {t("resetConfirm")}
                   </div>
@@ -3767,6 +3810,31 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                     <button className="cc-btn" style={{ flex: 1, padding: "10px 12px", fontSize: 13,
                       background: "var(--coral)", color: "#fff", borderColor: "var(--coral)" }}
                       onClick={doReset}>{t("yesDeleteAll")}</button>
+                  </div>
+                </div>
+              )}
+              {/* Eliminar cuenta */}
+              {!confirmDeleteAccount ? (
+                <button onClick={() => setConfirmDeleteAccount(true)}
+                  style={{ padding: "14px 0", background: "transparent", border: "none",
+                    cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--coral)" }}>Eliminar cuenta permanentemente</span>
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
+                    Se borrarán todos tus datos y tu cuenta de forma irreversible.
+                  </div>
+                </button>
+              ) : (
+                <div style={{ padding: "14px 0" }}>
+                  <div style={{ fontSize: 13, color: "var(--coral)", fontWeight: 600, marginBottom: 10 }}>
+                    ⚠️ Esta acción es IRREVERSIBLE. Se eliminará tu cuenta, todos tus movimientos, categorías y configuración.
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="cc-btn" style={{ flex: 1, padding: "10px 12px", fontSize: 13 }}
+                      onClick={() => setConfirmDeleteAccount(false)}>{t("cancel")}</button>
+                    <button className="cc-btn" style={{ flex: 1, padding: "10px 12px", fontSize: 13,
+                      background: "var(--coral)", color: "#fff", borderColor: "var(--coral)" }}
+                      disabled={busy}
+                      onClick={doDeleteAccount}>{busy ? "Eliminando…" : "Sí, eliminar mi cuenta"}</button>
                   </div>
                 </div>
               )}
