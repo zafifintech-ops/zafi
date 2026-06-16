@@ -2754,7 +2754,8 @@ export default function App() {
           setTxs(t);
         }
         // Check if user has completed profile (stored in config)
-        const hasProfile = !!(c && c.userName);
+        // Also accept existing users who have setupComplete but no userName yet
+        const hasProfile = !!(c && (c.userName || c.setupComplete));
         if (!cancelled) setProfileDone(hasProfile);
       } catch (e) {
         console.error("load error", e);
