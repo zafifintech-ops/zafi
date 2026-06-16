@@ -3,7 +3,8 @@ import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail } from "firebase/auth";
+  sendPasswordResetEmail, signInWithPopup, signInWithRedirect,
+  GoogleAuthProvider, OAuthProvider } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
 /* Firebase config */
@@ -16,6 +17,8 @@ const firebaseApp = initializeApp({
   appId: "1:308516673564:web:9410954d5fc50fd56667d9"
 });
 const auth = getAuth(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+const appleProvider = new OAuthProvider("apple.com");
 const db = getFirestore(firebaseApp);
 
 /* =========================================================================
@@ -120,9 +123,9 @@ body::before{
 /* ============== TOPBAR ============== */
 .cc-top{position:sticky;top:0;z-index:30;
   background:transparent;
-  padding:14px 20px 8px;
+  padding:calc(14px + env(safe-area-inset-top)) 20px 8px;
   transition:.2s ease;}
-.cc-top.scrolled{padding-top:9px;padding-bottom:6px;
+.cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:6px;
   background:rgba(255,255,255,.1);
   backdrop-filter:blur(3px);
   -webkit-backdrop-filter:blur(3px);
@@ -130,7 +133,7 @@ body::before{
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
-.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:600;font-size:16px;
+.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:400;font-size:16px;
   letter-spacing:-.03em;text-align:center;color:var(--ink);
   font-feature-settings:"ss01"; margin-bottom:12px; transition:.2s;}
 .cc-top.scrolled .cc-zafi-wordmark{margin-bottom:6px;font-size:14px;}
@@ -158,9 +161,9 @@ body::before{
 .cc-masthead-title::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green);}
 
 /* Logo del onboarding */
-.cc-logo{font-family:'Fraunces',serif;font-weight:600;font-size:26px;letter-spacing:-.045em;
+.cc-logo{font-family:'Fraunces',serif;font-weight:400;font-size:26px;letter-spacing:-.05em;
   display:flex;align-items:center;gap:8px;color:var(--ink);font-feature-settings:"ss01";}
-.cc-logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;}
+.cc-logo-dot{display:none;}
 .cc-masthead-meta{font-size:10.5px;font-weight:500;color:var(--ink-faint);letter-spacing:.02em;
   font-variant-numeric:tabular-nums;}
 
@@ -2004,15 +2007,11 @@ const COUNTRIES = [
 function ZafiLogo() {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <span style={{ width:10, height:10, borderRadius:"50%", background:AUTH_GREEN,
-          display:"inline-block", flexShrink:0 }} />
-        <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:38,
-          letterSpacing:"-.045em", color:AUTH_INK, fontFeatureSettings:'"ss01"', lineHeight:1 }}>
-          zafi
-        </span>
-      </div>
-      <div style={{ fontSize:13, color:AUTH_INK_SOFT, letterSpacing:".01em", fontWeight:500 }}>
+      <span style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:38,
+        letterSpacing:"-.05em", color:AUTH_INK, fontFeatureSettings:'"ss01"', lineHeight:1 }}>
+        zafi
+      </span>
+      <div style={{ fontFamily:"'Montserrat',sans-serif", fontSize:13, color:AUTH_INK_SOFT, letterSpacing:".01em", fontWeight:400 }}>
         Finanzas personales con IA
       </div>
     </div>
@@ -2223,15 +2222,35 @@ function AuthScreen() {
           background:"#4285F4", color:"#fff", fontSize:15, fontWeight:600,
           fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
           display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
-          onClick={() => { setErr("Google Auth coming soon"); }}>
+          onClick={async () => {
+            setBusy(true); setErr("");
+            try { await signInWithPopup(auth, googleProvider); }
+            catch(e) {
+              if (e.code === "auth/popup-blocked") {
+                try { await signInWithRedirect(auth, googleProvider); } catch(e2) { setErr(ferr(e2.code)); }
+              } else { setErr(ferr(e.code)); }
+            }
+            setBusy(false);
+          }}
+          disabled={busy}>
           Continue with Google
-          <span style={{ fontSize:20 }}>G</span>
+          <span style={{ fontSize:18, fontWeight:700 }}>G</span>
         </button>
         <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
           background:"#000", color:"#fff", fontSize:15, fontWeight:600,
           fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
           display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
-          onClick={() => { setErr("Apple Auth coming soon"); }}>
+          onClick={async () => {
+            setBusy(true); setErr("");
+            try { await signInWithPopup(auth, appleProvider); }
+            catch(e) {
+              if (e.code === "auth/popup-blocked") {
+                try { await signInWithRedirect(auth, appleProvider); } catch(e2) { setErr(ferr(e2.code)); }
+              } else { setErr(ferr(e.code)); }
+            }
+            setBusy(false);
+          }}
+          disabled={busy}>
           Continue with Apple
           <span style={{ fontSize:18 }}></span>
         </button>
@@ -2434,6 +2453,106 @@ function AuthScreen() {
 /* =========================================================================
    APP — componente principal
    ========================================================================= */
+/* ===================== PROFILE SETUP (post-auth for Google/Apple) ======= */
+function ProfileSetup({ user, onDone }) {
+  const FONT = "'Montserrat', sans-serif";
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [country, setCountry] = useState("Mexico");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
+
+  const save = async () => {
+    if (!name.trim()) { setErr("Enter your name."); return; }
+    if (!age || Number(age) < 1) { setErr("Enter a valid age."); return; }
+    if (!gender) { setErr("Select your gender."); return; }
+    setBusy(true); setErr("");
+    try {
+      await setDoc(doc(db, "users", user.uid, "data", "profile"), {
+        name: name.trim(), gender, age: Number(age), country,
+        email: user.email || "", createdAt: new Date().toISOString(),
+      });
+      onDone();
+    } catch (e) { setErr("Something went wrong. Try again."); }
+    setBusy(false);
+  };
+
+  const stepWrap = {
+    minHeight:"100vh", display:"flex", flexDirection:"column",
+    background:"#EAEEF4", fontFamily:FONT,
+  };
+  const lbl = { fontFamily:FONT, fontSize:12, fontWeight:600, color:"#6B7585", letterSpacing:".02em", marginBottom:6, display:"block" };
+  const inp = { width:"100%", padding:"14px 16px", borderRadius:16,
+    border:"1px solid rgba(0,0,0,.06)", fontSize:15, fontFamily:FONT, fontWeight:400,
+    background:"rgba(255,255,255,.7)", color:"#1B2230", outline:"none" };
+
+  return (
+    <div style={stepWrap}>
+      <div style={{ flex:1, padding:"100px 26px 0" }}>
+        <div style={{ fontSize:28, fontWeight:700, color:"#1B2230", letterSpacing:"-.02em", lineHeight:1.2 }}>
+          Welcome to Zafi
+        </div>
+        <div style={{ fontSize:14, color:"#6B7585", marginTop:8, lineHeight:1.6 }}>
+          Tell us a bit about yourself so we can personalize your experience.
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
+          <div>
+            <label style={lbl}>Your name</label>
+            <input style={inp} type="text" placeholder="How should we call you?" value={name} onChange={e=>setName(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Age</label>
+            <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
+              onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
+          </div>
+          <div>
+            <label style={lbl}>Gender</label>
+            <div style={{ display:"flex", gap:9 }}>
+              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
+                <button key={k} type="button" onClick={()=>setGender(k)}
+                  style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
+                    fontSize:14, fontWeight:gender===k?600:400,
+                    background: gender===k ? "#1B2230" : "rgba(255,255,255,.7)",
+                    color: gender===k ? "#fff" : "#1B2230",
+                    border:`1px solid ${gender===k ? "#1B2230" : "rgba(0,0,0,.08)"}`,
+                    transition:"background .15s, color .15s" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Country</label>
+            <div style={{ position:"relative" }}>
+              <select value={country} onChange={e => setCountry(e.target.value)}
+                style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
+                  fontFamily:FONT, color:"transparent", background:"transparent",
+                  border:"none", borderBottom:"1px solid rgba(27,34,48,.15)",
+                  outline:"none", appearance:"none", cursor:"pointer", position:"relative", zIndex:1 }}>
+                {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>)}
+              </select>
+              <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:"#1B2230", pointerEvents:"none" }}>
+                {selCountry.flag} {selCountry.name}
+              </div>
+            </div>
+          </div>
+        </div>
+        {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:12 }}>{err}</div>}
+      </div>
+      <div style={{ padding:"0 26px calc(28px + env(safe-area-inset-bottom))" }}>
+        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
+          background:"#1B2230", color:"#fff", fontSize:15, fontWeight:600,
+          fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1 }}
+          onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Continue"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== SPLASH SCREEN ==================================== */
 function SplashScreen({ onDone }) {
   useEffect(() => {
@@ -2458,6 +2577,7 @@ export default function App() {
   const [txs, setTxs] = useState([]);
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(undefined); // undefined=cargando, null=no logueado
+  const [profileDone, setProfileDone] = useState(false); // did user complete profile?
 
   useEffect(() => {
     if (typeof document !== "undefined") document.title = "Zafi · Finanzas personales con IA";
@@ -2471,8 +2591,8 @@ export default function App() {
 
   // Cargar datos locales — siempre se define, solo corre cuando hay usuario
   useEffect(() => {
-    if (!user) return; // sin usuario no cargamos nada
-    loadAll().then(({ config, txs }) => {
+    if (!user) { setProfileDone(false); return; }
+    loadAll().then(async ({ config, txs }) => {
       if (config) {
         const m = migrate(config, txs || []);
         const r = processRecurring(m.config, m.txs);
@@ -2491,6 +2611,11 @@ export default function App() {
       } else if (txs) {
         setTxs(txs);
       }
+      // Check if user has a profile name
+      try {
+        const snap = await getDoc(doc(db, "users", user.uid, "data", "profile"));
+        setProfileDone(!!(snap.exists() && snap.data().name));
+      } catch (e) { setProfileDone(false); }
       setLoaded(true);
     });
   }, [user]); // re-corre cuando cambia el usuario
@@ -2503,11 +2628,8 @@ export default function App() {
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center",
       justifyContent:"center", background:"#DCE1E8" }}>
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ width:8, height:8, borderRadius:"50%", background:"#1A7A6E", display:"inline-block" }} />
-          <span style={{ fontFamily:"'Fraunces',serif", fontWeight:600, fontSize:26,
-            letterSpacing:"-.045em", color:"#1B2230" }}>zafi</span>
-        </div>
+        <span style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:26,
+          letterSpacing:"-.05em", color:"#1B2230" }}>zafi</span>
         <div style={{ fontSize:13, color:"#A4ACBA" }}>Cargando…</div>
       </div>
     </div>
@@ -2541,6 +2663,10 @@ export default function App() {
         <div className="cc-dots"><span /><span /><span /></div>
       </div>
     );
+
+  // Si el usuario no tiene perfil (Google/Apple sin nombre), pedir datos
+  if (!profileDone)
+    return <ProfileSetup user={user} onDone={() => setProfileDone(true)} />;
 
   return (
     <div className="cc-root">
