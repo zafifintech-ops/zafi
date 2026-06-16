@@ -3537,11 +3537,11 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
             <button key={a.id} onClick={() => pickPreset(a.id)}
               style={{ aspectRatio: "1", borderRadius: 18, overflow: "hidden",
                 border: config.avatarId === a.id ? "3px solid var(--green)" : "2px solid var(--glass-border)",
-                cursor: "pointer", padding: 0, background: "var(--surface)",
+                cursor: "pointer", padding: 0,
+                backgroundImage: `url(${a.url})`, backgroundSize: "cover", backgroundPosition: "center",
+                backgroundColor: "var(--surface)",
                 boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "var(--shadow-sm)",
                 transition: "border .15s, box-shadow .15s" }}>
-              <img src={a.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                loading="lazy" onError={(e) => { e.target.style.display = "none"; }} />
             </button>
           ))}
         </div>
