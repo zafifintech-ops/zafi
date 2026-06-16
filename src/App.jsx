@@ -422,6 +422,9 @@ body::before{
   color:var(--ink);border:1px solid var(--glass-border);
   border-bottom-right-radius:6px;align-self:flex-end;
   box-shadow:var(--shadow-sm);}
+.cc-mic.rec{background:var(--coral)!important;color:#fff!important;border-color:var(--coral)!important;
+  animation:ccMicPulse 1.1s ease-in-out infinite;}
+@keyframes ccMicPulse{0%,100%{box-shadow:0 0 0 0 rgba(181,69,58,.5);}50%{box-shadow:0 0 0 8px rgba(181,69,58,0);}}
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
   background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
@@ -494,6 +497,12 @@ const FREQ_LABELS = {  daily: "Diario",
 };
 // Una regla está activa salvo que esté pausada explícitamente (compat: asistente usa `paused`, modal usa `active`)
 const isRecActive = (r) => r.active !== false && r.paused !== true;
+
+/* ===== Dictado por voz (Web Speech API) ===== */
+const SpeechRec = typeof window !== "undefined"
+  ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+  : null;
+const voiceSupported = !!SpeechRec;
 const isoToDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
 const dateToIso = (dt) => {
   const y = dt.getFullYear(); const m = String(dt.getMonth() + 1).padStart(2, "0"); const d = String(dt.getDate()).padStart(2, "0");
@@ -2371,6 +2380,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [adding, setAdding] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatVoice, setChatVoice] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -2473,7 +2483,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       <BottomNav
         tab={tab}
         setTab={setTab}
-        onOpenAssistant={() => setChatOpen(true)}
+        onOpenAssistant={(opts) => { setChatVoice(!!(opts && opts.voice)); setChatOpen(true); }}
         hidden={overlayOpen}
       />
 
@@ -2512,7 +2522,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           txs={txs}
           saveConfig={saveConfig}
           saveTxs={saveTxs}
-          onClose={() => setChatOpen(false)}
+          autoVoice={chatVoice}
+          onClose={() => { setChatOpen(false); setChatVoice(false); }}
           onOpenImport={() => setImportOpen(true)}
         />
       )}
@@ -2607,34 +2618,54 @@ const IconCalendar = () => (
 /* BottomNav: barra inferior con Home / History / Orb IA / Categories / Statistics */
 function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
   const orbRef = useRef(null);
+  const holdTimer = useRef(null);
+  const heldRef = useRef(false);
 
-  const handleOrbClick = () => {
+  const orbBurst = () => {
     const orb = orbRef.current;
-    if (orb) {
-      const rect = orb.getBoundingClientRect();
-      for (let i = 0; i < 6; i++) {
-        const p = document.createElement("span");
-        p.style.cssText = `position:fixed;width:4px;height:4px;border-radius:50%;background:var(--orb-mint);pointer-events:none;left:${rect.left + rect.width / 2}px;top:${rect.top + rect.height / 2}px;z-index:9999;`;
-        document.body.appendChild(p);
-        const angle = (i / 6) * Math.PI * 2;
-        const dx = Math.cos(angle) * 22;
-        const dy = Math.sin(angle) * 22;
-        const anim = p.animate(
-          [{ transform: "translate(0,0) scale(1)", opacity: 1 },
-           { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
-          { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
-        );
-        anim.onfinish = () => p.remove();
-      }
-      orb.animate(
-        [{ transform: "translate(-50%,-50%) scale(1)" },
-         { transform: "translate(-50%,-50%) scale(.8)", offset: .3 },
-         { transform: "translate(-50%,-50%) scale(1.12)", offset: .6 },
-         { transform: "translate(-50%,-50%) scale(1)" }],
-        { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+    if (!orb) return;
+    const rect = orb.getBoundingClientRect();
+    for (let i = 0; i < 6; i++) {
+      const p = document.createElement("span");
+      p.style.cssText = `position:fixed;width:4px;height:4px;border-radius:50%;background:var(--orb-mint);pointer-events:none;left:${rect.left + rect.width / 2}px;top:${rect.top + rect.height / 2}px;z-index:9999;`;
+      document.body.appendChild(p);
+      const angle = (i / 6) * Math.PI * 2;
+      const dx = Math.cos(angle) * 22;
+      const dy = Math.sin(angle) * 22;
+      const anim = p.animate(
+        [{ transform: "translate(0,0) scale(1)", opacity: 1 },
+         { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
+        { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
       );
+      anim.onfinish = () => p.remove();
     }
-    setTimeout(onOpenAssistant, 120);
+    orb.animate(
+      [{ transform: "translate(-50%,-50%) scale(1)" },
+       { transform: "translate(-50%,-50%) scale(.8)", offset: .3 },
+       { transform: "translate(-50%,-50%) scale(1.12)", offset: .6 },
+       { transform: "translate(-50%,-50%) scale(1)" }],
+      { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+    );
+  };
+
+  // toque corto: abre asistente · mantener presionado: abre y dicta por voz
+  const onOrbDown = () => {
+    heldRef.current = false;
+    if (!voiceSupported) return;
+    holdTimer.current = setTimeout(() => {
+      heldRef.current = true;
+      if (navigator.vibrate) navigator.vibrate(12);
+      orbBurst();
+      onOpenAssistant({ voice: true });
+    }, 450);
+  };
+  const onOrbUp = () => {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+  };
+  const handleOrbClick = () => {
+    if (heldRef.current) { heldRef.current = false; return; } // ya se abrió por hold
+    orbBurst();
+    setTimeout(() => onOpenAssistant({ voice: false }), 120);
   };
 
   const NAV_ITEMS = [
@@ -2662,7 +2693,11 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         ))}
 
         <div className="cc-orb-slot">
-          <button ref={orbRef} className="cc-orb-btn" onClick={handleOrbClick} aria-label="Asistente Zafi">
+          <button ref={orbRef} className="cc-orb-btn"
+            onClick={handleOrbClick}
+            onMouseDown={onOrbDown} onMouseUp={onOrbUp} onMouseLeave={onOrbUp}
+            onTouchStart={onOrbDown} onTouchEnd={onOrbUp}
+            aria-label="Asistente Zafi (mantén presionado para hablar)">
             <span className="cc-orb" />
           </button>
         </div>
@@ -4135,7 +4170,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 }
 
 /* ===================== ASISTENTE DE CHAT ================================= */
-function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) {
+function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
   const GREET =
     "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
   const QUICK = [
@@ -4148,6 +4183,70 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) 
   const [busy, setBusy] = useState(false);
   const history = useRef([]);
   const scroller = useRef(null);
+
+  // ===== Dictado por voz =====
+  const [listening, setListening] = useState(false);
+  const listeningRef = useRef(false);
+  const recRef = useRef(null);
+  const finalRef = useRef("");
+
+  const setListen = (v) => { listeningRef.current = v; setListening(v); };
+
+  const startVoice = () => {
+    if (!voiceSupported || busy || listeningRef.current) return;
+    try {
+      const rec = new SpeechRec();
+      rec.lang = "es-MX";
+      rec.continuous = true;
+      rec.interimResults = true;
+      finalRef.current = "";
+      rec.onresult = (e) => {
+        let interim = "";
+        let final = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) final += t;
+          else interim += t;
+        }
+        if (final) finalRef.current += final;
+        setInput((finalRef.current + interim).trim());
+      };
+      rec.onerror = () => { setListen(false); };
+      rec.onend = () => { setListen(false); };
+      recRef.current = rec;
+      rec.start();
+      setListen(true);
+      if (navigator.vibrate) navigator.vibrate(8);
+    } catch (err) { setListen(false); }
+  };
+
+  const stopVoice = (autoSend = true) => {
+    if (!listeningRef.current) return;
+    try { recRef.current && recRef.current.stop(); } catch (e) {}
+    setListen(false);
+    const text = finalRef.current.trim();
+    if (navigator.vibrate) navigator.vibrate(8);
+    // soltar = enviar automáticamente
+    if (autoSend && text) {
+      setTimeout(() => send(text), 120);
+    }
+  };
+
+  // Si se abrió manteniendo presionado el orbe, empieza a escuchar y
+  // termina cuando el usuario suelte (en cualquier parte de la pantalla).
+  useEffect(() => {
+    if (!autoVoice || !voiceSupported) return;
+    const t = setTimeout(() => startVoice(), 250);
+    const release = () => stopVoice(true);
+    window.addEventListener("mouseup", release);
+    window.addEventListener("touchend", release);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mouseup", release);
+      window.removeEventListener("touchend", release);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -4245,9 +4344,23 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) 
           <button className="cc-btn" title="Importar desde screenshot"
             onClick={() => { onClose(); onOpenImport && onOpenImport(); }}
             style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>📸</button>
+          {voiceSupported && (
+            <button
+              className={`cc-btn cc-mic ${listening ? "rec" : ""}`}
+              title="Mantén presionado para hablar"
+              disabled={busy}
+              onMouseDown={(e) => { e.preventDefault(); startVoice(); }}
+              onMouseUp={() => stopVoice(true)}
+              onMouseLeave={() => listening && stopVoice(true)}
+              onTouchStart={(e) => { e.preventDefault(); startVoice(); }}
+              onTouchEnd={(e) => { e.preventDefault(); stopVoice(true); }}
+              style={{ padding: "10px 13px", fontSize: 18, lineHeight: 1, userSelect: "none", touchAction: "none" }}>
+              {listening ? "●" : "🎙"}
+            </button>
+          )}
           <input
             className="cc-input"
-            placeholder="Dile algo… ej. quita la categoría Ropa"
+            placeholder={listening ? "Escuchando…" : "Dile algo… ej. quita la categoría Ropa"}
             value={input}
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}
@@ -4257,6 +4370,11 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) 
             Enviar
           </button>
         </div>
+        {listening && (
+          <div style={{ fontSize: 11.5, color: "var(--ink-soft)", textAlign: "center", marginTop: 8 }}>
+            Suelta para enviar
+          </div>
+        )}
       </div>
     </div>
   );
