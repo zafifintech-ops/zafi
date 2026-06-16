@@ -426,6 +426,37 @@ body::before{
   animation:ccMicPulse 1.1s ease-in-out infinite;}
 @keyframes ccMicPulse{0%,100%{box-shadow:0 0 0 0 rgba(181,69,58,.5);}50%{box-shadow:0 0 0 8px rgba(181,69,58,0);}}
 
+/* ===== Splash ===== */
+.cc-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;
+  background:
+    radial-gradient(circle at 50% 38%, #EAEEF4 0%, #DCE1E8 55%, #D2D8E2 100%);
+  animation:ccSplashOut .5s ease 1.85s forwards;}
+@keyframes ccSplashOut{to{opacity:0;visibility:hidden;}}
+.cc-splash-orb{position:absolute;top:calc(50% - 70px);left:50%;
+  width:120px;height:120px;border-radius:50%;transform:translate(-50%,-50%) scale(.4);
+  background:
+    radial-gradient(circle at 35% 75%, rgba(99,102,241,.9) 0%, rgba(99,102,241,0) 45%),
+    radial-gradient(circle at 70% 55%, rgba(96,165,250,.85) 0%, rgba(96,165,250,0) 50%),
+    radial-gradient(circle at 55% 25%, rgba(94,234,212,.5) 0%, rgba(94,234,212,0) 40%),
+    radial-gradient(circle at 25% 30%, rgba(167,139,250,.8) 0%, rgba(167,139,250,0) 55%),
+    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
+  filter:blur(8px);opacity:0;
+  animation:ccSplashOrb 1.7s cubic-bezier(.2,.7,.2,1) forwards, ccOrbDrift 8s ease-in-out infinite;}
+@keyframes ccSplashOrb{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}
+  40%{opacity:.85;transform:translate(-50%,-50%) scale(1.05);}
+  100%{opacity:.6;transform:translate(-50%,-50%) scale(1);}}
+.cc-splash-word{position:relative;font-family:'Fraunces',serif;font-weight:400;
+  font-size:54px;letter-spacing:.1em;color:var(--ink);
+  opacity:0;filter:blur(16px);
+  animation:ccSplashBlur 1s ease .35s forwards;}
+@keyframes ccSplashBlur{to{opacity:1;filter:blur(0);letter-spacing:-.05em;}}
+.cc-splash-tag{position:relative;font-family:'Montserrat',sans-serif;font-weight:300;
+  font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);
+  opacity:0;animation:ccSplashTag .7s ease .95s forwards;}
+@keyframes ccSplashTag{to{opacity:1;}}
+
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
   background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
   padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:600;letter-spacing:-.005em;
@@ -2151,7 +2182,25 @@ function AuthScreen() {
 /* =========================================================================
    APP — componente principal
    ========================================================================= */
+/* ===================== SPLASH SCREEN ==================================== */
+function SplashScreen({ onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2100);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="cc-splash">
+      <style>{STYLE}</style>
+      <div className="cc-splash-orb" />
+      <div className="cc-splash-word">zafi</div>
+      <div className="cc-splash-tag">finanzas con IA</div>
+    </div>
+  );
+}
+
 export default function App() {
+  const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [config, setConfig] = useState(null);
   const [txs, setTxs] = useState([]);
@@ -2193,6 +2242,9 @@ export default function App() {
       setLoaded(true);
     });
   }, [user]); // re-corre cuando cambia el usuario
+
+  // Splash de bienvenida — siempre primero al abrir la app
+  if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
   // Pantalla de carga mientras Firebase verifica sesión
   if (user === undefined) return (
