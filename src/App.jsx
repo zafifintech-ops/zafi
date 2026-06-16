@@ -661,11 +661,8 @@ const t = (key) => (STRINGS[key] || {})[_lang] || (STRINGS[key] || {}).es || key
  *   lastRun:"YYYY-MM-DD"|null, active:true }
  */
 const FREQ_LABELS_FN = () => ({
-  daily: t("daily"),
-  weekly: t("weekly"),
-  biweekly: t("biweekly"),
-  monthly: t("monthly"),
-  yearly: t("yearly"),
+  daily: t("daily"), weekly: t("weekly"), biweekly: t("biweekly"),
+  monthly: t("monthly"), yearly: t("yearly"),
 });
 // Una regla está activa salvo que esté pausada explícitamente (compat: asistente usa `paused`, modal usa `active`)
 const isRecActive = (r) => r.active !== false && r.paused !== true;
@@ -3258,12 +3255,12 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
   };
 
   const NAV_ITEMS = [
-    ["inicio", ()=>t("home"),    NavIconHome],
-    ["movs",   ()=>t("history"), NavIconHistory],
+    ["inicio", "home",    NavIconHome],
+    ["movs",   "history", NavIconHistory],
   ];
   const NAV_ITEMS_2 = [
-    ["cats",  ()=>t("categories"), NavIconCategories],
-    ["stats", ()=>t("statistics"), NavIconStats],
+    ["cats",  "categories", NavIconCategories],
+    ["stats", "statistics", NavIconStats],
   ];
 
   return (
@@ -3277,7 +3274,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         {NAV_ITEMS.map(([k, label, Icon]) => (
           <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{typeof label === "function" ? label() : label}</span>
+            <span className="cc-nav-label">{t(label)}</span>
           </button>
         ))}
 
@@ -3294,7 +3291,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         {NAV_ITEMS_2.map(([k, label, Icon]) => (
           <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{typeof label === "function" ? label() : label}</span>
+            <span className="cc-nav-label">{t(label)}</span>
           </button>
         ))}
       </div>
