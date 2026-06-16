@@ -418,9 +418,10 @@ body::before{
 .cc-bubble.bot{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-bottom-left-radius:4px;}
-.cc-bubble.me{background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
+.cc-bubble.me{background:rgba(255,255,255,.45);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  color:var(--ink);border:1px solid var(--glass-border);
   border-bottom-right-radius:6px;align-self:flex-end;
-  box-shadow:var(--shadow-md);}
+  box-shadow:var(--shadow-sm);}
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
   background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
@@ -485,13 +486,14 @@ const today = () => new Date().toISOString().slice(0, 10);
  *   freq:"daily"|"weekly"|"biweekly"|"monthly"|"yearly", startDate:"YYYY-MM-DD",
  *   lastRun:"YYYY-MM-DD"|null, active:true }
  */
-const FREQ_LABELS = {
-  daily: "Diario",
+const FREQ_LABELS = {  daily: "Diario",
   weekly: "Semanal",
   biweekly: "Quincenal",
   monthly: "Mensual",
   yearly: "Anual",
 };
+// Una regla está activa salvo que esté pausada explícitamente (compat: asistente usa `paused`, modal usa `active`)
+const isRecActive = (r) => r.active !== false && r.paused !== true;
 const isoToDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
 const dateToIso = (dt) => {
   const y = dt.getFullYear(); const m = String(dt.getMonth() + 1).padStart(2, "0"); const d = String(dt.getDate()).padStart(2, "0");
@@ -514,7 +516,7 @@ const runRecurringRules = (recurring) => {
   const todayD = isoToDate(todayIso);
   const newTxs = [];
   const updatedRecurring = recurring.map((r) => {
-    if (!r.active) return r;
+    if (!isRecActive(r)) return r;
     // primera fecha pendiente
     let cursor;
     if (r.lastRun) {
@@ -1243,6 +1245,7 @@ function applyActions(config0, txs0, actions) {
             startDate: a.startDate || today(),
             endDate: a.endDate || undefined,
             paused: false,
+            active: true,
           };
           config = { ...config, recurring: [...(config.recurring || []), rule] };
           // ejecutar de inmediato lo pendiente
@@ -3585,7 +3588,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   });
 
   const recurring = config.recurring || [];
-  const activeRec = recurring.filter((r) => r.active);
+  const activeRec = recurring.filter((r) => isRecActive(r));
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
   const catFor = (id) => config.categories.find((c) => c.id === id);
 
@@ -3619,14 +3622,14 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
                     background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
                     cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
-                    opacity: r.active ? 1 : 0.5 }}>
+                    opacity: isRecActive(r) ? 1 : 0.5 }}>
                   <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
                     display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
                     {c ? c.emoji : "🔁"}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)", letterSpacing: "-.01em" }}>
-                      {r.description}{!r.active && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
+                      {r.description}{!isRecActive(r) && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                       {FREQ_LABELS[r.freq]} · {accName(r.accountId)}{c ? ` · ${c.name}` : ""}
@@ -4314,6 +4317,7 @@ function RecurringModal({ config, onClose, onSave }) {
       freq, startDate,
       lastRun: editingId ? (rules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
       active: true,
+      paused: false,
     };
     const next = editingId
       ? rules.map((r) => (r.id === editingId ? rule : r))
@@ -4323,7 +4327,11 @@ function RecurringModal({ config, onClose, onSave }) {
   };
 
   const toggleActive = (id) => {
-    onSave(rules.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+    onSave(rules.map((r) => {
+      if (r.id !== id) return r;
+      const nowActive = !isRecActive(r);
+      return { ...r, active: nowActive, paused: !nowActive };
+    }));
   };
 
   const remove = (id) => {
@@ -4354,7 +4362,7 @@ function RecurringModal({ config, onClose, onSave }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {rules.map((r) => (
-                <div key={r.id} className="cc-card" style={{ padding: "12px 14px", opacity: r.active ? 1 : 0.5 }}>
+                <div key={r.id} className="cc-card" style={{ padding: "12px 14px", opacity: isRecActive(r) ? 1 : 0.5 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div className="cc-emoji" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface)",
                       display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
@@ -4375,7 +4383,7 @@ function RecurringModal({ config, onClose, onSave }) {
                     <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
                       onClick={() => startEdit(r)}>Editar</button>
                     <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
-                      onClick={() => toggleActive(r.id)}>{r.active ? "Pausar" : "Activar"}</button>
+                      onClick={() => toggleActive(r.id)}>{isRecActive(r) ? "Pausar" : "Activar"}</button>
                     <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 12, color: "var(--coral)" }}
                       onClick={() => remove(r.id)}>Eliminar</button>
                   </div>
