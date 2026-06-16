@@ -415,8 +415,8 @@ body::before{
 /* ============== CHAT ============== */
 .cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
   letter-spacing:-.005em;}
-.cc-bubble.bot{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  border:1px solid var(--glass-border);
+.cc-bubble.bot{background:rgba(255,255,255,.55);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  color:var(--ink);border:1px solid var(--glass-border);
   border-bottom-left-radius:4px;}
 .cc-bubble.me{background:rgba(255,255,255,.45);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   color:var(--ink);border:1px solid var(--glass-border);
@@ -4338,7 +4338,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
                     {m.log.map((l, j) => (
                       <div key={j} style={{
                         fontSize: 12.5, fontWeight: 600, padding: "5px 9px", borderRadius: 8,
-                        background: l.ok ? "var(--green-soft)" : "var(--coral-soft)",
+                        background: l.ok ? "rgba(26,122,110,.14)" : "rgba(181,69,58,.12)",
                         color: l.ok ? "var(--green)" : "var(--coral)",
                       }}>
                         {l.ok ? "✓" : "!"} {l.text}
