@@ -2463,7 +2463,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       <div className="cc-wrap">
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
         {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
-        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} />}
+        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
         {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
       </div>
 
@@ -2675,8 +2675,14 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
   );
 }
 
-/* TopFab: botón circular (+) arriba a la derecha con menú de captura */
+/* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
+  const items = [
+    { icon: "✏️", label: "Capturar manual", desc: "Escribe el movimiento tú mismo", onClick: onPickManual },
+    { icon: "🔁", label: "Movimiento recurrente", desc: "Se repite automáticamente", onClick: onPickRecurring },
+    { icon: "📸", label: "Desde screenshot", desc: "Sube una captura y la IA lo lee", onClick: onPickScreenshot },
+    { icon: "📊", label: "Desde Excel", desc: "Importa una hoja de cálculo", onClick: onPickExcel },
+  ];
   return (
     <>
       <button className={`cc-fab-top ${open ? "open" : ""}`}
@@ -2690,11 +2696,31 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
         aria-label="Nueva transacción">＋</button>
 
       {open && !hidden && (
-        <div className="cc-fab-menu">
-          <button className="cc-fab-mini" onClick={onPickManual}>✏️ Capturar manual</button>
-          <button className="cc-fab-mini" onClick={onPickRecurring}>🔁 Movimiento recurrente</button>
-          <button className="cc-fab-mini" onClick={onPickScreenshot}>📸 Desde screenshot</button>
-          <button className="cc-fab-mini" onClick={onPickExcel}>📊 Desde Excel</button>
+        <div className="cc-overlay" onClick={onToggle}>
+          <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="cc-grip" />
+            <div className="cc-sheet-top">
+              <h2>Agregar movimiento</h2>
+              <button className="cc-sheet-close" onClick={onToggle}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
+              {items.map((it) => (
+                <button key={it.label} className="cc-card" onClick={it.onClick}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 16px",
+                    cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--surface)",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+                    {it.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)", letterSpacing: "-.01em" }}>{it.label}</div>
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{it.desc}</div>
+                  </div>
+                  <span style={{ fontSize: 18, color: "var(--ink-faint)", flexShrink: 0 }}>›</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </>
@@ -3530,9 +3556,10 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
 }
 
 /* ============================ CATEGORÍAS ================================= */
-function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
+function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
+  const [recurringOpen, setRecurringOpen] = useState(false);
 
   const save = (cat) => {
     let cats;
@@ -3557,11 +3584,70 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
     if (t.categoryId) totalsByCat[t.categoryId] = (totalsByCat[t.categoryId] || 0) + t.amount;
   });
 
+  const recurring = config.recurring || [];
+  const activeRec = recurring.filter((r) => r.active);
+  const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
+  const catFor = (id) => config.categories.find((c) => c.id === id);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
         Cada cuenta tiene sus propias categorías. Los totales son de <b>{rangeLabel(dateRange)}</b>.
       </div>
+
+      {/* ===== Movimientos recurrentes ===== */}
+      <div className="cc-card" style={{ padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🔁</span>
+            <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>Movimientos recurrentes</span>
+          </div>
+          <button className="cc-btn" style={{ padding: "5px 11px", fontSize: 12 }} onClick={() => setRecurringOpen(true)}>
+            {recurring.length ? "Gestionar" : "＋ Nuevo"}
+          </button>
+        </div>
+        {recurring.length === 0 ? (
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "6px 0 2px" }}>
+            No tienes movimientos recurrentes. Crea uno para que se registre automáticamente (renta, sueldo, suscripciones…).
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 6 }}>
+            {recurring.map((r) => {
+              const c = catFor(r.categoryId);
+              return (
+                <button key={r.id} onClick={() => setRecurringOpen(true)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+                    background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
+                    cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
+                    opacity: r.active ? 1 : 0.5 }}>
+                  <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                    {c ? c.emoji : "🔁"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)", letterSpacing: "-.01em" }}>
+                      {r.description}{!r.active && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
+                      {FREQ_LABELS[r.freq]} · {accName(r.accountId)}{c ? ` · ${c.name}` : ""}
+                    </div>
+                  </div>
+                  <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
+                    color: r.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
+                    {r.type === "income" ? "+" : "−"}{fmtBare(r.amount)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                  </div>
+                </button>
+              );
+            })}
+            {activeRec.length > 0 && (
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
+                {activeRec.length} activo{activeRec.length === 1 ? "" : "s"} · se generan solos en su fecha
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {config.accounts.map((acc) => {
         const accCats = config.categories.filter((c) => c.accountId === acc.id);
         return (
@@ -3607,6 +3693,9 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
         );
       })}
       {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
+      {recurringOpen && (
+        <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring} />
+      )}
       {confirmDel && (
         <ConfirmDialog
           title="¿Eliminar esta categoría?"
