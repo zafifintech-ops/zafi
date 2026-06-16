@@ -1,23 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail, signInWithPopup,
-  GoogleAuthProvider, OAuthProvider } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
-
-/* Firebase config */
-const firebaseApp = initializeApp({
-  apiKey: "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w",
-  authDomain: "zafi-524b8.firebaseapp.com",
-  projectId: "zafi-524b8",
-  storageBucket: "zafi-524b8.firebasestorage.app",
-  messagingSenderId: "308516673564",
-  appId: "1:308516673564:web:9410954d5fc50fd56667d9"
-});
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
 
 /* =========================================================================
    ZAFI — finanzas personales con IA
@@ -30,129 +12,83 @@ const db = getFirestore(firebaseApp);
 
 /* ----------------------------- estilos ---------------------------------- */
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Montserrat:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600;700&display=swap');
 
-html,body{min-height:100vh;}
-body{
-  background-color:var(--bg)!important;
-}
-/* video background - see <video> in JSX */
-.cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
-.cc-video-bg video{width:100%;height:100%;object-fit:cover;
-  filter:blur(10px);transform:scale(1.06);}
-#root{background:transparent!important;min-height:100vh;}
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  /* Paleta Zafi — glassmorphism plata/azul frío */
-  --bg:#DCE1E8;
-  --bg-2:#D2D8E1;
-  --paper:rgba(255,255,255,.12);
-  --paper-solid:#FFFFFF;
-  --surface:rgba(255,255,255,.14);
-  --surface-2:rgba(255,255,255,.1);
-  --surface-3:rgba(20,30,45,.05);
-  --ink:#1B2230;
-  --bar-fill:#7E8AA0;
-  --ink-soft:#6B7585;
-  --ink-faint:#8B95A6;
-  --line:rgba(30,40,60,.09);
-  --line-soft:rgba(30,40,60,.045);
-  --green:#1A7A6E;
-  --green-2:#22917F;
-  --green-soft:rgba(26,122,110,.10);
-  --green-glow:rgba(26,122,110,.20);
-  --coral:#B5453A;
-  --coral-2:#CC5548;
-  --coral-soft:rgba(181,69,58,.08);
-  --coral-glow:rgba(181,69,58,.12);
-  --gold:#8C7FAE;
-  --gold-soft:rgba(140,127,174,.10);
-  --gold-glow:rgba(140,127,174,.18);
+  /* Paleta Zafi — blanco limpio, acentos cálidos sutiles */
+  --bg:#FFFFFF;
+  --bg-2:#FAFAF7;
+  --paper:#FFFFFF;
+  --surface:#FFFFFF;
+  --surface-2:#F6F5F0;
+  --surface-3:#EBE9E0;
+  --ink:#1A1815;
+  --ink-soft:#6E6658;
+  --ink-faint:#ABA395;
+  --line:#EAE7DC;
+  --line-soft:#F3F0E7;
+  --green:#2D6F4E;
+  --green-2:#3B8862;
+  --green-soft:#E2EBDC;
+  --green-glow:rgba(45,111,78,.18);
+  --coral:#B8482A;
+  --coral-2:#D15A38;
+  --coral-soft:#F5DDCF;
+  --coral-glow:rgba(184,72,42,.16);
+  --gold:#B0863A;
+  --gold-soft:#F1E6C5;
+  --gold-glow:rgba(176,134,58,.22);
 
-  /* Acentos del orb IA — iridiscente */
-  --orb-purple:#A78BFA;
-  --orb-blue:#60A5FA;
-  --orb-mint:#5EEAD4;
-
-  /* Degradado de acento (barras de categoría, cuenta seleccionada) */
-  --accent-grad:linear-gradient(90deg, #0F2A4A 0%, #1D4ED8 45%, #38BDF8 100%);
-  --accent-grad-soft:linear-gradient(135deg, rgba(15,42,74,.10) 0%, rgba(56,189,248,.14) 100%);
-  --accent-solid:#1D4ED8;
-
-  /* Sombras frías difusas */
-  --shadow-xs:0 1px 3px rgba(30,40,60,.04);
-  --shadow-sm:0 2px 8px rgba(30,40,60,.06);
-  --shadow-md:0 4px 16px rgba(30,40,60,.08);
-  --shadow-lg:0 8px 32px rgba(30,40,60,.10);
-  --shadow-xl:0 16px 48px rgba(30,40,60,.13);
-  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.12);
-  --glass-border:rgba(255,255,255,.55);
-  --blur:blur(5px);
+  /* Sombras suaves y difusas — sin "rectángulo gris" */
+  --shadow-xs:0 2px 6px -2px rgba(31,27,20,.05);
+  --shadow-sm:0 4px 12px -3px rgba(31,27,20,.06), 0 1px 3px -1px rgba(31,27,20,.03);
+  --shadow-md:0 8px 24px -6px rgba(31,27,20,.08), 0 2px 6px -2px rgba(31,27,20,.04);
+  --shadow-lg:0 18px 40px -10px rgba(31,27,20,.12), 0 6px 14px -4px rgba(31,27,20,.05);
+  --shadow-xl:0 30px 60px -15px rgba(31,27,20,.16), 0 10px 24px -8px rgba(31,27,20,.06);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.8);
 }
 .cc-root{
-  font-family:'Montserrat',-apple-system,sans-serif;
-  font-weight:300;
-  font-size:14px;
-  color:var(--ink); background:transparent;
+  font-family:'Inter Tight','Hanken Grotesk',sans-serif;
+  font-size:15px;
+  color:var(--ink); background:var(--bg);
   min-height:100vh; width:100%;
-  position:relative;
   -webkit-font-smoothing:antialiased;
-  position:relative;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(176,134,58,.025), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(45,111,78,.025), transparent 65%);
+  background-attachment:fixed;
 }
-.cc-bg-wave{display:none;}
-
 
 .cc-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";}
-.cc-emoji{}
 .cc-serif{font-family:'Fraunces',serif;letter-spacing:-.018em;font-feature-settings:"ss01";}
 
-.cc-wrap{max-width:760px;margin:0 auto;padding:4px 16px 130px;}
+.cc-wrap{max-width:760px;margin:0 auto;padding:6px 20px 130px;}
 
 /* ============== TOPBAR ============== */
 .cc-top{position:sticky;top:0;z-index:30;
-  background:transparent;
-  padding:calc(14px + env(safe-area-inset-top)) 20px 8px;
-  transition:.2s ease;}
-.cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:6px;
-  background:rgba(255,255,255,.1);
-  backdrop-filter:blur(3px);
-  -webkit-backdrop-filter:blur(3px);
-  border-bottom:none;}
+  background:linear-gradient(to bottom, var(--bg) 75%, rgba(255,255,255,0));
+  padding:14px 20px 8px;
+  transition:.25s cubic-bezier(.2,.7,.2,1);}
+.cc-top.scrolled{padding-top:9px;padding-bottom:6px;
+  background:rgba(255,255,255,.92);backdrop-filter:saturate(1.4) blur(14px);
+  -webkit-backdrop-filter:saturate(1.4) blur(14px);
+  box-shadow:0 1px 0 var(--line-soft), 0 6px 18px rgba(31,27,20,.04);}
 .cc-top-inner{max-width:760px;margin:0 auto;}
-
-/* logo centrado estilo Canva */
-.cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:400;font-size:16px;
-  letter-spacing:-.03em;text-align:center;color:var(--ink);
-  font-feature-settings:"ss01"; margin-bottom:12px; transition:.2s;}
-.cc-top.scrolled .cc-zafi-wordmark{margin-bottom:6px;font-size:14px;}
-
-/* fila de perfil: avatar + nombre + plan */
-.cc-profile-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;transition:.2s;}
-.cc-top.scrolled .cc-profile-row{margin-bottom:6px;}
-.cc-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;
-  background:var(--ink);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Fraunces',serif;font-weight:600;font-size:15px;
-  box-shadow:var(--shadow-sm);transition:.2s;}
-.cc-top.scrolled .cc-avatar{width:30px;height:30px;font-size:13px;}
-.cc-profile-name{font-family:'Fraunces',serif;font-weight:600;font-size:18px;
-  letter-spacing:-.03em;line-height:1.2;color:var(--ink);transition:.2s;}
-.cc-top.scrolled .cc-profile-name{font-size:15px;}
-.cc-profile-plan{font-size:11px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;}
-.cc-top.scrolled .cc-profile-plan{display:none;}
 
 .cc-masthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
   margin-bottom:10px;transition:.2s;}
 .cc-top.scrolled .cc-masthead{margin-bottom:6px;}
-.cc-masthead-title{font-family:'Fraunces',serif;font-weight:600;font-size:26px;letter-spacing:-.045em;line-height:1;
-  display:flex;align-items:center;gap:8px;font-feature-settings:"ss01";}
-.cc-masthead-title::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green);}
+.cc-masthead-title{font-family:'Fraunces',serif;font-weight:600;font-size:27px;letter-spacing:-.045em;line-height:1;
+  display:flex;align-items:center;gap:9px;font-feature-settings:"ss01";}
+.cc-masthead-title::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px var(--green-soft),0 0 18px var(--green-glow);}
 
 /* Logo del onboarding */
-.cc-logo{font-family:'Fraunces',serif;font-weight:400;font-size:26px;letter-spacing:-.05em;
-  display:flex;align-items:center;gap:8px;color:var(--ink);font-feature-settings:"ss01";}
-.cc-logo-dot{display:none;}
+.cc-logo{font-family:'Fraunces',serif;font-weight:600;font-size:27px;letter-spacing:-.045em;
+  display:flex;align-items:center;gap:9px;color:var(--ink);font-feature-settings:"ss01";}
+.cc-logo-dot{width:10px;height:10px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px var(--green-soft),0 0 18px var(--green-glow);display:inline-block;}
 .cc-masthead-meta{font-size:10.5px;font-weight:500;color:var(--ink-faint);letter-spacing:.02em;
   font-variant-numeric:tabular-nums;}
 
@@ -165,64 +101,68 @@ body{
 .cc-balance-value{font-family:'Fraunces',serif;font-weight:500;font-size:32px;line-height:1;letter-spacing:-.035em;
   font-variant-numeric:tabular-nums;transition:font-size .2s;}
 
-/* chip de rango */
+/* chip de rango — píldora suave con sombrita */
 .cc-range-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;
-  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  background:var(--paper);border:1px solid var(--line);border-radius:999px;
   font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;
-  transition:all .15s ease;}
-.cc-range-chip:hover{background:rgba(255,255,255,.7);}
-.cc-range-chip:active{transform:scale(.98);}
+  transition:all .2s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-range-chip:hover{transform:translateY(-1px);border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
+.cc-range-chip:active{transform:translateY(0);}
+.cc-range-chip .cc-range-emoji{font-size:13px;}
 .cc-range-chip .cc-range-arrow{color:var(--ink-faint);font-size:9px;}
 
-/* tabs — segmented control glass (legado, ya no se usa en header) */
-.cc-tabs{display:flex;gap:2px;background:rgba(0,0,0,.04);
-  border:1px solid var(--glass-border);border-radius:16px;padding:3px;
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+/* tabs — píldora flotante con indicador deslizante */
+.cc-tabs{display:flex;gap:3px;background:var(--surface-2);
+  border:1px solid var(--line-soft);border-radius:14px;padding:4px;
+  box-shadow:var(--shadow-xs),inset 0 1px 2px rgba(31,27,20,.03);
   margin-top:4px;}
 .cc-tab{flex:1;font-family:inherit;font-size:12.5px;font-weight:600;
-  border:none;background:transparent;color:var(--ink-faint);
-  padding:8px 6px;border-radius:13px;cursor:pointer;
-  transition:all .15s ease;position:relative;}
+  border:none;background:transparent;color:var(--ink-soft);
+  padding:9px 6px;border-radius:10px;cursor:pointer;
+  transition:all .25s cubic-bezier(.2,.7,.2,1);position:relative;}
 .cc-tab:hover{color:var(--ink);}
-.cc-tab.on{background:rgba(255,255,255,.1);color:var(--ink);
-  box-shadow:var(--shadow-sm);}
+.cc-tab.on{background:var(--paper);color:var(--ink);
+  box-shadow:var(--shadow-sm),var(--shadow-inset);}
 
 /* ============== TARJETAS ============== */
-.cc-card{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  border:1px solid var(--glass-border);
-  border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
-  transition:.2s ease;}
-.cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  border:1px solid var(--glass-border);
-  border-radius:20px;padding:16px;box-shadow:var(--shadow-sm);}
+.cc-card{background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:0;box-shadow:var(--shadow-sm);
+  transition:.25s cubic-bezier(.2,.7,.2,1);}
+.cc-card-boxed{background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:16px;box-shadow:var(--shadow-sm);}
 .cc-card-section{background:transparent;border:none;border-radius:0;padding-top:8px;padding-bottom:4px;
   box-shadow:none;}
-.cc-fade{animation:ccUp .4s cubic-bezier(.16,1,.3,1) both;}
-@keyframes ccUp{from{opacity:0;}to{opacity:1;}}
+.cc-fade{animation:ccUp .5s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes ccUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 
 /* ============== BOTONES ============== */
-.cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:14px;border:1px solid var(--glass-border);
-  background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  color:var(--ink);padding:10px 17px;cursor:pointer;
-  transition:all .15s ease;box-shadow:none;}
-.cc-btn:hover{background:rgba(255,255,255,.7);}
-.cc-btn:active{transform:scale(.98);}
-.cc-btn-primary{background:var(--ink);color:#fff;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;}
-.cc-btn-primary:hover{background:#222;}
-.cc-btn-green{background:var(--ink);color:#fff;
-  border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;}
-.cc-btn-green:hover{background:#222;}
-.cc-btn-green:active{transform:scale(.98);}
-.cc-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:12px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);padding:10px 17px;cursor:pointer;
+  transition:all .2s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-btn:hover{background:var(--surface-2);border-color:var(--gold);transform:translateY(-1px);
+  box-shadow:var(--shadow-sm);}
+.cc-btn:active{transform:translateY(0);box-shadow:var(--shadow-xs);}
+.cc-btn-primary{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.cc-btn-primary:hover{background:#2c2820;border-color:#2c2820;box-shadow:var(--shadow-md);}
+.cc-btn-green{background:linear-gradient(180deg,var(--green-2),var(--green));color:#fff;
+  border-color:var(--green);
+  box-shadow:var(--shadow-sm),var(--shadow-inset);}
+.cc-btn-green:hover{transform:translateY(-1px);
+  box-shadow:var(--shadow-md),var(--shadow-inset);
+  background:linear-gradient(180deg,var(--green-2),var(--green));}
+.cc-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:var(--shadow-xs);}
 .cc-btn:disabled:hover{background:var(--paper);border-color:var(--line);}
 
 /* ============== INPUTS ============== */
-.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:12px 16px;border-radius:16px;
-  border:1px solid var(--glass-border);background:var(--glass);color:var(--ink);outline:none;
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  transition:border-color .15s ease;}
-.cc-input:focus,.cc-select:focus{border-color:rgba(0,0,0,.15);background:rgba(255,255,255,.7);}
+.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:11px 14px;border-radius:12px;
+  border:1px solid var(--line);background:var(--paper);color:var(--ink);outline:none;
+  transition:all .18s cubic-bezier(.2,.7,.2,1);
+  box-shadow:var(--shadow-xs);}
+.cc-input:focus,.cc-select:focus{border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
 .cc-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;letter-spacing:-.005em;}
 
 /* ============== CHIPS — píldoras suaves ============== */
@@ -234,117 +174,81 @@ body{
 .cc-chip:hover{border-color:var(--gold);transform:translateY(-1px);
   box-shadow:var(--shadow-sm);}
 
-/* ============== BOTTOM NAV ============== */
-.cc-bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;
-  display:flex;justify-content:center;
-  padding:0 16px calc(14px + env(safe-area-inset-bottom));
-  pointer-events:none;}
-.cc-bottomnav-inner{pointer-events:auto;
-  width:100%;max-width:420px;height:62px;
-  display:flex;align-items:center;justify-content:space-between;
-  background:rgba(255,255,255,.08);border:1px solid var(--glass-border);
-  border-radius:31px;padding:0 10px;
-  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
-  box-shadow:var(--shadow-lg);
-  position:relative;}
-.cc-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  border:none;background:transparent;cursor:pointer;
-  padding:8px 4px 6px;border-radius:18px;
-  color:var(--ink-faint);font-family:inherit;
-  transition:color .15s ease, background .15s ease;}
-.cc-nav-item.on{color:var(--ink);}
-.cc-nav-item:hover{color:var(--ink);}
-.cc-nav-icon{display:flex;align-items:center;justify-content:center;line-height:0;}
-.cc-nav-icon svg{width:21px;height:21px;display:block;}
-.cc-nav-label{font-size:10px;font-weight:600;letter-spacing:.01em;}
+/* ============== FAB ============== */
+.cc-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;
+  background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:999px;
+  font-family:'Inter Tight','Hanken Grotesk',sans-serif;font-size:14.5px;font-weight:600;
+  padding:13px 22px 13px 16px;cursor:pointer;
+  letter-spacing:-.005em;overflow:hidden;
+  box-shadow:0 18px 40px -12px rgba(31,27,20,.18), 0 8px 18px -8px rgba(31,27,20,.12);
+  display:flex;align-items:center;gap:11px;
+  transition:transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s cubic-bezier(.2,.7,.2,1);}
+.cc-fab:hover{transform:translateX(-50%) translateY(-3px);
+  box-shadow:0 24px 50px -14px rgba(31,27,20,.22), 0 12px 24px -10px rgba(31,27,20,.14);}
+.cc-fab:active{transform:translateX(-50%) scale(.96);}
 
-/* Orb central de IA — protruye arriba y abajo de la barra, centrado */
-.cc-orb-slot{flex:0 0 78px;display:flex;align-items:center;justify-content:center;position:relative;height:100%;}
-.cc-orb-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:78px;height:78px;border-radius:50%;border:none;cursor:pointer;
+/* Gota morfando del asistente */
+.cc-blob-stage{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;position:relative;flex-shrink:0;}
+.cc-blob{width:18px;height:18px;background:var(--gold);animation:ccBlobMorph 4s ease-in-out infinite;}
+@keyframes ccBlobMorph{0%,100%{border-radius:50%}25%{border-radius:60% 40% 50% 50%}50%{border-radius:50% 50% 40% 60%}75%{border-radius:40% 60% 60% 40%}}
+.cc-fab-add{position:fixed;right:20px;bottom:22px;z-index:40;width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(160deg,#3a342a,var(--ink));color:var(--paper);border:none;font-size:28px;line-height:1;
+  cursor:pointer;font-weight:300;
+  box-shadow:0 16px 36px -12px rgba(31,27,20,.38), 0 6px 14px -6px rgba(31,27,20,.22), var(--shadow-inset);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-lg);
-  transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
-.cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
-.cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
-  background:
-    radial-gradient(circle at 35% 75%, rgba(99,102,241,.95) 0%, rgba(99,102,241,0) 45%),
-    radial-gradient(circle at 70% 55%, rgba(96,165,250,.9) 0%, rgba(96,165,250,0) 50%),
-    radial-gradient(circle at 55% 25%, rgba(94,234,212,.55) 0%, rgba(94,234,212,0) 40%),
-    radial-gradient(circle at 25% 30%, rgba(167,139,250,.85) 0%, rgba(167,139,250,0) 55%),
-    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
-  filter:saturate(1.25);
-  border:2px solid rgba(255,255,255,.55);
-  box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.35);
-  animation:ccOrbBreathe 4s ease-in-out infinite, ccOrbDrift 8s ease-in-out infinite;}
-.cc-orb::before{content:"";position:absolute;inset:0;border-radius:50%;
-  background:radial-gradient(circle at 30% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 28%);
-  animation:ccOrbShine 4s ease-in-out infinite;}
-.cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
-  background:radial-gradient(circle, rgba(124,139,245,.55) 0%, rgba(167,139,250,.25) 45%, rgba(124,139,245,0) 70%);
-  animation:ccOrbGlow 4s ease-in-out infinite;}
-@keyframes ccOrbBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
-@keyframes ccOrbDrift{
-  0%,100%{background-position:35% 75%, 70% 55%, 55% 25%, 25% 30%, 50% 50%;filter:saturate(1.25) hue-rotate(0deg);}
-  33%{background-position:55% 65%, 45% 70%, 70% 35%, 35% 45%, 50% 50%;filter:saturate(1.4) hue-rotate(-12deg);}
-  66%{background-position:25% 60%, 75% 45%, 40% 30%, 50% 25%, 50% 50%;filter:saturate(1.35) hue-rotate(14deg);}}
-@keyframes ccOrbShine{0%,100%{opacity:.85;transform:scale(1);}50%{opacity:1;transform:scale(1.04) translate(2px,2px);}}
-@keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
-
-/* ============== FAB superior (+) ============== */
-.cc-fab-top{position:fixed;top:18px;right:18px;z-index:45;
-  width:46px;height:46px;border-radius:50%;
-  background:var(--glass);color:var(--ink);border:1px solid var(--glass-border);
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  font-size:24px;font-weight:300;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-md);
-  transition:all .15s ease;}
-.cc-fab-top:hover{background:rgba(255,255,255,.75);box-shadow:var(--shadow-lg);}
-.cc-fab-top:active{transform:scale(.93);}
-.cc-fab-top.open{transform:rotate(45deg);}
-.cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
-  align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
-.cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
-  background:var(--paper);color:var(--ink);border:1px solid var(--line);cursor:pointer;
+  transition:all .3s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-add:hover{transform:translateY(-3px) rotate(90deg);
+  box-shadow:0 22px 44px -14px rgba(31,27,20,.45), 0 10px 20px -8px rgba(31,27,20,.26), var(--shadow-inset);}
+.cc-fab-menu{position:fixed;right:20px;bottom:88px;z-index:42;display:flex;flex-direction:column;gap:10px;
+  align-items:flex-end;animation:ccUp .2s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:11px 16px;border-radius:999px;
+  background:var(--paper);color:var(--ink);border:1px solid var(--line-soft);cursor:pointer;
   box-shadow:var(--shadow-md);
   display:flex;align-items:center;gap:8px;
-  transition:all .15s ease;}
-.cc-fab-mini:hover{background:var(--surface-2);}
+  transition:all .2s cubic-bezier(.2,.7,.2,1);}
+.cc-fab-mini:hover{background:var(--surface-2);transform:translateY(-2px);
+  box-shadow:var(--shadow-lg);}
 
 /* ============== TARJETAS DE CUENTAS ============== */
 .cc-acc-card{cursor:pointer;
-  border:1px solid var(--glass-border);background:var(--glass);
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  border-radius:18px;padding:13px 14px;min-width:148px;text-align:left;
+  border:1px solid var(--line);background:var(--paper);
+  border-radius:18px;padding:15px 16px;min-width:170px;text-align:left;
   position:relative;overflow:hidden;
-  transition:all .2s ease;}
-.cc-acc-card:hover{background:rgba(255,255,255,.7);}
-.cc-acc-card.on{border-color:rgba(29,78,216,.3);
-  background:var(--accent-grad-soft);
-  box-shadow:0 0 0 1px rgba(29,78,216,.2);}
-.cc-acc-card.on .cc-acc-label{color:var(--accent-solid);}
-.cc-acc-card.on .cc-acc-icon{background:rgba(29,78,216,.12);}
-.cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
-  border-radius:7px;background:var(--surface-2);font-size:13px;margin-bottom:7px;
+  box-shadow:var(--shadow-sm);
+  transition:all .3s cubic-bezier(.2,.7,.2,1);}
+.cc-acc-card::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at top right, rgba(176,134,58,.10), transparent 60%);
+  pointer-events:none;opacity:0;transition:opacity .3s;}
+.cc-acc-card:hover{transform:translateY(-3px);border-color:var(--gold);
+  box-shadow:var(--shadow-lg);}
+.cc-acc-card:hover::before{opacity:1;}
+.cc-acc-card.on{border-color:var(--ink);
+  background:linear-gradient(155deg,#2c2820 0%,#1a1612 100%);
+  color:var(--paper);
+  box-shadow:0 24px 48px -18px rgba(31,27,20,.40), 0 10px 24px -12px rgba(31,27,20,.20);}
+.cc-acc-card.on:hover{transform:translateY(-3px);
+  box-shadow:0 32px 60px -20px rgba(31,27,20,.45), 0 14px 30px -14px rgba(31,27,20,.22);}
+.cc-acc-card.on::before{opacity:1;background:radial-gradient(ellipse at top right, rgba(176,134,58,.22), transparent 55%);}
+.cc-acc-card.on .cc-acc-label,.cc-acc-card.on .cc-acc-sub{color:rgba(253,250,242,.55);}
+.cc-acc-card.on .cc-acc-bal,.cc-acc-card.on .cc-acc-name{color:var(--paper);}
+.cc-acc-card.on .cc-acc-icon{background:rgba(253,250,242,.10);}
+.cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:9px;background:var(--surface-2);font-size:14px;margin-bottom:9px;
   transition:.2s;}
-.cc-acc-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);}
-.cc-acc-name{font-weight:600;font-size:14px;margin:2px 0 7px;letter-spacing:-.012em;color:var(--ink);}
-.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:19px;letter-spacing:-.03em;line-height:1.05;}
-.cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
-  color:transparent;-webkit-text-fill-color:transparent;}
-.cc-acc-sub{font-size:10.5px;color:var(--ink-soft);margin-top:4px;font-variant-numeric:tabular-nums;font-weight:500;}
-.cc-scroll-x{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;}
+.cc-acc-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);}
+.cc-acc-name{font-weight:600;font-size:15px;margin:2px 0 9px;letter-spacing:-.012em;}
+.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:23px;letter-spacing:-.03em;line-height:1.05;}
+.cc-acc-sub{font-size:11px;color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums;font-weight:500;}
+.cc-scroll-x{display:flex;gap:11px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:none;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
 
 /* configurar */
-.cc-gear{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  padding:8px 14px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+.cc-gear{background:var(--paper);border:1px solid var(--line);border-radius:10px;
+  padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-soft);
   display:inline-flex;align-items:center;gap:6px;
-  transition:.15s ease;}
-.cc-gear:hover{background:rgba(255,255,255,.7);color:var(--ink);}
-.cc-gear svg, .cc-range-chip svg{width:14px;height:14px;flex-shrink:0;}
+  transition:.2s;box-shadow:var(--shadow-xs);}
+.cc-gear:hover{background:var(--surface-2);color:var(--ink);border-color:var(--gold);
+  box-shadow:var(--shadow-sm);}
 
 /* fila draggable */
 .cc-sortable{padding:11px 13px;border:1px solid var(--line);border-radius:12px;
@@ -356,98 +260,40 @@ body{
 
 /* ============== SEPARADOR DE DÍA ============== */
 .cc-day-sep{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:13px 0 8px;border-bottom:1px solid var(--line-soft);margin-bottom:2px;
-  position:sticky;top:0;background:transparent;
+  padding:14px 0 9px;border-bottom:1px solid var(--line-soft);margin-bottom:3px;
+  position:sticky;top:0;background:linear-gradient(to bottom, var(--bg) 70%, rgba(255,255,255,.0));
   z-index:5;}
 .cc-day-sep:first-child{padding-top:6px;}
-.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:19px;line-height:1;letter-spacing:-.03em;
-  color:var(--ink);min-width:24px;}
-.cc-day-name{flex:1;font-size:10.5px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
-  text-transform:uppercase;}
-.cc-day-totals{display:flex;gap:9px;align-items:center;font-size:11px;
-  font-variant-numeric:tabular-nums;font-weight:500;opacity:.7;}
+.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:24px;line-height:1;letter-spacing:-.035em;
+  color:var(--ink);min-width:32px;}
+.cc-day-name{flex:1;font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:-.005em;
+  text-transform:capitalize;}
+.cc-day-totals{display:flex;gap:10px;align-items:center;font-size:11.5px;
+  font-variant-numeric:tabular-nums;font-weight:600;}
 .cc-day-totals .pos{color:var(--green);}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);
+.cc-overlay{position:fixed;inset:0;background:rgba(31,27,20,.38);
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  z-index:10000;display:flex;align-items:flex-end;justify-content:center;
-  animation:ccFadeIn .15s ease;}
+  z-index:50;display:flex;align-items:flex-end;justify-content:center;
+  animation:ccFadeIn .2s ease;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
-  border-radius:24px 24px 0 0;width:100%;max-width:760px;
+.cc-sheet{background:var(--bg);border-radius:24px 24px 0 0;width:100%;max-width:760px;
   max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
-  animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
-  border-top:1px solid rgba(255,255,255,.6);
-  box-shadow:0 -4px 24px rgba(0,0,0,.08);}
+  animation:ccSheet .35s cubic-bezier(.2,.7,.2,1);
+  box-shadow:0 -20px 60px rgba(31,27,20,.25),0 -1px 0 rgba(255,255,255,.5) inset;}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
-.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;}
-.cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
-.cc-sheet-top h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;color:var(--ink);}
-.cc-sheet-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface);
-  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);
-  font-size:18px;line-height:1;transition:.15s ease;flex-shrink:0;}
-.cc-sheet-close:hover{background:var(--surface-2);color:var(--ink);}
-
-/* monto grande centrado — estilo "Nueva transacción" */
-.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:6px;
-  padding:18px 0;margin-bottom:6px;width:100%;}
-.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink-soft);flex-shrink:0;}
-.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;}
-.cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
-  text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
-  width:auto;max-width:240px;min-width:30px;font-feature-settings:"tnum";
-  -moz-appearance:textfield;appearance:textfield;}
-.cc-amount-display input::-webkit-outer-spin-button,
-.cc-amount-display input::-webkit-inner-spin-button{-webkit-appearance:none;-moz-appearance:none;appearance:none;margin:0;display:none;}
-.cc-amount-display input[type=number]{-moz-appearance:textfield;}
-.cc-amount-display input::placeholder{color:var(--ink-soft);opacity:.55;}
+.cc-grip{width:40px;height:4px;background:var(--line);border-radius:99px;margin:8px auto 16px;}
 
 /* ============== CHAT ============== */
 .cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
   letter-spacing:-.005em;}
-.cc-bubble.bot{background:rgba(255,255,255,.55);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  color:var(--ink);border:1px solid var(--glass-border);
-  border-bottom-left-radius:4px;}
-.cc-bubble.me{background:rgba(255,255,255,.45);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  color:var(--ink);border:1px solid var(--glass-border);
+.cc-bubble.bot{background:var(--paper);border:1px solid var(--line-soft);
+  border-bottom-left-radius:6px;box-shadow:var(--shadow-sm);}
+.cc-bubble.me{background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
   border-bottom-right-radius:6px;align-self:flex-end;
-  box-shadow:var(--shadow-sm);}
-.cc-mic.rec{background:var(--coral)!important;color:#fff!important;border-color:var(--coral)!important;
-  animation:ccMicPulse 1.1s ease-in-out infinite;}
-@keyframes ccMicPulse{0%,100%{box-shadow:0 0 0 0 rgba(181,69,58,.5);}50%{box-shadow:0 0 0 8px rgba(181,69,58,0);}}
-
-/* ===== Splash ===== */
-.cc-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:10px;
-  background:
-    radial-gradient(circle at 50% 38%, #EAEEF4 0%, #DCE1E8 55%, #D2D8E2 100%);
-  animation:ccSplashOut .5s ease 1.85s forwards;}
-@keyframes ccSplashOut{to{opacity:0;visibility:hidden;}}
-.cc-splash-orb{position:absolute;top:calc(50% - 70px);left:50%;
-  width:120px;height:120px;border-radius:50%;transform:translate(-50%,-50%) scale(.4);
-  background:
-    radial-gradient(circle at 35% 75%, rgba(99,102,241,.9) 0%, rgba(99,102,241,0) 45%),
-    radial-gradient(circle at 70% 55%, rgba(96,165,250,.85) 0%, rgba(96,165,250,0) 50%),
-    radial-gradient(circle at 55% 25%, rgba(94,234,212,.5) 0%, rgba(94,234,212,0) 40%),
-    radial-gradient(circle at 25% 30%, rgba(167,139,250,.8) 0%, rgba(167,139,250,0) 55%),
-    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
-  filter:blur(8px);opacity:0;
-  animation:ccSplashOrb 1.7s cubic-bezier(.2,.7,.2,1) forwards, ccOrbDrift 8s ease-in-out infinite;}
-@keyframes ccSplashOrb{
-  0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}
-  40%{opacity:.85;transform:translate(-50%,-50%) scale(1.05);}
-  100%{opacity:.6;transform:translate(-50%,-50%) scale(1);}}
-.cc-splash-word{position:relative;font-family:'Fraunces',serif;font-weight:400;
-  font-size:54px;letter-spacing:.1em;color:var(--ink);
-  opacity:0;filter:blur(16px);
-  animation:ccSplashBlur 1s ease .35s forwards;}
-@keyframes ccSplashBlur{to{opacity:1;filter:blur(0);letter-spacing:-.05em;}}
-.cc-splash-tag{position:relative;font-family:'Montserrat',sans-serif;font-weight:300;
-  font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);
-  opacity:0;animation:ccSplashTag .7s ease .95s forwards;}
-@keyframes ccSplashTag{to{opacity:1;}}
+  box-shadow:var(--shadow-md);}
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
   background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
@@ -505,223 +351,8 @@ const SEED_KW = {
 /* ------------------------------ utilidades ------------------------------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
-
-/* ===== Sistema de idiomas (i18n) ===== */
-let _lang = "es";
-const setAppLang = (l) => { _lang = l; };
-const STRINGS = {
-  // Tabs
-  home: { es: "Inicio", en: "Home" },
-  history: { es: "Historial", en: "History" },
-  categories: { es: "Categorías", en: "Categories" },
-  statistics: { es: "Estadísticas", en: "Statistics" },
-  // Header
-  weeklyPlan: { es: "Plan semanal", en: "Weekly plan" },
-  // Home sections
-  yourAccounts: { es: "Tus cuentas", en: "Your accounts" },
-  addAccount: { es: "Agregar cuenta", en: "Add account" },
-  customize: { es: "Personalizar", en: "Customize" },
-  incomeThisMonth: { es: "Ingresos · Este mes", en: "Income · This month" },
-  expenseThisMonth: { es: "Gastos · Este mes", en: "Expenses · This month" },
-  topExpenses: { es: "Gastos más grandes", en: "Biggest expenses" },
-  recentMovements: { es: "Últimos movimientos", en: "Recent movements" },
-  expByCategory: { es: "Gastos por categoría", en: "Expenses by category" },
-  balance: { es: "Saldo", en: "Balance" },
-  // History
-  all: { es: "Todos", en: "All" },
-  income: { es: "Ingresos", en: "Income" },
-  expenses: { es: "Gastos", en: "Expenses" },
-  select: { es: "Seleccionar", en: "Select" },
-  selected: { es: "seleccionado", en: "selected" },
-  selectAll: { es: "Todos", en: "All" },
-  none: { es: "Ninguno", en: "None" },
-  deleteBtn: { es: "Eliminar", en: "Delete" },
-  sortBy: { es: "Ordenar", en: "Sort by" },
-  mov: { es: "mov.", en: "mov." },
-  touchToEdit: { es: "Toca un movimiento para editarlo · ✕ para eliminarlo", en: "Tap a movement to edit it · ✕ to delete it" },
-  noMovements: { es: "No hay movimientos en este periodo.", en: "No movements in this period." },
-  // AddModal
-  newTransaction: { es: "Nueva transacción", en: "New transaction" },
-  editTransaction: { es: "Editar transacción", en: "Edit transaction" },
-  expense: { es: "Gasto", en: "Expense" },
-  incomeType: { es: "Ingreso", en: "Income" },
-  concept: { es: "Concepto", en: "Concept" },
-  date: { es: "Fecha", en: "Date" },
-  category: { es: "Categoría", en: "Category" },
-  account: { es: "Cuenta", en: "Account" },
-  save: { es: "Guardar", en: "Save" },
-  saveChanges: { es: "Guardar cambios", en: "Save changes" },
-  // TopFab menu
-  addMovement: { es: "Agregar movimiento", en: "Add movement" },
-  manualCapture: { es: "Capturar manual", en: "Manual capture" },
-  manualCaptureDesc: { es: "Escribe el movimiento tú mismo", en: "Enter the movement yourself" },
-  recurringMovement: { es: "Movimiento recurrente", en: "Recurring movement" },
-  recurringDesc: { es: "Se repite automáticamente", en: "Repeats automatically" },
-  fromScreenshot: { es: "Desde screenshot", en: "From screenshot" },
-  fromScreenshotDesc: { es: "Sube una captura y la IA lo lee", en: "Upload a screenshot and AI reads it" },
-  fromExcel: { es: "Desde Excel", en: "From Excel" },
-  fromExcelDesc: { es: "Importa una hoja de cálculo", en: "Import a spreadsheet" },
-  // Settings
-  settings: { es: "Ajustes", en: "Settings" },
-  personalInfo: { es: "Información personal", en: "Personal information" },
-  name: { es: "Nombre", en: "Name" },
-  phone: { es: "Teléfono", en: "Phone" },
-  email: { es: "Correo electrónico", en: "Email" },
-  language: { es: "Idioma", en: "Language" },
-  currency: { es: "Moneda", en: "Currency" },
-  notifications: { es: "Notificaciones", en: "Notifications" },
-  expenseReminders: { es: "Recordatorios de gastos", en: "Expense reminders" },
-  comingSoon: { es: "Próximamente", en: "Coming soon" },
-  dataPrivacy: { es: "Datos y privacidad", en: "Data & privacy" },
-  exportData: { es: "Exportar mis datos", en: "Export my data" },
-  resetApp: { es: "Reiniciar app (borrar todo)", en: "Reset app (delete all)" },
-  resetConfirm: { es: "¿Estás seguro? Esto borrará todas tus categorías, cuentas y movimientos.", en: "Are you sure? This will delete all your categories, accounts and movements." },
-  cancel: { es: "Cancelar", en: "Cancel" },
-  yesDeleteAll: { es: "Sí, borrar todo", en: "Yes, delete all" },
-  signOut: { es: "Cerrar sesión", en: "Sign out" },
-  signingOut: { es: "Cerrando sesión…", en: "Signing out…" },
-  infoUpdated: { es: "Información actualizada", en: "Information updated" },
-  chooseAvatar: { es: "Elige tu avatar", en: "Choose your avatar" },
-  avatarUpdated: { es: "Avatar actualizado", en: "Avatar updated" },
-  avatarRemoved: { es: "Avatar eliminado", en: "Avatar removed" },
-  choosePhoto: { es: "Elegir foto", en: "Choose photo" },
-  takePhoto: { es: "Tomar foto", en: "Take photo" },
-  orUploadPhoto: { es: "O sube tu propia foto", en: "Or upload your own photo" },
-  // Recurring
-  recurringMovements: { es: "Movimientos recurrentes", en: "Recurring movements" },
-  daily: { es: "Diario", en: "Daily" },
-  weekly: { es: "Semanal", en: "Weekly" },
-  biweekly: { es: "Quincenal", en: "Biweekly" },
-  monthly: { es: "Mensual", en: "Monthly" },
-  yearly: { es: "Anual", en: "Yearly" },
-  manage: { es: "Gestionar", en: "Manage" },
-  newRecurring: { es: "Nuevo recurrente", en: "New recurring" },
-  pause: { es: "Pausar", en: "Pause" },
-  activate: { es: "Activar", en: "Activate" },
-  edit: { es: "Editar", en: "Edit" },
-  // Stats
-  summary: { es: "Resumen", en: "Summary" },
-  netFlow: { es: "Flujo neto", en: "Net flow" },
-  tapForDetail: { es: "Tocar para detalle ▸", en: "Tap for detail ▸" },
-  avgDailyExpense: { es: "Gasto promedio diario", en: "Avg. daily expense" },
-  movementsInPeriod: { es: "Movimientos en el periodo", en: "Movements in period" },
-  incByCategory: { es: "Ingresos por categoría", en: "Income by category" },
-  topSpent: { es: "En lo que más gastaste", en: "Top spending" },
-  ofYourExpenses: { es: "de tus gastos", en: "of your expenses" },
-  customizeStats: { es: "Personalizar", en: "Customize" },
-  customizeStatsTitle: { es: "Personalizar estadísticas", en: "Customize statistics" },
-  reorderHint: { es: "Reordena con las flechas y muestra u oculta cada sección.", en: "Reorder with arrows and show or hide each section." },
-  bars: { es: "Barras", en: "Bars" },
-  pie: { es: "Pastel", en: "Pie" },
-  donut: { es: "Dona", en: "Donut" },
-  slideToSee: { es: "Desliza sobre la gráfica para ver cualquier día", en: "Slide over the chart to see any day" },
-  // Categories tab
-  eachAccountHasOwn: { es: "Cada cuenta tiene sus propias categorías.", en: "Each account has its own categories." },
-  totalsAreFrom: { es: "Los totales son de", en: "Totals are from" },
-  noRecurring: { es: "No tienes movimientos recurrentes. Crea uno para que se registre automáticamente.", en: "No recurring movements. Create one to have it registered automatically." },
-  activeCount: { es: "activo", en: "active" },
-  autoGenerated: { es: "se generan solos en su fecha", en: "auto-generated on their date" },
-  addCategoryTo: { es: "Agregar categoría a", en: "Add category to" },
-  noCats: { es: "Sin categorías.", en: "No categories." },
-  inPeriod: { es: "en el periodo", en: "in period" },
-  // Assistant
-  assistant: { es: "Asistente", en: "Assistant" },
-  close: { es: "Cerrar", en: "Close" },
-  send: { es: "Enviar", en: "Send" },
-  releaseToSend: { es: "Suelta para enviar", en: "Release to send" },
-  listening: { es: "Escuchando…", en: "Listening…" },
-  // General
-  loading: { es: "Cargando…", en: "Loading…" },
-  user: { es: "Usuario", en: "User" },
-  from: { es: "Desde", en: "From" },
-  to: { es: "Hasta", en: "To" },
-  apply: { es: "Aplicar", en: "Apply" },
-  male: { es: "Hombre", en: "Male" },
-  female: { es: "Mujer", en: "Female" },
-  other: { es: "Otro", en: "Other" },
-  paused: { es: "pausado", en: "paused" },
-};
-const t = (key) => (STRINGS[key] || {})[_lang] || (STRINGS[key] || {}).es || key;
-
-/* ===== Motor de movimientos recurrentes =====
- * Una regla recurrente vive en config.recurring[] con forma:
- * { id, type:"expense"|"income", amount, description, accountId, categoryId,
- *   freq:"daily"|"weekly"|"biweekly"|"monthly"|"yearly", startDate:"YYYY-MM-DD",
- *   lastRun:"YYYY-MM-DD"|null, active:true }
- */
-const FREQ_LABELS_FN = () => ({
-  daily: t("daily"), weekly: t("weekly"), biweekly: t("biweekly"),
-  monthly: t("monthly"), yearly: t("yearly"),
-});
-// Una regla está activa salvo que esté pausada explícitamente (compat: asistente usa `paused`, modal usa `active`)
-const isRecActive = (r) => r.active !== false && r.paused !== true;
-
-/* ===== Dictado por voz (Web Speech API) ===== */
-const SpeechRec = typeof window !== "undefined"
-  ? (window.SpeechRecognition || window.webkitSpeechRecognition)
-  : null;
-const voiceSupported = !!SpeechRec;
-const isoToDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
-const dateToIso = (dt) => {
-  const y = dt.getFullYear(); const m = String(dt.getMonth() + 1).padStart(2, "0"); const d = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-// avanza una fecha según la frecuencia
-const advanceDate = (dt, freq) => {
-  const n = new Date(dt);
-  if (freq === "daily") n.setDate(n.getDate() + 1);
-  else if (freq === "weekly") n.setDate(n.getDate() + 7);
-  else if (freq === "biweekly") n.setDate(n.getDate() + 14);
-  else if (freq === "monthly") n.setMonth(n.getMonth() + 1);
-  else if (freq === "yearly") n.setFullYear(n.getFullYear() + 1);
-  return n;
-};
-// genera todos los movimientos pendientes de una regla, desde startDate (o lastRun) hasta hoy
-const runRecurringRules = (recurring) => {
-  if (!recurring || !recurring.length) return { newTxs: [], updatedRecurring: recurring || [] };
-  const todayIso = today();
-  const todayD = isoToDate(todayIso);
-  const newTxs = [];
-  const updatedRecurring = recurring.map((r) => {
-    if (!isRecActive(r)) return r;
-    // primera fecha pendiente
-    let cursor;
-    if (r.lastRun) {
-      cursor = advanceDate(isoToDate(r.lastRun), r.freq);
-    } else {
-      cursor = isoToDate(r.startDate);
-    }
-    let lastRun = r.lastRun;
-    let guard = 0;
-    while (cursor <= todayD && guard < 1000) {
-      const iso = dateToIso(cursor);
-      newTxs.push({
-        id: uid(),
-        type: r.type,
-        amount: r.amount,
-        description: r.description,
-        categoryId: r.categoryId || null,
-        accountId: r.accountId,
-        date: iso,
-        recurringId: r.id,
-      });
-      lastRun = iso;
-      cursor = advanceDate(cursor, r.freq);
-      guard++;
-    }
-    return { ...r, lastRun };
-  });
-  return { newTxs, updatedRecurring };
-};
-
-const fmtBare = (n) => {
-  const v = n || 0;
-  const hasDecimals = v % 1 !== 0;
-  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN",
-    minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: hasDecimals ? 2 : 0 }).format(v);
-};
-const fmt = (n) => `${fmtBare(n)} mxn`;
-const fmtMxn = (n) => fmt(n);
+const fmt = (n) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 2 }).format(n || 0);
 const norm = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
 const monthLabel = (mk) => {
@@ -1412,7 +1043,6 @@ function applyActions(config0, txs0, actions) {
             startDate: a.startDate || today(),
             endDate: a.endDate || undefined,
             paused: false,
-            active: true,
           };
           config = { ...config, recurring: [...(config.recurring || []), rule] };
           // ejecutar de inmediato lo pendiente
@@ -1859,29 +1489,19 @@ Tu respuesta:
 {"message":"Marqué el ingreso de $7,500 como dinero de paso. No contará en tus estadísticas.","actions":[{"type":"mark_passthrough","ids":["t-aa"]}]}`;
 }
 
-/* persistencia — Firestore */
+/* persistencia */
+const hasStore = typeof window !== "undefined" && window.storage;
 async function loadAll() {
-  const u = auth.currentUser;
-  if (!u) return { config: null, txs: [] };
   let config = null, txs = [];
-  try {
-    const snap = await getDoc(doc(db, "users", u.uid, "data", "config"));
-    if (snap.exists()) config = snap.data().value;
-  } catch (e) { console.error("loadAll config", e); }
-  try {
-    const snap = await getDoc(doc(db, "users", u.uid, "data", "txs"));
-    if (snap.exists()) txs = snap.data().value || [];
-  } catch (e) { console.error("loadAll txs", e); }
+  if (hasStore) {
+    try { const r = await window.storage.get("cc:config"); if (r) config = JSON.parse(r.value); } catch (e) {}
+    try { const r = await window.storage.get("cc:txs"); if (r) txs = JSON.parse(r.value); } catch (e) {}
+  }
   return { config, txs };
 }
-
 async function persist(key, val) {
-  const u = auth.currentUser;
-  if (!u) return;
-  const field = key === "cc:config" ? "config" : "txs";
-  try {
-    await setDoc(doc(db, "users", u.uid, "data", field), { value: val });
-  } catch (e) { console.error("persist", e); }
+  if (!hasStore) return;
+  try { await window.storage.set(key, JSON.stringify(val)); } catch (e) { console.error("storage", e); }
 }
 
 /* llamada a Claude con imágenes (visión) */
@@ -1893,19 +1513,14 @@ async function callClaudeVision(system, userText, imagesB64) {
     })),
     { type: "text", text: userText },
   ];
-  const body = { model: "claude-sonnet-4-6", max_tokens: 4000, system, messages: [{ role: "user", content }] };
-  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
-  let res;
-  if (isLocal) {
-    const key = import.meta.env.VITE_ANTHROPIC_KEY;
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
-      body: JSON.stringify(body),
-    });
-  } else {
-    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  }
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 4000, system,
+      messages: [{ role: "user", content }],
+    }),
+  });
   if (!res.ok) throw new Error("vision " + res.status);
   const data = await res.json();
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -1928,65 +1543,20 @@ function fileToB64(file) {
 
 /* llamada a Claude */
 async function callClaude(system, messages) {
-  const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
-  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
-  let res;
-  if (isLocal) {
-    const key = import.meta.env.VITE_ANTHROPIC_KEY;
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
-      body: JSON.stringify(body),
-    });
-  } else {
-    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  }
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system, messages }),
+  });
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
-  return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return text;
 }
 function parseJSON(text) {
   const clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
   const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
   return JSON.parse(a >= 0 && b >= 0 ? clean.slice(a, b + 1) : clean);
-}
-
-/* Categorizador compartido: keywords locales -> Claude.
- * Devuelve { catId, sure }. catId=null si no encuentra nada seguro. */
-async function autoCategorize(desc, type, accountId, config) {
-  const nd = norm(desc);
-  const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
-  // 1) claves locales de las categorías de ESTA cuenta
-  for (const c of cats) {
-    for (const kw of c.keywords || []) {
-      if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
-    }
-  }
-  // 2) claves aprendidas en otras cuentas con mismo nombre/tipo
-  for (const c of cats) {
-    const twins = config.categories.filter(
-      (x) => x.id !== c.id && x.type === c.type && norm(x.name).trim() === norm(c.name).trim()
-    );
-    for (const twin of twins) {
-      for (const kw of twin.keywords || []) {
-        if (nd.includes(norm(kw))) return { catId: c.id, sure: true };
-      }
-    }
-  }
-  // 3) Claude
-  try {
-    const sys =
-      'Eres un clasificador de transacciones personales. Responde SOLO con un objeto JSON, sin markdown ni texto extra: {"categoryId":"<id>" o null,"confident":true|false}. Devuelve null y confident:false si no estás razonablemente seguro.';
-    const user = `Tipo: ${type === "income" ? "ingreso" : "gasto"}. Descripción: "${desc}". Categorías disponibles: ${JSON.stringify(
-      cats.map((c) => ({ id: c.id, name: c.name }))
-    )}`;
-    const raw = await callClaude(sys, [{ role: "user", content: user }]);
-    const p = parseJSON(raw);
-    const valid = cats.some((c) => c.id === p.categoryId);
-    if (valid && p.confident) return { catId: p.categoryId, sure: true };
-    if (valid) return { catId: p.categoryId, sure: false };
-  } catch (e) { /* sin API */ }
-  return { catId: null, sure: false };
 }
 
 /* categorías por defecto para una cuenta nueva */
@@ -2092,688 +1662,40 @@ function migrate(config, txs) {
 }
 
 /* ========================================================================= */
-/* =========================================================================
-   AUTH — pantallas de bienvenida, login, registro, recuperar contraseña
-   ========================================================================= */
-
-const AUTH_INK = "#1B2230";
-const AUTH_INK_SOFT = "#6B7585";
-const AUTH_GREEN = "#1A7A6E";
-const AUTH_LINE = "#DDE2E9";
-const AUTH_CORAL = "#B5453A";
-
-const COUNTRIES = [
-  { name: "Mexico", flag: "🇲🇽" },
-  { name: "United States", flag: "🇺🇸" },
-  { name: "Argentina", flag: "🇦🇷" },
-  { name: "Bolivia", flag: "🇧🇴" },
-  { name: "Brazil", flag: "🇧🇷" },
-  { name: "Canada", flag: "🇨🇦" },
-  { name: "Chile", flag: "🇨🇱" },
-  { name: "Colombia", flag: "🇨🇴" },
-  { name: "Costa Rica", flag: "🇨🇷" },
-  { name: "Cuba", flag: "🇨🇺" },
-  { name: "Ecuador", flag: "🇪🇨" },
-  { name: "El Salvador", flag: "🇸🇻" },
-  { name: "España", flag: "🇪🇸" },
-  { name: "Guatemala", flag: "🇬🇹" },
-  { name: "Honduras", flag: "🇭🇳" },
-  { name: "Nicaragua", flag: "🇳🇮" },
-  { name: "Panama", flag: "🇵🇦" },
-  { name: "Paraguay", flag: "🇵🇾" },
-  { name: "Peru", flag: "🇵🇪" },
-  { name: "Puerto Rico", flag: "🇵🇷" },
-  { name: "Dominican Republic", flag: "🇩🇴" },
-  { name: "Uruguay", flag: "🇺🇾" },
-  { name: "Venezuela", flag: "🇻🇪" },
-];
-
-function ZafiLogo() {
-  return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-      <span style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:38,
-        letterSpacing:"-.05em", color:AUTH_INK, fontFeatureSettings:'"ss01"', lineHeight:1 }}>
-        zafi
-      </span>
-      <div style={{ fontFamily:"'Montserrat',sans-serif", fontSize:13, color:AUTH_INK_SOFT, letterSpacing:".01em", fontWeight:400 }}>
-        Finanzas personales con IA
-      </div>
-    </div>
-  );
-}
-
-function AuthScreen() {
-  const [screen, setScreen] = useState("welcome");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [name, setName] = useState("");
-  const [gender, setGender] = useState("");
-  const [age, setAge] = useState("");
-  const [country, setCountry] = useState("Mexico");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
-
-  function reset() { setEmail(""); setPassword(""); setConfirm(""); setName(""); setGender(""); setAge(""); setCountry("Mexico"); setErr(""); setOk(""); }
-  function go(s) { reset(); setScreen(s); }
-
-  function ferr(code) {
-    return ({
-      "auth/email-already-in-use": "Ya existe una cuenta con ese correo.",
-      "auth/invalid-email": "El correo no es válido.",
-      "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
-      "auth/user-not-found": "No encontramos una cuenta con ese correo.",
-      "auth/wrong-password": "Contraseña incorrecta.",
-      "auth/invalid-credential": "Correo o contraseña incorrectos.",
-      "auth/too-many-requests": "Demasiados intentos. Espera un momento.",
-      "auth/network-request-failed": "Sin conexión a internet.",
-    })[code] || "Algo salió mal. Intenta de nuevo.";
-  }
-
-  async function doRegister() {
-    if (!name.trim()) { setErr("Enter your name."); return; }
-    if (!gender) { setErr("Select your gender."); return; }
-    if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
-    if (!country.trim()) { setErr("Select your country."); return; }
-    if (!email || !password || !confirm) { setErr("Fill in all fields."); return; }
-    if (password !== confirm) { setErr("Passwords don't match."); return; }
-    if (password.length < 6) { setErr("Password must be at least 6 characters."); return; }
-    setBusy(true); setErr("");
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      // guardar perfil dentro del config para que no vuelva a pedir ProfileSetup
-      const avatarId = defaultAvatarForGender(gender);
-      try {
-        await setDoc(doc(db, "users", cred.user.uid, "data", "config"), {
-          value: {
-            userName: name.trim(), userGender: gender, userAge: Number(age),
-            userCountry: country.trim(), ...(avatarId ? { avatarId } : {}),
-          }
-        }, { merge: true });
-      } catch (e) { /* no bloquea el registro */ }
-    }
-    catch(e) { setErr(ferr(e.code)); }
-    finally { setBusy(false); }
-  }
-
-  async function doLogin() {
-    if (!email || !password) { setErr("Llena todos los campos."); return; }
-    setBusy(true); setErr("");
-    try { await signInWithEmailAndPassword(auth, email, password); }
-    catch(e) { setErr(ferr(e.code)); }
-    finally { setBusy(false); }
-  }
-
-  async function doForgot() {
-    if (!email) { setErr("Escribe tu correo primero."); return; }
-    setBusy(true); setErr(""); setOk("");
-    try { await sendPasswordResetEmail(auth, email); setOk("Te enviamos un correo para restablecer tu contraseña."); }
-    catch(e) { setErr(ferr(e.code)); }
-    finally { setBusy(false); }
-  }
-
-  const FONT = "'Montserrat', sans-serif";
-  const inp = {
-    width:"100%", padding:"14px 16px", borderRadius:16,
-    border:"1px solid rgba(255,255,255,.5)", fontSize:15, fontFamily:FONT, fontWeight:400,
-    background:"rgba(255,255,255,.55)", color:AUTH_INK, outline:"none",
-    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
-  };
-  const btnP = {
-    width:"100%", padding:15, borderRadius:99, border:"none",
-    background:AUTH_INK, color:"#fff", fontSize:15, fontWeight:600,
-    fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1,
-    letterSpacing:"-.01em", transition:"transform .1s ease",
-  };
-  const btnS = {
-    width:"100%", padding:14, borderRadius:99,
-    border:"1px solid rgba(255,255,255,.5)", background:"rgba(255,255,255,.45)",
-    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
-    color:AUTH_INK, fontSize:15, fontWeight:500,
-    fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
-  };
-  const lnk = {
-    background:"none", border:"none", color:AUTH_GREEN,
-    fontSize:14, fontFamily:FONT, cursor:"pointer",
-    fontWeight:600, padding:0,
-  };
-  const lbl = {
-    fontFamily:FONT, fontSize:12, fontWeight:600, color:AUTH_INK_SOFT,
-    letterSpacing:".02em", marginBottom:6, display:"block",
-  };
-  const wrap = {
-    minHeight:"100vh", display:"flex", flexDirection:"column",
-    alignItems:"center", justifyContent:"center", padding:"40px 24px",
-    background:"#DCE1E8", position:"relative", overflow:"hidden",
-  };
-  const blob = {
-    position:"absolute", width:280, height:280, borderRadius:"50%",
-    background:"radial-gradient(circle, rgba(96,165,250,.25) 0%, rgba(96,165,250,.05) 60%, transparent 80%)",
-    filter:"blur(40px)", top:"15%", right:"-10%", pointerEvents:"none",
-  };
-  const blob2 = {
-    position:"absolute", width:200, height:200, borderRadius:"50%",
-    background:"radial-gradient(circle, rgba(167,139,250,.18) 0%, rgba(167,139,250,.04) 60%, transparent 80%)",
-    filter:"blur(30px)", bottom:"20%", left:"-5%", pointerEvents:"none",
-  };
-  const box = {
-    width:"100%", maxWidth:360, display:"flex", flexDirection:"column", gap:24,
-  };
-
-  if (screen === "welcome") return (
-    <div style={{ minHeight:"100vh", position:"relative", overflow:"hidden", background:"#DCE1E8",
-      display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
-      {/* video de fondo */}
-      <video
-        ref={(el) => {
-          if (el) {
-            el.muted = true;
-            const p = el.play();
-            if (p && p.catch) p.catch(() => {});
-          }
-        }}
-        autoPlay muted loop playsInline preload="auto"
-        style={{ position:"absolute", inset:0, width:"100%", height:"100%",
-          objectFit:"cover", zIndex:0, background:"#DCE1E8" }}
-      >
-        <source src="/zafi-intro.mp4" type="video/mp4" />
-      </video>
-      {/* degradado para legibilidad abajo */}
-      <div style={{ position:"absolute", inset:0, zIndex:1, pointerEvents:"none",
-        background:"linear-gradient(to bottom, rgba(220,225,232,0) 35%, rgba(220,225,232,.55) 70%, rgba(220,225,232,.85) 100%)" }} />
-
-      {/* contenido abajo */}
-      <div style={{ position:"relative", zIndex:2, padding:"0 26px calc(34px + env(safe-area-inset-bottom))",
-        display:"flex", flexDirection:"column", gap:22 }}>
-        <div>
-          <div style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:56,
-            letterSpacing:"-.05em", color:AUTH_INK, lineHeight:1, fontFeatureSettings:'"ss01"' }}>zafi</div>
-          <div style={{ fontFamily:"'Montserrat',sans-serif", fontWeight:400, fontSize:16,
-            color:AUTH_INK_SOFT, marginTop:6, letterSpacing:"-.01em" }}>
-            finanzas personales con <span style={{ fontFamily:"'Fraunces',serif", fontStyle:"italic" }}>IA</span>
-          </div>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button
-            style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.6)",
-              background:"rgba(255,255,255,.65)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-              color:AUTH_INK, fontSize:15, fontWeight:600, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
-              letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.12)" }}
-            onClick={() => go("method")}>Crear cuenta</button>
-          <button
-            style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.25)",
-              background:"rgba(27,34,48,.55)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-              color:"#fff", fontSize:15, fontWeight:500, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
-              letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.18)" }}
-            onClick={() => go("login")}>Iniciar sesión</button>
-        </div>
-        <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.5, opacity:.75, fontFamily:"'Montserrat', sans-serif" }}>
-          Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
-        </div>
-      </div>
-    </div>
-  );
-
-  // ===== Shared step page wrapper =====
-  const stepWrap = {
-    minHeight:"100vh", display:"flex", flexDirection:"column",
-    background:"#EAEEF4", position:"relative", fontFamily:FONT,
-  };
-  const backBtn = {
-    position:"absolute", top:20, left:20, zIndex:2, width:44, height:44,
-    borderRadius:"50%", border:"none", background:"#fff",
-    boxShadow:"0 2px 10px rgba(30,40,60,.1)", cursor:"pointer",
-    fontSize:20, display:"flex", alignItems:"center", justifyContent:"center",
-    color:AUTH_INK, fontFamily:FONT,
-  };
-  const stepBottom = {
-    padding:"0 26px calc(28px + env(safe-area-inset-bottom))",
-    display:"flex", flexDirection:"column", gap:12,
-  };
-
-  // ===== PASO 1: Método (Continue with email / Google / Apple) =====
-  if (screen === "method") return (
-    <div style={{ ...stepWrap, justifyContent:"flex-end" }}>
-      <button style={backBtn} onClick={() => go("welcome")}>‹</button>
-      <div style={{ flex:1 }} />
-      <div style={{ padding:"0 26px 32px" }}>
-        <div style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:64,
-          letterSpacing:"-.05em", color:AUTH_INK, lineHeight:1, fontFeatureSettings:'"ss01"' }}>zafi</div>
-      </div>
-      <div style={stepBottom}>
-        <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("country"); }}>
-          Continue with your email
-        </button>
-        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
-          background:"#4285F4", color:"#fff", fontSize:15, fontWeight:600,
-          fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
-          onClick={async () => {
-            setBusy(true); setErr("");
-            try {
-              const gp = new GoogleAuthProvider();
-              await signInWithPopup(auth, gp);
-            }
-            catch(e) { setErr(ferr(e.code)); }
-            setBusy(false);
-          }}
-          disabled={busy}>
-          Continue with Google
-          <span style={{ fontSize:18, fontWeight:700 }}>G</span>
-        </button>
-        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
-          background:"#000", color:"#fff", fontSize:15, fontWeight:600,
-          fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
-          onClick={async () => {
-            setBusy(true); setErr("");
-            try {
-              const ap = new OAuthProvider("apple.com");
-              await signInWithPopup(auth, ap);
-            }
-            catch(e) { setErr(ferr(e.code)); }
-            setBusy(false);
-          }}
-          disabled={busy}>
-          Continue with Apple
-          <span style={{ fontSize:18 }}></span>
-        </button>
-        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, textAlign:"center" }}>{err}</div>}
-      </div>
-    </div>
-  );
-
-  // ===== PASO 2: País =====
-  const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
-  if (screen === "country") return (
-    <div style={{ ...stepWrap }}>
-      <button style={backBtn} onClick={() => { setErr(""); setScreen("method"); }}>‹</button>
-      <div style={{ flex:1, padding:"90px 26px 0" }}>
-        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Country of Residence
-        </div>
-        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          We need to collect a few personal details to verify you're elegible for an account
-        </div>
-        <div style={{ marginTop:32 }}>
-          <div style={{ fontSize:13, color:AUTH_INK_SOFT, marginBottom:8 }}>Country</div>
-          <div style={{ position:"relative" }}>
-            <select
-              value={country}
-              onChange={e => setCountry(e.target.value)}
-              style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
-                fontFamily:FONT, color:"transparent", background:"transparent",
-                border:"none", borderBottom:"1px solid rgba(27,34,48,.15)",
-                outline:"none", appearance:"none", cursor:"pointer",
-                position:"relative", zIndex:1 }}>
-              {COUNTRIES.map(c => (
-                <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>
-              ))}
-            </select>
-            <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:AUTH_INK, pointerEvents:"none" }}>
-              {selCountry.flag} {selCountry.name}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={stepBottom}>
-        <div style={{ fontSize:13, color:AUTH_INK_SOFT, lineHeight:1.6, marginBottom:4 }}>
-          By tapping Get started, you agree to Zafi's <span style={{ textDecoration:"underline", cursor:"pointer" }}>Terms and Conditions</span> and <span style={{ textDecoration:"underline", cursor:"pointer" }}>Privacy Policy</span>, and represent that you are acting on your own behalf.
-        </div>
-        <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("profile"); }}>
-          Get started
-        </button>
-      </div>
-    </div>
-  );
-
-  // ===== PASO 3: Datos personales (Nombre, Edad, Género) =====
-  if (screen === "profile") return (
-    <div style={{ ...stepWrap }}>
-      <button style={backBtn} onClick={() => { setErr(""); setScreen("country"); }}>‹</button>
-      <div style={{ flex:1, padding:"90px 26px 0" }}>
-        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          About you
-        </div>
-        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          Tell us a bit about yourself so we can personalize your experience.
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
-          <div>
-            <label style={lbl}>Name</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="text" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Age</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)", width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
-              onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
-          </div>
-          <div>
-            <label style={lbl}>Gender</label>
-            <div style={{ display:"flex", gap:9 }}>
-              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
-                <button key={k} type="button" onClick={()=>setGender(k)}
-                  style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
-                    fontSize:14, fontWeight:gender===k?600:400,
-                    background: gender===k ? AUTH_INK : "rgba(255,255,255,.7)",
-                    color: gender===k ? "#fff" : AUTH_INK,
-                    border:`1px solid ${gender===k ? AUTH_INK : "rgba(0,0,0,.08)"}`,
-                    transition:"background .15s, color .15s" }}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, marginTop:12 }}>{err}</div>}
-      </div>
-      <div style={stepBottom}>
-        <button style={{ ...btnP, borderRadius:99 }}
-          onClick={() => {
-            if (!name.trim()) { setErr("Enter your name."); return; }
-            if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
-            if (!gender) { setErr("Select your gender."); return; }
-            setErr(""); setScreen("credentials");
-          }}>
-          Continue
-        </button>
-      </div>
-    </div>
-  );
-
-  // ===== PASO 4: Credenciales (Email + Contraseña) =====
-  if (screen === "credentials") return (
-    <div style={{ ...stepWrap }}>
-      <button style={backBtn} onClick={() => { setErr(""); setScreen("profile"); }}>‹</button>
-      <div style={{ flex:1, padding:"90px 26px 0" }}>
-        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Create your account
-        </div>
-        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          You'll use this email and password to sign in.
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:28 }}>
-          <div>
-            <label style={lbl}>Email</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Password</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="At least 6 characters" value={password} onChange={e=>setPassword(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Confirm password</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="Repeat your password" value={confirm} onChange={e=>setConfirm(e.target.value)} />
-          </div>
-        </div>
-        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, marginTop:12 }}>{err}</div>}
-      </div>
-      <div style={stepBottom}>
-        <button style={{ ...btnP, borderRadius:99 }} onClick={doRegister} disabled={busy}>
-          {busy ? "Creating account…" : "Create account"}
-        </button>
-      </div>
-    </div>
-  );
-
-  if (screen === "login") return (
-    <div style={wrap}>
-      <div style={blob} />
-      <div style={blob2} />
-      <div style={{ ...box, position:"relative", zIndex:1 }}>
-        <ZafiLogo />
-        <div>
-          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Bienvenido de vuelta</div>
-          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div>
-            <label style={lbl}>Correo electrónico</label>
-            <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Contraseña</label>
-            <input style={inp} type="password" placeholder="Tu contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
-          </div>
-        </div>
-        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={doLogin} disabled={busy}>{busy?"Entrando…":"Iniciar sesión"}</button>
-          <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
-        </div>
-        <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT, display:"flex", flexDirection:"column", gap:8 }}>
-          <button style={lnk} onClick={() => go("forgot")}>¿Olvidaste tu contraseña?</button>
-          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("method")}>Crear cuenta</button></span>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (screen === "forgot") return (
-    <div style={wrap}>
-      <div style={blob} />
-      <div style={blob2} />
-      <div style={{ ...box, position:"relative", zIndex:1 }}>
-        <ZafiLogo />
-        <div>
-          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
-          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT, lineHeight:1.5 }}>Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.</div>
-        </div>
-        <div>
-          <label style={lbl}>Correo electrónico</label>
-          <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
-        </div>
-        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
-        {ok && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_GREEN, fontWeight:500 }}>{ok}</div>}
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={doForgot} disabled={busy}>{busy?"Enviando…":"Enviar correo"}</button>
-          <button style={btnS} onClick={() => go("login")}>← Regresar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================================
-   APP — componente principal
-   ========================================================================= */
-/* ===================== PROFILE SETUP (post-auth for Google/Apple) ======= */
-function ProfileSetup({ user, config, saveConfig, onDone }) {
-  const FONT = "'Montserrat', sans-serif";
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [country, setCountry] = useState("Mexico");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
-
-  const save = async () => {
-    if (!name.trim()) { setErr("Enter your name."); return; }
-    if (!age || Number(age) < 1) { setErr("Enter a valid age."); return; }
-    if (!gender) { setErr("Select your gender."); return; }
-    setBusy(true); setErr("");
-    try {
-      const avatarId = defaultAvatarForGender(gender);
-      const profileData = {
-        userName: name.trim(), userGender: gender, userAge: Number(age),
-        userCountry: country, ...(avatarId ? { avatarId } : {}),
-      };
-      // merge into existing config or create minimal config
-      const updated = { ...(config || {}), ...profileData };
-      saveConfig(updated);
-      onDone();
-    } catch (e) { setErr("Something went wrong. Try again."); }
-    setBusy(false);
-  };
-
-  const stepWrap = {
-    minHeight:"100vh", display:"flex", flexDirection:"column",
-    background:"#EAEEF4", fontFamily:FONT,
-  };
-  const lbl = { fontFamily:FONT, fontSize:12, fontWeight:600, color:"#6B7585", letterSpacing:".02em", marginBottom:6, display:"block" };
-  const inp = { width:"100%", padding:"14px 16px", borderRadius:16,
-    border:"1px solid rgba(0,0,0,.06)", fontSize:15, fontFamily:FONT, fontWeight:400,
-    background:"rgba(255,255,255,.7)", color:"#1B2230", outline:"none" };
-
-  return (
-    <div style={stepWrap}>
-      <div style={{ flex:1, padding:"100px 26px 0" }}>
-        <div style={{ fontSize:28, fontWeight:700, color:"#1B2230", letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Welcome to Zafi
-        </div>
-        <div style={{ fontSize:14, color:"#6B7585", marginTop:8, lineHeight:1.6 }}>
-          Tell us a bit about yourself so we can personalize your experience.
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
-          <div>
-            <label style={lbl}>Your name</label>
-            <input style={inp} type="text" placeholder="How should we call you?" value={name} onChange={e=>setName(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Age</label>
-            <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
-              onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
-          </div>
-          <div>
-            <label style={lbl}>Gender</label>
-            <div style={{ display:"flex", gap:9 }}>
-              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
-                <button key={k} type="button" onClick={()=>setGender(k)}
-                  style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
-                    fontSize:14, fontWeight:gender===k?600:400,
-                    background: gender===k ? "#1B2230" : "rgba(255,255,255,.7)",
-                    color: gender===k ? "#fff" : "#1B2230",
-                    border:`1px solid ${gender===k ? "#1B2230" : "rgba(0,0,0,.08)"}`,
-                    transition:"background .15s, color .15s" }}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label style={lbl}>Country</label>
-            <div style={{ position:"relative" }}>
-              <select value={country} onChange={e => setCountry(e.target.value)}
-                style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
-                  fontFamily:FONT, color:"transparent", background:"transparent",
-                  border:"none", borderBottom:"1px solid rgba(27,34,48,.15)",
-                  outline:"none", appearance:"none", cursor:"pointer", position:"relative", zIndex:1 }}>
-                {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>)}
-              </select>
-              <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:"#1B2230", pointerEvents:"none" }}>
-                {selCountry.flag} {selCountry.name}
-              </div>
-            </div>
-          </div>
-        </div>
-        {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:12 }}>{err}</div>}
-      </div>
-      <div style={{ padding:"0 26px calc(28px + env(safe-area-inset-bottom))" }}>
-        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
-          background:"#1B2230", color:"#fff", fontSize:15, fontWeight:600,
-          fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1 }}
-          onClick={save} disabled={busy}>
-          {busy ? "Saving…" : "Continue"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===================== SPLASH SCREEN ==================================== */
-function SplashScreen({ onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 2100);
-    return () => clearTimeout(t);
-  }, [onDone]);
-
-  return (
-    <div className="cc-splash">
-      <style>{STYLE}</style>
-      <div className="cc-splash-orb" />
-      <div className="cc-splash-word">zafi</div>
-      <div className="cc-splash-tag">finanzas con IA</div>
-    </div>
-  );
-}
-
 export default function App() {
-  const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [config, setConfig] = useState(null);
   const [txs, setTxs] = useState([]);
   const [toast, setToast] = useState(null);
-  const [user, setUser] = useState(undefined); // undefined=cargando, null=no logueado
-  const [profileDone, setProfileDone] = useState(false); // did user complete profile?
 
   useEffect(() => {
     if (typeof document !== "undefined") document.title = "Zafi · Finanzas personales con IA";
   }, []);
 
-  // Escuchar sesión de Firebase
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
-    return () => unsub();
-  }, []);
-
-  // Cargar datos locales — siempre se define, solo corre cuando hay usuario
-  useEffect(() => {
-    if (!user) { setProfileDone(false); setLoaded(false); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const { config: c, txs: t } = await loadAll();
-        if (cancelled) return;
-        if (c) {
-          const m = migrate(c, t || []);
-          const r = processRecurring(m.config, m.txs);
-          setConfig(r.config);
-          setTxs(r.txs);
-          const configChanged = m.config !== c || r.generated > 0;
-          const txsChanged = m.txs !== t || r.generated > 0;
-          if (configChanged) persist("cc:config", r.config);
-          if (txsChanged) persist("cc:txs", r.txs);
-          if (r.generated > 0) {
-            setTimeout(() => {
-              setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
-              setTimeout(() => setToast(null), 2800);
-            }, 600);
-          }
-        } else if (t) {
-          setTxs(t);
+    loadAll().then(({ config, txs }) => {
+      if (config) {
+        const m = migrate(config, txs || []);
+        // ejecutar recurrencias pendientes
+        const r = processRecurring(m.config, m.txs);
+        setConfig(r.config);
+        setTxs(r.txs);
+        const configChanged = m.config !== config || r.generated > 0;
+        const txsChanged = m.txs !== txs || r.generated > 0;
+        if (configChanged) persist("cc:config", r.config);
+        if (txsChanged) persist("cc:txs", r.txs);
+        if (r.generated > 0) {
+          setTimeout(() => {
+            setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
+            setTimeout(() => setToast(null), 2800);
+          }, 600);
         }
-        // Check if user has completed profile (stored in config)
-        // Also accept existing users who have setupComplete but no userName yet
-        const hasProfile = !!(c && (c.userName || c.setupComplete));
-        if (!cancelled) setProfileDone(hasProfile);
-      } catch (e) {
-        console.error("load error", e);
-        if (!cancelled) setProfileDone(false);
+      } else if (txs) {
+        setTxs(txs);
       }
-      if (!cancelled) setLoaded(true);
-    })();
-    return () => { cancelled = true; };
-  }, [user]); // re-corre cuando cambia el usuario
-
-  // Splash de bienvenida — siempre primero al abrir la app
-  if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
-
-  // Pantalla de carga mientras Firebase verifica sesión
-  if (user === undefined) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center",
-      justifyContent:"center", background:"#DCE1E8" }}>
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
-        <span style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:26,
-          letterSpacing:"-.05em", color:"#1B2230" }}>zafi</span>
-        <div style={{ fontSize:13, color:"#A4ACBA" }}>Cargando…</div>
-      </div>
-    </div>
-  );
-
-  // Sin sesión → pantalla de Auth
-  if (!user) return <AuthScreen />;
+      setLoaded(true);
+    });
+  }, []);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -2782,10 +1704,10 @@ export default function App() {
   const saveConfig = (c) => { setConfig(c); persist("cc:config", c); };
   const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
   const resetAll = async () => {
-    const u = auth.currentUser;
-    if (u) {
-      try { await deleteDoc(doc(db, "users", u.uid, "data", "config")); } catch (e) {}
-      try { await deleteDoc(doc(db, "users", u.uid, "data", "txs")); } catch (e) {}
+    // borrar storage
+    if (hasStore) {
+      try { await window.storage.delete("cc:config"); } catch (e) {}
+      try { await window.storage.delete("cc:txs"); } catch (e) {}
     }
     setConfig(null);
     setTxs([]);
@@ -2796,32 +1718,15 @@ export default function App() {
     return (
       <div className="cc-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <style>{STYLE}</style>
-        <div className="cc-video-bg">
-          <video autoPlay muted loop playsInline preload="auto"
-            ref={(el) => { if (el) { el.muted = true; const p = el.play(); if (p && p.catch) p.catch(() => {}); } }}>
-            <source src="/zafi-bg.mp4" type="video/mp4" />
-          </video>
-        </div>
         <div className="cc-dots"><span /><span /><span /></div>
       </div>
     );
 
-  // Si el usuario no tiene perfil (Google/Apple sin nombre), pedir datos
-  if (!profileDone)
-    return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
-
   return (
     <div className="cc-root">
       <style>{STYLE}</style>
-      <div className="cc-video-bg">
-        <video autoPlay muted loop playsInline preload="auto"
-          ref={(el) => { if (el) { el.muted = true; const p = el.play(); if (p && p.catch) p.catch(() => {}); } }}>
-          <source src="/zafi-bg.mp4" type="video/mp4" />
-        </video>
-      </div>
-      <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
-        <Onboarding onDone={(built) => saveConfig({ ...config, ...built })} />
+        <Onboarding onDone={saveConfig} />
       ) : (
         <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
       )}
@@ -2954,19 +1859,15 @@ REGLAS DE RESPUESTA:
 
 /* =============================== MAIN ==================================== */
 function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
-  setAppLang(config.language || "es");
   const [tab, setTab] = useState("inicio");
   const [adding, setAdding] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatVoice, setChatVoice] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
-  const [recurringOpen, setRecurringOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
   const setDateRange = (newRange) => {
@@ -2974,32 +1875,6 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   };
 
   const balance = grandTotal(config, txs);
-
-  // === Motor de recurrentes: al cargar, genera movimientos pendientes ===
-  const recurringRanRef = useRef(false);
-  useEffect(() => {
-    if (recurringRanRef.current) return;
-    const rules = config.recurring || [];
-    if (!rules.length) return;
-    const { newTxs, updatedRecurring } = runRecurringRules(rules);
-    if (newTxs.length > 0) {
-      recurringRanRef.current = true;
-      saveTxs([...newTxs, ...txs]);
-      saveConfig({ ...config, recurring: updatedRecurring });
-      showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.recurring]);
-
-  const saveRecurring = (rules) => {
-    // al guardar reglas, corre inmediatamente las que ya tengan fechas vencidas
-    const { newTxs, updatedRecurring } = runRecurringRules(rules);
-    if (newTxs.length > 0) {
-      saveTxs([...newTxs, ...txs]);
-      showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
-    }
-    saveConfig({ ...config, recurring: updatedRecurring });
-  };
 
   const upsertTx = (tx, learnedCats, linkInfo) => {
     const exists = txs.some((t) => t.id === tx.id);
@@ -3047,35 +1922,38 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
 
-  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen || settingsOpen;
-
   return (
     <div>
-      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
+      <StickyHeader balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)}
+        tab={tab} setTab={setTab} />
 
       <div className="cc-wrap">
         {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
         {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
-        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
-        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
+        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} />}
+        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} />}
       </div>
 
-      <BottomNav
-        tab={tab}
-        setTab={setTab}
-        onOpenAssistant={(opts) => { setChatVoice(!!(opts && opts.voice)); setChatOpen(true); }}
-        hidden={overlayOpen}
-      />
+      <AssistantFab onOpen={() => setChatOpen(true)} />
 
-      <TopFab
-        open={addMenuOpen}
-        onToggle={() => setAddMenuOpen((v) => !v)}
-        onPickExcel={() => { setAddMenuOpen(false); setExcelOpen(true); }}
-        onPickScreenshot={() => { setAddMenuOpen(false); setImportOpen(true); }}
-        onPickManual={() => { setAddMenuOpen(false); setAdding(true); }}
-        onPickRecurring={() => { setAddMenuOpen(false); setRecurringOpen(true); }}
-        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || recurringOpen}
-      />
+
+      {addMenuOpen && (
+        <div className="cc-fab-menu">
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setExcelOpen(true); }}>
+            📊 Desde Excel
+          </button>
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setImportOpen(true); }}>
+            📸 Desde screenshot
+          </button>
+          <button className="cc-fab-mini" onClick={() => { setAddMenuOpen(false); setAdding(true); }}>
+            ✏️ Capturar manual
+          </button>
+        </div>
+      )}
+      <button className="cc-fab-add"
+        onClick={() => setAddMenuOpen((v) => !v)}
+        style={addMenuOpen ? { transform: "rotate(45deg)" } : null}
+        aria-label="Nuevo movimiento">＋</button>
 
       {(adding || editingTx) && (
         <AddModal
@@ -3102,8 +1980,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           txs={txs}
           saveConfig={saveConfig}
           saveTxs={saveTxs}
-          autoVoice={chatVoice}
-          onClose={() => { setChatOpen(false); setChatVoice(false); }}
+          onClose={() => setChatOpen(false)}
           onOpenImport={() => setImportOpen(true)}
         />
       )}
@@ -3128,24 +2005,6 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         />
       )}
 
-      {recurringOpen && (
-        <RecurringModal
-          config={config}
-          onClose={() => setRecurringOpen(false)}
-          onSave={saveRecurring}
-        />
-      )}
-
-      {settingsOpen && (
-        <SettingsModal
-          config={config}
-          saveConfig={saveConfig}
-          onClose={() => setSettingsOpen(false)}
-          showToast={showToast}
-          resetAll={resetAll}
-        />
-      )}
-
       {rangeOpen && (
         <DateRangeModal
           dateRange={dateRange}
@@ -3157,608 +2016,129 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   );
 }
 
-/* Iconos lineales del bottom nav (outline, sin emojis) */
-const NavIconHome = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 11l9-8 9 8" />
-    <path d="M5 10v10h14V10" />
-  </svg>
-);
-const NavIconHistory = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 1 0 3-6.7" />
-    <path d="M3 4v4h4" />
-    <path d="M12 8v4l3 2" />
-  </svg>
-);
-const NavIconCategories = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-  </svg>
-);
-const NavIconStats = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 20V10" />
-    <path d="M12 20V4" />
-    <path d="M20 20v-6" />
-  </svg>
-);
-
-/* Iconos lineales para chips de cabecera (sin emojis) */
-const IconGear = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-const IconCalendar = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <path d="M16 2v4M8 2v4M3 10h18" />
-  </svg>
-);
-
 /* StickyHeader: header pegajoso con logo, balance, chip de rango y tabs */
 /* Botón flotante del asistente — se monta en document.body para evitar
    problemas de stacking context (ancestros con transform/backdrop-filter
    rompen position:fixed). DOM nativo, no usa react-dom/createPortal. */
-/* BottomNav: barra inferior con Home / History / Orb IA / Categories / Statistics */
-function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
-  const orbRef = useRef(null);
-  const holdTimer = useRef(null);
-  const heldRef = useRef(false);
+function AssistantFab({ onOpen }) {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
 
-  const orbBurst = () => {
-    const orb = orbRef.current;
-    if (!orb) return;
-    const rect = orb.getBoundingClientRect();
-    for (let i = 0; i < 6; i++) {
-      const p = document.createElement("span");
-      p.style.cssText = `position:fixed;width:4px;height:4px;border-radius:50%;background:var(--orb-mint);pointer-events:none;left:${rect.left + rect.width / 2}px;top:${rect.top + rect.height / 2}px;z-index:9999;`;
-      document.body.appendChild(p);
-      const angle = (i / 6) * Math.PI * 2;
-      const dx = Math.cos(angle) * 22;
-      const dy = Math.sin(angle) * 22;
-      const anim = p.animate(
-        [{ transform: "translate(0,0) scale(1)", opacity: 1 },
-         { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
-        { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
-      );
-      anim.onfinish = () => p.remove();
-    }
-    orb.animate(
-      [{ transform: "translate(-50%,-50%) scale(1)" },
-       { transform: "translate(-50%,-50%) scale(.8)", offset: .3 },
-       { transform: "translate(-50%,-50%) scale(1.12)", offset: .6 },
-       { transform: "translate(-50%,-50%) scale(1)" }],
-      { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
-    );
-  };
+    const btn = document.createElement("button");
+    btn.className = "cc-fab";
+    btn.innerHTML = `
+      <span class="cc-blob-stage"><span class="cc-blob"></span></span>
+      <span>Asistente Zafi</span>
+    `;
 
-  // toque corto: abre asistente · mantener presionado: abre y dicta por voz
-  const onOrbDown = () => {
-    heldRef.current = false;
-    if (!voiceSupported) return;
-    holdTimer.current = setTimeout(() => {
-      heldRef.current = true;
-      if (navigator.vibrate) navigator.vibrate(12);
-      orbBurst();
-      onOpenAssistant({ voice: true });
-    }, 450);
-  };
-  const onOrbUp = () => {
-    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
-  };
-  const handleOrbClick = () => {
-    if (heldRef.current) { heldRef.current = false; return; } // ya se abrió por hold
-    orbBurst();
-    setTimeout(() => onOpenAssistant({ voice: false }), 120);
-  };
+    const handler = (e) => {
+      const stage = btn.querySelector(".cc-blob-stage");
+      if (stage) {
+        const rect = stage.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        const cx = rect.left - btnRect.left + rect.width / 2;
+        const cy = rect.top - btnRect.top + rect.height / 2;
+        for (let i = 0; i < 6; i++) {
+          const p = document.createElement("span");
+          p.style.cssText = `position:absolute;width:4px;height:4px;border-radius:50%;background:var(--gold);pointer-events:none;left:${cx}px;top:${cy}px;`;
+          btn.appendChild(p);
+          const angle = (i / 6) * Math.PI * 2;
+          const dx = Math.cos(angle) * 18;
+          const dy = Math.sin(angle) * 18;
+          const anim = p.animate(
+            [{ transform: "translate(0,0) scale(1)", opacity: 1 },
+             { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }],
+            { duration: 500, easing: "cubic-bezier(.2,.7,.2,1)" }
+          );
+          anim.onfinish = () => p.remove();
+        }
+        stage.animate(
+          [{ transform: "scale(1)" },
+           { transform: "scale(.7)", offset: .3 },
+           { transform: "scale(1.1)", offset: .6 },
+           { transform: "scale(1)" }],
+          { duration: 550, easing: "cubic-bezier(.34,1.56,.64,1)" }
+        );
+      }
+      setTimeout(onOpen, 120);
+    };
 
-  const NAV_ITEMS = [
-    ["inicio", "home",    NavIconHome],
-    ["movs",   "history", NavIconHistory],
-  ];
-  const NAV_ITEMS_2 = [
-    ["cats",  "categories", NavIconCategories],
-    ["stats", "statistics", NavIconStats],
-  ];
+    btn.addEventListener("click", handler);
+    document.body.appendChild(btn);
+    return () => {
+      btn.removeEventListener("click", handler);
+      if (btn.parentNode) btn.parentNode.removeChild(btn);
+    };
+  }, [onOpen]);
 
-  return (
-    <div className="cc-bottomnav" style={{
-      opacity: hidden ? 0 : 1,
-      transform: hidden ? "translateY(16px)" : "translateY(0)",
-      pointerEvents: hidden ? "none" : "auto",
-      transition: "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)",
-    }}>
-      <div className="cc-bottomnav-inner">
-        {NAV_ITEMS.map(([k, label, Icon]) => (
-          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
-            <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{t(label)}</span>
-          </button>
-        ))}
-
-        <div className="cc-orb-slot">
-          <button ref={orbRef} className="cc-orb-btn"
-            onClick={handleOrbClick}
-            onMouseDown={onOrbDown} onMouseUp={onOrbUp} onMouseLeave={onOrbUp}
-            onTouchStart={onOrbDown} onTouchEnd={onOrbUp}
-            aria-label="Asistente Zafi (mantén presionado para hablar)">
-            <span className="cc-orb" />
-          </button>
-        </div>
-
-        {NAV_ITEMS_2.map(([k, label, Icon]) => (
-          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
-            <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{t(label)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return null;
 }
 
-/* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
-function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
-  const items = [
-    { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
-    { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
-    { icon: "📸", label: t("fromScreenshot"), desc: t("fromScreenshotDesc"), onClick: onPickScreenshot },
-    { icon: "📊", label: t("fromExcel"), desc: t("fromExcelDesc"), onClick: onPickExcel },
-  ];
-  return (
-    <>
-      <button className={`cc-fab-top ${open ? "open" : ""}`}
-        onClick={onToggle}
-        style={{
-          opacity: hidden ? 0 : 1,
-          transform: hidden ? `${open ? "rotate(45deg) " : ""}translateY(-16px)` : (open ? "rotate(45deg)" : "none"),
-          pointerEvents: hidden ? "none" : "auto",
-          transition: "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)",
-        }}
-        aria-label="Nueva transacción">＋</button>
-
-      {open && !hidden && (
-        <div className="cc-overlay" onClick={onToggle}>
-          <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="cc-grip" />
-            <div className="cc-sheet-top">
-              <h2>{t("addMovement")}</h2>
-              <button className="cc-sheet-close" onClick={onToggle}>×</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
-              {items.map((it) => (
-                <button key={it.label} className="cc-card" onClick={it.onClick}
-                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 16px",
-                    cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--surface)",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                    {it.icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)", letterSpacing: "-.01em" }}>{it.label}</div>
-                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{it.desc}</div>
-                  </div>
-                  <span style={{ fontSize: 18, color: "var(--ink-faint)", flexShrink: 0 }}>›</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onOpenSettings }) {
+function StickyHeader({ balance, dateRange, onOpenRange, tab, setTab }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  // nombre del usuario — config.userName si existe, si no, derivado del correo
-  const email = auth.currentUser?.email || "";
-  const rawName = email.split("@")[0] || "Usuario";
-  const emailName = rawName
-    .replace(/[._\-]+/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(" ") || "Usuario";
-  const displayName = config?.userName || emailName;
-  const initial = displayName[0]?.toUpperCase() || "U";
-  const avatarSrc = getAvatarSrc(config);
+  // emoji que da pista del rango
+  const r = dateRange || DEFAULT_RANGE;
+  const emoji = r.preset === "today" ? "⚡"
+    : r.preset === "week" ? "📅"
+    : r.preset === "month" || r.preset === "last-month" ? "📆"
+    : r.preset === "3m" || r.preset === "6m" ? "📊"
+    : r.preset === "year" || r.preset === "last-year" ? "🗓️"
+    : r.preset === "all" ? "⏳"
+    : "✏️";
+
+  // fecha amigable, no tan editorial
+  const now = new Date();
+  const DAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const MONS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const issue = `${DAYS[now.getDay()]} ${now.getDate()} de ${MONS[now.getMonth()]}`;
+
+  const TABS = [
+    ["inicio", "Inicio"],
+    ["movs",   "Movimientos"],
+    ["cats",   "Categorías"],
+    ["stats",  "Estadísticas"],
+  ];
 
   return (
     <div className={`cc-top ${scrolled ? "scrolled" : ""}`}>
       <div className="cc-top-inner">
-        {/* Logo centrado */}
-        <div className="cc-zafi-wordmark">zafi</div>
+        {/* Masthead — título refinado con punto verde */}
+        <div className="cc-masthead">
+          <div className="cc-masthead-title">zafi</div>
+          <div className="cc-masthead-meta">
+            {issue}
+          </div>
+        </div>
 
-        {/* Perfil: avatar + nombre + plan */}
-        <div className="cc-profile-row">
-          <button onClick={onOpenSettings}
-            style={{ display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent",
-              cursor: "pointer", padding: 0, textAlign: "left", minWidth: 0 }}>
-            <div className="cc-avatar" style={{ overflow: "hidden" }}>
-              {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div className="cc-profile-name">{displayName}</div>
-              <div className="cc-profile-plan">Plan semanal</div>
-            </div>
-          </button>
-          <div style={{ flex: 1 }} />
+        {/* Balance + rango */}
+        <div className="cc-balance-row">
+          <div className="cc-balance-display">
+            <span className="cc-balance-label">Balance</span>
+            <span className="cc-balance-value" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
+              {fmt(balance)}
+            </span>
+          </div>
           <button className="cc-range-chip" onClick={onOpenRange}>
-            <IconCalendar />
+            <span className="cc-range-emoji">{emoji}</span>
             <span>{rangeLabel(dateRange)}</span>
             <span className="cc-range-arrow">▼</span>
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
 
-/* ===================== AVATARES ========================================= */
-const AVATAR_STYLES = [
-  { id: "male-default",   label: "Chico lentes",   url: "/avatars/male-default.png" },
-  { id: "female-default", label: "Chica lentes",   url: "/avatars/female-default.jpg" },
-  { id: "option-beanie",  label: "Gorro",           url: "/avatars/option-beanie.jpg" },
-  { id: "option-hoodie",  label: "Hoodie",          url: "/avatars/option-hoodie.jpg" },
-];
-
-// Asigna avatar por defecto según el género del registro
-function defaultAvatarForGender(gender) {
-  if (gender === "male") return "male-default";
-  if (gender === "female") return "female-default";
-  return null; // "other" → solo inicial
-}
-
-// Resizes an image file to a small square base64 for storage
-function resizeImageToBase64(file, size = 200) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        const s = Math.min(img.width, img.height);
-        const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
-        ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function getAvatarSrc(config) {
-  if (config.avatarData) return config.avatarData; // custom photo
-  if (config.avatarId) {
-    const av = AVATAR_STYLES.find(a => a.id === config.avatarId);
-    return av ? av.url : null;
-  }
-  return null;
-}
-
-function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
-  const userName = config.userName || t("user");
-  const currentSrc = getAvatarSrc(config);
-  const initial = userName.charAt(0).toUpperCase();
-  const fileRef = useRef(null);
-
-  const pickPreset = (id) => {
-    const { avatarData, ...rest } = config;
-    saveConfig({ ...rest, avatarId: id });
-    showToast(t("avatarUpdated"));
-    onClose();
-  };
-
-  const handlePhoto = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const base64 = await resizeImageToBase64(file);
-    const { avatarId, ...rest } = config;
-    saveConfig({ ...rest, avatarData: base64 });
-    showToast(t("avatarUpdated"));
-    onClose();
-  };
-
-  const clear = () => {
-    const { avatarId, avatarData, ...rest } = config;
-    saveConfig(rest);
-    showToast(t("avatarRemoved"));
-    onClose();
-  };
-
-  return (
-    <div className="cc-overlay" onClick={onClose}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{t("chooseAvatar")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
-
-        {/* Current avatar */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <div style={{ position: "relative" }}>
-            <div style={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden",
-              background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 32, color: "#fff", fontFamily: "'Fraunces',serif", fontWeight: 600,
-              boxShadow: "0 4px 20px rgba(30,40,60,.18)" }}>
-              {currentSrc ? <img src={currentSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
-            </div>
-            {(config.avatarId || config.avatarData) && (
-              <button onClick={clear}
-                style={{ position: "absolute", top: -4, right: -4, width: 26, height: 26,
-                  borderRadius: "50%", border: "none", background: "var(--surface)",
-                  boxShadow: "var(--shadow-sm)", cursor: "pointer", fontSize: 13,
-                  display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-soft)" }}>
-                🗑
-              </button>
-            )}
-          </div>
-          <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName}</div>
-        </div>
-
-        {/* Upload photo buttons */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          <button className="cc-btn" onClick={() => fileRef.current?.click()}
-            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 22 }}>🖼</span>
-            {t("choosePhoto")}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
-          <button className="cc-btn" onClick={() => {
-            const inp = document.createElement("input");
-            inp.type = "file"; inp.accept = "image/*"; inp.capture = "user";
-            inp.onchange = handlePhoto; inp.click();
-          }}
-            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 22 }}>📷</span>
-            {t("takePhoto")}
-          </button>
-        </div>
-
-        {/* Preset avatars grid */}
-        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
-          color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
-          marginBottom: 10 }}>Avatares</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {AVATAR_STYLES.map(a => (
-            <button key={a.id} onClick={() => pickPreset(a.id)}
-              style={{ aspectRatio: "1", borderRadius: 18, overflow: "hidden",
-                border: config.avatarId === a.id ? "3px solid var(--green)" : "2px solid var(--glass-border)",
-                cursor: "pointer", padding: 0,
-                backgroundImage: `url(${a.url})`, backgroundSize: "cover", backgroundPosition: "center",
-                backgroundColor: "var(--surface)",
-                boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "var(--shadow-sm)",
-                transition: "border .15s, box-shadow .15s" }}>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ===================== MODAL: AJUSTES GENERALES ========================= */
-function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
-  const user = auth.currentUser;
-  const email = user?.email || "";
-  const [userName, setUserName] = useState(config.userName || "");
-  const [phone, setPhone] = useState(config.phone || "");
-  const [lang, setLang] = useState(config.language || "es");
-  const [currency, setCurrency] = useState(config.currency || "MXN");
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
-
-  const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
-  const avatarSrc = getAvatarSrc(config);
-
-  const savePersonal = () => {
-    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim() });
-    // update Firestore profile too
-    if (user) {
-      setDoc(doc(db, "users", user.uid, "data", "profile"), {
-        name: userName.trim(), phone: phone.trim(), email,
-      }, { merge: true }).catch(() => {});
-    }
-    showToast(t("infoUpdated"));
-  };
-
-  const saveLang = (l) => {
-    setLang(l);
-    setAppLang(l);
-    saveConfig({ ...config, language: l });
-    showToast(l === "es" ? "Idioma: Español" : "Language: English");
-  };
-
-  const saveCurrency = (c) => {
-    setCurrency(c);
-    saveConfig({ ...config, currency: c });
-    showToast(`Moneda: ${c}`);
-  };
-
-  const doSignOut = async () => {
-    setBusy(true);
-    try { await signOut(auth); } catch (e) {}
-    setBusy(false);
-    onClose();
-  };
-
-  const doReset = () => {
-    resetAll();
-    setConfirmReset(false);
-    onClose();
-  };
-
-  const ROW = { display: "flex", alignItems: "center", justifyContent: "space-between",
-    padding: "14px 0", borderBottom: "1px solid var(--line-soft)" };
-  const SECTION_TITLE = { fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
-    color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
-    marginTop: 20, marginBottom: 6 };
-  const ITEM_LABEL = { fontSize: 14, fontWeight: 500, color: "var(--ink)" };
-  const ITEM_VALUE = { fontSize: 13, color: "var(--ink-soft)", textAlign: "right" };
-
-  return (
-    <div className="cc-overlay" onClick={onClose}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{t("settings")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
-
-        {/* --- Perfil header --- */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "8px 0 18px",
-          borderBottom: "1px solid var(--line-soft)" }}>
-          <button onClick={() => setAvatarOpen(true)}
-            style={{ position: "relative", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}>
-            <div className="cc-avatar" style={{ width: 72, height: 72, fontSize: 28, overflow: "hidden" }}>
-              {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
-            </div>
-            <div style={{ position: "absolute", bottom: -2, right: -2, width: 24, height: 24, borderRadius: "50%",
-              background: "var(--ink)", color: "#fff", fontSize: 12,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "var(--shadow-sm)" }}>✎</div>
-          </button>
-          <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName || "Usuario"}</div>
-          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{email}</div>
-        </div>
-
-        {avatarOpen && (
-          <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
-        )}
-
-        {/* --- Información personal --- */}
-        <div style={SECTION_TITLE}>{t("personalInfo")}</div>
-        <div style={{ marginBottom: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Nombre</label>
-          <input className="cc-input" value={userName} onChange={(e) => setUserName(e.target.value)}
-            placeholder="Tu nombre" style={{ marginBottom: 10 }} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Teléfono</label>
-          <input className="cc-input" value={phone} onChange={(e) => setPhone(e.target.value)}
-            placeholder="+52 664 123 4567" type="tel" style={{ marginBottom: 10 }} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Correo electrónico</label>
-          <input className="cc-input" value={email} disabled
-            style={{ marginBottom: 10, opacity: 0.6 }} />
-          <button className="cc-btn" style={{ fontSize: 13, padding: "8px 16px" }} onClick={savePersonal}>
-            Guardar cambios
-          </button>
-        </div>
-
-        {/* --- Idioma --- */}
-        <div style={SECTION_TITLE}>{t("language")}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-          {[["es", "🇲🇽 Español"], ["en", "🇺🇸 English"]].map(([k, l]) => (
-            <button key={k} onClick={() => saveLang(k)}
-              style={{ flex: 1, padding: "11px 8px", borderRadius: 12, cursor: "pointer",
-                fontFamily: "'Montserrat', sans-serif", fontSize: 13.5,
-                fontWeight: lang === k ? 600 : 400,
-                background: lang === k ? "var(--ink)" : "var(--surface)",
-                color: lang === k ? "#fff" : "var(--ink)",
-                border: `1px solid ${lang === k ? "var(--ink)" : "var(--line)"}` }}>
+        {/* Tabs */}
+        <div className="cc-tabs">
+          {TABS.map(([k, l]) => (
+            <button key={k} className={`cc-tab ${tab === k ? "on" : ""}`}
+              onClick={() => setTab(k)}>
               {l}
             </button>
           ))}
         </div>
-
-        {/* --- Moneda --- */}
-        <div style={SECTION_TITLE}>{t("currency")}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-          {[["MXN", "🇲🇽 MXN"], ["USD", "🇺🇸 USD"], ["EUR", "🇪🇺 EUR"]].map(([k, l]) => (
-            <button key={k} onClick={() => saveCurrency(k)}
-              style={{ flex: 1, padding: "11px 8px", borderRadius: 12, cursor: "pointer",
-                fontFamily: "'Montserrat', sans-serif", fontSize: 13.5,
-                fontWeight: currency === k ? 600 : 400,
-                background: currency === k ? "var(--ink)" : "var(--surface)",
-                color: currency === k ? "#fff" : "var(--ink)",
-                border: `1px solid ${currency === k ? "var(--ink)" : "var(--line)"}` }}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {/* --- Notificaciones (placeholder) --- */}
-        <div style={SECTION_TITLE}>{t("notifications")}</div>
-        <div style={ROW}>
-          <span style={ITEM_LABEL}>Recordatorios de gastos</span>
-          <span style={ITEM_VALUE}>Próximamente</span>
-        </div>
-
-        {/* --- Datos --- */}
-        <div style={SECTION_TITLE}>{t("dataPrivacy")}</div>
-        <div style={ROW}>
-          <span style={ITEM_LABEL}>{t("exportData")}</span>
-          <span style={ITEM_VALUE}>Próximamente</span>
-        </div>
-        {!confirmReset ? (
-          <button onClick={() => setConfirmReset(true)}
-            style={{ ...ROW, width: "100%", border: "none", borderBottom: "1px solid var(--line-soft)",
-              background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-            <span style={{ ...ITEM_LABEL, color: "var(--coral)" }}>Reiniciar app (borrar todo)</span>
-          </button>
-        ) : (
-          <div style={{ padding: "12px 0", borderBottom: "1px solid var(--line-soft)" }}>
-            <div style={{ fontSize: 13, color: "var(--coral)", fontWeight: 600, marginBottom: 8 }}>
-              ¿Estás seguro? Esto borrará todas tus categorías, cuentas y movimientos.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="cc-btn" style={{ flex: 1, padding: "8px 12px", fontSize: 13 }}
-                onClick={() => setConfirmReset(false)}>Cancelar</button>
-              <button className="cc-btn" style={{ flex: 1, padding: "8px 12px", fontSize: 13,
-                background: "var(--coral)", color: "#fff", borderColor: "var(--coral)" }}
-                onClick={doReset}>Sí, borrar todo</button>
-            </div>
-          </div>
-        )}
-
-        {/* --- Sesión --- */}
-        <div style={{ marginTop: 20, marginBottom: 8 }}>
-          <button className="cc-btn" onClick={doSignOut} disabled={busy}
-            style={{ width: "100%", padding: 14, fontSize: 15, fontWeight: 600 }}>
-            {busy ? t("signingOut") : "Cerrar sesión"}
-          </button>
-        </div>
-
-        <div style={{ textAlign: "center", fontSize: 11, color: "var(--ink-faint)", padding: "6px 0 4px" }}>
-          Zafi · Finanzas personales con IA · v1.0
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ProfileNameModal: editar el nombre que se muestra en el header */
-function ProfileNameModal({ current, onClose, onSave }) {
-  const [name, setName] = useState(current || "");
-  return (
-    <div className="cc-overlay" onClick={onClose} style={{ alignItems: "center" }}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ borderRadius: 24, maxWidth: 360, width: "calc(100% - 40px)" }}>
-        <div className="cc-grip" />
-        <h2 className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 14 }}>Tu nombre</h2>
-        <input className="cc-input" placeholder="Ej. Luis Ángel" value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && name.trim() && onSave(name.trim())}
-          style={{ marginBottom: 14 }} autoFocus />
-        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13, fontSize: 14 }}
-          disabled={!name.trim()} onClick={() => onSave(name.trim())}>
-          Guardar
-        </button>
       </div>
     </div>
   );
@@ -3799,10 +2179,7 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>Rango de tiempo</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
+        <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 4 }}>Rango de tiempo</h2>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 14 }}>
           Esta selección se aplica a todas las pestañas: Inicio, Movimientos, Categorías y Estadísticas.
         </p>
@@ -3861,10 +2238,10 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
 
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
-  { id: "balance", label: "Saldo destacado", icon: "💰", on: false },
+  { id: "balance", label: "Saldo destacado", icon: "💰", on: true },
   { id: "kpis", label: "Ingresos y gastos del mes", icon: "📊", on: true },
   { id: "byCategory", label: "Gastos por categoría", icon: "🏷️", on: true },
-  { id: "trend", label: "Mini gráfica de saldo (30d)", icon: "📈", on: true },
+  { id: "trend", label: "Mini gráfica de saldo (30d)", icon: "📈", on: false },
   { id: "topExpenses", label: "Gastos más grandes del mes", icon: "💸", on: false },
   { id: "recent", label: "Movimientos recientes", icon: "🕐", on: true },
 ];
@@ -3938,13 +2315,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const isOn = (id) => sections.find((s) => s.id === id)?.on;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* === selector de cuentas mejorado === */}
       {config.accounts.length > 0 && (
         <div className="cc-fade">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div className="cc-label">Tus cuentas</div>
-            <button className="cc-gear" onClick={() => setConfiguring(true)}><IconGear /> Personalizar</button>
+            <button className="cc-gear" onClick={() => setConfiguring(true)}>⚙️ Personalizar</button>
           </div>
           <div className="cc-scroll-x">
             {/* tarjeta General */}
@@ -3952,7 +2329,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               <div className="cc-acc-icon">∑</div>
               <div className="cc-acc-label">Total</div>
               <div className="cc-acc-name">General</div>
-              <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
+              <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : (view === "all" ? "var(--surface)" : "var(--green)") }}>
                 {fmt(balance)}
               </div>
               <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
@@ -3969,7 +2346,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   <div className="cc-acc-icon">🏦</div>
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
-                  <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : "var(--ink)" }}>
+                  <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : (active ? "var(--surface)" : "var(--green)") }}>
                     {fmt(b)}
                   </div>
                   <div className="cc-acc-sub" style={{ color: rangeFlow < 0 ? "var(--coral)" : undefined }}>
@@ -3994,7 +2371,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const delay = `${idx * 60}ms`;
 
         if (s.id === "balance") return (
-          <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: "22px 22px", animationDelay: delay }}>
             <div className="cc-label">{headerLabel}</div>
             <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
               {fmt(headerBalance)}
@@ -4003,47 +2380,37 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "kpis") return (
-          <div key={s.id} style={{ display: "flex", gap: 10 }} className="cc-fade">
-            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
+          <div key={s.id} style={{ display: "flex", gap: 14 }} className="cc-fade">
+            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
               <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{fmt(inc)}</div>
+              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--green)" }}>{fmt(inc)}</div>
             </div>
-            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
+            <div className="cc-card" style={{ flex: 1, padding: 18 }}>
               <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
+              <div className="cc-num" style={{ fontSize: 24, fontWeight: 700, color: "var(--coral)" }}>{fmt(exp)}</div>
             </div>
           </div>
         );
 
         if (s.id === "byCategory") return (
-          <div key={s.id} className="cc-card" style={{ padding: "6px 18px" }}>
-            <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
+            <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
             {rows.length === 0 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>
+              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>
                 No hay gastos en el periodo.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {rows.map(([id, amt]) => {
                   const c = catOf(id);
-                  const pct = maxCat ? Math.round((amt / maxCat) * 100) : 0;
                   return (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
-                      borderBottom: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                        {c ? c.emoji : "❔"}
+                    <div key={id}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600 }}>{c ? `${c.emoji} ${c.name}` : "Sin categoría"}</span>
+                        <span className="cc-num" style={{ fontWeight: 700 }}>{fmt(amt)}</span>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>
-                          {c ? c.name : "Sin categoría"}
-                        </div>
-                        <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--bar-fill)", borderRadius: 99 }} />
-                        </div>
-                      </div>
-                      <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: "var(--coral)", whiteSpace: "nowrap" }}>
-                        {fmtBare(amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+                      <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${(amt / maxCat) * 100}%`, background: "var(--coral)", borderRadius: 99 }} />
                       </div>
                     </div>
                   );
@@ -4054,7 +2421,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "trend") return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
             <div className="cc-label" style={{ marginBottom: 8 }}>Saldo · últimos 30 días</div>
             {trendPoints.length < 2 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Datos insuficientes.</div>
@@ -4065,7 +2432,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "topExpenses") return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
             {topExpenses.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin gastos en el periodo.</div>
@@ -4076,7 +2443,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "recent") return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
+          <div key={s.id} className="cc-card cc-fade" style={{ padding: 20, animationDelay: delay }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>
               Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
             </div>
@@ -4151,9 +2518,9 @@ function HomeConfigModal({ sections, onClose, onSave }) {
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>Personalizar inicio</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600 }}>Personalizar inicio</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cancelar</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
           Activa o desactiva secciones, y arrastra para reordenarlas.
@@ -4214,7 +2581,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
           margin: "0 -10px", paddingLeft: 10, paddingRight: 10, borderRadius: selected ? 8 : 0 }}>
         <input type="checkbox" checked={!!selected} readOnly
           style={{ width: 19, height: 19, accentColor: "var(--green)" }} />
-        <div className="cc-emoji" style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {t.description || (c ? c.name : "Movimiento")}
@@ -4223,55 +2590,37 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
             {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
           </div>
         </div>
-        <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 300, fontSize: 15, color: t.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
-          {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
-          <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15, color: t.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
+          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-      borderBottom: "1px solid var(--line-soft)" }}>
-      {/* emoji pill */}
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
       <div
         onClick={() => onEdit && onEdit(t)}
-        className="cc-emoji"
-        style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 17, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
-        {c ? c.emoji : "❔"}
-      </div>
-      {/* text */}
-      <div
-        onClick={() => onEdit && onEdit(t)}
-        style={{ flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}>
-        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          letterSpacing: "-.01em" }}>
-          {t.description || (c ? c.name : "Movimiento")}
+        style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: onEdit ? "pointer" : "default" }}
+      >
+        <div style={{ fontSize: 22, width: 34, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {t.description || (c ? c.name : "Movimiento")}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            {c ? c.name : "Sin categoría"} · {t.date}{multi && acc ? ` · ${acc.name}` : ""}
+          </div>
         </div>
-        <div style={{ fontSize: 10.5, color: "var(--ink-soft)", marginTop: 1.5, fontWeight: 500 }}>
-          {c ? c.name : "Sin categoría"}{multi && acc ? ` · ${acc.name}` : ""}
-        </div>
-      </div>
-      {/* amount */}
-      <div
-        onClick={() => onEdit && onEdit(t)}
-        className="cc-num"
-        style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 15,
+        <div className="cc-num" style={{ fontWeight: 700, fontSize: 15,
           color: t.type === "income" ? "var(--green)" : "var(--coral)",
-          whiteSpace: "nowrap", letterSpacing: "-.01em",
-          cursor: onEdit ? "pointer" : "default" }}>
-        {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
-        <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          whiteSpace: "nowrap" }}>
+          {t.type === "income" ? "+" : "−"}{fmt(t.amount).replace("-", "")}
+        </div>
       </div>
-      {/* delete × */}
       {onDelete && (
-        <button className="cc-sheet-close"
-          style={{ width: 28, height: 28, fontSize: 16, flexShrink: 0 }}
-          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>×</button>
+        <button className="cc-btn" style={{ padding: "5px 9px", fontSize: 12 }}
+          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>✕</button>
       )}
     </div>
   );
@@ -4304,12 +2653,9 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
-  const [accView, setAccView] = useState("all"); // account filter
-  const multi = config.accounts.length > 1;
 
-  // filtrar por cuenta, luego por rango global, luego por tipo
-  const accTxs = accView === "all" ? txs : txs.filter((t) => t.accountId === accView);
-  const rangeTxs = txsInRange(accTxs, dateRange);
+  // primero filtrar por rango global, luego por tipo
+  const rangeTxs = txsInRange(txs, dateRange);
   const filtered = rangeTxs.filter((t) => filter === "all" || t.type === filter);
   const list = [...filtered].sort((a, b) => {
     if (sortBy === "date-desc") return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
@@ -4366,25 +2712,6 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
 
   return (
     <div>
-      {/* selector de cuenta */}
-      {multi && (
-        <div style={{ marginBottom: 12 }}>
-          <div className="cc-scroll-x">
-            <button className={`cc-acc-card ${accView === "all" ? "on" : ""}`} onClick={() => setAccView("all")}
-              style={{ minWidth: 100 }}>
-              <div className="cc-acc-label">Todas</div>
-              <div className="cc-acc-name">General</div>
-            </button>
-            {config.accounts.map((a) => (
-              <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
-                style={{ minWidth: 100 }}>
-                <div className="cc-acc-label">🏦</div>
-                <div className="cc-acc-name">{a.name}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {/* barra superior: filtro normal o info de selección */}
       {!selectMode ? (
         <>
@@ -4423,11 +2750,11 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
           )}
         </>
       ) : (
-        <div className="cc-card" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "9px 12px",
-          borderRadius: 14 }}>
-          <button className="cc-sheet-close" onClick={exitSelect}
-            style={{ width: 30, height: 30, fontSize: 17, flexShrink: 0 }}>×</button>
-          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "10px 12px",
+          background: "var(--ink)", color: "var(--surface)", borderRadius: 12 }}>
+          <button onClick={exitSelect}
+            style={{ background: "transparent", border: "none", color: "var(--surface)", cursor: "pointer", fontSize: 18, padding: "0 6px" }}>✕</button>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>
             {selected.size} seleccionado{selected.size === 1 ? "" : "s"}
           </span>
           <button className="cc-btn" style={{ padding: "6px 11px", fontSize: 12 }}
@@ -4463,8 +2790,8 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
                   </>
                 ); })()}
                 <div className="cc-day-totals">
-                  {entry.income > 0 && <span className="pos">+{fmtBare(entry.income)}</span>}
-                  {entry.expense > 0 && <span className="neg">−{fmtBare(entry.expense)}</span>}
+                  {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
+                  {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
                 </div>
               </div>
             ) : (
@@ -4536,13 +2863,9 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
 }
 
 /* ============================ CATEGORÍAS ================================= */
-function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring }) {
+function Categorias({ config, txs, dateRange, saveConfig, showToast }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
-  const [recurringOpen, setRecurringOpen] = useState(false);
-  const [accView, setAccView] = useState("all");
-  const multi = config.accounts.length > 1;
-  const visibleAccounts = accView === "all" ? config.accounts : config.accounts.filter((a) => a.id === accView);
 
   const save = (cat) => {
     let cats;
@@ -4567,91 +2890,12 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
     if (t.categoryId) totalsByCat[t.categoryId] = (totalsByCat[t.categoryId] || 0) + t.amount;
   });
 
-  const recurring = config.recurring || [];
-  const activeRec = recurring.filter((r) => isRecActive(r));
-  const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
-  const catFor = (id) => config.categories.find((c) => c.id === id);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
         Cada cuenta tiene sus propias categorías. Los totales son de <b>{rangeLabel(dateRange)}</b>.
       </div>
-
-      {/* selector de cuenta */}
-      {multi && (
-        <div style={{ marginBottom: 4 }}>
-          <div className="cc-scroll-x">
-            <button className={`cc-acc-card ${accView === "all" ? "on" : ""}`} onClick={() => setAccView("all")}
-              style={{ minWidth: 100 }}>
-              <div className="cc-acc-label">Todas</div>
-              <div className="cc-acc-name">General</div>
-            </button>
-            {config.accounts.map((a) => (
-              <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
-                style={{ minWidth: 100 }}>
-                <div className="cc-acc-label">🏦</div>
-                <div className="cc-acc-name">{a.name}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ===== Movimientos recurrentes ===== */}
-      <div className="cc-card" style={{ padding: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🔁</span>
-            <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>Movimientos recurrentes</span>
-          </div>
-          <button className="cc-btn" style={{ padding: "5px 11px", fontSize: 12 }} onClick={() => setRecurringOpen(true)}>
-            {recurring.length ? "Gestionar" : "＋ Nuevo"}
-          </button>
-        </div>
-        {recurring.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "6px 0 2px" }}>
-            No tienes movimientos recurrentes. Crea uno para que se registre automáticamente (renta, sueldo, suscripciones…).
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 6 }}>
-            {recurring.map((r) => {
-              const c = catFor(r.categoryId);
-              return (
-                <button key={r.id} onClick={() => setRecurringOpen(true)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-                    background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
-                    opacity: isRecActive(r) ? 1 : 0.5 }}>
-                  <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                    {c ? c.emoji : "🔁"}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)", letterSpacing: "-.01em" }}>
-                      {r.description}{!isRecActive(r) && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
-                      {FREQ_LABELS_FN()[r.freq]} · {accName(r.accountId)}{c ? ` · ${c.name}` : ""}
-                    </div>
-                  </div>
-                  <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
-                    color: r.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
-                    {r.type === "income" ? "+" : "−"}{fmtBare(r.amount)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                  </div>
-                </button>
-              );
-            })}
-            {activeRec.length > 0 && (
-              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
-                {activeRec.length} activo{activeRec.length === 1 ? "" : "s"} · se generan solos en su fecha
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {visibleAccounts.map((acc) => {
+      {config.accounts.map((acc) => {
         const accCats = config.categories.filter((c) => c.accountId === acc.id);
         return (
           <div key={acc.id} className="cc-card" style={{ padding: 18 }}>
@@ -4671,7 +2915,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                     const total = totalsByCat[c.id] || 0;
                     return (
                       <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
-                        <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>
+                        <span style={{ fontSize: 19 }}>{c.emoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                           {total > 0 && (
@@ -4696,9 +2940,6 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
         );
       })}
       {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
-      {recurringOpen && (
-        <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring} />
-      )}
       {confirmDel && (
         <ConfirmDialog
           title="¿Eliminar esta categoría?"
@@ -4723,10 +2964,9 @@ function CatModal({ cat, accounts, onClose, onSave }) {
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{cat.id ? "Editar categoría" : "Nueva categoría"}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {cat.id ? "Editar categoría" : "Nueva categoría"}
+        </h2>
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <div style={{ width: 76 }}>
             <label className="cc-label">Emoji</label>
@@ -4807,9 +3047,9 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>Tus cuentas</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600 }}>Tus cuentas</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
         </div>
         <div className="cc-card" style={{ padding: 14, marginBottom: 12 }}>
           {config.accounts.map((a) => {
@@ -4834,17 +3074,6 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
         </div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
           El <b>saldo inicial</b> es el dinero que ya tienes en cada cuenta. El saldo de la derecha es ese monto ajustado con tus movimientos.
-        </div>
-
-        {/* Cerrar sesión */}
-        <div style={{ marginTop:22, paddingTop:18, borderTop:"1px solid var(--line)" }}>
-          <button onClick={() => signOut(auth)}
-            style={{ width:"100%", padding:"11px 14px", fontSize:14, fontFamily:"inherit",
-              background:"var(--surface-2)", color:"var(--ink-soft)",
-              border:"1px solid var(--line)", borderRadius:12, cursor:"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            🚪 Cerrar sesión
-          </button>
         </div>
 
         {/* Zona peligrosa: empezar desde cero */}
@@ -4899,10 +3128,9 @@ function AccountModal({ acc, onClose, onSave }) {
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{acc.id ? "Editar cuenta" : "Nueva cuenta"}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {acc.id ? "Editar cuenta" : "Nueva cuenta"}
+        </h2>
         <div style={{ marginBottom: 14 }}>
           <label className="cc-label">Nombre</label>
           <input className="cc-input" placeholder="Efectivo, BBVA, Santander, Tarjeta…" value={name}
@@ -4910,18 +3138,9 @@ function AccountModal({ acc, onClose, onSave }) {
         </div>
         <div style={{ marginBottom: 22 }}>
           <label className="cc-label">Saldo inicial</label>
-          <div className="cc-amount-display">
-            <span className="cc-amount-currency">$</span>
-            <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-              value={bal}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9.]/g, "");
-                if ((v.match(/\./g) || []).length <= 1) setBal(v);
-              }}
-              style={{ width: `${Math.max((bal || "0.00").length, 4)}ch` }} />
-            <span className="cc-amount-mxn">mxn</span>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
+          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00" value={bal}
+            onChange={(e) => setBal(e.target.value)} style={{ fontSize: 20, fontWeight: 700 }} />
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
             Dinero que tienes ahorita en esta cuenta. Puede ser 0.
           </div>
         </div>
@@ -4987,7 +3206,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
   function finalize(finalCatId, learn) {
     let learnedCats = null;
-    if (learn && finalCatId) {
+    if (learn && finalCatId && !passThrough) {
       const kws = extractKW(desc).slice(0, 3);
       if (kws.length) {
         const target = config.categories.find((c) => c.id === finalCatId);
@@ -5009,25 +3228,18 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
   async function handleSave() {
     if (!amount || parseFloat(amount) <= 0) return;
+    // categoría elegida a mano -> guardar y APRENDER de esa decisión
     if (catId !== "auto") { finalize(catId, true); return; }
-    // Si solo hay una categoría disponible, usarla directo
-    if (cats.length === 1) { finalize(cats[0].id, true); return; }
-    // Intentar detectar con keywords locales primero (sin IA)
-    const nd = norm(desc);
-    for (const c of cats) {
-      for (const kw of c.keywords || []) {
-        if (nd.includes(norm(kw))) { finalize(c.id, false); return; }
-      }
+    setPhase("detecting");
+    const r = await categorize();
+    if (r.catId && r.sure) {
+      finalize(r.catId, false);
+    } else if (r.catId) {
+      setCatId(r.catId);
+      setPhase("ask");
+    } else {
+      setPhase("ask");
     }
-    // Si hay desc, intentar con IA — pero si falla, ir directo a preguntar
-    if (desc.trim()) {
-      setPhase("detecting");
-      const r = await categorize();
-      if (r.catId && r.sure) { finalize(r.catId, false); return; }
-      if (r.catId) setCatId(r.catId);
-    }
-    // Sin match seguro → preguntar al usuario
-    setPhase("ask");
   }
 
   /* pantalla: preguntar categoría */
@@ -5042,14 +3254,11 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
             {cats.map((c) => (
-              <button key={c.id} type="button"
-                onClick={() => { finalize(c.id, true); }}
+              <button key={c.id} className="cc-card" onClick={() => finalize(c.id, true)}
                 style={{ padding: "13px 12px", textAlign: "left", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit",
-                  background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14,
-                  boxShadow: "var(--shadow-xs)", WebkitTapHighlightColor: "transparent",
-                  position: "relative", zIndex: 1 }}>
-                <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
+                  display: "flex", alignItems: "center", gap: 8,
+                  borderColor: catId === c.id ? "var(--gold)" : "var(--line)" }}>
+                <span style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
               </button>
             ))}
           </div>
@@ -5062,28 +3271,21 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{editing ? "Editar transacción" : "Nueva transacción"}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
+        <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 16 }}>
+          {editing ? "Editar movimiento" : "Nuevo movimiento"}
+        </h2>
 
-        <div className="cc-tabs" style={{ marginBottom: 4 }}>
+        <div className="cc-tabs" style={{ marginBottom: 16 }}>
           {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
             <button key={k} className={`cc-tab ${type === k ? "on" : ""}`}
               onClick={() => { setType(k); setCatId("auto"); }}>{l}</button>
           ))}
         </div>
 
-        <div className="cc-amount-display">
-          <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={amount}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
-              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
-            }}
-            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
-          <span className="cc-amount-mxn">mxn</span>
+        <div style={{ marginBottom: 14 }}>
+          <label className="cc-label">Monto</label>
+          <input className="cc-input cc-num" type="number" inputMode="decimal" placeholder="0.00"
+            value={amount} onChange={(e) => setAmount(e.target.value)} style={{ fontSize: 22, fontWeight: 700 }} />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -5097,35 +3299,32 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
             <label className="cc-label">Fecha</label>
             <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div style={{ flex: 1 }}>
-            <label className="cc-label">Categoría</label>
-            <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
-              disabled={!accountId}>
-              <option value="auto">✨ Detectar automáticamente</option>
-              {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-            </select>
-          </div>
+          {config.accounts.length > 1 && (
+            <div style={{ flex: 1 }}>
+              <label className="cc-label">Cuenta</label>
+              <select className="cc-select" value={accountId}
+                onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
+                style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
+                <option value="">Elegir cuenta…</option>
+                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
-        {config.accounts.length > 1 && (
-          <div style={{ marginBottom: 14 }}>
-            <label className="cc-label">Cuenta</label>
-            <select className="cc-select" value={accountId}
-              onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
-              style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
-              <option value="">Elegir cuenta…</option>
-              {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-        )}
-
         <div style={{ marginBottom: 20 }}>
+          <label className="cc-label">Categoría</label>
+          <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
+            disabled={!accountId}>
+            <option value="auto">✨ Detectar automáticamente</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
           {!accountId ? (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
               Elige primero una cuenta para ver sus categorías.
             </div>
           ) : catId === "auto" && (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6 }}>
               La app intentará detectar la categoría con el concepto. Si no está segura, te pregunta.
             </div>
           )}
@@ -5144,11 +3343,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 }
 
 /* ===================== ASISTENTE DE CHAT ================================= */
-// El historial del chat persiste en memoria mientras la app esté abierta,
-// para que no se pierda al cerrar y reabrir el asistente.
-let CHAT_MSGS_STORE = null;
-let CHAT_HISTORY_STORE = [];
-function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
+function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport }) {
   const GREET =
     "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
   const QUICK = [
@@ -5156,86 +3351,11 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
     "Registra un gasto de 250 en gasolina",
     "¿Cuánto llevo gastado este mes?",
   ];
-  const [msgs, setMsgs] = useState(() => CHAT_MSGS_STORE || [{ role: "bot", text: GREET }]);
+  const [msgs, setMsgs] = useState([{ role: "bot", text: GREET }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const history = useRef(CHAT_HISTORY_STORE);
+  const history = useRef([]);
   const scroller = useRef(null);
-
-  // mantener el store sincronizado para que persista al cerrar/reabrir
-  useEffect(() => { CHAT_MSGS_STORE = msgs; }, [msgs]);
-
-  // ===== Dictado por voz =====
-  const [listening, setListening] = useState(false);
-  const listeningRef = useRef(false);
-  const recRef = useRef(null);
-  const finalRef = useRef("");
-  const lastHeardRef = useRef("");
-  const sendOnEndRef = useRef(false);
-
-  const setListen = (v) => { listeningRef.current = v; setListening(v); };
-
-  const startVoice = () => {
-    if (!voiceSupported || busy || listeningRef.current) return;
-    try {
-      const rec = new SpeechRec();
-      rec.lang = "es-MX";
-      rec.continuous = true;
-      rec.interimResults = true;
-      finalRef.current = "";
-      lastHeardRef.current = "";
-      rec.onresult = (e) => {
-        let interim = "";
-        let final = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) final += t;
-          else interim += t;
-        }
-        if (final) finalRef.current += final;
-        const full = (finalRef.current + interim).trim();
-        lastHeardRef.current = full; // captura también lo provisional
-        setInput(full);
-      };
-      rec.onerror = () => { setListen(false); };
-      rec.onend = () => {
-        setListen(false);
-        // al terminar (tras soltar) ya están todos los resultados: enviar
-        if (sendOnEndRef.current) {
-          sendOnEndRef.current = false;
-          const text = (lastHeardRef.current || finalRef.current).trim();
-          if (text) send(text);
-        }
-      };
-      recRef.current = rec;
-      rec.start();
-      setListen(true);
-      if (navigator.vibrate) navigator.vibrate(8);
-    } catch (err) { setListen(false); }
-  };
-
-  const stopVoice = (autoSend = true) => {
-    if (!listeningRef.current) return;
-    sendOnEndRef.current = autoSend; // el envío ocurre en onend (cuando ya hay texto final)
-    try { recRef.current && recRef.current.stop(); } catch (e) {}
-    if (navigator.vibrate) navigator.vibrate(8);
-  };
-
-  // Si se abrió manteniendo presionado el orbe, empieza a escuchar y
-  // termina cuando el usuario suelte (en cualquier parte de la pantalla).
-  useEffect(() => {
-    if (!autoVoice || !voiceSupported) return;
-    const t = setTimeout(() => startVoice(), 250);
-    const release = () => stopVoice(true);
-    window.addEventListener("mouseup", release);
-    window.addEventListener("touchend", release);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("mouseup", release);
-      window.removeEventListener("touchend", release);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -5288,18 +3408,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--green)", boxShadow: "0 0 0 4px var(--green-soft)" }} />
             Asistente
           </h2>
-          <div style={{ display: "flex", gap: 7 }}>
-            {msgs.length > 1 && (
-              <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 13 }}
-                onClick={() => {
-                  setMsgs([{ role: "bot", text: GREET }]);
-                  history.current.length = 0;
-                  CHAT_MSGS_STORE = null;
-                }}
-                title="Limpiar conversación">🗑</button>
-            )}
-            <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>{t("close")}</button>
-          </div>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
         </div>
 
         <div ref={scroller} style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: "52vh", padding: "2px 2px 6px" }}>
@@ -5312,7 +3421,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
                     {m.log.map((l, j) => (
                       <div key={j} style={{
                         fontSize: 12.5, fontWeight: 600, padding: "5px 9px", borderRadius: 8,
-                        background: l.ok ? "rgba(26,122,110,.14)" : "rgba(181,69,58,.12)",
+                        background: l.ok ? "var(--green-soft)" : "var(--coral-soft)",
                         color: l.ok ? "var(--green)" : "var(--coral)",
                       }}>
                         {l.ok ? "✓" : "!"} {l.text}
@@ -5344,23 +3453,9 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           <button className="cc-btn" title="Importar desde screenshot"
             onClick={() => { onClose(); onOpenImport && onOpenImport(); }}
             style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>📸</button>
-          {voiceSupported && (
-            <button
-              className={`cc-btn cc-mic ${listening ? "rec" : ""}`}
-              title="Mantén presionado para hablar"
-              disabled={busy}
-              onMouseDown={(e) => { e.preventDefault(); startVoice(); }}
-              onMouseUp={() => stopVoice(true)}
-              onMouseLeave={() => listening && stopVoice(true)}
-              onTouchStart={(e) => { e.preventDefault(); startVoice(); }}
-              onTouchEnd={(e) => { e.preventDefault(); stopVoice(true); }}
-              style={{ padding: "10px 13px", fontSize: 18, lineHeight: 1, userSelect: "none", touchAction: "none" }}>
-              {listening ? "●" : "🎙"}
-            </button>
-          )}
           <input
             className="cc-input"
-            placeholder={listening ? "Escuchando…" : "Dile algo… ej. quita la categoría Ropa"}
+            placeholder="Dile algo… ej. quita la categoría Ropa"
             value={input}
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}
@@ -5370,242 +3465,6 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             Enviar
           </button>
         </div>
-        {listening && (
-          <div style={{ fontSize: 11.5, color: "var(--ink-soft)", textAlign: "center", marginTop: 8 }}>
-            Suelta para enviar
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ===================== MODAL: MOVIMIENTOS RECURRENTES =================== */
-function RecurringModal({ config, onClose, onSave }) {
-  const rules = config.recurring || [];
-  const [view, setView] = useState(rules.length ? "list" : "form"); // list | form
-  const [editingId, setEditingId] = useState(null);
-
-  // form state
-  const [type, setType] = useState("expense");
-  const [amount, setAmount] = useState("");
-  const [desc, setDesc] = useState("");
-  const [accountId, setAccountId] = useState(config.accounts.length === 1 ? config.accounts[0].id : "");
-  const [catId, setCatId] = useState("auto");
-  const [freq, setFreq] = useState("monthly");
-  const [startDate, setStartDate] = useState(today());
-  const [detecting, setDetecting] = useState(false);
-
-  const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
-
-  const resetForm = () => {
-    setType("expense"); setAmount(""); setDesc("");
-    setAccountId(config.accounts.length === 1 ? config.accounts[0].id : "");
-    setCatId("auto"); setFreq("monthly"); setStartDate(today()); setEditingId(null);
-  };
-
-  const startNew = () => { resetForm(); setView("form"); };
-
-  const startEdit = (r) => {
-    setType(r.type); setAmount(String(r.amount)); setDesc(r.description);
-    setAccountId(r.accountId); setCatId(r.categoryId || "auto");
-    setFreq(r.freq); setStartDate(r.startDate); setEditingId(r.id);
-    setView("form");
-  };
-
-  const canSave = amount && parseFloat(amount) > 0 && desc.trim() && accountId;
-
-  const save = async () => {
-    if (!canSave) return;
-    // detección automática de categoría si está en "auto"
-    let finalCat = catId === "auto" ? null : (catId || null);
-    if (catId === "auto") {
-      setDetecting(true);
-      try {
-        const res = await autoCategorize(desc.trim(), type, accountId, config);
-        finalCat = res.catId;
-      } catch (e) { finalCat = null; }
-      setDetecting(false);
-    }
-    const rule = {
-      id: editingId || uid(),
-      type, amount: Math.abs(parseFloat(amount)),
-      description: desc.trim(), accountId,
-      categoryId: finalCat,
-      freq, startDate,
-      lastRun: editingId ? (rules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
-      active: true,
-      paused: false,
-    };
-    const next = editingId
-      ? rules.map((r) => (r.id === editingId ? rule : r))
-      : [...rules, rule];
-    onSave(next);
-    onClose();
-  };
-
-  const toggleActive = (id) => {
-    onSave(rules.map((r) => {
-      if (r.id !== id) return r;
-      const nowActive = !isRecActive(r);
-      return { ...r, active: nowActive, paused: !nowActive };
-    }));
-  };
-
-  const remove = (id) => {
-    onSave(rules.filter((r) => r.id !== id));
-  };
-
-  const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
-  const catEmoji = (id) => config.categories.find((c) => c.id === id)?.emoji || "🔁";
-
-  // ===== Vista LISTA =====
-  if (view === "list") {
-    return (
-      <div className="cc-overlay" onClick={onClose}>
-        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="cc-grip" />
-          <div className="cc-sheet-top">
-            <h2>{t("recurringMovements")}</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
-          </div>
-          <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
-            Se generan automáticamente en su fecha. Puedes editarlos como cualquier movimiento.
-          </p>
-
-          {rules.length === 0 ? (
-            <div style={{ color: "var(--ink-soft)", fontSize: 14, padding: "8px 0 18px" }}>
-              Aún no tienes movimientos recurrentes.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {rules.map((r) => (
-                <div key={r.id} className="cc-card" style={{ padding: "12px 14px", opacity: isRecActive(r) ? 1 : 0.5 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="cc-emoji" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface)",
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                      {catEmoji(r.categoryId)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", letterSpacing: "-.01em" }}>{r.description}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>
-                        {FREQ_LABELS_FN()[r.freq]} · {accName(r.accountId)}
-                      </div>
-                    </div>
-                    <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
-                      color: r.type === "income" ? "var(--green)" : "var(--coral)", whiteSpace: "nowrap" }}>
-                      {r.type === "income" ? "+" : "−"}{fmtBare(r.amount)}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
-                    <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
-                      onClick={() => startEdit(r)}>Editar</button>
-                    <button className="cc-btn" style={{ flex: 1, padding: "6px 10px", fontSize: 12 }}
-                      onClick={() => toggleActive(r.id)}>{isRecActive(r) ? "Pausar" : "Activar"}</button>
-                    <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 12, color: "var(--coral)" }}
-                      onClick={() => remove(r.id)}>Eliminar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 13 }}
-            onClick={startNew}>＋ Nuevo recurrente</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ===== Vista FORM =====
-  return (
-    <div className="cc-overlay" onClick={onClose}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{editingId ? "Editar recurrente" : "Nuevo recurrente"}</h2>
-          <button className="cc-sheet-close" onClick={() => (rules.length ? setView("list") : onClose())}>×</button>
-        </div>
-
-        <div className="cc-tabs" style={{ marginBottom: 4 }}>
-          {[["expense", "Gasto"], ["income", "Ingreso"]].map(([k, l]) => (
-            <button key={k} className={`cc-tab ${type === k ? "on" : ""}`}
-              onClick={() => { setType(k); setCatId(""); }}>{l}</button>
-          ))}
-        </div>
-
-        <div className="cc-amount-display">
-          <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={amount}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
-              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
-            }}
-            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
-          <span className="cc-amount-mxn">mxn</span>
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label className="cc-label">Concepto</label>
-          <input className="cc-input" placeholder="Ej. renta, Netflix, sueldo…"
-            value={desc} onChange={(e) => setDesc(e.target.value)} />
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label className="cc-label">¿Cada cuánto?</label>
-          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            {Object.entries(FREQ_LABELS_FN()).map(([k, l]) => (
-              <button key={k} onClick={() => setFreq(k)}
-                style={{ padding: "9px 14px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
-                  fontSize: 13, fontWeight: freq === k ? 700 : 500,
-                  background: freq === k ? "var(--ink)" : "var(--surface)",
-                  color: freq === k ? "#fff" : "var(--ink)",
-                  border: `1px solid ${freq === k ? "var(--ink)" : "var(--line)"}` }}>
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
-            <label className="cc-label">Empieza el</label>
-            <input className="cc-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          {config.accounts.length > 1 && (
-            <div style={{ flex: 1 }}>
-              <label className="cc-label">Cuenta</label>
-              <select className="cc-select" value={accountId} onChange={(e) => { setAccountId(e.target.value); setCatId(""); }}>
-                <option value="">Elegir…</option>
-                {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div style={{ marginBottom: 18 }}>
-          <label className="cc-label">Categoría {accountId ? "" : "(elige cuenta primero)"}</label>
-          <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)} disabled={!accountId}>
-            <option value="auto">✨ Detectar automáticamente</option>
-            <option value="">Sin categoría</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-          </select>
-          {catId === "auto" && (
-            <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 6 }}>
-              Zafi elegirá la categoría según el concepto al guardar.
-            </div>
-          )}
-        </div>
-
-        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.5 }}>
-          Se generará un {type === "income" ? "ingreso" : "gasto"} de <b>{amount ? fmtBare(parseFloat(amount) || 0) : "$0"}</b> {FREQ_LABELS_FN()[freq].toLowerCase()} a partir del {startDate}. Si la fecha de inicio ya pasó, se crearán los movimientos faltantes al guardar.
-        </div>
-
-        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14, opacity: (canSave && !detecting) ? 1 : 0.4 }}
-          disabled={!canSave || detecting} onClick={save}>
-          {detecting ? "Detectando categoría…" : (editingId ? "Guardar cambios" : "Crear recurrente")}
-        </button>
       </div>
     </div>
   );
@@ -5761,10 +3620,7 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
       <div className="cc-overlay" onClick={onClose}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
-          <div className="cc-sheet-top">
-            <h2>Importar screenshot</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
-          </div>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>📸 Importar desde screenshot</h2>
           <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
             Sube screenshots de tu app bancaria o estado de cuenta. La IA extrae los movimientos y tú los revisas.
           </p>
@@ -5860,172 +3716,9 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 }
 
 /* ============================ ESTADÍSTICAS =============================== */
-/* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
-const CHART_PALETTE = ["#5B6EE8", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
-
-function CategoryChart({ rows, type, onPick }) {
-  // rows: [{cat, amt}]
-  const [chartType, setChartType] = useState(type === "income" ? "donut" : "bars");
-  const [activeIdx, setActiveIdx] = useState(null);
-  const total = rows.reduce((s, r) => s + r.amt, 0);
-  if (!rows.length) return <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>No hay datos en el periodo.</div>;
-
-  const data = rows.map((r, i) => ({ ...r, color: CHART_PALETTE[i % CHART_PALETTE.length] }));
-  const accentColor = type === "income" ? "var(--green)" : "var(--coral)";
-
-  const TYPES = [["bars", "Barras"], ["pie", "Pastel"], ["donut", "Dona"]];
-
-  return (
-    <div>
-      {/* switch de tipo */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        {TYPES.map(([k, l]) => (
-          <button key={k} onClick={() => { setChartType(k); setActiveIdx(null); }}
-            style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-              fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
-              background: chartType === k ? "var(--ink)" : "var(--surface)",
-              color: chartType === k ? "#fff" : "var(--ink-soft)",
-              border: `1px solid ${chartType === k ? "var(--ink)" : "var(--line)"}` }}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {(chartType === "pie" || chartType === "donut") && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <CatPie data={data} total={total} donut={chartType === "donut"}
-            active={activeIdx} onHover={setActiveIdx} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
-            {data.map((d, i) => {
-              const pct = total ? Math.round((d.amt / total) * 100) : 0;
-              return (
-                <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
-                  onMouseEnter={() => setActiveIdx(i)} onMouseLeave={() => setActiveIdx(null)}
-                  style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 6px",
-                    background: activeIdx === i ? "var(--surface)" : "transparent", border: "none",
-                    borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
-                    transition: "background .12s" }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
-                  <span className="cc-emoji" style={{ fontSize: 15 }}>{d.cat.emoji}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.cat.name}</span>
-                  <span className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 13, color: accentColor }}>
-                    {fmtBare(d.amt)}
-                  </span>
-                  <span style={{ fontSize: 10.5, color: "var(--ink-faint)", width: 30, textAlign: "right" }}>{pct}%</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {chartType === "bars" && (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {data.map((d) => {
-            const pct = total ? Math.round((d.amt / total) * 100) : 0;
-            const maxAmt = data[0].amt;
-            const w = maxAmt ? (d.amt / maxAmt) * 100 : 0;
-            return (
-              <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
-                  background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
-                  cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                  <span className="cc-emoji">{d.cat.emoji}</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{d.cat.name}</div>
-                  <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                    <div style={{ height: "100%", width: `${w}%`, background: type === "income" ? "var(--green)" : "var(--bar-fill)", borderRadius: 99 }} />
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14, color: accentColor }}>
-                    {fmtBare(d.amt)}<span style={{ fontSize: 10, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 1 }}>{pct}%</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* Pastel/dona interactivo con segmento activo resaltado */
-function CatPie({ data, total, donut, active, onHover }) {
-  const size = 180, cx = size / 2, cy = size / 2, r = 78, ir = donut ? 46 : 0;
-  let acc = 0;
-  const slices = data.map((d) => {
-    const frac = total ? d.amt / total : 0;
-    const start = acc; acc += frac;
-    return { ...d, start, end: acc };
-  });
-  function arc(s, e, rad, innerRad) {
-    const a0 = s * Math.PI * 2 - Math.PI / 2;
-    const a1 = e * Math.PI * 2 - Math.PI / 2;
-    const large = e - s > 0.5 ? 1 : 0;
-    const x0 = cx + rad * Math.cos(a0), y0 = cy + rad * Math.sin(a0);
-    const x1 = cx + rad * Math.cos(a1), y1 = cy + rad * Math.sin(a1);
-    if (innerRad === 0) {
-      return `M${cx},${cy} L${x0},${y0} A${rad},${rad} 0 ${large} 1 ${x1},${y1} Z`;
-    }
-    const xi0 = cx + innerRad * Math.cos(a0), yi0 = cy + innerRad * Math.sin(a0);
-    const xi1 = cx + innerRad * Math.cos(a1), yi1 = cy + innerRad * Math.sin(a1);
-    return `M${x0},${y0} A${rad},${rad} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${innerRad},${innerRad} 0 ${large} 0 ${xi0},${yi0} Z`;
-  }
-  const activeSlice = active != null ? slices[active] : null;
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 180, height: 180, flexShrink: 0 }}>
-      {slices.map((s, i) =>
-        s.end - s.start < 0.001 ? null :
-        <path key={i} d={arc(s.start, s.end, active === i ? r + 4 : r, ir)} fill={s.color}
-          opacity={active == null || active === i ? 1 : 0.45}
-          style={{ transition: "opacity .15s, d .15s", cursor: "pointer" }}
-          onMouseEnter={() => onHover && onHover(i)} onMouseLeave={() => onHover && onHover(null)} />
-      )}
-      {donut && (
-        <>
-          <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="12" fill="var(--ink-soft)">
-            {activeSlice ? activeSlice.cat.name : "Total"}
-          </text>
-          <text x={cx} y={cy + 15} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="16" fontWeight="600" fill="var(--ink)">
-            {fmtBare(activeSlice ? activeSlice.amt : total)}
-          </text>
-        </>
-      )}
-    </svg>
-  );
-}
-
-function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
+function Estadisticas({ config, txs, dateRange, onEdit }) {
   const [view, setView] = useState("all"); // all | accountId
   const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
-  const [configOpen, setConfigOpen] = useState(false);
-
-  // secciones configurables (orden + visibilidad)
-  const STATS_DEFAULT = [
-    { id: "summary", label: "Resumen ingresos/gastos", on: true },
-    { id: "kpis", label: "Indicadores (KPIs)", on: true },
-    { id: "incCats", label: "Ingresos por categoría", on: true },
-    { id: "expCats", label: "Gastos por categoría", on: true },
-    { id: "trend", label: "Evolución de saldo", on: true },
-    { id: "topCat", label: "En lo que más gastaste", on: true },
-  ];
-  const statsSections = (() => {
-    const saved = config.statsSections || [];
-    // merge: respeta orden guardado, agrega nuevas que falten
-    const byId = Object.fromEntries(saved.map((s) => [s.id, s]));
-    const merged = saved
-      .filter((s) => STATS_DEFAULT.some((d) => d.id === s.id))
-      .map((s) => ({ ...STATS_DEFAULT.find((d) => d.id === s.id), ...s }));
-    STATS_DEFAULT.forEach((d) => { if (!byId[d.id]) merged.push(d); });
-    return merged.length ? merged : STATS_DEFAULT;
-  })();
-  const saveStatsSections = (next) => saveConfig({ ...config, statsSections: next });
 
   const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
   const scopedInitial = view === "all"
@@ -6114,12 +3807,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* selector de cuenta */}
       <div className="cc-fade">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div className="cc-label" style={{ marginBottom: 0 }}>Ver estadísticas de</div>
-          <button className="cc-gear" onClick={() => setConfigOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", width: "auto" }}>
-            ⚙️ Personalizar
-          </button>
-        </div>
+        <div className="cc-label" style={{ marginBottom: 8 }}>Ver estadísticas de</div>
         <div className="cc-scroll-x">
           <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}
             style={{ minWidth: 120 }}>
@@ -6146,98 +3834,129 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
         </div>
       ) : (
         <>
-          {statsSections.filter((s) => s.on).map((s) => {
-            if (s.id === "summary") return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => openDetail("income")}
-                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                      textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
-                  </button>
-                  <button onClick={() => openDetail("expense")}
-                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                      textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
-                  </button>
-                </div>
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
-                  <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
-                    color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)" }}>
-                    {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                  </span>
-                </div>
-              </div>
-            );
+          {/* ===== Tarjeta destacada: Ingresos vs Gastos (tappable) ===== */}
+          <div className="cc-card" style={{ padding: 18 }}>
+            <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => openDetail("income")}
+                style={{ flex: 1, padding: "13px 14px", background: "var(--green-soft)",
+                  border: "1px solid var(--green)", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>📥 Ingresos</div>
+                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--green)" }}>{fmt(rangeIncome)}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+              </button>
+              <button onClick={() => openDetail("expense")}
+                style={{ flex: 1, padding: "13px 14px", background: "var(--coral-soft)",
+                  border: "1px solid var(--coral)", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--coral)",
+                  textTransform: "uppercase", letterSpacing: ".06em" }}>📤 Gastos</div>
+                <div className="cc-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--coral)" }}>{fmt(rangeExpense)}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+              </button>
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
+              <span className="cc-num" style={{ fontSize: 17, fontWeight: 700,
+                color: rangeFlow >= 0 ? "var(--green)" : "var(--coral)" }}>
+                {rangeFlow >= 0 ? "+" : "−"}{fmt(Math.abs(rangeFlow))}
+              </span>
+            </div>
+          </div>
 
-            if (s.id === "kpis") return (
-              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
-                <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
-              </div>
-            );
+          {/* KPIs secundarios */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
+            <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
+          </div>
 
-            if (s.id === "incCats" && incRows.length > 0) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Ingresos por categoría</div>
-                <CategoryChart rows={incRows} type="income" onPick={openCategoryDetail} />
+          {/* ===== Categorías de ingreso (tappables) ===== */}
+          {incRows.length > 0 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Ingresos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {incRows.map(({ cat, amt }) => {
+                  const pct = rangeIncome ? Math.round((amt / rangeIncome) * 100) : 0;
+                  return (
+                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                        background: "var(--surface)", border: "1px solid var(--line)",
+                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
+                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--green)", borderRadius: 99 }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--green)" }}>{fmt(amt)}</div>
+                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            );
+            </div>
+          )}
 
-            if (s.id === "expCats" && expRows.length > 0) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría</div>
-                <CategoryChart rows={expRows} type="expense" onPick={openCategoryDetail} />
+          {/* ===== Categorías de gasto (tappables) ===== */}
+          {expRows.length > 0 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Gastos por categoría</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {expRows.map(({ cat, amt }) => {
+                  const pct = rangeExpense ? Math.round((amt / rangeExpense) * 100) : 0;
+                  return (
+                    <button key={cat.id} onClick={() => openCategoryDetail(cat.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                        background: "var(--surface)", border: "1px solid var(--line)",
+                        borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 21 }}>{cat.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
+                        <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: "var(--coral)", borderRadius: 99 }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="cc-num" style={{ fontWeight: 700, fontSize: 14, color: "var(--coral)" }}>{fmt(amt)}</div>
+                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{pct}%</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            );
+            </div>
+          )}
 
-            if (s.id === "trend" && balancePoints.length >= 2) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
-                <LineChart points={balancePoints} />
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
-                  Desliza sobre la gráfica para ver cualquier día
-                </div>
-              </div>
-            );
+          {/* Evolución de saldo en el rango */}
+          {balancePoints.length >= 2 && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
+              <LineChart points={balancePoints} />
+            </div>
+          )}
 
-            if (s.id === "topCat" && topCat) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
-                    <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
-                      {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
-                    </div>
+          {/* destacado */}
+          {topCat && (
+            <div className="cc-card" style={{ padding: 18 }}>
+              <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                <div style={{ flex: 1 }}>
+                  <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
+                  <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                    {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
                   </div>
                 </div>
               </div>
-            );
-
-            return null;
-          })}
+            </div>
+          )}
         </>
-      )}
-
-      {configOpen && (
-        <StatsConfigModal
-          sections={statsSections}
-          onClose={() => setConfigOpen(false)}
-          onSave={(next) => { saveStatsSections(next); setConfigOpen(false); }}
-        />
       )}
 
       {detail && (
@@ -6245,60 +3964,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
           onClose={() => setDetail(null)}
           onEditTx={(t) => { setDetail(null); onEdit(t); }} />
       )}
-    </div>
-  );
-}
-
-/* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
-function StatsConfigModal({ sections, onClose, onSave }) {
-  const [items, setItems] = useState(sections.map((s) => ({ ...s })));
-
-  const move = (i, dir) => {
-    const j = i + dir;
-    if (j < 0 || j >= items.length) return;
-    const next = [...items];
-    [next[i], next[j]] = [next[j], next[i]];
-    setItems(next);
-  };
-  const toggle = (i) => {
-    setItems(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
-  };
-
-  return (
-    <div className="cc-overlay" onClick={onClose}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>{t("customizeStatsTitle")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
-          Reordena con las flechas y muestra u oculta cada sección.
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-          {items.map((s, i) => (
-            <div key={s.id} className="cc-card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, opacity: s.on ? 1 : 0.55 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <button onClick={() => move(i, -1)} disabled={i === 0}
-                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▲</button>
-                <button onClick={() => move(i, 1)} disabled={i === items.length - 1}
-                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === items.length - 1 ? "default" : "pointer", opacity: i === items.length - 1 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▼</button>
-              </div>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.label}</span>
-              <button onClick={() => toggle(i)}
-                style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
-                  background: s.on ? "var(--green)" : "var(--surface-2)", transition: "background .15s" }}>
-                <span style={{ position: "absolute", top: 3, left: s.on ? 22 : 3, width: 21, height: 21, borderRadius: "50%",
-                  background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14 }}
-          onClick={() => onSave(items)}>Guardar</button>
-      </div>
     </div>
   );
 }
@@ -6314,76 +3979,39 @@ function KpiCard({ label, value, sub, color }) {
 }
 
 /* ----------------------- gráfica de línea (SVG) -------------------------- */
-function LineChart({ points, area: showArea = true }) {
-  const [hover, setHover] = useState(null); // index hovered
+function LineChart({ points }) {
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
   }
-  const W = 600, H = 200, P = 10, PB = 22; // PB: padding inferior para etiquetas
-  const vals = points.map((p) => p.val);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const W = 600, H = 180, P = 10;
+  const min = Math.min(...points.map((p) => p.val));
+  const max = Math.max(...points.map((p) => p.val));
   const range = max - min || 1;
   const xOf = (i) => P + (i / (points.length - 1)) * (W - P * 2);
-  const yOf = (v) => H - PB - ((v - min) / range) * (H - P - PB);
+  const yOf = (v) => H - P - ((v - min) / range) * (H - P * 2);
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
-  const areaPath = `${path} L${xOf(points.length - 1).toFixed(1)},${H - PB} L${P},${H - PB} Z`;
+  const area = `${path} L${xOf(points.length - 1).toFixed(1)},${H - P} L${P},${H - P} Z`;
   const last = points[points.length - 1].val;
   const first = points[0].val;
   const up = last >= first;
   const stroke = up ? "var(--green)" : "var(--coral)";
-  const avgY = yOf(avg);
-
-  const maxIdx = vals.indexOf(max);
-  const minIdx = vals.indexOf(min);
-
-  const handleMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const x = ((clientX - rect.left) / rect.width) * W;
-    const i = Math.round(((x - P) / (W - P * 2)) * (points.length - 1));
-    setHover(Math.max(0, Math.min(points.length - 1, i)));
-  };
-
-  const hp = hover != null ? points[hover] : null;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "var(--ink-soft)" }}>
-        <span>{hp ? hp.date : points[0].date}</span>
-        <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>
-          {hp ? fmt(hp.val) : fmt(last)}
-        </span>
-        <span>{hp ? "" : "hoy"}</span>
+        <span>{points[0].date}</span>
+        <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>{fmt(last)}</span>
+        <span>hoy</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none" }}
-        onMouseMove={handleMove} onMouseLeave={() => setHover(null)}
-        onTouchStart={handleMove} onTouchMove={handleMove} onTouchEnd={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
           <linearGradient id="ccLine" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
         </defs>
-        {/* promedio */}
-        <line x1={P} y1={avgY} x2={W - P} y2={avgY} stroke="var(--ink-faint)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)">prom {fmtBare(avg)}</text>
-        {showArea && <path d={areaPath} fill="url(#ccLine)" />}
+        <path d={area} fill="url(#ccLine)" />
         <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-        {/* máximo y mínimo */}
-        <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill="var(--green)" />
-        <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--green)">{fmtBare(max)}</text>
-        <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill="var(--coral)" />
-        <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--coral)">{fmtBare(min)}</text>
-        {/* cursor hover */}
-        {hp && (
-          <>
-            <line x1={xOf(hover)} y1={P} x2={xOf(hover)} y2={H - PB} stroke="var(--ink-soft)" strokeWidth="1" opacity="0.4" />
-            <circle cx={xOf(hover)} cy={yOf(hp.val)} r="5" fill="#fff" stroke={stroke} strokeWidth="2.5" />
-          </>
-        )}
       </svg>
     </div>
   );
@@ -6440,7 +4068,7 @@ function BarsChart({ bars }) {
           <g key={i}>
             <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3" />
             <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3" />
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">
               {monthLabel(b.key).split(" ")[0]}
             </text>
           </g>
@@ -6538,13 +4166,13 @@ function MiniLine({ series, xLabels }) {
               strokeOpacity={tv === 0 ? 0.5 : 1}
               strokeDasharray={tv === 0 ? "none" : "3 4"} />
             <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
-              fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{shortMoney(tv)}</text>
+              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
           </g>
         ))}
         {/* etiquetas eje X */}
         {xLabels.map((lbl, i) => (
           <text key={i} x={xOf(i)} y={H - 16} textAnchor="middle" fontSize="11"
-            fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{lbl}</text>
+            fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
         ))}
         {/* línea guía vertical */}
         {hover != null && (
@@ -6621,7 +4249,7 @@ function MiniBars({ series, xLabels }) {
             <line x1={PL} x2={W - PR} y1={yOf(tv)} y2={yOf(tv)}
               stroke="var(--line)" strokeDasharray={tv === 0 ? "none" : "3 4"} />
             <text x={PL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10"
-              fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{shortMoney(tv)}</text>
+              fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{shortMoney(tv)}</text>
           </g>
         ))}
         {/* highlight columna activa */}
@@ -6643,7 +4271,7 @@ function MiniBars({ series, xLabels }) {
                   fill={color} rx="3" opacity={hover != null && hover !== i ? 0.55 : 1} />;
               })}
               <text x={cx} y={H - 16} textAnchor="middle" fontSize="11"
-                fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">{lbl}</text>
+                fill="var(--ink-soft)" fontFamily="Hanken Grotesk, sans-serif">{lbl}</text>
             </g>
           );
         })}
@@ -6910,10 +4538,7 @@ REGLAS:
       <div className="cc-overlay" onClick={onClose}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
-          <div className="cc-sheet-top">
-            <h2>Importar desde Excel</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
-          </div>
+          <h2 className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>📊 Importar desde Excel</h2>
           <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
             Sube un archivo de Excel (.xlsx, .xls) o CSV con tus movimientos. La IA detecta las columnas y los importa.
           </p>
@@ -7040,10 +4665,7 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>Revisa los movimientos</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
-        </div>
+        <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 4 }}>Revisa los movimientos</h2>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
           {sourceLabel} <b>{drafts.length}</b>. Edita lo que esté mal o desmarca los que no quieras importar.
         </p>
@@ -7176,9 +4798,9 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
     <div className="cc-overlay" onClick={onClose} style={{ zIndex: 70 }}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
-        <div className="cc-sheet-top">
-          <h2>Elegir movimientos</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600 }}>Elegir movimientos</h2>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cancelar</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
           Marca todos los movimientos que forman parte del mismo reembolso o encargo. Puedes elegir varios ingresos y/o varios gastos.
@@ -7229,7 +4851,7 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
           ) : (
             renderGroupedByDay(list).map((entry) =>
               entry.type === "header" ? (
-                <div key={`h-${entry.date}`} className="cc-day-sep">
+                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
                   {(() => { const p = dayParts(entry.date); return (
                     <>
                       <span className="cc-day-num">{p.num}</span>
@@ -7317,30 +4939,31 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config }
   const showOut = filter === "all" || filter === "expense";
   const net = totalIn - totalOut;
   return (
-    <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12 }}>
+    <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12,
+      background: "var(--surface)", border: "1px solid var(--line)" }}>
       <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
         {showIn && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--ink)" }}>{fmt(totalIn)}</div>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--green)" }}>{fmt(totalIn)}</div>
           </div>
         )}
         {showOut && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-            paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line)" : "none" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--coral)" }}>{fmt(totalOut)}</div>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700, color: "var(--coral)" }}>{fmt(totalOut)}</div>
           </div>
         )}
         {filter === "all" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-            paddingLeft: 12, borderLeft: "1px solid var(--line-soft)" }}>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            paddingLeft: 12, borderLeft: "1px solid var(--line)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
               textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500,
-              color: net >= 0 ? "var(--ink)" : "var(--coral)" }}>
+            <div className="cc-num" style={{ fontSize: 19, fontWeight: 700,
+              color: net >= 0 ? "var(--green)" : "var(--coral)" }}>
               {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
             </div>
           </div>
@@ -7379,14 +5002,14 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
-          <div className="cc-emoji" style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
+          <div style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 2 }}>{detail.label}</h2>
             <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
               {rangeLabel(dateRange)} · {count} movimiento{count === 1 ? "" : "s"}
             </div>
           </div>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
         </div>
 
         {/* total */}
@@ -7408,7 +5031,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
           ) : (
             renderGroupedByDay(list).map((entry) =>
               entry.type === "header" ? (
-                <div key={`h-${entry.date}`} className="cc-day-sep">
+                <div key={`h-${entry.date}`} className="cc-day-sep" style={{ background: "var(--paper)" }}>
                   {(() => { const p = dayParts(entry.date); return (
                     <>
                       <span className="cc-day-num">{p.num}</span>
@@ -7416,8 +5039,8 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
                     </>
                   ); })()}
                   <div className="cc-day-totals">
-                    {entry.income > 0 && <span className="pos">+{fmtBare(entry.income)}</span>}
-                    {entry.expense > 0 && <span className="neg">−{fmtBare(entry.expense)}</span>}
+                    {entry.income > 0 && <span className="pos">+{fmt(entry.income)}</span>}
+                    {entry.expense > 0 && <span className="neg">−{fmt(entry.expense)}</span>}
                   </div>
                 </div>
               ) : (
