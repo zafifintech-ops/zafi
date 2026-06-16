@@ -2181,23 +2181,26 @@ function AuthScreen() {
   }
 
   async function doRegister() {
-    if (!name.trim()) { setErr("Escribe tu nombre."); return; }
-    if (!gender) { setErr("Selecciona tu género."); return; }
-    if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Escribe una edad válida."); return; }
-    if (!country.trim()) { setErr("Selecciona tu país."); return; }
-    if (!email || !password || !confirm) { setErr("Llena todos los campos."); return; }
-    if (password !== confirm) { setErr("Las contraseñas no coinciden."); return; }
-    if (password.length < 6) { setErr("Mínimo 6 caracteres en la contraseña."); return; }
+    if (!name.trim()) { setErr("Enter your name."); return; }
+    if (!gender) { setErr("Select your gender."); return; }
+    if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
+    if (!country.trim()) { setErr("Select your country."); return; }
+    if (!email || !password || !confirm) { setErr("Fill in all fields."); return; }
+    if (password !== confirm) { setErr("Passwords don't match."); return; }
+    if (password.length < 6) { setErr("Password must be at least 6 characters."); return; }
     setBusy(true); setErr("");
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      // guardar perfil del usuario
+      // guardar perfil dentro del config para que no vuelva a pedir ProfileSetup
+      const avatarId = defaultAvatarForGender(gender);
       try {
-        await setDoc(doc(db, "users", cred.user.uid, "data", "profile"), {
-          name: name.trim(), gender, age: Number(age), country: country.trim(),
-          email: email.trim(), createdAt: new Date().toISOString(),
-        });
-      } catch (e) { /* el perfil es complementario, no bloquea el registro */ }
+        await setDoc(doc(db, "users", cred.user.uid, "data", "config"), {
+          value: {
+            userName: name.trim(), userGender: gender, userAge: Number(age),
+            userCountry: country.trim(), ...(avatarId ? { avatarId } : {}),
+          }
+        }, { merge: true });
+      } catch (e) { /* no bloquea el registro */ }
     }
     catch(e) { setErr(ferr(e.code)); }
     finally { setBusy(false); }
@@ -2585,7 +2588,7 @@ function AuthScreen() {
    APP — componente principal
    ========================================================================= */
 /* ===================== PROFILE SETUP (post-auth for Google/Apple) ======= */
-function ProfileSetup({ user, onDone }) {
+function ProfileSetup({ user, config, saveConfig, onDone }) {
   const FONT = "'Montserrat', sans-serif";
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
@@ -2601,10 +2604,14 @@ function ProfileSetup({ user, onDone }) {
     if (!gender) { setErr("Select your gender."); return; }
     setBusy(true); setErr("");
     try {
-      await setDoc(doc(db, "users", user.uid, "data", "profile"), {
-        name: name.trim(), gender, age: Number(age), country,
-        email: user.email || "", createdAt: new Date().toISOString(),
-      });
+      const avatarId = defaultAvatarForGender(gender);
+      const profileData = {
+        userName: name.trim(), userGender: gender, userAge: Number(age),
+        userCountry: country, ...(avatarId ? { avatarId } : {}),
+      };
+      // merge into existing config or create minimal config
+      const updated = { ...(config || {}), ...profileData };
+      saveConfig(updated);
       onDone();
     } catch (e) { setErr("Something went wrong. Try again."); }
     setBusy(false);
@@ -2746,22 +2753,9 @@ export default function App() {
         } else if (t) {
           setTxs(t);
         }
-        // Check if user has a profile name
-        try {
-          const snap = await getDoc(doc(db, "users", user.uid, "data", "profile"));
-          const hasProfile = !!(snap.exists() && snap.data().name);
-          if (!cancelled) setProfileDone(hasProfile);
-          // Auto-assign avatar based on gender if config exists but has no avatar
-          if (hasProfile && c && !c.avatarId && !c.avatarData) {
-            const profile = snap.data();
-            const defaultAvatar = defaultAvatarForGender(profile.gender);
-            if (defaultAvatar) {
-              const updated = { ...r ? r.config : c, avatarId: defaultAvatar };
-              setConfig(updated);
-              persist("cc:config", updated);
-            }
-          }
-        } catch (e) { if (!cancelled) setProfileDone(false); }
+        // Check if user has completed profile (stored in config)
+        const hasProfile = !!(c && c.userName);
+        if (!cancelled) setProfileDone(hasProfile);
       } catch (e) {
         console.error("load error", e);
         if (!cancelled) setProfileDone(false);
@@ -2817,14 +2811,14 @@ export default function App() {
 
   // Si el usuario no tiene perfil (Google/Apple sin nombre), pedir datos
   if (!profileDone)
-    return <ProfileSetup user={user} onDone={() => setProfileDone(true)} />;
+    return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
 
   return (
     <div className="cc-root">
       <style>{STYLE}</style>
       <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
-        <Onboarding onDone={saveConfig} />
+        <Onboarding onDone={(built) => saveConfig({ ...config, ...built })} />
       ) : (
         <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
       )}
