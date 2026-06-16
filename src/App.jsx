@@ -2088,21 +2088,53 @@ function AuthScreen() {
   };
 
   if (screen === "welcome") return (
-    <div style={wrap}>
-      <div style={blob} />
-      <div style={blob2} />
-      <div style={{ ...box, alignItems:"center", gap:40, position:"relative", zIndex:1 }}>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:28 }}>
-          <ZafiLogo />
-          <p style={{ fontSize:15, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.6, maxWidth:280 }}>
-            Lleva el control de tu dinero con inteligencia artificial.
-          </p>
+    <div style={{ minHeight:"100vh", position:"relative", overflow:"hidden", background:"#DCE1E8",
+      display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
+      {/* video de fondo */}
+      <video
+        ref={(el) => {
+          if (el) {
+            el.muted = true;
+            const p = el.play();
+            if (p && p.catch) p.catch(() => {});
+          }
+        }}
+        autoPlay muted loop playsInline preload="auto"
+        style={{ position:"absolute", inset:0, width:"100%", height:"100%",
+          objectFit:"cover", zIndex:0, background:"#DCE1E8" }}
+      >
+        <source src="/zafi-intro.mp4" type="video/mp4" />
+      </video>
+      {/* degradado para legibilidad abajo */}
+      <div style={{ position:"absolute", inset:0, zIndex:1, pointerEvents:"none",
+        background:"linear-gradient(to bottom, rgba(220,225,232,0) 35%, rgba(220,225,232,.55) 70%, rgba(220,225,232,.85) 100%)" }} />
+
+      {/* contenido abajo */}
+      <div style={{ position:"relative", zIndex:2, padding:"0 26px calc(34px + env(safe-area-inset-bottom))",
+        display:"flex", flexDirection:"column", gap:22 }}>
+        <div>
+          <div style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:56,
+            letterSpacing:"-.05em", color:AUTH_INK, lineHeight:1, fontFeatureSettings:'"ss01"' }}>zafi</div>
+          <div style={{ fontFamily:"'Montserrat',sans-serif", fontWeight:400, fontSize:16,
+            color:AUTH_INK_SOFT, marginTop:6, letterSpacing:"-.01em" }}>
+            finanzas personales con <span style={{ fontFamily:"'Fraunces',serif", fontStyle:"italic" }}>IA</span>
+          </div>
         </div>
-        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={() => go("register")}>Crear cuenta gratis</button>
-          <button style={btnS} onClick={() => go("login")}>Ya tengo cuenta</button>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <button
+            style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.6)",
+              background:"rgba(255,255,255,.65)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+              color:AUTH_INK, fontSize:15, fontWeight:700, fontFamily:"inherit", cursor:"pointer",
+              letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.12)" }}
+            onClick={() => go("register")}>Crear cuenta</button>
+          <button
+            style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.25)",
+              background:"rgba(27,34,48,.55)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+              color:"#fff", fontSize:15, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+              letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.18)" }}
+            onClick={() => go("login")}>Iniciar sesión</button>
         </div>
-        <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", maxWidth:280, lineHeight:1.5, opacity:.7 }}>
+        <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.5, opacity:.75 }}>
           Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
         </div>
       </div>
