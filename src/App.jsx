@@ -517,18 +517,156 @@ const SEED_KW = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
+/* ===== Sistema de idiomas (i18n) ===== */
+let _lang = "es";
+const setAppLang = (l) => { _lang = l; };
+const STRINGS = {
+  // Tabs
+  home: { es: "Inicio", en: "Home" },
+  history: { es: "Historial", en: "History" },
+  categories: { es: "Categorías", en: "Categories" },
+  statistics: { es: "Estadísticas", en: "Statistics" },
+  // Header
+  weeklyPlan: { es: t("weeklyPlan"), en: "Weekly plan" },
+  // Home sections
+  yourAccounts: { es: "Tus cuentas", en: "Your accounts" },
+  addAccount: { es: "Agregar cuenta", en: "Add account" },
+  customize: { es: "Personalizar", en: "Customize" },
+  incomeThisMonth: { es: "Ingresos · Este mes", en: "Income · This month" },
+  expenseThisMonth: { es: "Gastos · Este mes", en: "Expenses · This month" },
+  topExpenses: { es: "Gastos más grandes", en: "Biggest expenses" },
+  recentMovements: { es: "Últimos movimientos", en: "Recent movements" },
+  expByCategory: { es: "Gastos por categoría", en: "Expenses by category" },
+  balance: { es: "Saldo", en: "Balance" },
+  // History
+  all: { es: "Todos", en: "All" },
+  income: { es: "Ingresos", en: "Income" },
+  expenses: { es: "Gastos", en: "Expenses" },
+  select: { es: "Seleccionar", en: "Select" },
+  selected: { es: "seleccionado", en: "selected" },
+  selectAll: { es: "Todos", en: "All" },
+  none: { es: "Ninguno", en: "None" },
+  deleteBtn: { es: "Eliminar", en: "Delete" },
+  sortBy: { es: "Ordenar", en: "Sort by" },
+  mov: { es: "mov.", en: "mov." },
+  touchToEdit: { es: "Toca un movimiento para editarlo · ✕ para eliminarlo", en: "Tap a movement to edit it · ✕ to delete it" },
+  noMovements: { es: "No hay movimientos en este periodo.", en: "No movements in this period." },
+  // AddModal
+  newTransaction: { es: "Nueva transacción", en: "New transaction" },
+  editTransaction: { es: "Editar transacción", en: "Edit transaction" },
+  expense: { es: "Gasto", en: "Expense" },
+  incomeType: { es: "Ingreso", en: "Income" },
+  concept: { es: "Concepto", en: "Concept" },
+  date: { es: "Fecha", en: "Date" },
+  category: { es: "Categoría", en: "Category" },
+  account: { es: "Cuenta", en: "Account" },
+  save: { es: "Guardar", en: "Save" },
+  saveChanges: { es: "Guardar cambios", en: "Save changes" },
+  // TopFab menu
+  addMovement: { es: "Agregar movimiento", en: "Add movement" },
+  manualCapture: { es: "Capturar manual", en: "Manual capture" },
+  manualCaptureDesc: { es: "Escribe el movimiento tú mismo", en: "Enter the movement yourself" },
+  recurringMovement: { es: "Movimiento recurrente", en: "Recurring movement" },
+  recurringDesc: { es: "Se repite automáticamente", en: "Repeats automatically" },
+  fromScreenshot: { es: "Desde screenshot", en: "From screenshot" },
+  fromScreenshotDesc: { es: "Sube una captura y la IA lo lee", en: "Upload a screenshot and AI reads it" },
+  fromExcel: { es: "Desde Excel", en: "From Excel" },
+  fromExcelDesc: { es: "Importa una hoja de cálculo", en: "Import a spreadsheet" },
+  // Settings
+  settings: { es: "Ajustes", en: "Settings" },
+  personalInfo: { es: "Información personal", en: "Personal information" },
+  name: { es: "Nombre", en: "Name" },
+  phone: { es: "Teléfono", en: "Phone" },
+  email: { es: "Correo electrónico", en: "Email" },
+  language: { es: "Idioma", en: "Language" },
+  currency: { es: "Moneda", en: "Currency" },
+  notifications: { es: "Notificaciones", en: "Notifications" },
+  expenseReminders: { es: "Recordatorios de gastos", en: "Expense reminders" },
+  comingSoon: { es: "Próximamente", en: "Coming soon" },
+  dataPrivacy: { es: "Datos y privacidad", en: "Data & privacy" },
+  exportData: { es: "Exportar mis datos", en: "Export my data" },
+  resetApp: { es: "Reiniciar app (borrar todo)", en: "Reset app (delete all)" },
+  resetConfirm: { es: "¿Estás seguro? Esto borrará todas tus categorías, cuentas y movimientos.", en: "Are you sure? This will delete all your categories, accounts and movements." },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  yesDeleteAll: { es: "Sí, borrar todo", en: "Yes, delete all" },
+  signOut: { es: "Cerrar sesión", en: "Sign out" },
+  signingOut: { es: t("signingOut"), en: "Signing out…" },
+  infoUpdated: { es: t("infoUpdated"), en: "Information updated" },
+  chooseAvatar: { es: "Elige tu avatar", en: "Choose your avatar" },
+  avatarUpdated: { es: "Avatar actualizado", en: "Avatar updated" },
+  avatarRemoved: { es: "Avatar eliminado", en: "Avatar removed" },
+  choosePhoto: { es: "Elegir foto", en: "Choose photo" },
+  takePhoto: { es: "Tomar foto", en: "Take photo" },
+  orUploadPhoto: { es: "O sube tu propia foto", en: "Or upload your own photo" },
+  // Recurring
+  recurringMovements: { es: "Movimientos recurrentes", en: "Recurring movements" },
+  daily: { es: "Diario", en: "Daily" },
+  weekly: { es: "Semanal", en: "Weekly" },
+  biweekly: { es: "Quincenal", en: "Biweekly" },
+  monthly: { es: "Mensual", en: "Monthly" },
+  yearly: { es: "Anual", en: "Yearly" },
+  manage: { es: "Gestionar", en: "Manage" },
+  newRecurring: { es: "Nuevo recurrente", en: "New recurring" },
+  pause: { es: "Pausar", en: "Pause" },
+  activate: { es: "Activar", en: "Activate" },
+  edit: { es: "Editar", en: "Edit" },
+  // Stats
+  summary: { es: "Resumen", en: "Summary" },
+  netFlow: { es: "Flujo neto", en: "Net flow" },
+  tapForDetail: { es: "Tocar para detalle ▸", en: "Tap for detail ▸" },
+  avgDailyExpense: { es: "Gasto promedio diario", en: "Avg. daily expense" },
+  movementsInPeriod: { es: "Movimientos en el periodo", en: "Movements in period" },
+  incByCategory: { es: "Ingresos por categoría", en: "Income by category" },
+  topSpent: { es: "En lo que más gastaste", en: "Top spending" },
+  ofYourExpenses: { es: "de tus gastos", en: "of your expenses" },
+  customizeStats: { es: "Personalizar", en: "Customize" },
+  customizeStatsTitle: { es: "Personalizar estadísticas", en: "Customize statistics" },
+  reorderHint: { es: "Reordena con las flechas y muestra u oculta cada sección.", en: "Reorder with arrows and show or hide each section." },
+  bars: { es: "Barras", en: "Bars" },
+  pie: { es: "Pastel", en: "Pie" },
+  donut: { es: "Dona", en: "Donut" },
+  slideToSee: { es: "Desliza sobre la gráfica para ver cualquier día", en: "Slide over the chart to see any day" },
+  // Categories tab
+  eachAccountHasOwn: { es: "Cada cuenta tiene sus propias categorías.", en: "Each account has its own categories." },
+  totalsAreFrom: { es: "Los totales son de", en: "Totals are from" },
+  noRecurring: { es: "No tienes movimientos recurrentes. Crea uno para que se registre automáticamente.", en: "No recurring movements. Create one to have it registered automatically." },
+  activeCount: { es: "activo", en: "active" },
+  autoGenerated: { es: "se generan solos en su fecha", en: "auto-generated on their date" },
+  addCategoryTo: { es: "Agregar categoría a", en: "Add category to" },
+  noCats: { es: "Sin categorías.", en: "No categories." },
+  inPeriod: { es: "en el periodo", en: "in period" },
+  // Assistant
+  assistant: { es: "Asistente", en: "Assistant" },
+  close: { es: "Cerrar", en: "Close" },
+  send: { es: "Enviar", en: "Send" },
+  releaseToSend: { es: "Suelta para enviar", en: "Release to send" },
+  listening: { es: "Escuchando…", en: "Listening…" },
+  // General
+  loading: { es: "Cargando…", en: "Loading…" },
+  user: { es: "Usuario", en: "User" },
+  from: { es: "Desde", en: "From" },
+  to: { es: "Hasta", en: "To" },
+  apply: { es: "Aplicar", en: "Apply" },
+  male: { es: "Hombre", en: "Male" },
+  female: { es: "Mujer", en: "Female" },
+  other: { es: "Otro", en: "Other" },
+  paused: { es: "pausado", en: "paused" },
+};
+const t = (key) => (STRINGS[key] || {})[_lang] || (STRINGS[key] || {}).es || key;
+
 /* ===== Motor de movimientos recurrentes =====
  * Una regla recurrente vive en config.recurring[] con forma:
  * { id, type:"expense"|"income", amount, description, accountId, categoryId,
  *   freq:"daily"|"weekly"|"biweekly"|"monthly"|"yearly", startDate:"YYYY-MM-DD",
  *   lastRun:"YYYY-MM-DD"|null, active:true }
  */
-const FREQ_LABELS = {  daily: "Diario",
-  weekly: "Semanal",
-  biweekly: "Quincenal",
-  monthly: "Mensual",
-  yearly: "Anual",
-};
+const FREQ_LABELS_FN = () => ({
+  daily: t("daily"),
+  weekly: t("weekly"),
+  biweekly: t("biweekly"),
+  monthly: t("monthly"),
+  yearly: t("yearly"),
+});
 // Una regla está activa salvo que esté pausada explícitamente (compat: asistente usa `paused`, modal usa `active`)
 const isRecActive = (r) => r.active !== false && r.paused !== true;
 
@@ -2815,6 +2953,7 @@ REGLAS DE RESPUESTA:
 
 /* =============================== MAIN ==================================== */
 function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
+  setAppLang(config.language || "es");
   const [tab, setTab] = useState("inicio");
   const [adding, setAdding] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
@@ -3119,12 +3258,12 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
   };
 
   const NAV_ITEMS = [
-    ["inicio", "Home",    NavIconHome],
-    ["movs",   "History", NavIconHistory],
+    ["inicio", ()=>t("home"),    NavIconHome],
+    ["movs",   ()=>t("history"), NavIconHistory],
   ];
   const NAV_ITEMS_2 = [
-    ["cats",  "Categories", NavIconCategories],
-    ["stats", "Statistics", NavIconStats],
+    ["cats",  ()=>t("categories"), NavIconCategories],
+    ["stats", ()=>t("statistics"), NavIconStats],
   ];
 
   return (
@@ -3138,7 +3277,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         {NAV_ITEMS.map(([k, label, Icon]) => (
           <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{label}</span>
+            <span className="cc-nav-label">{typeof label === "function" ? label() : label}</span>
           </button>
         ))}
 
@@ -3155,7 +3294,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         {NAV_ITEMS_2.map(([k, label, Icon]) => (
           <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             <span className="cc-nav-icon"><Icon /></span>
-            <span className="cc-nav-label">{label}</span>
+            <span className="cc-nav-label">{typeof label === "function" ? label() : label}</span>
           </button>
         ))}
       </div>
@@ -3166,10 +3305,10 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 /* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
   const items = [
-    { icon: "✏️", label: "Capturar manual", desc: "Escribe el movimiento tú mismo", onClick: onPickManual },
-    { icon: "🔁", label: "Movimiento recurrente", desc: "Se repite automáticamente", onClick: onPickRecurring },
-    { icon: "📸", label: "Desde screenshot", desc: "Sube una captura y la IA lo lee", onClick: onPickScreenshot },
-    { icon: "📊", label: "Desde Excel", desc: "Importa una hoja de cálculo", onClick: onPickExcel },
+    { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
+    { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
+    { icon: "📸", label: t("fromScreenshot"), desc: t("fromScreenshotDesc"), onClick: onPickScreenshot },
+    { icon: "📊", label: t("fromExcel"), desc: t("fromExcelDesc"), onClick: onPickExcel },
   ];
   return (
     <>
@@ -3188,7 +3327,7 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
           <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="cc-grip" />
             <div className="cc-sheet-top">
-              <h2>Agregar movimiento</h2>
+              <h2>{t("addMovement")}</h2>
               <button className="cc-sheet-close" onClick={onToggle}>×</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
@@ -3233,6 +3372,7 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
     .join(" ") || "Usuario";
   const displayName = config?.userName || emailName;
   const initial = displayName[0]?.toUpperCase() || "U";
+  const avatarSrc = getAvatarSrc(config);
 
   return (
     <div className={`cc-top ${scrolled ? "scrolled" : ""}`}>
@@ -3245,7 +3385,9 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
           <button onClick={onOpenSettings}
             style={{ display: "flex", alignItems: "center", gap: 12, border: "none", background: "transparent",
               cursor: "pointer", padding: 0, textAlign: "left", minWidth: 0 }}>
-            <div className="cc-avatar">{initial}</div>
+            <div className="cc-avatar" style={{ overflow: "hidden" }}>
+              {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
+            </div>
             <div style={{ minWidth: 0 }}>
               <div className="cc-profile-name">{displayName}</div>
               <div className="cc-profile-plan">Plan semanal</div>
@@ -3263,6 +3405,161 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
   );
 }
 
+/* ===================== AVATARES ========================================= */
+// DiceBear illustrated avatars (API gratuita)
+const AVATAR_STYLES = [
+  { id: "av1",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m1&backgroundColor=b6e3f4" },
+  { id: "av2",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m2&backgroundColor=c0aede" },
+  { id: "av3",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m3&backgroundColor=d1d4f9" },
+  { id: "av4",  cat: "male",   url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-m4&backgroundColor=ffd5dc" },
+  { id: "av5",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f1&backgroundColor=ffd5dc" },
+  { id: "av6",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f2&backgroundColor=c0aede" },
+  { id: "av7",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f3&backgroundColor=b6e3f4" },
+  { id: "av8",  cat: "female", url: "https://api.dicebear.com/9.x/adventurer/svg?seed=zafi-f4&backgroundColor=d1d4f9" },
+  { id: "av9",  cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o1&backgroundColor=b6e3f4" },
+  { id: "av10", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o2&backgroundColor=d1d4f9" },
+  { id: "av11", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o3&backgroundColor=ffd5dc" },
+  { id: "av12", cat: "other",  url: "https://api.dicebear.com/9.x/adventurer-neutral/svg?seed=zafi-o4&backgroundColor=c0aede" },
+];
+
+// Resizes an image file to a small square base64 for storage
+function resizeImageToBase64(file, size = 200) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function getAvatarSrc(config) {
+  if (config.avatarData) return config.avatarData; // custom photo
+  if (config.avatarId) {
+    const av = AVATAR_STYLES.find(a => a.id === config.avatarId);
+    return av ? av.url : null;
+  }
+  return null;
+}
+
+function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
+  const userName = config.userName || t("user");
+  const currentSrc = getAvatarSrc(config);
+  const initial = userName.charAt(0).toUpperCase();
+  const fileRef = useRef(null);
+
+  const pickPreset = (id) => {
+    const { avatarData, ...rest } = config;
+    saveConfig({ ...rest, avatarId: id });
+    showToast(t("avatarUpdated"));
+    onClose();
+  };
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const base64 = await resizeImageToBase64(file);
+    const { avatarId, ...rest } = config;
+    saveConfig({ ...rest, avatarData: base64 });
+    showToast(t("avatarUpdated"));
+    onClose();
+  };
+
+  const clear = () => {
+    const { avatarId, avatarData, ...rest } = config;
+    saveConfig(rest);
+    showToast(t("avatarRemoved"));
+    onClose();
+  };
+
+  const CATS = [["male", t("male")], ["female", t("female")], ["other", t("other")]];
+
+  return (
+    <div className="cc-overlay" onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>{t("chooseAvatar")}</h2>
+          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        </div>
+
+        {/* Current avatar */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 18 }}>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden",
+              background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 32, color: "#fff", fontFamily: "'Fraunces',serif", fontWeight: 600,
+              boxShadow: "0 4px 20px rgba(30,40,60,.18)" }}>
+              {currentSrc ? <img src={currentSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
+            </div>
+            {(config.avatarId || config.avatarData) && (
+              <button onClick={clear}
+                style={{ position: "absolute", top: -4, right: -4, width: 26, height: 26,
+                  borderRadius: "50%", border: "none", background: "var(--surface)",
+                  boxShadow: "var(--shadow-sm)", cursor: "pointer", fontSize: 13,
+                  display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-soft)" }}>
+                🗑
+              </button>
+            )}
+          </div>
+          <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName}</div>
+        </div>
+
+        {/* Upload photo buttons */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <button className="cc-btn" onClick={() => fileRef.current?.click()}
+            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 22 }}>🖼</span>
+            {t("choosePhoto")}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
+          <button className="cc-btn" onClick={() => {
+            const inp = document.createElement("input");
+            inp.type = "file"; inp.accept = "image/*"; inp.capture = "user";
+            inp.onchange = handlePhoto; inp.click();
+          }}
+            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 22 }}>📷</span>
+            {t("takePhoto")}
+          </button>
+        </div>
+
+        {/* Illustrated preset avatars */}
+        {CATS.map(([cat, label]) => (
+          <div key={cat} style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 700,
+              color: "var(--ink-faint)", letterSpacing: ".06em", textTransform: "uppercase",
+              marginBottom: 8 }}>{label}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+              {AVATAR_STYLES.filter(a => a.cat === cat).map(a => (
+                <button key={a.id} onClick={() => pickPreset(a.id)}
+                  style={{ width: "100%", aspectRatio: "1", borderRadius: 16, overflow: "hidden",
+                    border: config.avatarId === a.id ? "3px solid var(--green)" : "2px solid var(--glass-border)",
+                    cursor: "pointer", padding: 0, background: "var(--surface)",
+                    boxShadow: config.avatarId === a.id ? "0 0 0 2px var(--green)" : "none",
+                    transition: "border .15s, box-shadow .15s" }}>
+                  <img src={a.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    loading="lazy" />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ===================== MODAL: AJUSTES GENERALES ========================= */
 function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const user = auth.currentUser;
@@ -3273,8 +3570,10 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const [currency, setCurrency] = useState(config.currency || "MXN");
   const [confirmReset, setConfirmReset] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
+  const avatarSrc = getAvatarSrc(config);
 
   const savePersonal = () => {
     saveConfig({ ...config, userName: userName.trim(), phone: phone.trim() });
@@ -3284,11 +3583,12 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         name: userName.trim(), phone: phone.trim(), email,
       }, { merge: true }).catch(() => {});
     }
-    showToast("Información actualizada");
+    showToast(t("infoUpdated"));
   };
 
   const saveLang = (l) => {
     setLang(l);
+    setAppLang(l);
     saveConfig({ ...config, language: l });
     showToast(l === "es" ? "Idioma: Español" : "Language: English");
   };
@@ -3325,22 +3625,33 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
-          <h2>Ajustes</h2>
+          <h2>{t("settings")}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
 
         {/* --- Perfil header --- */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 0 14px",
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "8px 0 18px",
           borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="cc-avatar" style={{ width: 52, height: 52, fontSize: 22 }}>{initial}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 17, color: "var(--ink)" }}>{userName || "Usuario"}</div>
-            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{email}</div>
-          </div>
+          <button onClick={() => setAvatarOpen(true)}
+            style={{ position: "relative", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}>
+            <div className="cc-avatar" style={{ width: 72, height: 72, fontSize: 28, overflow: "hidden" }}>
+              {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
+            </div>
+            <div style={{ position: "absolute", bottom: -2, right: -2, width: 24, height: 24, borderRadius: "50%",
+              background: "var(--ink)", color: "#fff", fontSize: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "var(--shadow-sm)" }}>✎</div>
+          </button>
+          <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName || "Usuario"}</div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{email}</div>
         </div>
 
+        {avatarOpen && (
+          <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
+        )}
+
         {/* --- Información personal --- */}
-        <div style={SECTION_TITLE}>Información personal</div>
+        <div style={SECTION_TITLE}>{t("personalInfo")}</div>
         <div style={{ marginBottom: 6 }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginBottom: 4, display: "block" }}>Nombre</label>
           <input className="cc-input" value={userName} onChange={(e) => setUserName(e.target.value)}
@@ -3357,7 +3668,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         </div>
 
         {/* --- Idioma --- */}
-        <div style={SECTION_TITLE}>Idioma</div>
+        <div style={SECTION_TITLE}>{t("language")}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
           {[["es", "🇲🇽 Español"], ["en", "🇺🇸 English"]].map(([k, l]) => (
             <button key={k} onClick={() => saveLang(k)}
@@ -3373,7 +3684,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         </div>
 
         {/* --- Moneda --- */}
-        <div style={SECTION_TITLE}>Moneda</div>
+        <div style={SECTION_TITLE}>{t("currency")}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
           {[["MXN", "🇲🇽 MXN"], ["USD", "🇺🇸 USD"], ["EUR", "🇪🇺 EUR"]].map(([k, l]) => (
             <button key={k} onClick={() => saveCurrency(k)}
@@ -3389,16 +3700,16 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         </div>
 
         {/* --- Notificaciones (placeholder) --- */}
-        <div style={SECTION_TITLE}>Notificaciones</div>
+        <div style={SECTION_TITLE}>{t("notifications")}</div>
         <div style={ROW}>
           <span style={ITEM_LABEL}>Recordatorios de gastos</span>
           <span style={ITEM_VALUE}>Próximamente</span>
         </div>
 
         {/* --- Datos --- */}
-        <div style={SECTION_TITLE}>Datos y privacidad</div>
+        <div style={SECTION_TITLE}>{t("dataPrivacy")}</div>
         <div style={ROW}>
-          <span style={ITEM_LABEL}>Exportar mis datos</span>
+          <span style={ITEM_LABEL}>{t("exportData")}</span>
           <span style={ITEM_VALUE}>Próximamente</span>
         </div>
         {!confirmReset ? (
@@ -3426,7 +3737,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         <div style={{ marginTop: 20, marginBottom: 8 }}>
           <button className="cc-btn" onClick={doSignOut} disabled={busy}
             style={{ width: "100%", padding: 14, fontSize: 15, fontWeight: 600 }}>
-            {busy ? "Cerrando sesión…" : "Cerrar sesión"}
+            {busy ? t("signingOut") : "Cerrar sesión"}
           </button>
         </div>
 
@@ -4283,7 +4594,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                       {r.description}{!isRecActive(r) && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
-                      {FREQ_LABELS[r.freq]} · {accName(r.accountId)}{c ? ` · ${c.name}` : ""}
+                      {FREQ_LABELS_FN()[r.freq]} · {accName(r.accountId)}{c ? ` · ${c.name}` : ""}
                     </div>
                   </div>
                   <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
@@ -4940,7 +5251,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
                 }}
                 title="Limpiar conversación">🗑</button>
             )}
-            <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>Cerrar</button>
+            <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>{t("close")}</button>
           </div>
         </div>
 
@@ -5108,7 +5419,7 @@ function RecurringModal({ config, onClose, onSave }) {
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <div className="cc-sheet-top">
-            <h2>Movimientos recurrentes</h2>
+            <h2>{t("recurringMovements")}</h2>
             <button className="cc-sheet-close" onClick={onClose}>×</button>
           </div>
           <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
@@ -5131,7 +5442,7 @@ function RecurringModal({ config, onClose, onSave }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", letterSpacing: "-.01em" }}>{r.description}</div>
                       <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>
-                        {FREQ_LABELS[r.freq]} · {accName(r.accountId)}
+                        {FREQ_LABELS_FN()[r.freq]} · {accName(r.accountId)}
                       </div>
                     </div>
                     <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 14,
@@ -5197,7 +5508,7 @@ function RecurringModal({ config, onClose, onSave }) {
         <div style={{ marginBottom: 14 }}>
           <label className="cc-label">¿Cada cuánto?</label>
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            {Object.entries(FREQ_LABELS).map(([k, l]) => (
+            {Object.entries(FREQ_LABELS_FN()).map(([k, l]) => (
               <button key={k} onClick={() => setFreq(k)}
                 style={{ padding: "9px 14px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
                   fontSize: 13, fontWeight: freq === k ? 700 : 500,
@@ -5241,7 +5552,7 @@ function RecurringModal({ config, onClose, onSave }) {
         </div>
 
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.5 }}>
-          Se generará un {type === "income" ? "ingreso" : "gasto"} de <b>{amount ? fmtBare(parseFloat(amount) || 0) : "$0"}</b> {FREQ_LABELS[freq].toLowerCase()} a partir del {startDate}. Si la fecha de inicio ya pasó, se crearán los movimientos faltantes al guardar.
+          Se generará un {type === "income" ? "ingreso" : "gasto"} de <b>{amount ? fmtBare(parseFloat(amount) || 0) : "$0"}</b> {FREQ_LABELS_FN()[freq].toLowerCase()} a partir del {startDate}. Si la fecha de inicio ya pasó, se crearán los movimientos faltantes al guardar.
         </div>
 
         <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14, opacity: (canSave && !detecting) ? 1 : 0.4 }}
@@ -5911,7 +6222,7 @@ function StatsConfigModal({ sections, onClose, onSave }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
-          <h2>Personalizar estadísticas</h2>
+          <h2>{t("customizeStatsTitle")}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
