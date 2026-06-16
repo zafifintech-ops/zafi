@@ -1976,10 +1976,29 @@ const AUTH_LINE = "#DDE2E9";
 const AUTH_CORAL = "#B5453A";
 
 const COUNTRIES = [
-  "México", "Estados Unidos", "Argentina", "Bolivia", "Chile", "Colombia",
-  "Costa Rica", "Cuba", "Ecuador", "El Salvador", "España", "Guatemala",
-  "Honduras", "Nicaragua", "Panamá", "Paraguay", "Perú", "Puerto Rico",
-  "República Dominicana", "Uruguay", "Venezuela", "Canadá", "Otro",
+  { name: "Mexico", flag: "🇲🇽" },
+  { name: "United States", flag: "🇺🇸" },
+  { name: "Argentina", flag: "🇦🇷" },
+  { name: "Bolivia", flag: "🇧🇴" },
+  { name: "Brazil", flag: "🇧🇷" },
+  { name: "Canada", flag: "🇨🇦" },
+  { name: "Chile", flag: "🇨🇱" },
+  { name: "Colombia", flag: "🇨🇴" },
+  { name: "Costa Rica", flag: "🇨🇷" },
+  { name: "Cuba", flag: "🇨🇺" },
+  { name: "Ecuador", flag: "🇪🇨" },
+  { name: "El Salvador", flag: "🇸🇻" },
+  { name: "España", flag: "🇪🇸" },
+  { name: "Guatemala", flag: "🇬🇹" },
+  { name: "Honduras", flag: "🇭🇳" },
+  { name: "Nicaragua", flag: "🇳🇮" },
+  { name: "Panama", flag: "🇵🇦" },
+  { name: "Paraguay", flag: "🇵🇾" },
+  { name: "Peru", flag: "🇵🇪" },
+  { name: "Puerto Rico", flag: "🇵🇷" },
+  { name: "Dominican Republic", flag: "🇩🇴" },
+  { name: "Uruguay", flag: "🇺🇾" },
+  { name: "Venezuela", flag: "🇻🇪" },
 ];
 
 function ZafiLogo() {
@@ -2008,12 +2027,12 @@ function AuthScreen() {
   const [name, setName] = useState("");
   const [gender, setGender] = useState("");
   const [age, setAge] = useState("");
-  const [country, setCountry] = useState("México");
+  const [country, setCountry] = useState("Mexico");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
-  function reset() { setEmail(""); setPassword(""); setConfirm(""); setName(""); setGender(""); setAge(""); setCountry("México"); setErr(""); setOk(""); }
+  function reset() { setEmail(""); setPassword(""); setConfirm(""); setName(""); setGender(""); setAge(""); setCountry("Mexico"); setErr(""); setOk(""); }
   function go(s) { reset(); setScreen(s); }
 
   function ferr(code) {
@@ -2155,7 +2174,7 @@ function AuthScreen() {
               background:"rgba(255,255,255,.65)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
               color:AUTH_INK, fontSize:15, fontWeight:600, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
               letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.12)" }}
-            onClick={() => go("register")}>Crear cuenta</button>
+            onClick={() => go("method")}>Crear cuenta</button>
           <button
             style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.25)",
               background:"rgba(27,34,48,.55)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
@@ -2170,72 +2189,186 @@ function AuthScreen() {
     </div>
   );
 
-  if (screen === "register") return (
-    <div style={wrap}>
-      <div style={blob} />
-      <div style={blob2} />
-      <div style={{ ...box, position:"relative", zIndex:1, maxHeight:"100vh", overflowY:"auto", padding:"20px 0" }}>
-        <ZafiLogo />
-        <div>
-          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Crear cuenta</div>
-          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Cuéntanos un poco sobre ti.</div>
+  // ===== Shared step page wrapper =====
+  const stepWrap = {
+    minHeight:"100vh", display:"flex", flexDirection:"column",
+    background:"#EAEEF4", position:"relative", fontFamily:FONT,
+  };
+  const backBtn = {
+    position:"absolute", top:20, left:20, zIndex:2, width:44, height:44,
+    borderRadius:"50%", border:"none", background:"#fff",
+    boxShadow:"0 2px 10px rgba(30,40,60,.1)", cursor:"pointer",
+    fontSize:20, display:"flex", alignItems:"center", justifyContent:"center",
+    color:AUTH_INK, fontFamily:FONT,
+  };
+  const stepBottom = {
+    padding:"0 26px calc(28px + env(safe-area-inset-bottom))",
+    display:"flex", flexDirection:"column", gap:12,
+  };
+
+  // ===== PASO 1: Método (Continue with email / Google / Apple) =====
+  if (screen === "method") return (
+    <div style={{ ...stepWrap, justifyContent:"flex-end" }}>
+      <button style={backBtn} onClick={() => go("welcome")}>‹</button>
+      <div style={{ flex:1 }} />
+      <div style={{ padding:"0 26px 32px" }}>
+        <div style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:64,
+          letterSpacing:"-.05em", color:AUTH_INK, lineHeight:1, fontFeatureSettings:'"ss01"' }}>zafi</div>
+      </div>
+      <div style={stepBottom}>
+        <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("country"); }}>
+          Continue with your email
+        </button>
+        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
+          background:"#4285F4", color:"#fff", fontSize:15, fontWeight:600,
+          fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
+          onClick={() => { setErr("Google Auth coming soon"); }}>
+          Continue with Google
+          <span style={{ fontSize:20 }}>G</span>
+        </button>
+        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
+          background:"#000", color:"#fff", fontSize:15, fontWeight:600,
+          fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}
+          onClick={() => { setErr("Apple Auth coming soon"); }}>
+          Continue with Apple
+          <span style={{ fontSize:18 }}></span>
+        </button>
+        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, textAlign:"center" }}>{err}</div>}
+      </div>
+    </div>
+  );
+
+  // ===== PASO 2: País =====
+  const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
+  if (screen === "country") return (
+    <div style={{ ...stepWrap }}>
+      <button style={backBtn} onClick={() => { setErr(""); setScreen("method"); }}>‹</button>
+      <div style={{ flex:1, padding:"90px 26px 0" }}>
+        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
+          Country of Residence
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
+          We need to collect a few personal details to verify you're elegible for an account
+        </div>
+        <div style={{ marginTop:32 }}>
+          <div style={{ fontSize:13, color:AUTH_INK_SOFT, marginBottom:8 }}>Country</div>
+          <div style={{ position:"relative" }}>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
+                fontFamily:FONT, color:"transparent", background:"transparent",
+                border:"none", borderBottom:"1px solid rgba(27,34,48,.15)",
+                outline:"none", appearance:"none", cursor:"pointer",
+                position:"relative", zIndex:1 }}>
+              {COUNTRIES.map(c => (
+                <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>
+              ))}
+            </select>
+            <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:AUTH_INK, pointerEvents:"none" }}>
+              {selCountry.flag} {selCountry.name}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={stepBottom}>
+        <div style={{ fontSize:13, color:AUTH_INK_SOFT, lineHeight:1.6, marginBottom:4 }}>
+          By tapping Get started, you agree to Zafi's <span style={{ textDecoration:"underline", cursor:"pointer" }}>Terms and Conditions</span> and <span style={{ textDecoration:"underline", cursor:"pointer" }}>Privacy Policy</span>, and represent that you are acting on your own behalf.
+        </div>
+        <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("profile"); }}>
+          Get started
+        </button>
+      </div>
+    </div>
+  );
+
+  // ===== PASO 3: Datos personales (Nombre, Edad, Género) =====
+  if (screen === "profile") return (
+    <div style={{ ...stepWrap }}>
+      <button style={backBtn} onClick={() => { setErr(""); setScreen("country"); }}>‹</button>
+      <div style={{ flex:1, padding:"90px 26px 0" }}>
+        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
+          About you
+        </div>
+        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
+          Tell us a bit about yourself so we can personalize your experience.
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
-            <label style={lbl}>Nombre</label>
-            <input style={inp} type="text" placeholder="Tu nombre" value={name} onChange={e=>setName(e.target.value)} />
+            <label style={lbl}>Name</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="text" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Género</label>
-            <div style={{ display:"flex", gap:8 }}>
-              {[["male","Hombre"],["female","Mujer"],["other","Otro"]].map(([k,l])=>(
+            <label style={lbl}>Age</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)", width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
+              onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
+          </div>
+          <div>
+            <label style={lbl}>Gender</label>
+            <div style={{ display:"flex", gap:9 }}>
+              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
-                  style={{ flex:1, padding:"12px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
-                    fontSize:13.5, fontWeight:gender===k?600:400,
-                    background: gender===k ? AUTH_INK : "rgba(255,255,255,.55)",
+                  style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
+                    fontSize:14, fontWeight:gender===k?600:400,
+                    background: gender===k ? AUTH_INK : "rgba(255,255,255,.7)",
                     color: gender===k ? "#fff" : AUTH_INK,
-                    border:`1px solid ${gender===k ? AUTH_INK : "rgba(255,255,255,.5)"}`,
-                    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+                    border:`1px solid ${gender===k ? AUTH_INK : "rgba(0,0,0,.08)"}`,
+                    transition:"background .15s, color .15s" }}>
                   {l}
                 </button>
               ))}
             </div>
           </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <div style={{ width:110 }}>
-              <label style={lbl}>Edad</label>
-              <input style={inp} type="number" inputMode="numeric" placeholder="00" value={age}
-                onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
-            </div>
-            <div style={{ flex:1 }}>
-              <label style={lbl}>País</label>
-              <select style={{ ...inp, appearance:"auto" }} value={country} onChange={e=>setCountry(e.target.value)}>
-                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ height:1, background:"rgba(27,34,48,.08)", margin:"2px 0" }} />
+        </div>
+        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, marginTop:12 }}>{err}</div>}
+      </div>
+      <div style={stepBottom}>
+        <button style={{ ...btnP, borderRadius:99 }}
+          onClick={() => {
+            if (!name.trim()) { setErr("Enter your name."); return; }
+            if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
+            if (!gender) { setErr("Select your gender."); return; }
+            setErr(""); setScreen("credentials");
+          }}>
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+
+  // ===== PASO 4: Credenciales (Email + Contraseña) =====
+  if (screen === "credentials") return (
+    <div style={{ ...stepWrap }}>
+      <button style={backBtn} onClick={() => { setErr(""); setScreen("profile"); }}>‹</button>
+      <div style={{ flex:1, padding:"90px 26px 0" }}>
+        <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
+          Create your account
+        </div>
+        <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
+          You'll use this email and password to sign in.
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:28 }}>
           <div>
-            <label style={lbl}>Correo electrónico</label>
-            <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+            <label style={lbl}>Email</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Contraseña</label>
-            <input style={inp} type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={e=>setPassword(e.target.value)} />
+            <label style={lbl}>Password</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="At least 6 characters" value={password} onChange={e=>setPassword(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Confirmar contraseña</label>
-            <input style={inp} type="password" placeholder="Repite tu contraseña" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+            <label style={lbl}>Confirm password</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="Repeat your password" value={confirm} onChange={e=>setConfirm(e.target.value)} />
           </div>
         </div>
-        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={doRegister} disabled={busy}>{busy?"Creando cuenta…":"Crear cuenta"}</button>
-          <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
-        </div>
-        <div style={{ textAlign:"center", fontFamily:FONT, fontSize:14, color:AUTH_INK_SOFT }}>
-          ¿Ya tienes cuenta?{" "}<button style={lnk} onClick={() => go("login")}>Inicia sesión</button>
-        </div>
+        {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, marginTop:12 }}>{err}</div>}
+      </div>
+      <div style={stepBottom}>
+        <button style={{ ...btnP, borderRadius:99 }} onClick={doRegister} disabled={busy}>
+          {busy ? "Creating account…" : "Create account"}
+        </button>
       </div>
     </div>
   );
@@ -2267,7 +2400,7 @@ function AuthScreen() {
         </div>
         <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT, display:"flex", flexDirection:"column", gap:8 }}>
           <button style={lnk} onClick={() => go("forgot")}>¿Olvidaste tu contraseña?</button>
-          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("register")}>Crear cuenta</button></span>
+          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("method")}>Crear cuenta</button></span>
         </div>
       </div>
     </div>
