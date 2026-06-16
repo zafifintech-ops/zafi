@@ -1975,6 +1975,13 @@ const AUTH_GREEN = "#1A7A6E";
 const AUTH_LINE = "#DDE2E9";
 const AUTH_CORAL = "#B5453A";
 
+const COUNTRIES = [
+  "México", "Estados Unidos", "Argentina", "Bolivia", "Chile", "Colombia",
+  "Costa Rica", "Cuba", "Ecuador", "El Salvador", "España", "Guatemala",
+  "Honduras", "Nicaragua", "Panamá", "Paraguay", "Perú", "Puerto Rico",
+  "República Dominicana", "Uruguay", "Venezuela", "Canadá", "Otro",
+];
+
 function ZafiLogo() {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
@@ -1998,11 +2005,15 @@ function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [name, setName] = useState("");
+  const [gender, setGender] = useState("");
+  const [age, setAge] = useState("");
+  const [country, setCountry] = useState("México");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
-  function reset() { setEmail(""); setPassword(""); setConfirm(""); setErr(""); setOk(""); }
+  function reset() { setEmail(""); setPassword(""); setConfirm(""); setName(""); setGender(""); setAge(""); setCountry("México"); setErr(""); setOk(""); }
   function go(s) { reset(); setScreen(s); }
 
   function ferr(code) {
@@ -2019,11 +2030,24 @@ function AuthScreen() {
   }
 
   async function doRegister() {
+    if (!name.trim()) { setErr("Escribe tu nombre."); return; }
+    if (!gender) { setErr("Selecciona tu género."); return; }
+    if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Escribe una edad válida."); return; }
+    if (!country.trim()) { setErr("Selecciona tu país."); return; }
     if (!email || !password || !confirm) { setErr("Llena todos los campos."); return; }
     if (password !== confirm) { setErr("Las contraseñas no coinciden."); return; }
     if (password.length < 6) { setErr("Mínimo 6 caracteres en la contraseña."); return; }
     setBusy(true); setErr("");
-    try { await createUserWithEmailAndPassword(auth, email, password); }
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // guardar perfil del usuario
+      try {
+        await setDoc(doc(db, "users", cred.user.uid, "data", "profile"), {
+          name: name.trim(), gender, age: Number(age), country: country.trim(),
+          email: email.trim(), createdAt: new Date().toISOString(),
+        });
+      } catch (e) { /* el perfil es complementario, no bloquea el registro */ }
+    }
     catch(e) { setErr(ferr(e.code)); }
     finally { setBusy(false); }
   }
@@ -2044,29 +2068,34 @@ function AuthScreen() {
     finally { setBusy(false); }
   }
 
+  const FONT = "'Montserrat', sans-serif";
   const inp = {
     width:"100%", padding:"14px 16px", borderRadius:16,
-    border:"1px solid rgba(255,255,255,.5)", fontSize:15, fontFamily:"inherit",
-    background:"rgba(255,255,255,.5)", color:AUTH_INK, outline:"none",
+    border:"1px solid rgba(255,255,255,.5)", fontSize:15, fontFamily:FONT, fontWeight:400,
+    background:"rgba(255,255,255,.55)", color:AUTH_INK, outline:"none",
     backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
   };
   const btnP = {
-    width:"100%", padding:15, borderRadius:16, border:"none",
+    width:"100%", padding:15, borderRadius:99, border:"none",
     background:AUTH_INK, color:"#fff", fontSize:15, fontWeight:600,
-    fontFamily:"inherit", cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1,
+    fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1,
     letterSpacing:"-.01em", transition:"transform .1s ease",
   };
   const btnS = {
-    width:"100%", padding:14, borderRadius:16,
+    width:"100%", padding:14, borderRadius:99,
     border:"1px solid rgba(255,255,255,.5)", background:"rgba(255,255,255,.45)",
     backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
     color:AUTH_INK, fontSize:15, fontWeight:500,
-    fontFamily:"inherit", cursor:"pointer", letterSpacing:"-.01em",
+    fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
   };
   const lnk = {
     background:"none", border:"none", color:AUTH_GREEN,
-    fontSize:14, fontFamily:"inherit", cursor:"pointer",
+    fontSize:14, fontFamily:FONT, cursor:"pointer",
     fontWeight:600, padding:0,
+  };
+  const lbl = {
+    fontFamily:FONT, fontSize:12, fontWeight:600, color:AUTH_INK_SOFT,
+    letterSpacing:".02em", marginBottom:6, display:"block",
   };
   const wrap = {
     minHeight:"100vh", display:"flex", flexDirection:"column",
@@ -2124,17 +2153,17 @@ function AuthScreen() {
           <button
             style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.6)",
               background:"rgba(255,255,255,.65)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-              color:AUTH_INK, fontSize:15, fontWeight:700, fontFamily:"inherit", cursor:"pointer",
+              color:AUTH_INK, fontSize:15, fontWeight:600, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
               letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.12)" }}
             onClick={() => go("register")}>Crear cuenta</button>
           <button
             style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.25)",
               background:"rgba(27,34,48,.55)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-              color:"#fff", fontSize:15, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+              color:"#fff", fontSize:15, fontWeight:500, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
               letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.18)" }}
             onClick={() => go("login")}>Iniciar sesión</button>
         </div>
-        <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.5, opacity:.75 }}>
+        <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.5, opacity:.75, fontFamily:"'Montserrat', sans-serif" }}>
           Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
         </div>
       </div>
@@ -2143,23 +2172,68 @@ function AuthScreen() {
 
   if (screen === "register") return (
     <div style={wrap}>
-      <div style={box}>
+      <div style={blob} />
+      <div style={blob2} />
+      <div style={{ ...box, position:"relative", zIndex:1, maxHeight:"100vh", overflowY:"auto", padding:"20px 0" }}>
         <ZafiLogo />
         <div>
-          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Crear cuenta</div>
-          <div style={{ fontSize:14, color:AUTH_INK_SOFT }}>Empieza gratis, sin tarjeta de crédito.</div>
+          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Crear cuenta</div>
+          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Cuéntanos un poco sobre ti.</div>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
-          <input style={inp} type="password" placeholder="Contraseña (mínimo 6 caracteres)" value={password} onChange={e=>setPassword(e.target.value)} />
-          <input style={inp} type="password" placeholder="Confirmar contraseña" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div>
+            <label style={lbl}>Nombre</label>
+            <input style={inp} type="text" placeholder="Tu nombre" value={name} onChange={e=>setName(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Género</label>
+            <div style={{ display:"flex", gap:8 }}>
+              {[["male","Hombre"],["female","Mujer"],["other","Otro"]].map(([k,l])=>(
+                <button key={k} type="button" onClick={()=>setGender(k)}
+                  style={{ flex:1, padding:"12px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
+                    fontSize:13.5, fontWeight:gender===k?600:400,
+                    background: gender===k ? AUTH_INK : "rgba(255,255,255,.55)",
+                    color: gender===k ? "#fff" : AUTH_INK,
+                    border:`1px solid ${gender===k ? AUTH_INK : "rgba(255,255,255,.5)"}`,
+                    backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <div style={{ width:110 }}>
+              <label style={lbl}>Edad</label>
+              <input style={inp} type="number" inputMode="numeric" placeholder="00" value={age}
+                onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={lbl}>País</label>
+              <select style={{ ...inp, appearance:"auto" }} value={country} onChange={e=>setCountry(e.target.value)}>
+                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ height:1, background:"rgba(27,34,48,.08)", margin:"2px 0" }} />
+          <div>
+            <label style={lbl}>Correo electrónico</label>
+            <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Contraseña</label>
+            <input style={inp} type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={e=>setPassword(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Confirmar contraseña</label>
+            <input style={inp} type="password" placeholder="Repite tu contraseña" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+          </div>
         </div>
-        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <button style={btnP} onClick={doRegister} disabled={busy}>{busy?"Creando cuenta…":"Crear cuenta"}</button>
           <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
         </div>
-        <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT }}>
+        <div style={{ textAlign:"center", fontFamily:FONT, fontSize:14, color:AUTH_INK_SOFT }}>
           ¿Ya tienes cuenta?{" "}<button style={lnk} onClick={() => go("login")}>Inicia sesión</button>
         </div>
       </div>
@@ -2168,17 +2242,25 @@ function AuthScreen() {
 
   if (screen === "login") return (
     <div style={wrap}>
-      <div style={box}>
+      <div style={blob} />
+      <div style={blob2} />
+      <div style={{ ...box, position:"relative", zIndex:1 }}>
         <ZafiLogo />
         <div>
-          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Bienvenido de vuelta</div>
-          <div style={{ fontSize:14, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
+          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Bienvenido de vuelta</div>
+          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
-          <input style={inp} type="password" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div>
+            <label style={lbl}>Correo electrónico</label>
+            <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Contraseña</label>
+            <input style={inp} type="password" placeholder="Tu contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
+          </div>
         </div>
-        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <button style={btnP} onClick={doLogin} disabled={busy}>{busy?"Entrando…":"Iniciar sesión"}</button>
           <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
@@ -2193,15 +2275,20 @@ function AuthScreen() {
 
   if (screen === "forgot") return (
     <div style={wrap}>
-      <div style={box}>
+      <div style={blob} />
+      <div style={blob2} />
+      <div style={{ ...box, position:"relative", zIndex:1 }}>
         <ZafiLogo />
         <div>
-          <div style={{ fontSize:22, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
-          <div style={{ fontSize:14, color:AUTH_INK_SOFT, lineHeight:1.5 }}>Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.</div>
+          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
+          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT, lineHeight:1.5 }}>Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.</div>
         </div>
-        <input style={inp} type="email" placeholder="Correo electrónico" value={email} onChange={e=>setEmail(e.target.value)} />
-        {err && <div style={{ fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
-        {ok && <div style={{ fontSize:13.5, color:AUTH_GREEN, fontWeight:500 }}>{ok}</div>}
+        <div>
+          <label style={lbl}>Correo electrónico</label>
+          <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+        </div>
+        {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
+        {ok && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_GREEN, fontWeight:500 }}>{ok}</div>}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <button style={btnP} onClick={doForgot} disabled={busy}>{busy?"Enviando…":"Enviar correo"}</button>
           <button style={btnS} onClick={() => go("login")}>← Regresar</button>
