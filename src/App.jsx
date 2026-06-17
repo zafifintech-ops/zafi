@@ -477,6 +477,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
+@keyframes ccFadeOut{from{opacity:1;}to{opacity:0;}}
+@keyframes ccSheetOut{from{transform:none;}to{transform:translateY(100%);}}
+.cc-overlay.is-closing{animation:ccFadeOut .25s ease both;}
+.cc-overlay.is-closing .cc-sheet{animation:ccSheetOut .25s cubic-bezier(.4,0,.6,1) both;}
 @keyframes ccSlideInRight{from{transform:translateX(8%);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes ccSlideInLeft{from{transform:translateX(-8%);opacity:0;}to{transform:none;opacity:1;}}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
@@ -1097,6 +1101,28 @@ function resolveRange(range) {
       return { from: r.from || t, to: r.to || t };
     default: return { from: iso(firstOfMonth(td)), to: t };
   }
+}
+
+/* Hook para cerrar modales con animación. Devuelve [closing, close].
+   Aplica la clase .is-closing al overlay para disparar ccSheetOut + ccFadeOut,
+   luego llama al onClose real cuando termina la animación (~250ms). */
+function useSheetClose(onClose) {
+  const [closing, setClosing] = useState(false);
+  const close = () => {
+    if (closing) return;
+    setClosing(true);
+    setTimeout(() => onClose && onClose(), 240);
+  };
+  return [closing, close];
+}
+
+/* Lee si la app está en modo oscuro mirando la clase del .cc-root.
+   Útil para modales montados via createPortal en document.body, que
+   no heredan el contexto de .cc-dark. */
+function isDarkMode() {
+  if (typeof document === "undefined") return false;
+  const root = document.querySelector(".cc-root");
+  return !!(root && root.classList.contains("cc-dark"));
 }
 
 function rangeLabel(range) {
@@ -3633,6 +3659,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 
 /* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
+  const [closing, close] = useSheetClose(onToggle);
   const items = [
     { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
     { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
@@ -3652,12 +3679,12 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
         aria-label="Nueva transacción">＋</button>
 
       {open && !hidden && (
-        <div className="cc-overlay" onClick={onToggle}>
+        <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
           <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="cc-grip" />
             <div className="cc-sheet-top">
               <h2>{t("addMovement")}</h2>
-              <button className="cc-sheet-close" onClick={onToggle}>×</button>
+              <button className="cc-sheet-close" onClick={close}>×</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
               {items.map((it) => (
@@ -3784,6 +3811,7 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
   const currentSrc = getAvatarSrc(config);
   const initial = userName.charAt(0).toUpperCase();
   const fileRef = useRef(null);
+  const [closing, close] = useSheetClose(onClose);
 
   const pickPreset = (id) => {
     const { avatarData, ...rest } = config;
@@ -3810,12 +3838,12 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
   };
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{t("chooseAvatar")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
         {/* Current avatar */}
@@ -3885,6 +3913,7 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
 function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const user = auth.currentUser;
   const email = user?.email || "";
+  const [closing, close] = useSheetClose(onClose);
   const [section, setSection] = useState("menu"); // menu | personal | lang | currency | theme | legal | data
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
@@ -4000,7 +4029,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   );
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
 
@@ -4010,7 +4039,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
           <>
             <div className="cc-sheet-top">
               <h2>{t("settings")}</h2>
-              <button className="cc-sheet-close" onClick={onClose}>×</button>
+              <button className="cc-sheet-close" onClick={close}>×</button>
             </div>
 
             {/* Perfil header */}
@@ -4247,6 +4276,7 @@ function ProfileNameModal({ current, onClose, onSave }) {
 /* DateRangeModal: elegir el rango global de toda la app */
 function DateRangeModal({ dateRange, onClose, onSave }) {
   const r = dateRange || DEFAULT_RANGE;
+  const [closing, close] = useSheetClose(onClose);
   const [preset, setPreset] = useState(r.preset);
   const [anchor, setAnchor] = useState(r.anchor || today());
   const [from, setFrom] = useState(r.from || "");
@@ -4319,12 +4349,12 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
   );
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{_lang === "es" ? "Rango de tiempo" : "Time range"}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
         {/* Period type chips */}
@@ -4683,6 +4713,8 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const [saved, setSaved] = useState(true);
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const isDirty = () => JSON.stringify(items) !== JSON.stringify(sections);
 
@@ -4726,12 +4758,12 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   const reset = () => { setItems(DEFAULT_SECTIONS.map((s) => ({ ...s }))); setSaved(false); };
 
   return createPortal(
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>Personalizar inicio</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
           Activa o desactiva secciones, y arrastra para reordenarlas.
@@ -5353,6 +5385,7 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [closing, close] = useSheetClose(onClose);
 
   const save = (acc) => {
     let accounts, categories = config.categories;
@@ -5390,12 +5423,12 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
   };
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{t("yourAccounts")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -5524,6 +5557,7 @@ function AccountModal({ acc, onClose, onSave }) {
 /* ===================== MODAL: NUEVO MOVIMIENTO =========================== */
 function AddModal({ config, tx, txs, onClose, onSave }) {
   const editing = !!tx;
+  const [closing, close] = useSheetClose(onClose);
   const [type, setType] = useState(tx ? tx.type : "expense");
   const [amount, setAmount] = useState(tx ? String(tx.amount) : "");
   const [desc, setDesc] = useState(tx ? tx.description : "");
@@ -5619,7 +5653,7 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
   /* pantalla: preguntar categoría */
   if (phase === "ask") {
     return (
-      <div className="cc-overlay" onClick={onClose}>
+      <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 6 }}>¿Qué categoría es?</h2>
@@ -5645,12 +5679,12 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
   }
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{editing ? "Editar transacción" : "Nueva transacción"}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
         <div className="cc-tabs" style={{ marginBottom: 4 }}>
@@ -5770,6 +5804,7 @@ let CHAT_MSGS_STORE = null;
 let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
   // Detectar patrones para saludo proactivo
+  const [closing, close] = useSheetClose(onClose);
   const patterns = detectFrequentPatterns(txs, config);
   const nonRecurring = patterns.filter(p =>
     !(config.recurring || []).find(r =>
@@ -5938,7 +5973,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
   }
 
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -5957,7 +5992,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
                   color: "var(--ink-faint)", cursor: "pointer" }}
                 title="Limpiar conversación">Limpiar</button>
             )}
-            <button onClick={onClose}
+            <button onClick={close}
               style={{ padding: "6px 14px", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
                 borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)",
                 color: "var(--ink)", cursor: "pointer" }}>{t("close")}</button>
@@ -6076,6 +6111,7 @@ function RecurringModal({ config, onClose, onSave }) {
   const rules = config.recurring || [];
   const [view, setView] = useState(rules.length ? "list" : "form"); // list | form
   const [editingId, setEditingId] = useState(null);
+  const [closing, close] = useSheetClose(onClose);
 
   // form state
   const [type, setType] = useState("expense");
@@ -6153,12 +6189,12 @@ function RecurringModal({ config, onClose, onSave }) {
   // ===== Vista LISTA =====
   if (view === "list") {
     return (
-      <div className="cc-overlay" onClick={onClose}>
+      <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <div className="cc-sheet-top">
             <h2>{t("recurringMovements")}</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
+            <button className="cc-sheet-close" onClick={close}>×</button>
           </div>
           <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
             Se generan automáticamente en su fecha. Puedes editarlos como cualquier movimiento.
@@ -6210,12 +6246,12 @@ function RecurringModal({ config, onClose, onSave }) {
 
   // ===== Vista FORM =====
   return (
-    <div className="cc-overlay" onClick={onClose}>
+    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{editingId ? "Editar recurrente" : "Nuevo recurrente"}</h2>
-          <button className="cc-sheet-close" onClick={() => (rules.length ? setView("list") : onClose())}>×</button>
+          <button className="cc-sheet-close" onClick={() => (rules.length ? setView("list") : close())}>×</button>
         </div>
 
         <div className="cc-tabs" style={{ marginBottom: 4 }}>
