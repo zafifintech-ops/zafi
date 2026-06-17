@@ -2999,7 +2999,8 @@ export default function App() {
       <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <style>{STYLE}</style>
         <div className="cc-video-bg">
-          <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" />
+          <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
+            ref={(el) => { if (el) { el.muted = true; el.load(); el.play().catch(() => {}); } }} key={bgVideoSrc} />
         </div>
         <div className="cc-dots"><span /><span /><span /></div>
       </div>
@@ -3013,7 +3014,8 @@ export default function App() {
     <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}>
       <style>{STYLE}</style>
       <div className="cc-video-bg">
-        <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" />
+        <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
+          ref={(el) => { if (el) { el.muted = true; el.load(); el.play().catch(() => {}); } }} key={bgVideoSrc} />
       </div>
       <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
