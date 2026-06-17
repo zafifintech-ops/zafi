@@ -6367,9 +6367,9 @@ function CategoryChart({ rows, type, onPick }) {
           <button key={k} onClick={() => { setChartType(k); setActiveIdx(null); }}
             style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
               fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
-              background: chartType === k ? "var(--ink)" : "var(--surface)",
+              background: chartType === k ? "#5B6EE8" : "var(--surface)",
               color: chartType === k ? "#fff" : "var(--ink-soft)",
-              border: `1px solid ${chartType === k ? "var(--ink)" : "var(--line)"}` }}>
+              border: `1px solid ${chartType === k ? "#5B6EE8" : "var(--line)"}` }}>
             {l}
           </button>
         ))}
@@ -6902,7 +6902,7 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
   }
-  const W = 600, H = 200, P = 10, PB = 22; // PB: padding inferior para etiquetas
+  const W = 600, H = 220, P = 20, PB = 22; // P: padding top (espacio para labels), PB: padding inferior
   const vals = points.map((p) => p.val);
   const min = Math.min(...vals);
   const max = Math.max(...vals);
@@ -6941,7 +6941,7 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         </span>
         <span>{hp ? "" : "hoy"}</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none" }}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none", overflow: "visible" }}
         onMouseMove={handleMove} onMouseLeave={() => setHover(null)}
         onTouchStart={handleMove} onTouchMove={handleMove} onTouchEnd={() => setHover(null)}>
         <defs>
@@ -7014,7 +7014,7 @@ function BarsChart({ bars }) {
   const groupW = (W - P * 2) / bars.length;
   const barW = groupW * 0.38;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
       {bars.map((b, i) => {
         const cx = P + groupW * i + groupW / 2;
         const hi = (b.income / max) * (H - P * 2);
@@ -7111,7 +7111,7 @@ function MiniLine({ series, xLabels }) {
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
         onMouseLeave={() => setHover(null)}>
         {/* grid horizontal */}
         {ticks.map((tv, i) => (
@@ -7196,7 +7196,7 @@ function MiniBars({ series, xLabels }) {
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
         onMouseLeave={() => setHover(null)}>
         {/* grid horizontal */}
         {ticks.map((tv, i) => (
