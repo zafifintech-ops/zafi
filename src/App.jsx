@@ -139,8 +139,8 @@ body{
   --glass:rgba(255,255,255,.07);
   --glass-border:rgba(255,255,255,.15);
 }
-.cc-dark .cc-sheet{background:rgba(15,18,25,.45);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);}
-.cc-dark .cc-overlay{background:rgba(0,0,0,.5);}
+.cc-dark .cc-sheet{background:rgba(18,20,28,.94);backdrop-filter:blur(32px) saturate(140%);-webkit-backdrop-filter:blur(32px) saturate(140%);border-top:1px solid rgba(255,255,255,.08);}
+.cc-dark .cc-overlay{background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
 .cc-dark .cc-input::placeholder{color:rgba(255,255,255,.3);}
@@ -471,7 +471,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 .cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
-  min-height:50vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
+  min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
@@ -3367,7 +3367,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
 
-  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen || settingsOpen;
+  const [customizeHomeOpen, setCustomizeHomeOpen] = useState(false);
+  const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen || settingsOpen || rangeOpen || customizeHomeOpen;
 
   return (
     <div>
@@ -3375,7 +3376,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} onConfiguringChange={setCustomizeHomeOpen} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
           {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
@@ -4416,9 +4417,10 @@ function loadSections(config) {
 }
 
 /* ============================= DASHBOARD ================================= */
-function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig }) {
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, onConfiguringChange }) {
   const [view, setView] = useState("all"); // "all" o accountId
   const [configuring, setConfiguring] = useState(false);
+  useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config);
 
   const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
