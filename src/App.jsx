@@ -2304,12 +2304,12 @@ const COUNTRIES = [
 
 function ZafiLogo() {
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, marginBottom:12 }}>
       <span style={{ fontFamily:"'Fraunces',serif", fontWeight:400, fontSize:38,
         letterSpacing:"-.05em", color:AUTH_INK, fontFeatureSettings:'"ss01"', lineHeight:1 }}>
         zafi
       </span>
-      <div style={{ fontFamily:"'Montserrat',sans-serif", fontSize:13, color:AUTH_INK_SOFT, letterSpacing:".01em", fontWeight:400 }}>
+      <div style={{ fontFamily:"'Montserrat',sans-serif", fontSize:11, color:AUTH_INK_SOFT, letterSpacing:".15em", fontWeight:500, textTransform:"uppercase" }}>
         {_lang === "es" ? "el futuro de tu dinero" : "the future of your money"}
       </div>
     </div>
@@ -3918,9 +3918,9 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         <button key={k} onClick={() => onPick(k)}
           style={{ flex: 1, padding: "12px 8px", borderRadius: 14, cursor: "pointer",
             fontFamily: "'Montserrat', sans-serif", fontSize: 14, fontWeight: current === k ? 600 : 400,
-            background: current === k ? "var(--green)" : "var(--surface)",
+            background: current === k ? "#5B6EE8" : "var(--surface)",
             color: current === k ? "#fff" : "var(--ink)",
-            border: `1px solid ${current === k ? "var(--green)" : "var(--line)"}`,
+            border: `1px solid ${current === k ? "#5B6EE8" : "var(--line)"}`,
             transition: "all .15s ease" }}>
           {l}
         </button>
