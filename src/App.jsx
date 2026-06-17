@@ -2818,7 +2818,7 @@ function SplashScreen({ onDone }) {
     <div className="cc-splash">
       <style>{STYLE}</style>
       <div className="cc-splash-word">zafi</div>
-      <div className="cc-splash-tag">finanzas personales</div>
+      <div className="cc-splash-tag">el futuro de tu dinero</div>
     </div>
   );
 }
