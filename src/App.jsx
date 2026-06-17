@@ -140,8 +140,8 @@ body{
   --glass:rgba(255,255,255,.07);
   --glass-border:rgba(255,255,255,.15);
 }
-.cc-dark .cc-sheet{background:rgba(18,20,28,.94);backdrop-filter:blur(32px) saturate(140%);-webkit-backdrop-filter:blur(32px) saturate(140%);border-top:1px solid rgba(255,255,255,.08);}
-.cc-dark .cc-overlay{background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+.cc-dark .cc-sheet{background:rgba(20,22,32,.62);backdrop-filter:blur(40px) saturate(160%);-webkit-backdrop-filter:blur(40px) saturate(160%);border-top:1px solid rgba(255,255,255,.08);}
+.cc-dark .cc-overlay{background:rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
 .cc-dark .cc-input::placeholder{color:rgba(255,255,255,.3);}
@@ -449,6 +449,37 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-sortable.disabled{opacity:.5;background:var(--surface-2);}
 .cc-sortable .cc-grip-h{color:var(--ink-soft);font-size:18px;line-height:1;}
 
+/* fila draggable v2 — más alta, mejor spacing */
+.cc-sortable-v2{padding:14px 14px;border:1px solid var(--line);border-radius:14px;
+  background:var(--paper);display:flex;align-items:center;gap:12px;
+  user-select:none;transition:.18s ease;}
+.cc-sortable-v2:hover{border-color:var(--gold);}
+.cc-sortable-v2.disabled{background:transparent;border-color:var(--line-soft);}
+.cc-dark .cc-sortable-v2{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}
+.cc-dark .cc-sortable-v2.disabled{background:transparent;border-color:rgba(255,255,255,.05);}
+.cc-grip-dots{display:flex;flex-direction:column;gap:3px;cursor:grab;padding:4px 2px;color:var(--ink-faint);}
+.cc-grip-dots span{display:block;width:3px;height:3px;border-radius:50%;background:currentColor;}
+.cc-row-arrow{width:30px;height:30px;border-radius:50%;border:none;background:var(--surface);
+  color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:.15s ease;}
+.cc-row-arrow:hover:not(:disabled){background:var(--surface-2);color:var(--ink);}
+.cc-row-arrow:disabled{opacity:.3;cursor:default;}
+.cc-row-arrow svg{width:14px;height:14px;}
+.cc-dark .cc-row-arrow{background:rgba(255,255,255,.06);}
+.cc-dark .cc-row-arrow:hover:not(:disabled){background:rgba(255,255,255,.1);}
+
+/* iOS-style toggle switch */
+.cc-switch{position:relative;width:42px;height:25px;cursor:pointer;flex-shrink:0;}
+.cc-switch input{opacity:0;width:0;height:0;}
+.cc-switch-track{position:absolute;inset:0;background:var(--line);border-radius:999px;
+  transition:background .2s ease;}
+.cc-switch-thumb{position:absolute;left:2px;top:2px;width:21px;height:21px;
+  background:#fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.18);
+  transition:transform .22s cubic-bezier(.2,.7,.2,1);}
+.cc-switch.on .cc-switch-track{background:#5B6EE8;}
+.cc-switch.on .cc-switch-thumb{transform:translateX(17px);}
+.cc-dark .cc-switch-track{background:rgba(255,255,255,.15);}
+
 /* ============== SEPARADOR DE DÍA ============== */
 .cc-day-sep{display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:13px 0 8px;border-bottom:1px solid var(--line-soft);margin-bottom:2px;
@@ -465,16 +496,16 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease both;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+.cc-sheet{background:rgba(255,255,255,.55);backdrop-filter:blur(40px) saturate(160%);-webkit-backdrop-filter:blur(40px) saturate(160%);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
-  border-top:1px solid rgba(255,255,255,.6);
+  border-top:1px solid rgba(255,255,255,.5);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
 @keyframes ccFadeOut{from{opacity:1;}to{opacity:0;}}
@@ -4765,11 +4796,11 @@ function HomeConfigModal({ sections, onClose, onSave }) {
           <h2>Personalizar inicio</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45 }}>
           Activa o desactiva secciones, y arrastra para reordenarlas.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
           {items.map((s, i) => (
             <div key={s.id}
               draggable
@@ -4777,35 +4808,49 @@ function HomeConfigModal({ sections, onClose, onSave }) {
               onDragOver={onDragOver(i)}
               onDrop={onDrop(i)}
               onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-              className={`cc-sortable ${!s.on ? "disabled" : ""}`}
-              style={{ borderColor: overIdx === i ? "var(--gold)" : "var(--line)",
-                opacity: dragIdx === i ? 0.4 : (s.on ? 1 : 0.55) }}>
-              <span className="cc-grip-h">⋮⋮</span>
-              <span style={{ flex: 1, fontWeight: 500, fontSize: 14, color: s.on ? "var(--ink)" : "var(--ink-faint)" }}>{s.label}</span>
-              <button className="cc-btn" onClick={() => move(i, -1)} disabled={i === 0}
-                style={{ padding: "4px 8px", fontSize: 12 }}>↑</button>
-              <button className="cc-btn" onClick={() => move(i, 1)} disabled={i === items.length - 1}
-                style={{ padding: "4px 8px", fontSize: 12 }}>↓</button>
-              <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", marginLeft: 4 }}>
-                <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)}
-                  style={{ width: 18, height: 18, accentColor: "#5B6EE8" }} />
+              className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}
+              style={{
+                borderColor: overIdx === i ? "#5B6EE8" : undefined,
+                opacity: dragIdx === i ? 0.4 : 1,
+              }}>
+              <span className="cc-grip-dots" aria-hidden="true">
+                <span /><span /><span /><span /><span /><span />
+              </span>
+              <span style={{ flex: 1, fontWeight: 500, fontSize: 14.5,
+                color: s.on ? "var(--ink)" : "var(--ink-faint)",
+                letterSpacing: "-.01em" }}>{s.label}</span>
+              <button className="cc-row-arrow" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
+              <button className="cc-row-arrow" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label="Bajar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <label className={`cc-switch ${s.on ? "on" : ""}`}>
+                <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
+                <span className="cc-switch-track" />
+                <span className="cc-switch-thumb" />
               </label>
             </div>
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <button onClick={reset}
-            style={{ padding: "12px 16px", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
-              borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface)",
+            style={{ padding: "14px 18px", fontSize: 13.5, fontWeight: 500, fontFamily: "inherit",
+              borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)",
               color: "var(--ink-soft)", cursor: "pointer" }}>
             Restablecer
           </button>
           <button onClick={saved ? undefined : () => { onSave(items); setSaved(true); }} disabled={saved}
-            style={{ flex: 1, padding: 14, fontSize: 14, fontWeight: 600,
+            style={{ flex: 1, padding: 14, fontSize: 14.5, fontWeight: 600,
               fontFamily: "inherit", borderRadius: 14, border: "none",
               background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
-              opacity: saved ? 0.5 : 1, transition: "opacity .2s" }}>
+              opacity: saved ? 0.5 : 1, transition: "opacity .2s",
+              letterSpacing: "-.01em" }}>
             {saved ? "Listo ✓" : t("saveChanges")}
           </button>
         </div>
