@@ -156,6 +156,7 @@ body{
   color:var(--ink); background:transparent;
   min-height:100vh; width:100%;
   position:relative;
+  isolation:isolate;
   -webkit-font-smoothing:antialiased;
   position:relative;
 }
