@@ -277,6 +277,24 @@ body{
 .cc-fade{animation:ccUp .4s cubic-bezier(.16,1,.3,1) both;}
 @keyframes ccUp{from{opacity:0;}to{opacity:1;}}
 
+/* Page transitions */
+.cc-page{animation:ccPageIn .25s cubic-bezier(.16,1,.3,1) both;}
+@keyframes ccPageIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* Staggered card entrance */
+.cc-card{animation:ccCardIn .3s cubic-bezier(.16,1,.3,1) both;}
+.cc-page .cc-card:nth-child(1){animation-delay:0ms;}
+.cc-page .cc-card:nth-child(2){animation-delay:40ms;}
+.cc-page .cc-card:nth-child(3){animation-delay:80ms;}
+.cc-page .cc-card:nth-child(4){animation-delay:120ms;}
+.cc-page .cc-card:nth-child(5){animation-delay:160ms;}
+.cc-page .cc-card:nth-child(n+6){animation-delay:200ms;}
+@keyframes ccCardIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+
+/* Overlay fade */
+.cc-overlay{animation:ccOverlayIn .2s ease both;}
+@keyframes ccOverlayIn{from{opacity:0;}to{opacity:1;}}
+
 /* ============== BOTONES ============== */
 .cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:14px;border:1px solid var(--glass-border);
   background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
@@ -328,9 +346,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   border:none;background:transparent;cursor:pointer;
   padding:8px 4px 6px;border-radius:18px;
   color:var(--ink-faint);font-family:inherit;
-  transition:color .15s ease, background .15s ease;}
+  transition:color .15s ease, background .15s ease, transform .1s ease;}
 .cc-nav-item.on{color:var(--ink);}
 .cc-nav-item:hover{color:var(--ink);}
+.cc-nav-item:active{transform:scale(.92);}
 .cc-nav-icon{display:flex;align-items:center;justify-content:center;line-height:0;}
 .cc-nav-icon svg{width:21px;height:21px;display:block;}
 .cc-nav-label{font-size:10px;font-weight:600;letter-spacing:.01em;}
@@ -3357,10 +3376,12 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="cc-wrap">
-        {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
-        {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
-        {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
-        {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
+        <div key={tab} className="cc-page">
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} />}
+          {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
+          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
+          {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
+        </div>
       </div>
 
       <BottomNav
