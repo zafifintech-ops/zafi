@@ -5650,8 +5650,21 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
   const [msgs, setMsgs] = useState(() => CHAT_MSGS_STORE || [{ role: "bot", text: GREET }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attachedImgs, setAttachedImgs] = useState([]);
   const history = useRef(CHAT_HISTORY_STORE);
   const scroller = useRef(null);
+  const imgInputRef = useRef(null);
+
+  const handleImgPick = (e) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = () => setAttachedImgs(prev => [...prev, { src: reader.result, name: f.name }]);
+      reader.readAsDataURL(f);
+    });
+    e.target.value = "";
+  };
+  const removeImg = (idx) => setAttachedImgs(prev => prev.filter((_, i) => i !== idx));
 
   // mantener el store sincronizado para que persista al cerrar/reabrir
   useEffect(() => { CHAT_MSGS_STORE = msgs; }, [msgs]);
@@ -5734,11 +5747,21 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
 
   async function send(text) {
     const userText = (text ?? input).trim();
-    if (!userText || busy) return;
-    setMsgs((m) => [...m, { role: "me", text: userText }]);
+    const imgs = [...attachedImgs];
+    if ((!userText && !imgs.length) || busy) return;
+    // Show user message with thumbnails
+    setMsgs((m) => [...m, { role: "me", text: userText || "(imagen)", images: imgs.map(i => i.src) }]);
     setInput("");
+    setAttachedImgs([]);
     setBusy(true);
-    history.current.push({ role: "user", content: userText });
+    // Build content array for Claude API
+    const content = [];
+    imgs.forEach(img => {
+      const match = img.src.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (match) content.push({ type: "image", source: { type: "base64", media_type: match[1], data: match[2] } });
+    });
+    content.push({ type: "text", text: userText || "¿Qué ves en esta imagen?" });
+    history.current.push({ role: "user", content: content.length === 1 ? userText : content });
     try {
       const raw = await callClaude(assistantSystem(config, txs), history.current);
       const parsed = parseJSON(raw);
@@ -5801,7 +5824,14 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           {msgs.map((m, i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: m.role === "me" ? "flex-end" : "stretch" }}>
               <div className={`cc-bubble ${m.role}`} style={{ whiteSpace: "pre-wrap" }}>
-                {m.text}
+                {m.images && m.images.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text && m.text !== "(imagen)" ? 8 : 0 }}>
+                    {m.images.map((src, j) => (
+                      <img key={j} src={src} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10 }} />
+                    ))}
+                  </div>
+                )}
+                {m.text && m.text !== "(imagen)" && m.text}
                 {m.log && m.log.length > 0 && (
                   <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 5 }}>
                     {m.log.map((l, j) => (
@@ -5835,9 +5865,26 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           </div>
         )}
 
+        {/* Image thumbnails */}
+        {attachedImgs.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            {attachedImgs.map((img, i) => (
+              <div key={i} style={{ position: "relative", width: 64, height: 64, borderRadius: 10, overflow: "hidden",
+                border: "1px solid var(--line)" }}>
+                <img src={img.src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <button onClick={() => removeImg(i)}
+                  style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%",
+                    background: "rgba(0,0,0,.6)", color: "#fff", border: "none", fontSize: 10,
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button className="cc-btn" title="Importar desde screenshot"
-            onClick={() => { onClose(); onOpenImport && onOpenImport(); }}
+          <input ref={imgInputRef} type="file" accept="image/*" multiple hidden onChange={handleImgPick} />
+          <button className="cc-btn" title="Adjuntar imagen"
+            onClick={() => imgInputRef.current?.click()}
             style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><circle cx="12" cy="13" r="3"/></svg>
             </button>
@@ -5859,11 +5906,11 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
           />
-          <button disabled={busy || (!input.trim() && !listening)}
+          <button disabled={busy || (!input.trim() && !listening && !attachedImgs.length)}
             onClick={() => { if (listening) stopVoice(false); setTimeout(() => send(), 100); }}
             style={{ padding: "10px 18px", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
               borderRadius: 14, border: "none", background: "#5B6EE8", color: "#fff",
-              cursor: "pointer", opacity: (busy || (!input.trim() && !listening)) ? 0.4 : 1,
+              cursor: "pointer", opacity: (busy || (!input.trim() && !listening && !attachedImgs.length)) ? 0.4 : 1,
               flexShrink: 0, transition: "opacity .15s" }}>
             {t("send")}
           </button>
