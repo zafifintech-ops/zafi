@@ -139,6 +139,8 @@ body{
 .cc-dark .cc-sheet{background:rgba(20,22,30,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
+.cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
+.cc-dark .cc-input::placeholder{color:rgba(255,255,255,.3);}
 .cc-dark .cc-btn{background:rgba(255,255,255,.08);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-btn-primary,.cc-dark .cc-btn-green{background:var(--green);color:#fff;border-color:var(--green);}
 .cc-dark .cc-tab{background:rgba(255,255,255,.05);color:var(--ink-soft);}
