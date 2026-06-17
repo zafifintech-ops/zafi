@@ -723,6 +723,13 @@ const STRINGS = {
   passwordMinLength: { es: "Mínimo 6 caracteres en la contraseña.", en: "Password must be at least 6 characters." },
   selectCountry: { es: "Selecciona tu país.", en: "Select your country." },
   somethingWentWrong: { es: "Algo salió mal. Intenta de nuevo.", en: "Something went wrong. Try again." },
+  countryOfResidence: { es: "País de residencia", en: "Country of Residence" },
+  countryDesc: { es: "Necesitamos algunos datos personales para verificar tu elegibilidad.", en: "We need to collect a few personal details to verify you're elegible for an account" },
+  getStarted: { es: "Comenzar", en: "Get started" },
+  legalConsent: { es: "Al tocar Comenzar, aceptas los", en: "By tapping Get started, you agree to Zafi's" },
+  termsAndConditions: { es: "Términos y condiciones", en: "Terms and Conditions" },
+  privacyPolicy: { es: "Política de privacidad", en: "Privacy Policy" },
+  legalConsentEnd: { es: "y declaras que actúas en tu propio nombre.", en: "and represent that you are acting on your own behalf." },
 };
 const t = (key) => (STRINGS[key] || {})[_lang] || (STRINGS[key] || {}).es || key;
 
@@ -2553,13 +2560,13 @@ function AuthScreen() {
       <button style={backBtn} onClick={() => { setErr(""); setScreen("method"); }}>‹</button>
       <div style={{ flex:1, padding:"90px 26px 0" }}>
         <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Country of Residence
+          {t("countryOfResidence")}
         </div>
         <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          We need to collect a few personal details to verify you're elegible for an account
+          {t("countryDesc")}
         </div>
         <div style={{ marginTop:32 }}>
-          <div style={{ fontSize:13, color:AUTH_INK_SOFT, marginBottom:8 }}>Country</div>
+          <div style={{ fontSize:13, color:AUTH_INK_SOFT, marginBottom:8 }}>{t("country")}</div>
           <div style={{ position:"relative" }}>
             <select
               value={country}
@@ -2581,10 +2588,10 @@ function AuthScreen() {
       </div>
       <div style={stepBottom}>
         <div style={{ fontSize:13, color:AUTH_INK_SOFT, lineHeight:1.6, marginBottom:4 }}>
-          By tapping Get started, you agree to Zafi's <span style={{ textDecoration:"underline", cursor:"pointer" }}>Terms and Conditions</span> and <span style={{ textDecoration:"underline", cursor:"pointer" }}>Privacy Policy</span>, and represent that you are acting on your own behalf.
+          {t("legalConsent")} <span style={{ textDecoration:"underline", cursor:"pointer" }}>{t("termsAndConditions")}</span> {_lang==="es"?"y":"and"} <span style={{ textDecoration:"underline", cursor:"pointer" }}>{t("privacyPolicy")}</span>, {t("legalConsentEnd")}
         </div>
         <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("profile"); }}>
-          Get started
+          {t("getStarted")}
         </button>
       </div>
     </div>
@@ -2596,23 +2603,23 @@ function AuthScreen() {
       <button style={backBtn} onClick={() => { setErr(""); setScreen("country"); }}>‹</button>
       <div style={{ flex:1, padding:"90px 26px 0" }}>
         <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          About you
+          {t("aboutYou")}
         </div>
         <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
           {t("tellUsAboutYou")}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
-            <label style={lbl}>Name</label>
+            <label style={lbl}>{t("name")}</label>
             <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="text" placeholder={t("yourName")} value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Age</label>
+            <label style={lbl}>{t("age")}</label>
             <input style={{ ...inp, background:"rgba(255,255,255,.7)", width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
               onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
           </div>
           <div>
-            <label style={lbl}>Gender</label>
+            <label style={lbl}>{t("gender")}</label>
             <div style={{ display:"flex", gap:9 }}>
               {[["male",t("male")],["female",t("female")],["other",t("other")]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
@@ -2650,30 +2657,30 @@ function AuthScreen() {
       <button style={backBtn} onClick={() => { setErr(""); setScreen("profile"); }}>‹</button>
       <div style={{ flex:1, padding:"90px 26px 0" }}>
         <div style={{ fontSize:28, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Create your account
+          {t("createAccount")}
         </div>
         <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          You'll use this email and password to sign in.
+          {t("credentialsDesc")}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:28 }}>
           <div>
-            <label style={lbl}>Email</label>
+            <label style={lbl}>{t("email")}</label>
             <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Password</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="At least 6 characters" value={password} onChange={e=>setPassword(e.target.value)} />
+            <label style={lbl}>{t("password")}</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder={_lang==="es"?"Mínimo 6 caracteres":"At least 6 characters"} value={password} onChange={e=>setPassword(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Confirm password</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder="Repeat your password" value={confirm} onChange={e=>setConfirm(e.target.value)} />
+            <label style={lbl}>{t("confirmPassword")}</label>
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="password" placeholder={_lang==="es"?"Repite tu contraseña":"Repeat your password"} value={confirm} onChange={e=>setConfirm(e.target.value)} />
           </div>
         </div>
         {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, marginTop:12 }}>{err}</div>}
       </div>
       <div style={stepBottom}>
         <button style={{ ...btnP, borderRadius:99 }} onClick={doRegister} disabled={busy}>
-          {busy ? "Creating account…" : "Create account"}
+          {busy ? (_lang==="es" ? "Creando cuenta…" : "Creating account…") : t("createAccount")}
         </button>
       </div>
     </div>
@@ -2687,7 +2694,7 @@ function AuthScreen() {
         <ZafiLogo />
         <div>
           <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>{t("welcomeBack")}</div>
-          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
+          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>{t("signInToContinue")}</div>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div>
@@ -2794,12 +2801,12 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             <input style={inp} type="text" placeholder={t("howToCallYou")} value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Age</label>
+            <label style={lbl}>{t("age")}</label>
             <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
               onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
           </div>
           <div>
-            <label style={lbl}>Gender</label>
+            <label style={lbl}>{t("gender")}</label>
             <div style={{ display:"flex", gap:9 }}>
               {[["male",t("male")],["female",t("female")],["other",t("other")]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
@@ -2815,7 +2822,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             </div>
           </div>
           <div>
-            <label style={lbl}>Country</label>
+            <label style={lbl}>{t("country")}</label>
             <div style={{ position:"relative" }}>
               <select value={country} onChange={e => setCountry(e.target.value)}
                 style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
