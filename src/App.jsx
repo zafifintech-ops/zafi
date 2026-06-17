@@ -2310,7 +2310,7 @@ function ZafiLogo() {
         zafi
       </span>
       <div style={{ fontFamily:"'Montserrat',sans-serif", fontSize:13, color:AUTH_INK_SOFT, letterSpacing:".01em", fontWeight:400 }}>
-        Finanzas personales con IA
+        {_lang === "es" ? "el futuro de tu dinero" : "the future of your money"}
       </div>
     </div>
   );
@@ -2408,7 +2408,7 @@ function AuthScreen() {
     fontFamily:FONT, cursor:"pointer", letterSpacing:"-.01em",
   };
   const lnk = {
-    background:"none", border:"none", color:AUTH_GREEN,
+    background:"none", border:"none", color:"#5B6EE8",
     fontSize:14, fontFamily:FONT, cursor:"pointer",
     fontWeight:600, padding:0,
   };
@@ -2696,29 +2696,31 @@ function AuthScreen() {
       <div style={blob} />
       <div style={blob2} />
       <div style={{ ...box, position:"relative", zIndex:1 }}>
-        <ZafiLogo />
+        <div style={{ marginBottom: 24 }}>
+          <ZafiLogo />
+        </div>
         <div>
           <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>{t("welcomeBack")}</div>
           <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>{t("signInToContinue")}</div>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div>
-            <label style={lbl}>Correo electrónico</label>
-            <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+            <label style={lbl}>{t("email")}</label>
+            <input style={inp} type="email" placeholder={_lang === "es" ? "tucorreo@ejemplo.com" : "you@example.com"} value={email} onChange={e=>setEmail(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Contraseña</label>
-            <input style={inp} type="password" placeholder="Tu contraseña" value={password} onChange={e=>setPassword(e.target.value)} />
+            <label style={lbl}>{t("password")}</label>
+            <input style={inp} type="password" placeholder={_lang === "es" ? "Tu contraseña" : "Your password"} value={password} onChange={e=>setPassword(e.target.value)} />
           </div>
         </div>
         {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={doLogin} disabled={busy}>{busy?"Entrando…":"Iniciar sesión"}</button>
-          <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
+          <button style={btnP} onClick={doLogin} disabled={busy}>{busy ? (_lang === "es" ? "Entrando…" : "Signing in…") : t("signIn")}</button>
+          <button style={btnS} onClick={() => go("welcome")}>{_lang === "es" ? "← Regresar" : "← Back"}</button>
         </div>
         <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT, display:"flex", flexDirection:"column", gap:8 }}>
           <button style={lnk} onClick={() => go("forgot")}>{t("forgotPassword")}</button>
-          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("method")}>{t("createAccount")}</button></span>
+          <span style={{ fontFamily:FONT }}>{_lang === "es" ? "¿No tienes cuenta?" : "Don't have an account?"}{" "}<button style={lnk} onClick={() => go("method")}>{t("createAccount")}</button></span>
         </div>
       </div>
     </div>
@@ -2729,20 +2731,22 @@ function AuthScreen() {
       <div style={blob} />
       <div style={blob2} />
       <div style={{ ...box, position:"relative", zIndex:1 }}>
-        <ZafiLogo />
+        <div style={{ marginBottom: 24 }}>
+          <ZafiLogo />
+        </div>
         <div>
-          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
+          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>{t("resetPassword")}</div>
           <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT, lineHeight:1.5 }}>{t("resetPasswordDesc")}</div>
         </div>
         <div>
-          <label style={lbl}>Correo electrónico</label>
-          <input style={inp} type="email" placeholder="tucorreo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} />
+          <label style={lbl}>{t("email")}</label>
+          <input style={inp} type="email" placeholder={_lang === "es" ? "tucorreo@ejemplo.com" : "you@example.com"} value={email} onChange={e=>setEmail(e.target.value)} />
         </div>
         {err && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_CORAL, fontWeight:500 }}>{err}</div>}
-        {ok && <div style={{ fontFamily:FONT, fontSize:13.5, color:AUTH_GREEN, fontWeight:500 }}>{ok}</div>}
+        {ok && <div style={{ fontFamily:FONT, fontSize:13.5, color:"#5B6EE8", fontWeight:500 }}>{ok}</div>}
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <button style={btnP} onClick={doForgot} disabled={busy}>{busy?"Enviando…":"Enviar correo"}</button>
-          <button style={btnS} onClick={() => go("login")}>← Regresar</button>
+          <button style={btnP} onClick={doForgot} disabled={busy}>{busy ? (_lang === "es" ? "Enviando…" : "Sending…") : t("sendLink")}</button>
+          <button style={btnS} onClick={() => go("login")}>{_lang === "es" ? "← Regresar" : "← Back"}</button>
         </div>
       </div>
     </div>
