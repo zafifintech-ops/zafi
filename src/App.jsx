@@ -2949,6 +2949,12 @@ export default function App() {
     };
   }, []);
 
+  // Body background para tema oscuro/claro
+  useEffect(() => {
+    const dark = config?.theme === "dark";
+    document.body.style.backgroundColor = dark ? "#0D0F14" : "#DCE1E8";
+  }, [config?.theme]);
+
   // Splash de bienvenida — siempre primero al abrir la app
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
@@ -3003,16 +3009,10 @@ export default function App() {
   if (!profileDone)
     return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
 
-  const isDark = config?.theme === "dark";
-  const bgVideo = isDark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
-
-  // Set body background for theme
-  useEffect(() => {
-    document.body.style.backgroundColor = isDark ? "#0D0F14" : "#DCE1E8";
-  }, [isDark]);
+  const bgVideo = (config?.theme === "dark") ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
 
   return (
-    <div className={`cc-root ${isDark ? "cc-dark" : ""}`}>
+    <div className={`cc-root ${config?.theme === "dark" ? "cc-dark" : ""}`}>
       <style>{STYLE}</style>
       <div className="cc-video-bg">
         <video autoPlay muted loop playsInline preload="auto" key={bgVideo}
