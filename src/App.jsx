@@ -4218,26 +4218,27 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
           {PRESETS.map((p) => (
             <button key={p.id} onClick={() => setPreset(p.id)}
               style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
-                background: preset === p.id ? "var(--green-soft)" : "var(--surface)",
-                border: `1px solid ${preset === p.id ? "var(--green)" : "var(--line)"}`,
+                background: preset === p.id ? "rgba(91,110,232,.12)" : "var(--surface)",
+                border: `1px solid ${preset === p.id ? "#5B6EE8" : "var(--line)"}`,
                 borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
-                fontWeight: preset === p.id ? 700 : 500, textAlign: "left", color: "var(--ink)" }}>
+                fontWeight: preset === p.id ? 700 : 500, textAlign: "left", color: "var(--ink)",
+                transition: "all .15s ease" }}>
               <span style={{ fontSize: 17 }}>{p.emoji}</span>
               <span style={{ flex: 1 }}>{p.label}</span>
-              {preset === p.id && <span style={{ color: "var(--green)", fontSize: 17, fontWeight: 700 }}>✓</span>}
+              {preset === p.id && <span style={{ color: "#5B6EE8", fontSize: 17, fontWeight: 700 }}>✓</span>}
             </button>
           ))}
 
           <button onClick={() => setPreset("custom")}
             style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
-              background: preset === "custom" ? "var(--green-soft)" : "var(--surface)",
-              border: `1px solid ${preset === "custom" ? "var(--green)" : "var(--line)"}`,
+              background: preset === "custom" ? "rgba(91,110,232,.12)" : "var(--surface)",
+              border: `1px solid ${preset === "custom" ? "#5B6EE8" : "var(--line)"}`,
               borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
               fontWeight: preset === "custom" ? 700 : 500, textAlign: "left", color: "var(--ink)",
-              marginTop: 4 }}>
+              marginTop: 4, transition: "all .15s ease" }}>
             <span style={{ fontSize: 17 }}>✏️</span>
             <span style={{ flex: 1 }}>Personalizado</span>
-            {preset === "custom" && <span style={{ color: "var(--green)", fontSize: 17, fontWeight: 700 }}>✓</span>}
+            {preset === "custom" && <span style={{ color: "#5B6EE8", fontSize: 17, fontWeight: 700 }}>✓</span>}
           </button>
 
           {preset === "custom" && (
@@ -4257,9 +4258,11 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
           )}
         </div>
 
-        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13, fontSize: 14 }}
-          onClick={apply}>
-          Aplicar
+        <button onClick={apply}
+          style={{ width: "100%", padding: 14, fontSize: 14, fontWeight: 600,
+            fontFamily: "inherit", borderRadius: 14, border: "none",
+            background: "#5B6EE8", color: "#fff", cursor: "pointer" }}>
+          {t("apply")}
         </button>
       </div>
     </div>
@@ -4621,10 +4624,17 @@ function HomeConfigModal({ sections, onClose, onSave }) {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="cc-btn" style={{ padding: 12 }} onClick={reset}>Restablecer</button>
-          <button className="cc-btn cc-btn-green" style={{ flex: 1, padding: 13, fontSize: 14 }}
-            onClick={() => onSave(items)}>
-            Guardar cambios
+          <button onClick={reset}
+            style={{ padding: "12px 16px", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+              borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface)",
+              color: "var(--ink-soft)", cursor: "pointer" }}>
+            Restablecer
+          </button>
+          <button onClick={() => onSave(items)}
+            style={{ flex: 1, padding: 14, fontSize: 14, fontWeight: 600,
+              fontFamily: "inherit", borderRadius: 14, border: "none",
+              background: "#5B6EE8", color: "#fff", cursor: "pointer" }}>
+            {t("saveChanges")}
           </button>
         </div>
       </div>
@@ -5831,13 +5841,9 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           {voiceSupported && (
             <button
               className={`cc-btn cc-mic ${listening ? "rec" : ""}`}
-              title="Mantén presionado para hablar"
+              title={listening ? "Toca para dejar de escuchar" : "Toca para hablar"}
               disabled={busy}
-              onMouseDown={(e) => { e.preventDefault(); startVoice(); }}
-              onMouseUp={() => stopVoice(true)}
-              onMouseLeave={() => listening && stopVoice(true)}
-              onTouchStart={(e) => { e.preventDefault(); startVoice(); }}
-              onTouchEnd={(e) => { e.preventDefault(); stopVoice(true); }}
+              onClick={(e) => { e.preventDefault(); listening ? stopVoice(false) : startVoice(); }}
               style={{ padding: "10px 13px", fontSize: 18, lineHeight: 1, userSelect: "none", touchAction: "none" }}>
               {listening ? "●" : "🎙"}
             </button>
@@ -5850,13 +5856,18 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
           />
-          <button className="cc-btn cc-btn-green" disabled={busy || !input.trim()} onClick={() => send()}>
-            Enviar
+          <button disabled={busy || (!input.trim() && !listening)}
+            onClick={() => { if (listening) stopVoice(false); setTimeout(() => send(), 100); }}
+            style={{ padding: "10px 18px", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+              borderRadius: 14, border: "none", background: "#5B6EE8", color: "#fff",
+              cursor: "pointer", opacity: (busy || (!input.trim() && !listening)) ? 0.4 : 1,
+              flexShrink: 0, transition: "opacity .15s" }}>
+            {t("send")}
           </button>
         </div>
         {listening && (
           <div style={{ fontSize: 11.5, color: "var(--ink-soft)", textAlign: "center", marginTop: 8 }}>
-            Suelta para enviar
+            Toca el micrófono para dejar de escuchar, o Enviar para mandar.
           </div>
         )}
       </div>
