@@ -517,6 +517,21 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccChartScaleIn{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}
 @keyframes ccChartGrowY{from{transform:scaleY(0);}to{transform:scaleY(1);}}
 @keyframes ccChartGrowX{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+/* Form row: side-by-side en desktop, stack en mobile */
+.cc-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media (max-width:520px){.cc-form-row{grid-template-columns:1fr;}}
+/* Chips de tags */
+.cc-tag-chip{display:inline-flex;align-items:center;gap:4px;
+  padding:5px 10px;border-radius:99px;font-size:12px;font-weight:500;
+  background:rgba(91,110,232,.1);color:#5B6EE8;
+  border:1px solid rgba(91,110,232,.25);cursor:pointer;
+  font-family:'Montserrat',sans-serif;transition:.15s;}
+.cc-tag-chip:hover{background:rgba(91,110,232,.18);}
+.cc-tag-chip.suggest{background:var(--surface);color:var(--ink-soft);
+  border:1px dashed var(--line);}
+.cc-tag-chip.suggest:hover{background:var(--surface-2);border-style:solid;}
+.cc-tag-chip .x{font-size:14px;line-height:1;opacity:.7;}
+.cc-dark .cc-tag-chip.suggest{background:rgba(255,255,255,.04);}
 /* línea SVG que se dibuja */
 .cc-chart-line{stroke-dasharray:1;stroke-dashoffset:1;animation:ccChartDraw 1.2s cubic-bezier(.4,0,.2,1) forwards;}
 /* área debajo de línea: aparece cuando la línea ya se dibujó */
@@ -3489,6 +3504,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           config={config}
           tx={editingTx}
           txs={txs}
+          saveConfig={saveConfig}
           onClose={() => { setAdding(false); setEditingTx(null); }}
           onSave={upsertTx}
         />
@@ -5650,7 +5666,7 @@ function AccountModal({ acc, onClose, onSave }) {
 }
 
 /* ===================== MODAL: NUEVO MOVIMIENTO =========================== */
-function AddModal({ config, tx, txs, onClose, onSave }) {
+function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   const editing = !!tx;
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
@@ -5662,9 +5678,41 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
   );
   const [date, setDate] = useState(tx ? tx.date : today());
   const [catId, setCatId] = useState(tx ? tx.categoryId : "auto");
+  const [payee, setPayee] = useState(tx ? (tx.payee || "") : "");
+  const [tags, setTags] = useState(tx ? (tx.tags || []) : []);
+  const [tagInput, setTagInput] = useState("");
   const [phase, setPhase] = useState("form");
+  const [showConfig, setShowConfig] = useState(false);
+
+  // qué campos opcionales mostrar (configurable por el usuario)
+  const fields = config.addModalFields || { payee: false, tags: false };
+  const setFields = (next) => {
+    if (saveConfig) saveConfig({ ...config, addModalFields: next });
+  };
 
   const cats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
+
+  // Tags sugeridos: los más frecuentes en otras txs, que no estén ya en `tags`
+  const suggestedTagsList = (() => {
+    const counts = new Map();
+    (txs || []).forEach((t) => (t.tags || []).forEach((tg) => {
+      counts.set(tg, (counts.get(tg) || 0) + 1);
+    }));
+    return [...counts.entries()]
+      .filter(([tg]) => !tags.includes(tg))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([tg]) => tg);
+  })();
+
+  const addTag = (raw) => {
+    const t = raw.trim().replace(/^#+/, "").trim();
+    if (!t) return;
+    if (tags.includes(t)) return;
+    setTags([...tags, t]);
+    setTagInput("");
+  };
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
 
   /* categorizador: keywords locales -> Claude -> preguntar */
   async function categorize() {
@@ -5717,7 +5765,9 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
     }
     onSave(
       { id: tx ? tx.id : uid(), type, amount: Math.abs(parseFloat(amount)),
-        description: desc.trim(), categoryId: finalCatId, accountId, date },
+        description: desc.trim(), categoryId: finalCatId, accountId, date,
+        ...(fields.payee && payee.trim() ? { payee: payee.trim() } : {}),
+        ...(fields.tags && tags.length ? { tags } : {}) },
       learnedCats,
       null
     );
@@ -5775,13 +5825,74 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
     );
   }
 
+  // ============== Sub-pantalla: configurar campos ==============
+  if (showConfig) {
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+        <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="cc-grip" />
+          <div className="cc-sheet-top">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => setShowConfig(false)}
+                style={{ background: "var(--surface)", border: "1px solid var(--line)",
+                  borderRadius: 10, width: 32, height: 32, cursor: "pointer",
+                  color: "var(--ink)", fontSize: 16, lineHeight: 1, fontFamily: "inherit" }}>‹</button>
+              <h2>Personalizar formulario</h2>
+            </div>
+            <button className="cc-sheet-close" onClick={close}>×</button>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 18,
+            fontFamily: "'Montserrat', sans-serif" }}>
+            Activa los campos opcionales que quieras ver al registrar una transacción.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              { id: "payee", label: "A quién pagar / De quién", desc: "Beneficiario o pagador (Walmart, Adolfo, etc.)" },
+              { id: "tags", label: "Hashtags", desc: "Etiqueta tus transacciones (#vacaciones, #trabajo)" },
+            ].map((f) => (
+              <div key={f.id} className="cc-sortable-v2"
+                style={{ padding: "14px 14px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14.5, color: "var(--ink)",
+                    letterSpacing: "-.01em", fontFamily: "'Montserrat', sans-serif" }}>{f.label}</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2,
+                    fontFamily: "'Montserrat', sans-serif" }}>{f.desc}</div>
+                </div>
+                <label className={`cc-switch ${fields[f.id] ? "on" : ""}`}>
+                  <input type="checkbox" checked={!!fields[f.id]}
+                    onChange={() => setFields({ ...fields, [f.id]: !fields[f.id] })} />
+                  <span className="cc-switch-track" />
+                  <span className="cc-switch-thumb" />
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{editing ? "Editar transacción" : "Nueva transacción"}</h2>
-          <button className="cc-sheet-close" onClick={close}>×</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setShowConfig(true)} aria-label="Configurar campos"
+              style={{ width: 32, height: 32, borderRadius: "50%", border: "none",
+                background: "var(--surface)", color: "var(--ink-soft)", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 010-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V2a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H22a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </button>
+            <button className="cc-sheet-close" onClick={close}>×</button>
+          </div>
         </div>
 
         <div className="cc-tabs" style={{ marginBottom: 4 }}>
@@ -5843,12 +5954,57 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
             value={desc} onChange={(e) => setDesc(e.target.value)} />
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
+        {fields.payee && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="cc-label">{type === "income" ? "De quién" : "A quién pagar"}</label>
+            <input className="cc-input"
+              placeholder={type === "income" ? "Ej. Cinthia, OchoaTransport, cliente…" : "Ej. Walmart, Adolfo, CFE…"}
+              value={payee} onChange={(e) => setPayee(e.target.value)} />
+          </div>
+        )}
+
+        {fields.tags && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="cc-label">Hashtags</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: tags.length ? 8 : 0 }}>
+              {tags.map((t) => (
+                <span key={t} className="cc-tag-chip" onClick={() => removeTag(t)}>
+                  #{t}<span className="x">×</span>
+                </span>
+              ))}
+            </div>
+            <input className="cc-input"
+              placeholder="Escribe un hashtag y Enter (ej. vacaciones)"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); addTag(tagInput); }
+                else if (e.key === "Backspace" && !tagInput && tags.length) {
+                  setTags(tags.slice(0, -1));
+                }
+              }} />
+            {suggestedTagsList.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600,
+                  letterSpacing: ".03em", marginBottom: 5 }}>SUGERIDOS</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {suggestedTagsList.map((t) => (
+                    <span key={t} className="cc-tag-chip suggest" onClick={() => addTag(t)}>
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="cc-form-row" style={{ marginBottom: 14 }}>
+          <div>
             <label className="cc-label">Fecha</label>
             <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div>
             <label className="cc-label">Categoría</label>
             <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
               disabled={!accountId}>
