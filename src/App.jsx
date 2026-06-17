@@ -481,34 +481,19 @@ body{
 
 /* ===== Splash ===== */
 .cc-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:10px;
-  background:
-    radial-gradient(circle at 50% 38%, #EAEEF4 0%, #DCE1E8 55%, #D2D8E2 100%);
-  animation:ccSplashOut .5s ease 1.85s forwards;}
+  align-items:center;justify-content:center;gap:8px;
+  background:var(--bg);
+  animation:ccSplashOut .4s ease 1.6s forwards;}
 @keyframes ccSplashOut{to{opacity:0;visibility:hidden;}}
-.cc-splash-orb{position:absolute;top:calc(50% - 70px);left:50%;
-  width:120px;height:120px;border-radius:50%;transform:translate(-50%,-50%) scale(.4);
-  background:
-    radial-gradient(circle at 35% 75%, rgba(99,102,241,.9) 0%, rgba(99,102,241,0) 45%),
-    radial-gradient(circle at 70% 55%, rgba(96,165,250,.85) 0%, rgba(96,165,250,0) 50%),
-    radial-gradient(circle at 55% 25%, rgba(94,234,212,.5) 0%, rgba(94,234,212,0) 40%),
-    radial-gradient(circle at 25% 30%, rgba(167,139,250,.8) 0%, rgba(167,139,250,0) 55%),
-    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
-  filter:blur(8px);opacity:0;
-  animation:ccSplashOrb 1.7s cubic-bezier(.2,.7,.2,1) forwards, ccOrbDrift 8s ease-in-out infinite;}
-@keyframes ccSplashOrb{
-  0%{opacity:0;transform:translate(-50%,-50%) scale(.3);}
-  40%{opacity:.85;transform:translate(-50%,-50%) scale(1.05);}
-  100%{opacity:.6;transform:translate(-50%,-50%) scale(1);}}
-.cc-splash-word{position:relative;font-family:'Fraunces',serif;font-weight:400;
-  font-size:54px;letter-spacing:.1em;color:var(--ink);
-  opacity:0;filter:blur(16px);
-  animation:ccSplashBlur 1s ease .35s forwards;}
-@keyframes ccSplashBlur{to{opacity:1;filter:blur(0);letter-spacing:-.05em;}}
-.cc-splash-tag{position:relative;font-family:'Montserrat',sans-serif;font-weight:300;
-  font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);
-  opacity:0;animation:ccSplashTag .7s ease .95s forwards;}
-@keyframes ccSplashTag{to{opacity:1;}}
+.cc-splash-word{font-family:'Fraunces',serif;font-weight:400;
+  font-size:48px;letter-spacing:-.05em;color:var(--ink);
+  opacity:0;transform:translateY(8px);
+  animation:ccSplashFade .8s ease .2s forwards;}
+@keyframes ccSplashFade{to{opacity:1;transform:translateY(0);}}
+.cc-splash-tag{font-family:'Montserrat',sans-serif;font-weight:300;
+  font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);
+  opacity:0;animation:ccSplashTag .6s ease .7s forwards;}
+@keyframes ccSplashTag{to{opacity:.7;}}
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
   background:linear-gradient(160deg,#2c2820,var(--ink));color:var(--paper);
@@ -2825,16 +2810,15 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
 /* ===================== SPLASH SCREEN ==================================== */
 function SplashScreen({ onDone }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2100);
+    const t = setTimeout(onDone, 1800);
     return () => clearTimeout(t);
   }, [onDone]);
 
   return (
     <div className="cc-splash">
       <style>{STYLE}</style>
-      <div className="cc-splash-orb" />
       <div className="cc-splash-word">zafi</div>
-      <div className="cc-splash-tag">finanzas con IA</div>
+      <div className="cc-splash-tag">finanzas personales</div>
     </div>
   );
 }
