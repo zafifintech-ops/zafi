@@ -387,17 +387,33 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
 
 /* ============== FAB superior (+) ============== */
-.cc-fab-top{position:fixed;top:18px;right:18px;z-index:45;
-  width:46px;height:46px;border-radius:50%;
-  background:var(--glass);color:var(--ink);border:1px solid var(--glass-border);
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
-  font-size:24px;font-weight:300;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-md);
-  transition:all .15s ease;}
-.cc-fab-top:hover{background:rgba(255,255,255,.75);box-shadow:var(--shadow-lg);}
-.cc-fab-top:active{transform:scale(.93);}
-.cc-fab-top.open{transform:rotate(45deg);}
+/* Botón "+" del header — al lado del chip de fecha */
+.cc-header-add{display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#5B6EE8 0%,#7C8FF5 100%);
+  color:#fff;font-family:inherit;font-size:20px;line-height:1;
+  box-shadow:0 4px 12px rgba(91,110,232,.32);
+  transition:transform .15s,box-shadow .2s;flex-shrink:0;}
+.cc-header-add:hover{box-shadow:0 6px 18px rgba(91,110,232,.42);transform:translateY(-1px);}
+.cc-header-add:active{transform:scale(.93);}
+.cc-dark .cc-header-add{box-shadow:0 4px 12px rgba(91,110,232,.45);}
+/* Opciones del sheet "+ Agregar movimiento" — sin emojis */
+.cc-add-option{display:flex;align-items:center;gap:14px;width:100%;
+  padding:14px 14px;border:1px solid var(--line);border-radius:14px;
+  background:var(--paper);cursor:pointer;text-align:left;font-family:inherit;
+  transition:border-color .15s,background .15s,transform .12s;}
+.cc-add-option:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-add-option:active{transform:scale(.985);}
+.cc-add-option-icon{display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:11px;flex-shrink:0;
+  background:rgba(91,110,232,.1);color:#5B6EE8;}
+.cc-dark .cc-add-option-icon{background:rgba(91,110,232,.18);color:#8B9CFF;}
+.cc-add-option-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}
+.cc-add-option-label{font-weight:600;font-size:15px;color:var(--ink);
+  letter-spacing:-.01em;font-family:'Montserrat',sans-serif;}
+.cc-add-option-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.35;
+  font-family:'Montserrat',sans-serif;}
+.cc-add-option-chevron{color:var(--ink-faint);flex-shrink:0;}
 .cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
@@ -3492,7 +3508,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
   return (
     <div>
-      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
+      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
@@ -3747,33 +3763,72 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
   );
 }
 
-/* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
+/* TopFab: ya no es flotante. El botón vive en el StickyHeader.
+   Aquí solo gestionamos el sheet de opciones. */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
   const items = [
-    { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
-    { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
-    { icon: "📸", label: t("fromScreenshot"), desc: t("fromScreenshotDesc"), onClick: onPickScreenshot },
-    { icon: "📊", label: t("fromExcel"), desc: t("fromExcelDesc"), onClick: onPickExcel },
+    {
+      key: "manual",
+      label: t("manualCapture"),
+      desc: t("manualCaptureDesc"),
+      onClick: onPickManual,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </svg>
+      ),
+    },
+    {
+      key: "recurring",
+      label: t("recurringMovement"),
+      desc: t("recurringDesc"),
+      onClick: onPickRecurring,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      ),
+    },
+    {
+      key: "screenshot",
+      label: t("fromScreenshot"),
+      desc: t("fromScreenshotDesc"),
+      onClick: onPickScreenshot,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+      ),
+    },
+    {
+      key: "excel",
+      label: t("fromExcel"),
+      desc: t("fromExcelDesc"),
+      onClick: onPickExcel,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="16" y2="17" />
+          <line x1="10" y1="9" x2="12" y2="9" />
+        </svg>
+      ),
+    },
   ];
-  return (
-    <>
-      <button className={`cc-fab-top ${open ? "open" : ""}`}
-        onClick={onToggle}
-        style={{
-          opacity: hidden ? 0 : 1,
-          transform: hidden ? `${open ? "rotate(45deg) " : ""}translateY(-16px)` : (open ? "rotate(45deg)" : "none"),
-          pointerEvents: hidden ? "none" : "auto",
-          transition: "opacity .2s, transform .25s cubic-bezier(.2,.7,.2,1)",
-        }}
-        aria-label="Nueva transacción">＋</button>
-
-      {open && !hidden && <TopFabSheet items={items} onClose={onToggle} />}
-    </>
-  );
+  if (!open || hidden) return null;
+  return <TopFabSheet items={items} onClose={onToggle} />;
 }
 
-/* Sub-componente del sheet del TopFab. Se monta/desmonta con `open`,
-   así el estado `closing` de useSheetClose se resetea en cada apertura. */
+/* Sheet del + rediseñado: sin emojis, iconos SVG y mejor jerarquía visual */
 function TopFabSheet({ items, onClose }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
@@ -3785,20 +3840,22 @@ function TopFabSheet({ items, onClose }) {
           <h2>{t("addMovement")}</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 18,
+          fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
+          Elige cómo quieres registrar tu transacción.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((it) => (
-            <button key={it.label} className="cc-card" onClick={it.onClick}
-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 16px",
-                cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--surface)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                {it.icon}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)", letterSpacing: "-.01em" }}>{it.label}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{it.desc}</div>
-              </div>
-              <span style={{ fontSize: 18, color: "var(--ink-faint)", flexShrink: 0 }}>›</span>
+            <button key={it.key} className="cc-add-option" onClick={it.onClick}>
+              <span className="cc-add-option-icon">{it.icon}</span>
+              <span className="cc-add-option-text">
+                <span className="cc-add-option-label">{it.label}</span>
+                <span className="cc-add-option-desc">{it.desc}</span>
+              </span>
+              <svg className="cc-add-option-chevron" width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           ))}
         </div>
@@ -3808,7 +3865,7 @@ function TopFabSheet({ items, onClose }) {
   );
 }
 
-function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onOpenSettings }) {
+function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onOpenSettings, onOpenAdd }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
@@ -3853,6 +3910,11 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
             <span>{rangeLabel(dateRange)}</span>
             <span className="cc-range-arrow">▼</span>
           </button>
+          {onOpenAdd && (
+            <button className="cc-header-add" onClick={onOpenAdd} aria-label="Nueva transacción">
+              ＋
+            </button>
+          )}
         </div>
       </div>
     </div>
