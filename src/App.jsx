@@ -36,6 +36,9 @@ html,body{min-height:100vh;}
 body{
   background-color:var(--bg)!important;
 }
+.cc-dark body, .cc-dark{
+  background-color:var(--bg)!important;
+}
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg video{width:100%;height:120%;object-fit:cover;
@@ -91,6 +94,61 @@ body{
   --glass-border:rgba(255,255,255,.55);
   --blur:blur(5px);
 }
+
+/* Dark theme override */
+.cc-dark{
+  --bg:#0D0F14;
+  --bg-2:#151820;
+  --paper:rgba(255,255,255,.06);
+  --paper-solid:#1A1D24;
+  --surface:rgba(255,255,255,.08);
+  --surface-2:rgba(255,255,255,.05);
+  --surface-3:rgba(255,255,255,.03);
+  --ink:#E2E6ED;
+  --bar-fill:#8892A4;
+  --ink-soft:#8892A4;
+  --ink-faint:#5A6270;
+  --line:rgba(255,255,255,.1);
+  --line-soft:rgba(255,255,255,.06);
+  --green:#2DD4A8;
+  --green-2:#34E0B4;
+  --green-soft:rgba(45,212,168,.12);
+  --green-glow:rgba(45,212,168,.22);
+  --coral:#F87171;
+  --coral-2:#FCA5A5;
+  --coral-soft:rgba(248,113,113,.1);
+  --coral-glow:rgba(248,113,113,.15);
+  --gold:#B4A0D6;
+  --gold-soft:rgba(180,160,214,.1);
+  --gold-glow:rgba(180,160,214,.18);
+  --orb-purple:#B49BFF;
+  --orb-blue:#78B8FF;
+  --orb-mint:#6EF5DE;
+  --accent-grad:linear-gradient(90deg, #1A3A6A 0%, #3B7BF7 45%, #60CFFF 100%);
+  --accent-grad-soft:linear-gradient(135deg, rgba(30,60,110,.15) 0%, rgba(96,207,255,.12) 100%);
+  --accent-solid:#3B7BF7;
+  --shadow-xs:0 1px 3px rgba(0,0,0,.2);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.25);
+  --shadow-md:0 4px 16px rgba(0,0,0,.3);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.35);
+  --shadow-xl:0 16px 48px rgba(0,0,0,.4);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.1);
+  --glass:rgba(255,255,255,.07);
+  --glass-border:rgba(255,255,255,.15);
+}
+.cc-dark .cc-sheet{background:rgba(20,22,30,.85);}
+.cc-dark .cc-overlay{background:rgba(0,0,0,.5);}
+.cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
+.cc-dark .cc-btn{background:rgba(255,255,255,.08);color:var(--ink);border-color:rgba(255,255,255,.1);}
+.cc-dark .cc-btn-primary,.cc-dark .cc-btn-green{background:var(--green);color:#fff;border-color:var(--green);}
+.cc-dark .cc-tab{background:rgba(255,255,255,.05);color:var(--ink-soft);}
+.cc-dark .cc-tab.on{background:rgba(255,255,255,.12);color:var(--ink);}
+.cc-dark .cc-acc-card{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);}
+.cc-dark .cc-acc-card.on{background:rgba(255,255,255,.14);border-color:var(--glass-border);}
+.cc-dark .cc-toast{background:linear-gradient(160deg,#1a1d24,#2a2d36);color:#E2E6ED;}
+.cc-dark .cc-bottomnav-inner{background:rgba(15,17,22,.7);}
+.cc-dark .cc-top.scrolled{background:rgba(15,17,22,.5);}
+.cc-dark .cc-card{background:rgba(255,255,255,.05);}
 .cc-root{
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
@@ -2945,13 +3003,21 @@ export default function App() {
   if (!profileDone)
     return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
 
+  const isDark = config?.theme === "dark";
+  const bgVideo = isDark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
+
+  // Set body background for theme
+  useEffect(() => {
+    document.body.style.backgroundColor = isDark ? "#0D0F14" : "#DCE1E8";
+  }, [isDark]);
+
   return (
-    <div className="cc-root">
+    <div className={`cc-root ${isDark ? "cc-dark" : ""}`}>
       <style>{STYLE}</style>
       <div className="cc-video-bg">
-        <video autoPlay muted loop playsInline preload="auto"
+        <video autoPlay muted loop playsInline preload="auto" key={bgVideo}
           ref={(el) => { if (el) { el.muted = true; const p = el.play(); if (p && p.catch) p.catch(() => {}); } }}>
-          <source src="/zafi-bg.mp4" type="video/mp4" />
+          <source src={bgVideo} type="video/mp4" />
         </video>
       </div>
       <div className="cc-bg-wave" />
@@ -3760,6 +3826,14 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const IconBell = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>;
   const IconDoc = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>;
   const IconShield = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+  const IconTheme = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>;
+
+  const curTheme = config.theme || "light";
+  const toggleTheme = () => {
+    const newTheme = curTheme === "dark" ? "light" : "dark";
+    saveConfig({ ...config, theme: newTheme });
+    showToast(newTheme === "dark" ? "Tema oscuro activado" : "Tema claro activado");
+  };
 
   const ROW = (Icon, label, value, onClick) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%",
@@ -3832,6 +3906,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("langcurrency"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("langcurrency"))}
               {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
+              {ROW(IconTheme, "Tema", curTheme === "dark" ? "🌙 Oscuro" : "☀️ Claro", toggleTheme)}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
               {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
             </div>
