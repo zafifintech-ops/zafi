@@ -499,7 +499,11 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
-  animation:ccFadeIn .2s ease both;}
+  animation:ccFadeIn .2s ease both;
+  font-family:'Montserrat',-apple-system,sans-serif;
+  font-weight:300;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 .cc-sheet{background:rgba(255,255,255,.55);backdrop-filter:blur(40px) saturate(160%);-webkit-backdrop-filter:blur(40px) saturate(160%);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
@@ -3958,7 +3962,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(true);
 
   const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
   const avatarSrc = getAvatarSrc(config);
