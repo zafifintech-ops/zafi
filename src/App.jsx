@@ -39,7 +39,7 @@ body{
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
-.cc-dark .cc-video-bg::after{background:rgba(0,0,0,.20);}
+.cc-dark .cc-video-bg::after{background:rgba(0,0,0,.35);}
 .cc-video-bg video{width:100%;height:120%;object-fit:cover;
   filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
   transition:transform .05s linear;}
@@ -135,7 +135,7 @@ body{
   --glass:rgba(255,255,255,.07);
   --glass-border:rgba(255,255,255,.15);
 }
-.cc-dark .cc-sheet{background:rgba(20,22,30,.85);}
+.cc-dark .cc-sheet{background:rgba(20,22,30,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-btn{background:rgba(255,255,255,.08);color:var(--ink);border-color:rgba(255,255,255,.1);}
@@ -3838,10 +3838,10 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const curTheme = config.theme || "auto";
   const setTheme = (t) => {
     saveConfig({ ...config, theme: t });
-    const labels = { light: "☀️ Tema claro", dark: "🌙 Tema oscuro", auto: "🔄 Tema automático" };
+    const labels = { light: "Tema claro", dark: "Tema oscuro", auto: "Tema automático" };
     showToast(labels[t]);
   };
-  const themeLabel = { light: "☀️ Claro", dark: "🌙 Oscuro", auto: "🔄 Auto" }[curTheme];
+  const themeLabel = { light: "Claro", dark: "Oscuro", auto: "Auto" }[curTheme];
 
   const ROW = (Icon, label, value, onClick) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%",
@@ -3981,7 +3981,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
             <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
               Elige cómo se ve la app. "Automático" sigue la configuración de tu dispositivo.
             </div>
-            {CHIP_ROW([["light", "☀️ Claro"], ["dark", "🌙 Oscuro"], ["auto", "🔄 Auto"]], curTheme, setTheme)}
+            {CHIP_ROW([["light", "Claro"], ["dark", "Oscuro"], ["auto", "Auto"]], curTheme, setTheme)}
           </>
         )}
 
