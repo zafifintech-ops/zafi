@@ -532,6 +532,26 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-tag-chip.suggest:hover{background:var(--surface-2);border-style:solid;}
 .cc-tag-chip .x{font-size:14px;line-height:1;opacity:.7;}
 .cc-dark .cc-tag-chip.suggest{background:rgba(255,255,255,.04);}
+/* Combobox: button con popup de búsqueda */
+.cc-combobox-btn{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;
+  text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  gap:8px;transition:border-color .15s;}
+.cc-combobox-btn:hover:not(:disabled){border-color:var(--gold);}
+.cc-combobox-btn:disabled{opacity:.55;cursor:not-allowed;}
+.cc-combobox-btn .chevron{font-size:11px;color:var(--ink-faint);flex-shrink:0;}
+.cc-combobox-popup{margin-top:6px;border:1px solid var(--line);border-radius:12px;
+  background:var(--paper);overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.08);}
+.cc-dark .cc-combobox-popup{background:rgba(28,30,40,.95);backdrop-filter:blur(20px);}
+.cc-combobox-search{width:100%;padding:11px 14px;border:none;border-bottom:1px solid var(--line);
+  background:transparent;color:var(--ink);font-family:inherit;font-size:13.5px;outline:none;}
+.cc-combobox-list{max-height:240px;overflow-y:auto;padding:4px 0;}
+.cc-combobox-opt{width:100%;padding:10px 14px;background:transparent;border:none;
+  text-align:left;cursor:pointer;font-family:inherit;font-size:14px;color:var(--ink);
+  display:flex;align-items:center;gap:8px;transition:background .12s;}
+.cc-combobox-opt:hover{background:var(--surface);}
+.cc-combobox-opt.is-active{background:var(--surface-2);}
+.cc-combobox-empty{padding:14px;text-align:center;font-size:13px;color:var(--ink-soft);}
 /* línea SVG que se dibuja */
 .cc-chart-line{stroke-dasharray:1;stroke-dashoffset:1;animation:ccChartDraw 1.2s cubic-bezier(.4,0,.2,1) forwards;}
 /* área debajo de línea: aparece cuando la línea ya se dibujó */
@@ -5665,6 +5685,95 @@ function AccountModal({ acc, onClose, onSave }) {
   );
 }
 
+/* Combobox de categoría: button + popup con buscador + lista filtrable.
+   Soluciona el problema de selects nativos disabled y permite autocompletar. */
+function CategoryCombobox({ value, categories, onChange, disabled, placeholder = "✨ Detectar automáticamente" }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (open && inputRef.current) inputRef.current.focus();
+  }, [open]);
+
+  // cerrar al hacer click fuera
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [open]);
+
+  const current = value === "auto" || !value
+    ? placeholder
+    : (() => {
+        const c = categories.find((c) => c.id === value);
+        return c ? `${c.emoji} ${c.name}` : placeholder;
+      })();
+
+  const filtered = categories.filter((c) =>
+    !query || c.name.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const pick = (id) => {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "relative" }}>
+      <button type="button" className="cc-combobox-btn"
+        disabled={disabled} onClick={() => setOpen(!open)}>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {current}
+        </span>
+        <span className="chevron">▾</span>
+      </button>
+      {open && (
+        <div className="cc-combobox-popup">
+          <input ref={inputRef} className="cc-combobox-search"
+            placeholder="Buscar categoría…"
+            value={query} onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { setOpen(false); setQuery(""); }
+              if (e.key === "Enter" && filtered.length) { e.preventDefault(); pick(filtered[0].id); }
+            }} />
+          <div className="cc-combobox-list">
+            <button type="button" className={`cc-combobox-opt ${value === "auto" ? "is-active" : ""}`}
+              onClick={() => pick("auto")}>
+              <span style={{ fontSize: 14 }}>✨</span>
+              <span>Detectar automáticamente</span>
+            </button>
+            {filtered.length === 0 ? (
+              <div className="cc-combobox-empty">No hay categorías que coincidan</div>
+            ) : (
+              filtered.map((c) => (
+                <button key={c.id} type="button"
+                  className={`cc-combobox-opt ${value === c.id ? "is-active" : ""}`}
+                  onClick={() => pick(c.id)}>
+                  <span className="cc-emoji" style={{ fontSize: 16 }}>{c.emoji}</span>
+                  <span>{c.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ===================== MODAL: NUEVO MOVIMIENTO =========================== */
 function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   const editing = !!tx;
@@ -5703,6 +5812,25 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([tg]) => tg);
+  })();
+
+  // Payees sugeridos: los de los últimos 6 meses (únicos, ordenados por frecuencia)
+  const payeeSuggestionsList = (() => {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const cutoff = sixMonthsAgo.toISOString().slice(0, 10);
+    const counts = new Map();
+    (txs || []).forEach((t) => {
+      if (t.date < cutoff) return;
+      if (!t.payee || !t.payee.trim()) return;
+      // separar por tipo: solo sugiero payees del mismo tipo (a quien le pago vs de quien recibo)
+      if (t.type !== type) return;
+      const p = t.payee.trim();
+      counts.set(p, (counts.get(p) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([p]) => p);
   })();
 
   const addTag = (raw) => {
@@ -5848,7 +5976,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              { id: "payee", label: "A quién pagar / De quién", desc: "Beneficiario o pagador (Walmart, Adolfo, etc.)" },
+              { id: "payee", label: "Pagué a / Recibí de", desc: "Beneficiario o quien te pagó (Walmart, Adolfo, etc.)" },
               { id: "tags", label: "Hashtags", desc: "Etiqueta tus transacciones (#vacaciones, #trabajo)" },
             ].map((f) => (
               <div key={f.id} className="cc-sortable-v2"
@@ -5956,10 +6084,15 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
 
         {fields.payee && (
           <div style={{ marginBottom: 14 }}>
-            <label className="cc-label">{type === "income" ? "De quién" : "A quién pagar"}</label>
+            <label className="cc-label">{type === "income" ? "Recibí de" : "Pagué a"}</label>
             <input className="cc-input"
+              list="cc-payee-suggestions"
               placeholder={type === "income" ? "Ej. Cinthia, OchoaTransport, cliente…" : "Ej. Walmart, Adolfo, CFE…"}
-              value={payee} onChange={(e) => setPayee(e.target.value)} />
+              value={payee} onChange={(e) => setPayee(e.target.value)}
+              autoComplete="off" />
+            <datalist id="cc-payee-suggestions">
+              {payeeSuggestionsList.map((p) => <option key={p} value={p} />)}
+            </datalist>
           </div>
         )}
 
@@ -6006,11 +6139,11 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
           </div>
           <div>
             <label className="cc-label">Categoría</label>
-            <select className="cc-select" value={catId} onChange={(e) => setCatId(e.target.value)}
-              disabled={!accountId}>
-              <option value="auto">✨ Detectar automáticamente</option>
-              {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-            </select>
+            <CategoryCombobox
+              value={catId}
+              categories={cats}
+              onChange={setCatId}
+              disabled={!accountId} />
           </div>
         </div>
 
