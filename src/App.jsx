@@ -2991,14 +2991,17 @@ export default function App() {
     showToast("Listo, empezamos desde cero");
   };
 
+  const isDarkTheme = config?.theme === "dark";
+  const bgVideoSrc = isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
+
   if (!loaded)
     return (
-      <div className="cc-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+      <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <style>{STYLE}</style>
         <div className="cc-video-bg">
           <video autoPlay muted loop playsInline preload="auto"
             ref={(el) => { if (el) { el.muted = true; const p = el.play(); if (p && p.catch) p.catch(() => {}); } }}>
-            <source src="/zafi-bg.mp4" type="video/mp4" />
+            <source src={bgVideoSrc} type="video/mp4" />
           </video>
         </div>
         <div className="cc-dots"><span /><span /><span /></div>
@@ -3009,15 +3012,13 @@ export default function App() {
   if (!profileDone)
     return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
 
-  const bgVideo = (config?.theme === "dark") ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
-
   return (
-    <div className={`cc-root ${config?.theme === "dark" ? "cc-dark" : ""}`}>
+    <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}>
       <style>{STYLE}</style>
       <div className="cc-video-bg">
-        <video autoPlay muted loop playsInline preload="auto" key={bgVideo}
+        <video autoPlay muted loop playsInline preload="auto" key={bgVideoSrc}
           ref={(el) => { if (el) { el.muted = true; const p = el.play(); if (p && p.catch) p.catch(() => {}); } }}>
-          <source src={bgVideo} type="video/mp4" />
+          <source src={bgVideoSrc} type="video/mp4" />
         </video>
       </div>
       <div className="cc-bg-wave" />
