@@ -2759,9 +2759,6 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user]); // re-corre cuando cambia el usuario
 
-  // Splash de bienvenida — siempre primero al abrir la app
-  if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
-
   // Global: deslizar hacia abajo para cerrar cualquier modal (cc-sheet)
   useEffect(() => {
     let startY = 0, currentDy = 0, sheet = null, dragging = false;
@@ -2814,6 +2811,10 @@ export default function App() {
       document.removeEventListener("touchend", onEnd);
     };
   }, []);
+
+  // Splash de bienvenida — siempre primero al abrir la app
+  if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
+
 
   // Pantalla de carga mientras Firebase verifica sesión
   if (user === undefined) return (
