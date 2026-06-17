@@ -32,6 +32,7 @@ const db = getFirestore(firebaseApp);
 const STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Montserrat:wght@300;400;500;600;700&display=swap');
 
+html{background-color:var(--bg);}
 html,body{min-height:100vh;}
 body{
   background-color:var(--bg)!important;
@@ -2965,7 +2966,9 @@ export default function App() {
 
   // Body background para tema oscuro/claro
   useEffect(() => {
-    document.body.style.backgroundColor = isDarkTheme ? "#0D0F14" : "#DCE1E8";
+    const bg = isDarkTheme ? "#0D0F14" : "#DCE1E8";
+    document.body.style.backgroundColor = bg;
+    document.documentElement.style.backgroundColor = bg;
   }, [isDarkTheme]);
 
   // Splash de bienvenida — siempre primero al abrir la app
@@ -6608,9 +6611,16 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
             );
 
             if (s.id === "expCats" && expRows.length > 0) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría</div>
-                <CategoryChart rows={expRows} type="expense" onPick={openCategoryDetail} />
+              <div key={s.id}>
+                <div className="cc-card" style={{ padding: 18 }}>
+                  <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría</div>
+                  <CategoryChart rows={expRows} type="expense" onPick={openCategoryDetail} />
+                </div>
+                {/* Gráfica de líneas por categoría */}
+                <div className="cc-card" style={{ padding: 18, marginTop: 10 }}>
+                  <div className="cc-label" style={{ marginBottom: 10 }}>Tendencia por categoría</div>
+                  <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config} />
+                </div>
               </div>
             );
 
@@ -6726,6 +6736,98 @@ function KpiCard({ label, value, sub, color }) {
 }
 
 /* ----------------------- gráfica de línea (SVG) -------------------------- */
+/* CategoryTrendChart: gráfica de líneas multi-categoría */
+const CAT_LINE_COLORS = ["#F87171","#60A5FA","#34D399","#FBBF24","#A78BFA","#FB923C"];
+function CategoryTrendChart({ txs, dateRange, config }) {
+  const [hover, setHover] = useState(null);
+  const rangeTx = txsInRange(txs, dateRange).filter(t => t.type === "expense" && t.categoryId);
+  if (rangeTx.length < 2) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Datos insuficientes.</div>;
+
+  // top 5 categorías por gasto total
+  const totals = {};
+  rangeTx.forEach(t => { totals[t.categoryId] = (totals[t.categoryId] || 0) + t.amount; });
+  const topCatIds = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+
+  // compute daily cumulative per category
+  const dates = [...new Set(rangeTx.map(t => t.date))].sort();
+  if (dates.length < 2) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Datos insuficientes.</div>;
+  const startD = new Date(dates[0]), endD = new Date(dates[dates.length - 1]);
+  const allDays = [];
+  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) allDays.push(d.toISOString().slice(0, 10));
+
+  const series = topCatIds.map((catId, ci) => {
+    const cat = config.categories.find(c => c.id === catId);
+    const daily = {};
+    rangeTx.filter(t => t.categoryId === catId).forEach(t => { daily[t.date] = (daily[t.date] || 0) + t.amount; });
+    let cum = 0;
+    const pts = allDays.map(d => { cum += daily[d] || 0; return { date: d, val: cum }; });
+    return { catId, name: cat?.name || "?", emoji: cat?.emoji || "❔", color: CAT_LINE_COLORS[ci], pts };
+  });
+
+  const W = 600, H = 200, P = 12, PB = 6;
+  const allVals = series.flatMap(s => s.pts.map(p => p.val));
+  const maxV = Math.max(...allVals) || 1;
+  const xOf = (i) => P + (i / Math.max(allDays.length - 1, 1)) * (W - P * 2);
+  const yOf = (v) => H - PB - (v / maxV) * (H - P - PB);
+
+  const handleMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const x = ((clientX - rect.left) / rect.width) * W;
+    const i = Math.round(((x - P) / (W - P * 2)) * (allDays.length - 1));
+    setHover(Math.max(0, Math.min(allDays.length - 1, i)));
+  };
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}
+        onMouseMove={handleMove} onTouchMove={handleMove} onMouseLeave={() => setHover(null)} onTouchEnd={() => setHover(null)}>
+        {/* grid lines */}
+        {[0.25, 0.5, 0.75].map(f => (
+          <line key={f} x1={P} x2={W - P} y1={yOf(maxV * f)} y2={yOf(maxV * f)}
+            stroke="var(--line-soft)" strokeWidth=".5" strokeDasharray="4,4" />
+        ))}
+        {/* lines per category */}
+        {series.map(s => {
+          const path = s.pts.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
+          return <path key={s.catId} d={path} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity=".85" />;
+        })}
+        {/* hover vertical line */}
+        {hover !== null && (
+          <>
+            <line x1={xOf(hover)} x2={xOf(hover)} y1={P} y2={H - PB} stroke="var(--ink-faint)" strokeWidth=".8" strokeDasharray="3,3" />
+            {series.map(s => (
+              <circle key={s.catId} cx={xOf(hover)} cy={yOf(s.pts[hover].val)} r="4" fill={s.color} stroke="var(--paper-solid)" strokeWidth="2" />
+            ))}
+          </>
+        )}
+      </svg>
+      {/* hover tooltip */}
+      {hover !== null && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+          <span style={{ fontWeight: 600, color: "var(--ink)" }}>{allDays[hover]}</span>
+          {series.map(s => (
+            <span key={s.catId} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, display: "inline-block" }} />
+              {s.emoji} {fmtBare(s.pts[hover].val)}
+            </span>
+          ))}
+        </div>
+      )}
+      {/* legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 10 }}>
+        {series.map(s => (
+          <div key={s.catId} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-soft)" }}>
+            <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />
+            {s.emoji} {s.name}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const [hover, setHover] = useState(null); // index hovered
   if (!points || points.length < 2) {
