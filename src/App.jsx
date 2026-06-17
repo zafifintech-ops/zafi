@@ -278,18 +278,18 @@ body{
 @keyframes ccUp{from{opacity:0;}to{opacity:1;}}
 
 /* Page transitions */
-.cc-page{animation:ccPageIn .25s cubic-bezier(.16,1,.3,1) both;}
-@keyframes ccPageIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.cc-page{animation:ccPageIn .2s cubic-bezier(.16,1,.3,1) both;}
+@keyframes ccPageIn{from{transform:translateY(6px);}to{transform:none;}}
 
 /* Staggered card entrance */
-.cc-card{animation:ccCardIn .3s cubic-bezier(.16,1,.3,1) both;}
+.cc-card{animation:ccCardIn .25s cubic-bezier(.16,1,.3,1) both;}
 .cc-page .cc-card:nth-child(1){animation-delay:0ms;}
-.cc-page .cc-card:nth-child(2){animation-delay:40ms;}
-.cc-page .cc-card:nth-child(3){animation-delay:80ms;}
-.cc-page .cc-card:nth-child(4){animation-delay:120ms;}
-.cc-page .cc-card:nth-child(5){animation-delay:160ms;}
-.cc-page .cc-card:nth-child(n+6){animation-delay:200ms;}
-@keyframes ccCardIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+.cc-page .cc-card:nth-child(2){animation-delay:35ms;}
+.cc-page .cc-card:nth-child(3){animation-delay:70ms;}
+.cc-page .cc-card:nth-child(4){animation-delay:105ms;}
+.cc-page .cc-card:nth-child(5){animation-delay:140ms;}
+.cc-page .cc-card:nth-child(n+6){animation-delay:170ms;}
+@keyframes ccCardIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 
 /* Overlay fade */
 
@@ -4672,9 +4672,13 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   const [items, setItems] = useState(sections);
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
+  const [saved, setSaved] = useState(true);
+
+  const isDirty = () => JSON.stringify(items) !== JSON.stringify(sections);
 
   const toggle = (id) => {
     setItems((prev) => prev.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
+    setSaved(false);
   };
 
   // drag & drop con HTML5
@@ -4697,6 +4701,7 @@ function HomeConfigModal({ sections, onClose, onSave }) {
       return next;
     });
     setDragIdx(null); setOverIdx(null);
+    setSaved(false);
   };
   const move = (i, dir) => {
     setItems((prev) => {
@@ -4706,8 +4711,9 @@ function HomeConfigModal({ sections, onClose, onSave }) {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+    setSaved(false);
   };
-  const reset = () => setItems(DEFAULT_SECTIONS.map((s) => ({ ...s })));
+  const reset = () => { setItems(DEFAULT_SECTIONS.map((s) => ({ ...s }))); setSaved(false); };
 
   return (
     <div className="cc-overlay" onClick={onClose}>
@@ -4753,11 +4759,12 @@ function HomeConfigModal({ sections, onClose, onSave }) {
               color: "var(--ink-soft)", cursor: "pointer" }}>
             Restablecer
           </button>
-          <button onClick={() => onSave(items)}
+          <button onClick={saved ? undefined : () => { onSave(items); setSaved(true); }} disabled={saved}
             style={{ flex: 1, padding: 14, fontSize: 14, fontWeight: 600,
               fontFamily: "inherit", borderRadius: 14, border: "none",
-              background: "#5B6EE8", color: "#fff", cursor: "pointer" }}>
-            {t("saveChanges")}
+              background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
+              opacity: saved ? 0.5 : 1, transition: "opacity .2s" }}>
+            {saved ? "Listo ✓" : t("saveChanges")}
           </button>
         </div>
       </div>
