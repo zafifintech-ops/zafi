@@ -5234,69 +5234,69 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
-          <h2>Tus cuentas</h2>
+          <h2>{t("yourAccounts")}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
-        <div className="cc-card" style={{ padding: 14, marginBottom: 12 }}>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {config.accounts.map((a) => {
             const b = accountBalance(config, txs, a.id);
             return (
-              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
-                <span style={{ fontSize: 20 }}>🏦</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{a.name}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Saldo inicial: {fmt(a.initialBalance || 0)}</div>
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12,
+                padding: "14px 0", borderBottom: "1px solid var(--line-soft)" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--surface)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 10h20"/></svg>
                 </div>
-                <span className="cc-num" style={{ fontWeight: 700, color: b < 0 ? "var(--coral)" : "var(--green)" }}>{fmt(b)}</span>
-                <button className="cc-btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setEditing(a)}>Editar</button>
-                <button className="cc-btn" style={{ padding: "5px 9px", fontSize: 12 }} onClick={() => askDel(a)}>✕</button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)" }}>{a.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
+                    {_lang === "es" ? "Saldo inicial" : "Initial balance"}: {fmtBare(a.initialBalance || 0)}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div className="cc-num" style={{ fontWeight: 600, fontSize: 15,
+                    color: b < 0 ? "var(--coral)" : "var(--ink)" }}>{fmt(b)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => setEditing(a)}
+                    style={{ padding: "6px 12px", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+                      borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)",
+                      color: "var(--ink-soft)", cursor: "pointer" }}>
+                    {t("edit")}
+                  </button>
+                  <button onClick={() => askDel(a)}
+                    style={{ padding: "6px 8px", fontSize: 12, fontFamily: "inherit",
+                      borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)",
+                      color: "var(--ink-faint)", cursor: "pointer" }}>
+                    ✕
+                  </button>
+                </div>
               </div>
             );
           })}
-          <button className="cc-btn cc-btn-primary" style={{ marginTop: 14, fontSize: 13, width: "100%" }}
-            onClick={() => setEditing({ name: "", initialBalance: 0 })}>
-            ＋ Agregar cuenta
-          </button>
-        </div>
-        <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
-          El <b>saldo inicial</b> es el dinero que ya tienes en cada cuenta. El saldo de la derecha es ese monto ajustado con tus movimientos.
         </div>
 
-        {/* Cerrar sesión */}
-        <div style={{ marginTop:22, paddingTop:18, borderTop:"1px solid var(--line)" }}>
-          <button onClick={() => signOut(auth)}
-            style={{ width:"100%", padding:"11px 14px", fontSize:14, fontFamily:"inherit",
-              background:"var(--surface-2)", color:"var(--ink-soft)",
-              border:"1px solid var(--line)", borderRadius:12, cursor:"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            🚪 Cerrar sesión
-          </button>
-        </div>
+        <button onClick={() => setEditing({ name: "", initialBalance: 0 })}
+          style={{ width: "100%", marginTop: 16, padding: 14, fontSize: 14, fontWeight: 600,
+            fontFamily: "inherit", borderRadius: 14, border: "1px dashed var(--line)",
+            background: "transparent", color: "var(--ink-soft)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          ＋ {t("addAccount")}
+        </button>
 
-        {/* Zona peligrosa: empezar desde cero */}
-        {resetAll && (
-          <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px dashed var(--line)" }}>
-            <div className="cc-label" style={{ color: "var(--coral)", marginBottom: 8 }}>Zona peligrosa</div>
-            <button
-              onClick={() => setConfirmReset(true)}
-              style={{ width: "100%", padding: "11px 14px", fontFamily: "inherit", fontSize: 13.5, fontWeight: 600,
-                background: "var(--coral-soft)", color: "var(--coral)",
-                border: "1px solid var(--coral)", borderRadius: 12, cursor: "pointer",
-                transition: ".2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-              🔄 Empezar desde cero
-            </button>
-            <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 7, lineHeight: 1.4 }}>
-              Borra todas tus cuentas, categorías y movimientos. La app vuelve al onboarding inicial como usuario nuevo. No se puede deshacer.
-            </div>
-          </div>
-        )}
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "14px 0 0", lineHeight: 1.5 }}>
+          {_lang === "es"
+            ? "El saldo inicial es el dinero que ya tienes. El saldo de la derecha se ajusta con tus movimientos."
+            : "Initial balance is your starting amount. The right balance adjusts with your transactions."}
+        </div>
 
         {editing && <AccountModal acc={editing} onClose={() => setEditing(null)} onSave={save} />}
         {confirmDel && (
           <ConfirmDialog
-            title="¿Eliminar esta cuenta?"
-            message={<>La cuenta <b>{confirmDel.name}</b> y todas sus categorías se eliminarán. Los movimientos en esa cuenta quedarán huérfanos.</>}
-            confirmLabel="Eliminar"
+            title={_lang === "es" ? "¿Eliminar esta cuenta?" : "Delete this account?"}
+            message={<>{_lang === "es" ? "La cuenta" : "Account"} <b>{confirmDel.name}</b> {_lang === "es" ? "y todas sus categorías se eliminarán." : "and all its categories will be deleted."}</>}
+            confirmLabel={t("deleteBtn")}
             danger
             onCancel={() => setConfirmDel(null)}
             onConfirm={doDel}
