@@ -136,7 +136,7 @@ body{
   --glass:rgba(255,255,255,.07);
   --glass-border:rgba(255,255,255,.15);
 }
-.cc-dark .cc-sheet{background:rgba(20,22,30,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
+.cc-dark .cc-sheet{background:rgba(15,18,25,.45);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
@@ -442,7 +442,7 @@ body{
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 .cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
-  max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
+  min-height:50vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
@@ -3815,7 +3815,7 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
 function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const user = auth.currentUser;
   const email = user?.email || "";
-  const [section, setSection] = useState("menu"); // menu | personal | langcurrency | legal | data
+  const [section, setSection] = useState("menu"); // menu | personal | lang | currency | theme | legal | data
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
   const [age, setAge] = useState(config.userAge ? String(config.userAge) : "");
@@ -3955,8 +3955,8 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
             {/* Menu rows */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               {ROW(IconPerson, t("personalInfo"), "", () => setSection("personal"))}
-              {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("langcurrency"))}
-              {ROW(IconCoin, t("currency"), currency, () => setSection("langcurrency"))}
+              {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("lang"))}
+              {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
               {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
@@ -4009,15 +4009,25 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
           </>
         )}
 
-        {section === "langcurrency" && (
+        {section === "lang" && (
           <>
-            {BACK(`${t("language")} y ${t("currency")}`)}
-            <div style={{ marginBottom: 24 }}>
-              <label className="cc-label" style={{ marginBottom: 10 }}>{t("language")}</label>
+            {BACK(t("language"))}
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
+                {_lang === "es" ? "Selecciona el idioma de la app." : "Select the app language."}
+              </div>
               {CHIP_ROW([["es", "🇲🇽 Español"], ["en", "🇺🇸 English"]], lang, saveLang)}
             </div>
-            <div>
-              <label className="cc-label" style={{ marginBottom: 10 }}>{t("currency")}</label>
+          </>
+        )}
+
+        {section === "currency" && (
+          <>
+            {BACK(t("currency"))}
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
+                {_lang === "es" ? "Moneda predeterminada para tus movimientos." : "Default currency for your transactions."}
+              </div>
               {CHIP_ROW([["MXN", "🇲🇽 MXN"], ["USD", "🇺🇸 USD"], ["EUR", "🇪🇺 EUR"]], currency, saveCurrency)}
             </div>
           </>
@@ -4026,10 +4036,12 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         {section === "theme" && (
           <>
             {BACK("Tema")}
-            <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
-              Elige cómo se ve la app. "Automático" sigue la configuración de tu dispositivo.
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
+                Elige cómo se ve la app. "Automático" sigue la configuración de tu dispositivo.
+              </div>
+              {CHIP_ROW([["light", "Claro"], ["dark", "Oscuro"], ["auto", "Auto"]], curTheme, setTheme)}
             </div>
-            {CHIP_ROW([["light", "Claro"], ["dark", "Oscuro"], ["auto", "Auto"]], curTheme, setTheme)}
           </>
         )}
 
