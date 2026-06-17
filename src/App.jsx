@@ -1027,16 +1027,25 @@ function resolveRange(range) {
   const iso = (d) => d.toISOString().slice(0, 10);
   function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1, 12); }
   function lastOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0, 12); }
+
+  // anchor-based: week/month/year can have an anchor date
+  const anchor = r.anchor ? new Date(r.anchor + "T12:00:00") : td;
+
   switch (r.preset) {
     case "today": return { from: t, to: t };
     case "week": {
-      const dow = td.getDay();
+      const dow = anchor.getDay();
       const monOff = dow === 0 ? -6 : 1 - dow;
-      const mon = new Date(td); mon.setDate(mon.getDate() + monOff);
+      const mon = new Date(anchor); mon.setDate(mon.getDate() + monOff);
       const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
       return { from: iso(mon), to: iso(sun) };
     }
-    case "month": return { from: iso(firstOfMonth(td)), to: t };
+    case "month": {
+      const m = r.anchor ? new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12) : firstOfMonth(td);
+      const last = new Date(m.getFullYear(), m.getMonth() + 1, 0, 12);
+      const end = iso(last) > t ? t : iso(last);
+      return { from: iso(m), to: end };
+    }
     case "last-month": {
       const prev = new Date(td.getFullYear(), td.getMonth() - 1, 15, 12);
       return { from: iso(firstOfMonth(prev)), to: iso(lastOfMonth(prev)) };
@@ -1049,7 +1058,11 @@ function resolveRange(range) {
       const start = new Date(td.getFullYear(), td.getMonth() - 5, 1, 12);
       return { from: iso(start), to: t };
     }
-    case "year": return { from: `${td.getFullYear()}-01-01`, to: t };
+    case "year": {
+      const y = r.anchor ? anchor.getFullYear() : td.getFullYear();
+      const endY = `${y}-12-31`;
+      return { from: `${y}-01-01`, to: endY > t ? t : endY };
+    }
     case "last-year": {
       const y = td.getFullYear() - 1;
       return { from: `${y}-01-01`, to: `${y}-12-31` };
@@ -1063,16 +1076,28 @@ function resolveRange(range) {
 
 function rangeLabel(range) {
   const r = range || DEFAULT_RANGE;
-  if (r.preset === "today") return "Hoy";
-  if (r.preset === "week") return "Esta semana";
-  if (r.preset === "month") return "Este mes";
-  if (r.preset === "last-month") return "Mes pasado";
-  if (r.preset === "3m") return "Últimos 3 meses";
-  if (r.preset === "6m") return "Últimos 6 meses";
-  if (r.preset === "year") return "Este año";
-  if (r.preset === "last-year") return "Año pasado";
-  if (r.preset === "all") return "Todo el historial";
-  // custom
+  const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const td = new Date(today() + "T12:00:00");
+
+  if (r.preset === "week") {
+    const { from, to } = resolveRange(r);
+    const f = from.split("-"), t2 = to.split("-");
+    return `${Number(f[2])} ${MESES[Number(f[1])-1]} – ${Number(t2[2])} ${MESES[Number(t2[1])-1]}`;
+  }
+  if (r.preset === "month") {
+    const anchor = r.anchor ? new Date(r.anchor + "T12:00:00") : td;
+    return `${MESES[anchor.getMonth()]} ${anchor.getFullYear()}`;
+  }
+  if (r.preset === "year") {
+    const anchor = r.anchor ? new Date(r.anchor + "T12:00:00") : td;
+    return `${anchor.getFullYear()}`;
+  }
+  if (r.preset === "today") return _lang === "es" ? "Hoy" : "Today";
+  if (r.preset === "last-month") return _lang === "es" ? "Mes pasado" : "Last month";
+  if (r.preset === "3m") return _lang === "es" ? "Últimos 3 meses" : "Last 3 months";
+  if (r.preset === "6m") return _lang === "es" ? "Últimos 6 meses" : "Last 6 months";
+  if (r.preset === "last-year") return _lang === "es" ? "Año pasado" : "Last year";
+  if (r.preset === "all") return _lang === "es" ? "Todo" : "All";
   const { from, to } = resolveRange(r);
   if (from === to) return prettyDate(from);
   return `${prettyDate(from)} – ${prettyDate(to)}`;
@@ -4176,92 +4201,154 @@ function ProfileNameModal({ current, onClose, onSave }) {
 function DateRangeModal({ dateRange, onClose, onSave }) {
   const r = dateRange || DEFAULT_RANGE;
   const [preset, setPreset] = useState(r.preset);
-  const resolved = resolveRange(r);
-  const [from, setFrom] = useState(r.from || resolved.from);
-  const [to, setTo] = useState(r.to || resolved.to);
+  const [anchor, setAnchor] = useState(r.anchor || today());
+  const [from, setFrom] = useState(r.from || "");
+  const [to, setTo] = useState(r.to || "");
+  const [saved, setSaved] = useState(true); // starts as "no changes"
 
-  const PRESETS = [
-    { id: "today",      label: "Hoy" },
-    { id: "week",       label: "Esta semana" },
-    { id: "month",      label: "Este mes" },
-    { id: "last-month", label: "Mes pasado" },
-    { id: "3m",         label: "Últimos 3 meses" },
-    { id: "6m",         label: "Últimos 6 meses" },
-    { id: "year",       label: "Este año" },
-    { id: "last-year",  label: "Año pasado" },
-    { id: "all",        label: "Todo el historial" },
-  ];
+  const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const MESES_FULL = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const anchorDate = new Date(anchor + "T12:00:00");
+  const iso = (d) => d.toISOString().slice(0, 10);
+
+  const changePreset = (p) => { setPreset(p); setAnchor(today()); setSaved(false); };
+
+  const nav = (dir) => {
+    const a = new Date(anchor + "T12:00:00");
+    if (preset === "week") a.setDate(a.getDate() + dir * 7);
+    else if (preset === "month") a.setMonth(a.getMonth() + dir);
+    else if (preset === "year") a.setFullYear(a.getFullYear() + dir);
+    setAnchor(iso(a));
+    setSaved(false);
+  };
+
+  // Compute display label for the navigator
+  const navLabel = () => {
+    if (preset === "week") {
+      const resolved = resolveRange({ preset, anchor });
+      const f = resolved.from.split("-"), t2 = resolved.to.split("-");
+      return `${Number(f[2])} ${MESES[Number(f[1])-1]} – ${Number(t2[2])} ${MESES[Number(t2[1])-1]}`;
+    }
+    if (preset === "month") return `${MESES_FULL[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
+    if (preset === "year") return `${anchorDate.getFullYear()}`;
+    return "";
+  };
+
+  const hasNav = preset === "week" || preset === "month" || preset === "year";
 
   function apply() {
     if (preset === "custom") {
       if (!from || !to) return;
       const f = from > to ? to : from;
-      const t = from > to ? from : to;
-      onSave({ preset: "custom", from: f, to: t });
+      const t2 = from > to ? from : to;
+      onSave({ preset: "custom", from: f, to: t2 });
+    } else if (hasNav) {
+      onSave({ preset, anchor });
     } else {
       onSave({ preset });
     }
+    setSaved(true);
   }
+
+  const chip = (id, label) => (
+    <button key={id} onClick={() => changePreset(id)}
+      style={{ padding: "10px 0", flex: 1,
+        background: preset === id ? "rgba(91,110,232,.12)" : "var(--surface)",
+        border: `1.5px solid ${preset === id ? "#5B6EE8" : "var(--line)"}`,
+        borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+        fontWeight: preset === id ? 600 : 400, color: preset === id ? "#5B6EE8" : "var(--ink)",
+        transition: "all .15s ease", textAlign: "center" }}>
+      {label}
+    </button>
+  );
+
+  const arrowBtn = (dir) => (
+    <button onClick={() => nav(dir)}
+      style={{ width: 40, height: 40, borderRadius: 12, border: "1px solid var(--line)",
+        background: "var(--surface)", color: "var(--ink)", cursor: "pointer",
+        fontSize: 16, fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {dir < 0 ? "‹" : "›"}
+    </button>
+  );
 
   return (
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
-          <h2>Rango de tiempo</h2>
+          <h2>{_lang === "es" ? "Rango de tiempo" : "Time range"}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 14 }}>
-          Esta selección se aplica a todas las pestañas: Inicio, Movimientos, Categorías y Estadísticas.
-        </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-          {PRESETS.map((p) => (
-            <button key={p.id} onClick={() => setPreset(p.id)}
-              style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 16px",
-                background: preset === p.id ? "rgba(91,110,232,.12)" : "var(--surface)",
-                border: `1px solid ${preset === p.id ? "#5B6EE8" : "var(--line)"}`,
-                borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
-                fontWeight: preset === p.id ? 600 : 400, textAlign: "left", color: "var(--ink)",
-                transition: "all .15s ease" }}>
-              <span style={{ flex: 1 }}>{p.label}</span>
-              {preset === p.id && <span style={{ color: "#5B6EE8", fontSize: 16, fontWeight: 700 }}>✓</span>}
-            </button>
-          ))}
-
-          <button onClick={() => setPreset("custom")}
-            style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
-              background: preset === "custom" ? "rgba(91,110,232,.12)" : "var(--surface)",
-              border: `1px solid ${preset === "custom" ? "#5B6EE8" : "var(--line)"}`,
-              borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
-              fontWeight: preset === "custom" ? 600 : 400, textAlign: "left", color: "var(--ink)",
-              marginTop: 4, transition: "all .15s ease" }}>
-            <span style={{ flex: 1 }}>Personalizado</span>
-            {preset === "custom" && <span style={{ color: "#5B6EE8", fontSize: 16, fontWeight: 700 }}>✓</span>}
-          </button>
-
-          {preset === "custom" && (
-            <div style={{ display: "flex", gap: 8, marginTop: 4, padding: "12px 13px",
-              background: "var(--surface-2)", borderRadius: 11 }}>
-              <div style={{ flex: 1 }}>
-                <label className="cc-label" style={{ marginBottom: 4 }}>Desde</label>
-                <input className="cc-input" type="date" value={from}
-                  onChange={(e) => setFrom(e.target.value)} style={{ fontSize: 13 }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label className="cc-label" style={{ marginBottom: 4 }}>Hasta</label>
-                <input className="cc-input" type="date" value={to}
-                  onChange={(e) => setTo(e.target.value)} style={{ fontSize: 13 }} />
-              </div>
-            </div>
-          )}
+        {/* Period type chips */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          {chip("week", _lang === "es" ? "Semana" : "Week")}
+          {chip("month", _lang === "es" ? "Mes" : "Month")}
+          {chip("year", _lang === "es" ? "Año" : "Year")}
         </div>
 
-        <button onClick={apply}
+        {/* Navigation arrows */}
+        {hasNav && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 20,
+            padding: "14px 0", background: "var(--surface)", borderRadius: 14, border: "1px solid var(--line)" }}>
+            {arrowBtn(-1)}
+            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)", minWidth: 160, textAlign: "center",
+              fontFamily: "'Montserrat', sans-serif" }}>
+              {navLabel()}
+            </div>
+            {arrowBtn(1)}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "var(--line)", margin: "4px 0 14px" }} />
+
+        {/* Extra options */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          <button onClick={() => changePreset("all")}
+            style={{ flex: 1, padding: "11px 0",
+              background: preset === "all" ? "rgba(91,110,232,.12)" : "var(--surface)",
+              border: `1.5px solid ${preset === "all" ? "#5B6EE8" : "var(--line)"}`,
+              borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              fontWeight: preset === "all" ? 600 : 400, color: preset === "all" ? "#5B6EE8" : "var(--ink)",
+              textAlign: "center", transition: "all .15s ease" }}>
+            {_lang === "es" ? "Todo el historial" : "All history"}
+          </button>
+          <button onClick={() => changePreset("custom")}
+            style={{ flex: 1, padding: "11px 0",
+              background: preset === "custom" ? "rgba(91,110,232,.12)" : "var(--surface)",
+              border: `1.5px solid ${preset === "custom" ? "#5B6EE8" : "var(--line)"}`,
+              borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              fontWeight: preset === "custom" ? 600 : 400, color: preset === "custom" ? "#5B6EE8" : "var(--ink)",
+              textAlign: "center", transition: "all .15s ease" }}>
+            {_lang === "es" ? "Personalizado" : "Custom"}
+          </button>
+        </div>
+
+        {/* Custom date pickers */}
+        {preset === "custom" && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, padding: "12px 13px",
+            background: "var(--surface-2)", borderRadius: 11 }}>
+            <div style={{ flex: 1 }}>
+              <label className="cc-label" style={{ marginBottom: 4 }}>{_lang === "es" ? "Desde" : "From"}</label>
+              <input className="cc-input" type="date" value={from}
+                onChange={(e) => { setFrom(e.target.value); setSaved(false); }} style={{ fontSize: 13 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="cc-label" style={{ marginBottom: 4 }}>{_lang === "es" ? "Hasta" : "To"}</label>
+              <input className="cc-input" type="date" value={to}
+                onChange={(e) => { setTo(e.target.value); setSaved(false); }} style={{ fontSize: 13 }} />
+            </div>
+          </div>
+        )}
+
+        {/* Apply button */}
+        <button onClick={saved ? undefined : apply} disabled={saved}
           style={{ width: "100%", padding: 14, fontSize: 14, fontWeight: 600,
             fontFamily: "inherit", borderRadius: 14, border: "none",
-            background: "#5B6EE8", color: "#fff", cursor: "pointer" }}>
-          {t("apply")}
+            background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
+            opacity: saved ? 0.5 : 1, transition: "opacity .2s" }}>
+          {saved ? "Listo ✓" : (_lang === "es" ? "Aplicar" : "Apply")}
         </button>
       </div>
     </div>
