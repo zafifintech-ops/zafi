@@ -292,8 +292,6 @@ body{
 @keyframes ccCardIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
 
 /* Overlay fade */
-.cc-overlay{animation:ccOverlayIn .2s ease both;}
-@keyframes ccOverlayIn{from{opacity:0;}to{opacity:1;}}
 
 /* ============== BOTONES ============== */
 .cc-btn{font-family:inherit;font-size:13.5px;font-weight:600;border-radius:14px;border:1px solid var(--glass-border);
@@ -466,10 +464,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
-  animation:ccFadeIn .15s ease;}
+  animation:ccFadeIn .2s ease both;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 .cc-sheet{background:rgba(255,255,255,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
