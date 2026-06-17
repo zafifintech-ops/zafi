@@ -146,7 +146,16 @@ body{
 .cc-dark .cc-tab{background:rgba(255,255,255,.05);color:var(--ink-soft);}
 .cc-dark .cc-tab.on{background:rgba(255,255,255,.12);color:var(--ink);}
 .cc-dark .cc-acc-card{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);}
-.cc-dark .cc-acc-card.on{background:rgba(255,255,255,.14);border-color:var(--glass-border);}
+.cc-dark .cc-acc-card.on{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3);color:var(--ink);}
+.cc-dark .cc-acc-card:hover{background:rgba(255,255,255,.14);}
+.cc-dark .cc-range-chip{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:var(--ink);}
+.cc-dark .cc-range-chip:hover{background:rgba(255,255,255,.14);}
+.cc-dark .cc-tab{background:rgba(255,255,255,.05);color:var(--ink-soft);border-color:rgba(255,255,255,.08);}
+.cc-dark .cc-tab.on{background:rgba(255,255,255,.16);color:var(--ink);border-color:rgba(255,255,255,.2);}
+.cc-dark .cc-btn{background:rgba(255,255,255,.08);color:var(--ink);border-color:rgba(255,255,255,.1);}
+.cc-dark .cc-btn:hover{background:rgba(255,255,255,.14);}
+.cc-dark .cc-gear{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);}
+.cc-dark .cc-gear:hover{background:rgba(255,255,255,.14);}
 .cc-dark .cc-toast{background:linear-gradient(160deg,#1a1d24,#2a2d36);color:#E2E6ED;}
 .cc-dark .cc-bottomnav-inner{background:rgba(15,17,22,.7);}
 .cc-dark .cc-card{background:rgba(255,255,255,.05);}
