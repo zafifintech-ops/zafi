@@ -4180,15 +4180,15 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
   const [to, setTo] = useState(r.to || resolved.to);
 
   const PRESETS = [
-    { id: "today",      label: "Hoy",              emoji: "⚡" },
-    { id: "week",       label: "Esta semana",      emoji: "📅" },
-    { id: "month",      label: "Este mes",         emoji: "📆" },
-    { id: "last-month", label: "Mes pasado",       emoji: "📆" },
-    { id: "3m",         label: "Últimos 3 meses",  emoji: "📊" },
-    { id: "6m",         label: "Últimos 6 meses",  emoji: "📊" },
-    { id: "year",       label: "Este año",         emoji: "🗓️" },
-    { id: "last-year",  label: "Año pasado",       emoji: "🗓️" },
-    { id: "all",        label: "Todo el historial", emoji: "⏳" },
+    { id: "today",      label: "Hoy" },
+    { id: "week",       label: "Esta semana" },
+    { id: "month",      label: "Este mes" },
+    { id: "last-month", label: "Mes pasado" },
+    { id: "3m",         label: "Últimos 3 meses" },
+    { id: "6m",         label: "Últimos 6 meses" },
+    { id: "year",       label: "Este año" },
+    { id: "last-year",  label: "Año pasado" },
+    { id: "all",        label: "Todo el historial" },
   ];
 
   function apply() {
@@ -4217,15 +4217,14 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
           {PRESETS.map((p) => (
             <button key={p.id} onClick={() => setPreset(p.id)}
-              style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
+              style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 16px",
                 background: preset === p.id ? "rgba(91,110,232,.12)" : "var(--surface)",
                 border: `1px solid ${preset === p.id ? "#5B6EE8" : "var(--line)"}`,
-                borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
-                fontWeight: preset === p.id ? 700 : 500, textAlign: "left", color: "var(--ink)",
+                borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
+                fontWeight: preset === p.id ? 600 : 400, textAlign: "left", color: "var(--ink)",
                 transition: "all .15s ease" }}>
-              <span style={{ fontSize: 17 }}>{p.emoji}</span>
               <span style={{ flex: 1 }}>{p.label}</span>
-              {preset === p.id && <span style={{ color: "#5B6EE8", fontSize: 17, fontWeight: 700 }}>✓</span>}
+              {preset === p.id && <span style={{ color: "#5B6EE8", fontSize: 16, fontWeight: 700 }}>✓</span>}
             </button>
           ))}
 
@@ -4233,12 +4232,11 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
             style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px",
               background: preset === "custom" ? "rgba(91,110,232,.12)" : "var(--surface)",
               border: `1px solid ${preset === "custom" ? "#5B6EE8" : "var(--line)"}`,
-              borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
-              fontWeight: preset === "custom" ? 700 : 500, textAlign: "left", color: "var(--ink)",
+              borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14,
+              fontWeight: preset === "custom" ? 600 : 400, textAlign: "left", color: "var(--ink)",
               marginTop: 4, transition: "all .15s ease" }}>
-            <span style={{ fontSize: 17 }}>✏️</span>
             <span style={{ flex: 1 }}>Personalizado</span>
-            {preset === "custom" && <span style={{ color: "#5B6EE8", fontSize: 17, fontWeight: 700 }}>✓</span>}
+            {preset === "custom" && <span style={{ color: "#5B6EE8", fontSize: 16, fontWeight: 700 }}>✓</span>}
           </button>
 
           {preset === "custom" && (
@@ -4271,12 +4269,12 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
 
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
-  { id: "balance", label: "Saldo destacado", icon: "💰", on: false },
-  { id: "kpis", label: "Ingresos y gastos del mes", icon: "📊", on: true },
-  { id: "byCategory", label: "Gastos por categoría", icon: "🏷️", on: true },
-  { id: "trend", label: "Mini gráfica de saldo (30d)", icon: "📈", on: true },
-  { id: "topExpenses", label: "Gastos más grandes del mes", icon: "💸", on: false },
-  { id: "recent", label: "Movimientos recientes", icon: "🕐", on: true },
+  { id: "balance", label: "Saldo destacado", on: false },
+  { id: "kpis", label: "Ingresos y gastos del mes", on: true },
+  { id: "byCategory", label: "Gastos por categoría", on: true },
+  { id: "trend", label: "Mini gráfica de saldo (30d)", on: true },
+  { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
+  { id: "recent", label: "Movimientos recientes", on: true },
 ];
 
 function loadSections(config) {
@@ -4609,15 +4607,14 @@ function HomeConfigModal({ sections, onClose, onSave }) {
               style={{ borderColor: overIdx === i ? "var(--gold)" : "var(--line)",
                 opacity: dragIdx === i ? 0.4 : (s.on ? 1 : 0.55) }}>
               <span className="cc-grip-h">⋮⋮</span>
-              <span style={{ fontSize: 18 }}>{s.icon}</span>
-              <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{s.label}</span>
+              <span style={{ flex: 1, fontWeight: 500, fontSize: 14, color: s.on ? "var(--ink)" : "var(--ink-faint)" }}>{s.label}</span>
               <button className="cc-btn" onClick={() => move(i, -1)} disabled={i === 0}
                 style={{ padding: "4px 8px", fontSize: 12 }}>↑</button>
               <button className="cc-btn" onClick={() => move(i, 1)} disabled={i === items.length - 1}
                 style={{ padding: "4px 8px", fontSize: 12 }}>↓</button>
               <label style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", marginLeft: 4 }}>
                 <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)}
-                  style={{ width: 18, height: 18, accentColor: "var(--green)" }} />
+                  style={{ width: 18, height: 18, accentColor: "#5B6EE8" }} />
               </label>
             </div>
           ))}
@@ -5778,21 +5775,25 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, display: "flex", alignItems: "center", gap: 9 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--green)", boxShadow: "0 0 0 4px var(--green-soft)" }} />
-            Asistente
+          <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600 }}>
+            {t("assistant")}
           </h2>
           <div style={{ display: "flex", gap: 7 }}>
             {msgs.length > 1 && (
-              <button className="cc-btn" style={{ padding: "6px 10px", fontSize: 13 }}
-                onClick={() => {
+              <button onClick={() => {
                   setMsgs([{ role: "bot", text: GREET }]);
                   history.current.length = 0;
                   CHAT_MSGS_STORE = null;
                 }}
-                title="Limpiar conversación">🗑</button>
+                style={{ padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
+                  borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)",
+                  color: "var(--ink-faint)", cursor: "pointer" }}
+                title="Limpiar conversación">Limpiar</button>
             )}
-            <button className="cc-btn" style={{ padding: "6px 12px", fontSize: 13 }} onClick={onClose}>{t("close")}</button>
+            <button onClick={onClose}
+              style={{ padding: "6px 14px", fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+                borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)",
+                color: "var(--ink)", cursor: "pointer" }}>{t("close")}</button>
           </div>
         </div>
 
@@ -5837,7 +5838,9 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button className="cc-btn" title="Importar desde screenshot"
             onClick={() => { onClose(); onOpenImport && onOpenImport(); }}
-            style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>📸</button>
+            style={{ padding: "10px 12px", fontSize: 18, lineHeight: 1 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><circle cx="12" cy="13" r="3"/></svg>
+            </button>
           {voiceSupported && (
             <button
               className={`cc-btn cc-mic ${listening ? "rec" : ""}`}
@@ -5845,7 +5848,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
               disabled={busy}
               onClick={(e) => { e.preventDefault(); listening ? stopVoice(false) : startVoice(); }}
               style={{ padding: "10px 13px", fontSize: 18, lineHeight: 1, userSelect: "none", touchAction: "none" }}>
-              {listening ? "●" : "🎙"}
+              {listening ? "●" : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4"/></svg>}
             </button>
           )}
           <input
