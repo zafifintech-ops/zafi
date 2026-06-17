@@ -553,7 +553,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
 /* ===== Sistema de idiomas (i18n) ===== */
-let _lang = "es";
+let _lang = (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) ? "es" : "en";
 const setAppLang = (l) => { _lang = l; };
 const STRINGS = {
   // Tabs
@@ -686,6 +686,43 @@ const STRINGS = {
   female: { es: "Mujer", en: "Female" },
   other: { es: "Otro", en: "Other" },
   paused: { es: "pausado", en: "paused" },
+  // Auth screens
+  welcomeBack: { es: "Bienvenido de vuelta", en: "Welcome back" },
+  signInToContinue: { es: "Inicia sesión para continuar", en: "Sign in to continue" },
+  createAccount: { es: "Crear cuenta", en: "Create account" },
+  signIn: { es: "Iniciar sesión", en: "Sign in" },
+  continueWithEmail: { es: "Continuar con tu correo", en: "Continue with your email" },
+  continueWithGoogle: { es: "Continuar con Google", en: "Continue with Google" },
+  continueWithApple: { es: "Continuar con Apple", en: "Continue with Apple" },
+  yourName: { es: "Tu nombre", en: "Your name" },
+  howToCallYou: { es: "¿Cómo te llamamos?", en: "How should we call you?" },
+  age: { es: "Edad", en: "Age" },
+  gender: { es: "Género", en: "Gender" },
+  country: { es: "País", en: "Country" },
+  password: { es: "Contraseña", en: "Password" },
+  confirmPassword: { es: "Confirmar contraseña", en: "Confirm password" },
+  continueBtn: { es: "Continuar", en: "Continue" },
+  back: { es: "Atrás", en: "Back" },
+  forgotPassword: { es: "¿Olvidaste tu contraseña?", en: "Forgot password?" },
+  resetPassword: { es: "Recuperar contraseña", en: "Reset password" },
+  resetPasswordDesc: { es: "Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.", en: "Enter your email and we'll send you a link to create a new password." },
+  sendLink: { es: "Enviar enlace", en: "Send link" },
+  linkSent: { es: "¡Listo! Revisa tu correo.", en: "Done! Check your email." },
+  aboutYou: { es: "Sobre ti", en: "About you" },
+  aboutYouDesc: { es: "Para personalizar tu experiencia.", en: "To personalize your experience." },
+  yourCredentials: { es: "Tus credenciales", en: "Your credentials" },
+  credentialsDesc: { es: "Para acceder a tu cuenta en cualquier dispositivo.", en: "To access your account on any device." },
+  welcomeToZafi: { es: "Bienvenido a Zafi", en: "Welcome to Zafi" },
+  tellUsAboutYou: { es: "Cuéntanos un poco de ti para personalizar tu experiencia.", en: "Tell us a bit about yourself so we can personalize your experience." },
+  saving: { es: "Guardando…", en: "Saving…" },
+  enterName: { es: "Escribe tu nombre.", en: "Enter your name." },
+  enterValidAge: { es: "Escribe una edad válida.", en: "Enter a valid age." },
+  selectGender: { es: "Selecciona tu género.", en: "Select your gender." },
+  fillAllFields: { es: "Llena todos los campos.", en: "Fill in all fields." },
+  passwordsDontMatch: { es: "Las contraseñas no coinciden.", en: "Passwords don't match." },
+  passwordMinLength: { es: "Mínimo 6 caracteres en la contraseña.", en: "Password must be at least 6 characters." },
+  selectCountry: { es: "Selecciona tu país.", en: "Select your country." },
+  somethingWentWrong: { es: "Algo salió mal. Intenta de nuevo.", en: "Something went wrong. Try again." },
 };
 const t = (key) => (STRINGS[key] || {})[_lang] || (STRINGS[key] || {}).es || key;
 
@@ -2297,13 +2334,13 @@ function AuthScreen() {
   }
 
   async function doRegister() {
-    if (!name.trim()) { setErr("Enter your name."); return; }
-    if (!gender) { setErr("Select your gender."); return; }
-    if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
-    if (!country.trim()) { setErr("Select your country."); return; }
-    if (!email || !password || !confirm) { setErr("Fill in all fields."); return; }
-    if (password !== confirm) { setErr("Passwords don't match."); return; }
-    if (password.length < 6) { setErr("Password must be at least 6 characters."); return; }
+    if (!name.trim()) { setErr(t("enterName")); return; }
+    if (!gender) { setErr(t("selectGender")); return; }
+    if (!age || Number(age) < 1 || Number(age) > 120) { setErr(t("enterValidAge")); return; }
+    if (!country.trim()) { setErr(t("selectCountry")); return; }
+    if (!email || !password || !confirm) { setErr(t("fillAllFields")); return; }
+    if (password !== confirm) { setErr(t("passwordsDontMatch")); return; }
+    if (password.length < 6) { setErr(t("passwordMinLength")); return; }
     setBusy(true); setErr("");
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -2425,13 +2462,13 @@ function AuthScreen() {
               background:"rgba(255,255,255,.65)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
               color:AUTH_INK, fontSize:15, fontWeight:600, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
               letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.12)" }}
-            onClick={() => go("method")}>Crear cuenta</button>
+            onClick={() => go("method")}>{t("createAccount")}</button>
           <button
             style={{ width:"100%", padding:16, borderRadius:99, border:"1px solid rgba(255,255,255,.25)",
               background:"rgba(27,34,48,.55)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
               color:"#fff", fontSize:15, fontWeight:500, fontFamily:"'Montserrat', sans-serif", cursor:"pointer",
               letterSpacing:"-.01em", boxShadow:"0 6px 24px rgba(30,40,60,.18)" }}
-            onClick={() => go("login")}>Iniciar sesión</button>
+            onClick={() => go("login")}>{t("signIn")}</button>
         </div>
         <div style={{ fontSize:11.5, color:AUTH_INK_SOFT, textAlign:"center", lineHeight:1.5, opacity:.75, fontFamily:"'Montserrat', sans-serif" }}>
           Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
@@ -2468,7 +2505,7 @@ function AuthScreen() {
       </div>
       <div style={stepBottom}>
         <button style={{ ...btnP, borderRadius:99 }} onClick={() => { setErr(""); setScreen("country"); }}>
-          Continue with your email
+          {t("continueWithEmail")}
         </button>
         <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
           background:"#4285F4", color:"#fff", fontSize:15, fontWeight:600,
@@ -2484,7 +2521,7 @@ function AuthScreen() {
             setBusy(false);
           }}
           disabled={busy}>
-          Continue with Google
+          {t("continueWithGoogle")}
           <span style={{ fontSize:18, fontWeight:700 }}>G</span>
         </button>
         <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
@@ -2501,7 +2538,7 @@ function AuthScreen() {
             setBusy(false);
           }}
           disabled={busy}>
-          Continue with Apple
+          {t("continueWithApple")}
           <span style={{ fontSize:18 }}></span>
         </button>
         {err && <div style={{ fontSize:13, color:AUTH_CORAL, fontWeight:500, textAlign:"center" }}>{err}</div>}
@@ -2562,12 +2599,12 @@ function AuthScreen() {
           About you
         </div>
         <div style={{ fontSize:14, color:AUTH_INK_SOFT, marginTop:8, lineHeight:1.6 }}>
-          Tell us a bit about yourself so we can personalize your experience.
+          {t("tellUsAboutYou")}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
             <label style={lbl}>Name</label>
-            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="text" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} />
+            <input style={{ ...inp, background:"rgba(255,255,255,.7)" }} type="text" placeholder={t("yourName")} value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
             <label style={lbl}>Age</label>
@@ -2577,7 +2614,7 @@ function AuthScreen() {
           <div>
             <label style={lbl}>Gender</label>
             <div style={{ display:"flex", gap:9 }}>
-              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
+              {[["male",t("male")],["female",t("female")],["other",t("other")]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
                   style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
                     fontSize:14, fontWeight:gender===k?600:400,
@@ -2596,9 +2633,9 @@ function AuthScreen() {
       <div style={stepBottom}>
         <button style={{ ...btnP, borderRadius:99 }}
           onClick={() => {
-            if (!name.trim()) { setErr("Enter your name."); return; }
-            if (!age || Number(age) < 1 || Number(age) > 120) { setErr("Enter a valid age."); return; }
-            if (!gender) { setErr("Select your gender."); return; }
+            if (!name.trim()) { setErr(t("enterName")); return; }
+            if (!age || Number(age) < 1 || Number(age) > 120) { setErr(t("enterValidAge")); return; }
+            if (!gender) { setErr(t("selectGender")); return; }
             setErr(""); setScreen("credentials");
           }}>
           Continue
@@ -2649,7 +2686,7 @@ function AuthScreen() {
       <div style={{ ...box, position:"relative", zIndex:1 }}>
         <ZafiLogo />
         <div>
-          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Bienvenido de vuelta</div>
+          <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>{t("welcomeBack")}</div>
           <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT }}>Inicia sesión para continuar.</div>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -2668,8 +2705,8 @@ function AuthScreen() {
           <button style={btnS} onClick={() => go("welcome")}>← Regresar</button>
         </div>
         <div style={{ textAlign:"center", fontSize:14, color:AUTH_INK_SOFT, display:"flex", flexDirection:"column", gap:8 }}>
-          <button style={lnk} onClick={() => go("forgot")}>¿Olvidaste tu contraseña?</button>
-          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("method")}>Crear cuenta</button></span>
+          <button style={lnk} onClick={() => go("forgot")}>{t("forgotPassword")}</button>
+          <span>¿No tienes cuenta?{" "}<button style={lnk} onClick={() => go("method")}>{t("createAccount")}</button></span>
         </div>
       </div>
     </div>
@@ -2683,7 +2720,7 @@ function AuthScreen() {
         <ZafiLogo />
         <div>
           <div style={{ fontFamily:FONT, fontSize:24, fontWeight:700, color:AUTH_INK, letterSpacing:"-.02em", marginBottom:4 }}>Restablecer contraseña</div>
-          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT, lineHeight:1.5 }}>Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.</div>
+          <div style={{ fontFamily:FONT, fontSize:14, fontWeight:400, color:AUTH_INK_SOFT, lineHeight:1.5 }}>{t("resetPasswordDesc")}</div>
         </div>
         <div>
           <label style={lbl}>Correo electrónico</label>
@@ -2715,9 +2752,9 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
   const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
 
   const save = async () => {
-    if (!name.trim()) { setErr("Enter your name."); return; }
-    if (!age || Number(age) < 1) { setErr("Enter a valid age."); return; }
-    if (!gender) { setErr("Select your gender."); return; }
+    if (!name.trim()) { setErr(t("enterName")); return; }
+    if (!age || Number(age) < 1) { setErr(t("enterValidAge")); return; }
+    if (!gender) { setErr(t("selectGender")); return; }
     setBusy(true); setErr("");
     try {
       const avatarId = defaultAvatarForGender(gender);
@@ -2729,7 +2766,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
       const updated = { ...(config || {}), ...profileData };
       saveConfig(updated);
       onDone();
-    } catch (e) { setErr("Something went wrong. Try again."); }
+    } catch (e) { setErr(t("somethingWentWrong")); }
     setBusy(false);
   };
 
@@ -2749,12 +2786,12 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
           Welcome to Zafi
         </div>
         <div style={{ fontSize:14, color:"#6B7585", marginTop:8, lineHeight:1.6 }}>
-          Tell us a bit about yourself so we can personalize your experience.
+          {t("tellUsAboutYou")}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
             <label style={lbl}>Your name</label>
-            <input style={inp} type="text" placeholder="How should we call you?" value={name} onChange={e=>setName(e.target.value)} />
+            <input style={inp} type="text" placeholder={t("howToCallYou")} value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
             <label style={lbl}>Age</label>
@@ -2764,7 +2801,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
           <div>
             <label style={lbl}>Gender</label>
             <div style={{ display:"flex", gap:9 }}>
-              {[["male","Male"],["female","Female"],["other","Other"]].map(([k,l])=>(
+              {[["male",t("male")],["female",t("female")],["other",t("other")]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
                   style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
                     fontSize:14, fontWeight:gender===k?600:400,
@@ -2800,7 +2837,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
           background:"#1B2230", color:"#fff", fontSize:15, fontWeight:600,
           fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1 }}
           onClick={save} disabled={busy}>
-          {busy ? "Saving…" : "Continue"}
+          {busy ? t("saving") : t("continueBtn")}
         </button>
       </div>
     </div>
@@ -2818,7 +2855,7 @@ function SplashScreen({ onDone }) {
     <div className="cc-splash">
       <style>{STYLE}</style>
       <div className="cc-splash-word">zafi</div>
-      <div className="cc-splash-tag">el futuro de tu dinero</div>
+      <div className="cc-splash-tag">{_lang === "es" ? "el futuro de tu dinero" : "the future of your money"}</div>
     </div>
   );
 }
