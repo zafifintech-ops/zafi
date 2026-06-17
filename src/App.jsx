@@ -181,8 +181,8 @@ body{
 .cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:24px;
   background:linear-gradient(to bottom, var(--bg) 0%, rgba(220,225,235,.6) 40%, transparent 100%);
   border-bottom:none;}
-.cc-dark .cc-top{background:linear-gradient(to bottom, rgba(13,15,20,.9) 0%, rgba(13,15,20,.5) 50%, transparent 100%);}
-.cc-dark .cc-top.scrolled{background:linear-gradient(to bottom, rgba(13,15,20,.85) 0%, rgba(13,15,20,.4) 40%, transparent 100%);}
+.cc-dark .cc-top{background:linear-gradient(to bottom, rgba(10,12,18,1) 0%, rgba(10,12,18,.7) 55%, transparent 100%);}
+.cc-dark .cc-top.scrolled{background:linear-gradient(to bottom, rgba(10,12,18,1) 0%, rgba(10,12,18,.6) 45%, transparent 100%);}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
