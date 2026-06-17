@@ -41,9 +41,9 @@ body{
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
 .cc-dark .cc-video-bg::after{background:rgba(0,0,0,.35);}
-.cc-video-bg video{width:100%;height:120%;object-fit:cover;
+.cc-video-bg video{width:100%;height:180%;object-fit:cover;
   filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
-  transition:transform .05s linear;}
+  will-change:transform;}
 #root{background:transparent!important;min-height:100vh;}
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -3166,11 +3166,16 @@ REGLAS DE RESPUESTA:
 function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   setAppLang(config.language || "es");
 
-  // Parallax del fondo de video
+  // Parallax del fondo de video (con límite para no mostrar el borde)
   useEffect(() => {
     const onScroll = () => {
-      const y = window.scrollY * -0.25;
-      document.documentElement.style.setProperty("--parallax-y", `${y}px`);
+      // Video es 180% del viewport, escalado 1.06 = ~190%
+      // Extra space: 90% del vh, dividido 2 = 45% arriba y abajo
+      // Max translateY antes de mostrar el borde: ~40% del vh
+      const maxY = window.innerHeight * 0.38;
+      const raw = window.scrollY * 0.15; // velocidad más sutil
+      const clamped = Math.min(raw, maxY);
+      document.documentElement.style.setProperty("--parallax-y", `${-clamped}px`);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
