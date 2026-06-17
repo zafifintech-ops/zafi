@@ -716,6 +716,66 @@ const runRecurringRules = (recurring) => {
   return { newTxs, updatedRecurring };
 };
 
+/* ===== Detector de patrones frecuentes (últimos 2 meses) ===== */
+function detectFrequentPatterns(txs, config) {
+  const now = new Date();
+
+  // Ventana 1: últimos 2 meses
+  const twoMonthsAgo = new Date();
+  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+  const cutoffRecent = dateToIso(twoMonthsAgo);
+  const cutoffNow = dateToIso(now);
+
+  // Ventana 2: misma ventana del año pasado (mes actual ±1 mes, año anterior)
+  const lastYearStart = new Date(now.getFullYear() - 1, now.getMonth() - 1, 1);
+  const lastYearEnd = new Date(now.getFullYear() - 1, now.getMonth() + 2, 0);
+  const cutoffLYStart = dateToIso(lastYearStart);
+  const cutoffLYEnd = dateToIso(lastYearEnd);
+
+  const recent = (txs || []).filter(t => {
+    if (t.recurringId) return false;
+    const d = t.date;
+    // en ventana reciente O en ventana del año pasado
+    return (d >= cutoffRecent && d <= cutoffNow) || (d >= cutoffLYStart && d <= cutoffLYEnd);
+  });
+
+  // agrupar por descripción normalizada
+  const groups = {};
+  recent.forEach(t => {
+    const key = (t.description || "").toLowerCase().trim();
+    if (!key || key.length < 2) return;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  });
+
+  // encontrar patrones que se repiten 2+ veces con montos similares
+  const patterns = [];
+  Object.entries(groups).forEach(([key, txArr]) => {
+    if (txArr.length < 2) return;
+    const avgAmt = txArr.reduce((s, t) => s + t.amount, 0) / txArr.length;
+    const last = txArr.sort((a, b) => b.date.localeCompare(a.date))[0];
+    const cat = config.categories.find(c => c.id === last.categoryId);
+    // detectar si hay ocurrencias en ambos años
+    const hasRecent = txArr.some(t => t.date >= cutoffRecent);
+    const hasLastYear = txArr.some(t => t.date >= cutoffLYStart && t.date <= cutoffLYEnd);
+    patterns.push({
+      description: last.description,
+      amount: Math.round(avgAmt),
+      type: last.type,
+      categoryId: last.categoryId,
+      categoryName: cat ? cat.name : null,
+      categoryEmoji: cat ? cat.emoji : null,
+      accountId: last.accountId,
+      count: txArr.length,
+      lastDate: last.date,
+      annual: hasLastYear && hasRecent, // patrón anual (aparece en ambos años)
+    });
+  });
+
+  // ordenar: anuales primero, luego por frecuencia
+  return patterns.sort((a, b) => (b.annual ? 1 : 0) - (a.annual ? 1 : 0) || b.count - a.count).slice(0, 10);
+}
+
 const fmtBare = (n) => {
   const v = n || 0;
   const hasDecimals = v % 1 !== 0;
@@ -1642,6 +1702,20 @@ function assistantSystem(config, txs) {
     });
   }
 
+  // patrones frecuentes detectados (últimos 2 meses)
+  const patterns = detectFrequentPatterns(txs, config);
+  const patronesFrecuentes = patterns.map(p => ({
+    concepto: p.description,
+    monto: p.amount,
+    tipo: p.type,
+    categoria: p.categoryName,
+    veces: p.count,
+    ultimaFecha: p.lastDate,
+    esAnual: !!p.annual,
+    esRecurrente: !!(config.recurring || []).find(r =>
+      r.description.toLowerCase().trim() === p.description.toLowerCase().trim()),
+  }));
+
   const agregados = {
     rango: { preset: range.preset, desde: rangeFrom, hasta: rangeTo, etiqueta: rangeLabel(range) },
     enRango: { ingresos: rangeIncome, gastos: rangeExpense, flujoNeto: rangeIncome - rangeExpense, movimientos: rangeTxs.length },
@@ -1649,6 +1723,7 @@ function assistantSystem(config, txs) {
     topIngresosEnRango: topRows(incByCat),
     porMes6m: monthly,
     saldoNetoGlobal: saldoNeto,
+    patronesFrecuentes,
   };
 
   // recurrencias actuales
@@ -1678,6 +1753,10 @@ Movimientos recientes (últimos 100): ${JSON.stringify(recent)}
 Recurrencias activas: ${JSON.stringify(recurrencias)}
 Agregados pre-calculados: ${JSON.stringify(agregados)}
 Fecha de hoy: ${today()}
+
+PATRONES FRECUENTES (últimos 2 meses):
+${patronesFrecuentes.length > 0 ? JSON.stringify(patronesFrecuentes) : "Ninguno detectado aún."}
+Si hay patrones frecuentes que NO son recurrentes aún (esRecurrente=false), puedes sugerirle al usuario crear una recurrencia para automatizar esos movimientos. Si esAnual=true, el patrón se repite también el año pasado (mismo periodo). Ejemplo: "Noté que registras 'Spotify' cada mes por $189. ¿Quieres que lo haga recurrente para que se registre solo?" o "El año pasado también pagaste 'Seguro auto' por esta fecha por $12,000 — ¿quieres que te recuerde?" Pero NO insistas si el usuario no quiere.
 
 RESPONDE SIEMPRE con UN SOLO objeto JSON válido, sin markdown ni texto fuera del JSON:
 {"message":"texto breve para el usuario","actions":[ ... ]}
@@ -5237,6 +5316,40 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
           ))}
         </div>
 
+        {/* Sugerencias de movimientos frecuentes */}
+        {!editing && (() => {
+          const patterns = detectFrequentPatterns(txs, config).filter(p => p.type === type).slice(0, 5);
+          if (!patterns.length) return null;
+          return (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600, letterSpacing: ".03em", marginBottom: 6 }}>
+                FRECUENTES
+              </div>
+              <div className="cc-scroll-x" style={{ gap: 6 }}>
+                {patterns.map((p, i) => (
+                  <button key={i} onClick={() => {
+                    setDesc(p.description);
+                    setAmount(String(p.amount));
+                    if (p.accountId) setAccountId(p.accountId);
+                    if (p.categoryId) setCatId(p.categoryId);
+                  }}
+                    style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+                      background: p.annual ? "rgba(99,102,241,.08)" : "var(--surface)",
+                      border: `1px solid ${p.annual ? "rgba(99,102,241,.25)" : "var(--glass-border)"}`,
+                      cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+                      color: "var(--ink)", whiteSpace: "nowrap",
+                      display: "flex", alignItems: "center", gap: 6 }}>
+                    {p.categoryEmoji && <span>{p.categoryEmoji}</span>}
+                    <span>{p.description}</span>
+                    <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>{fmtBare(p.amount)}</span>
+                    {p.annual && <span style={{ fontSize: 10, color: "#6366F1", fontWeight: 600 }}>ANUAL</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
           <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
@@ -5312,13 +5425,28 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 let CHAT_MSGS_STORE = null;
 let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
-  const GREET =
-    "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
-  const QUICK = [
-    "Crea la categoría Mascotas 🐶",
-    "Registra un gasto de 250 en gasolina",
-    "¿Cuánto llevo gastado este mes?",
-  ];
+  // Detectar patrones para saludo proactivo
+  const patterns = detectFrequentPatterns(txs, config);
+  const nonRecurring = patterns.filter(p =>
+    !(config.recurring || []).find(r =>
+      r.description.toLowerCase().trim() === p.description.toLowerCase().trim()));
+
+  const GREET = nonRecurring.length > 0
+    ? `¡Hola! Soy tu asistente. 💡 Noté que registras frecuentemente:\n\n${nonRecurring.slice(0, 3).map(p =>
+        `• "${p.description}" — ${fmtBare(p.amount)} (${p.count} veces${p.annual ? ", también el año pasado" : ""})`).join("\n")}\n\n¿Quieres que los haga recurrentes para que se registren solos?`
+    : "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
+
+  const QUICK = nonRecurring.length > 0
+    ? [
+        `Hazme recurrente "${nonRecurring[0]?.description}"`,
+        "¿Cuánto llevo gastado este mes?",
+        "Registra un gasto de 250 en gasolina",
+      ]
+    : [
+        "Crea la categoría Mascotas 🐶",
+        "Registra un gasto de 250 en gasolina",
+        "¿Cuánto llevo gastado este mes?",
+      ];
   const [msgs, setMsgs] = useState(() => CHAT_MSGS_STORE || [{ role: "bot", text: GREET }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
