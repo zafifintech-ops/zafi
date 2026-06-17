@@ -540,9 +540,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-combobox-btn:hover:not(:disabled){border-color:var(--gold);}
 .cc-combobox-btn:disabled{opacity:.55;cursor:not-allowed;}
 .cc-combobox-btn .chevron{font-size:11px;color:var(--ink-faint);flex-shrink:0;}
-.cc-combobox-popup{margin-top:6px;border:1px solid var(--line);border-radius:12px;
-  background:var(--paper);overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.08);}
-.cc-dark .cc-combobox-popup{background:rgba(28,30,40,.95);backdrop-filter:blur(20px);}
+.cc-combobox-popup{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;
+  border:1px solid var(--line);border-radius:12px;
+  background:var(--paper);overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.18);}
+.cc-dark .cc-combobox-popup{background:rgba(28,30,40,.96);backdrop-filter:blur(20px);}
 .cc-combobox-search{width:100%;padding:11px 14px;border:none;border-bottom:1px solid var(--line);
   background:transparent;color:var(--ink);font-family:inherit;font-size:13.5px;outline:none;}
 .cc-combobox-list{max-height:240px;overflow-y:auto;padding:4px 0;}
@@ -5685,17 +5686,14 @@ function AccountModal({ acc, onClose, onSave }) {
   );
 }
 
-/* Combobox de categoría: button + popup con buscador + lista filtrable.
-   Soluciona el problema de selects nativos disabled y permite autocompletar. */
-function CategoryCombobox({ value, categories, onChange, disabled, placeholder = "✨ Detectar automáticamente" }) {
+/* Combobox de categoría: input que también dispara dropdown.
+   Tipo Google autocomplete — siempre puedes escribir, "Detectar automáticamente"
+   aparece como primera opción de la lista. */
+function CategoryCombobox({ value, categories, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const inputRef = useRef(null);
   const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (open && inputRef.current) inputRef.current.focus();
-  }, [open]);
+  const inputRef = useRef(null);
 
   // cerrar al hacer click fuera
   useEffect(() => {
@@ -5714,52 +5712,65 @@ function CategoryCombobox({ value, categories, onChange, disabled, placeholder =
     };
   }, [open]);
 
-  const current = value === "auto" || !value
-    ? placeholder
-    : (() => {
-        const c = categories.find((c) => c.id === value);
-        return c ? `${c.emoji} ${c.name}` : placeholder;
-      })();
+  const selected = value === "auto" || !value ? null : categories.find((c) => c.id === value);
+  const selectedDisplay = selected ? `${selected.emoji} ${selected.name}` : "";
 
   const filtered = categories.filter((c) =>
     !query || c.name.toLowerCase().includes(query.toLowerCase())
   );
+  // "Detectar automáticamente" se muestra si el query está vacío o coincide
+  const q = query.toLowerCase();
+  const showAuto = !q || "detectar".includes(q) || "automatico".includes(q) || "automaticamente".includes(q) || "auto".includes(q);
 
   const pick = (id) => {
     onChange(id);
     setOpen(false);
     setQuery("");
+    if (inputRef.current) inputRef.current.blur();
   };
+
+  // valor visible en el input: query si está abierto, selección si está cerrado
+  const inputValue = open ? query : selectedDisplay;
+  const placeholder = selected ? "" : "✨ Detectar automáticamente";
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
-      <button type="button" className="cc-combobox-btn"
-        disabled={disabled} onClick={() => setOpen(!open)}>
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {current}
-        </span>
-        <span className="chevron">▾</span>
-      </button>
+      <input ref={inputRef}
+        className="cc-input"
+        value={inputValue}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            setQuery("");
+            if (inputRef.current) inputRef.current.blur();
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (filtered.length) pick(filtered[0].id);
+            else if (showAuto) pick("auto");
+          }
+        }} />
       {open && (
         <div className="cc-combobox-popup">
-          <input ref={inputRef} className="cc-combobox-search"
-            placeholder="Buscar categoría…"
-            value={query} onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") { setOpen(false); setQuery(""); }
-              if (e.key === "Enter" && filtered.length) { e.preventDefault(); pick(filtered[0].id); }
-            }} />
           <div className="cc-combobox-list">
-            <button type="button" className={`cc-combobox-opt ${value === "auto" ? "is-active" : ""}`}
-              onClick={() => pick("auto")}>
-              <span style={{ fontSize: 14 }}>✨</span>
-              <span>Detectar automáticamente</span>
-            </button>
-            {filtered.length === 0 ? (
+            {showAuto && (
+              <button type="button" onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick("auto")}
+                className={`cc-combobox-opt ${value === "auto" ? "is-active" : ""}`}>
+                <span style={{ fontSize: 14 }}>✨</span>
+                <span>Detectar automáticamente</span>
+              </button>
+            )}
+            {filtered.length === 0 && !showAuto ? (
               <div className="cc-combobox-empty">No hay categorías que coincidan</div>
             ) : (
               filtered.map((c) => (
-                <button key={c.id} type="button"
+                <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()}
                   className={`cc-combobox-opt ${value === c.id ? "is-active" : ""}`}
                   onClick={() => pick(c.id)}>
                   <span className="cc-emoji" style={{ fontSize: 16 }}>{c.emoji}</span>
@@ -5794,7 +5805,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   const [showConfig, setShowConfig] = useState(false);
 
   // qué campos opcionales mostrar (configurable por el usuario)
-  const fields = config.addModalFields || { payee: false, tags: false };
+  const fields = config.addModalFields || { payee: true, tags: true };
   const setFields = (next) => {
     if (saveConfig) saveConfig({ ...config, addModalFields: next });
   };
@@ -6107,6 +6118,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
               ))}
             </div>
             <input className="cc-input"
+              list="cc-tag-suggestions"
               placeholder="Escribe un hashtag y Enter (ej. vacaciones)"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
@@ -6115,7 +6127,18 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
                 else if (e.key === "Backspace" && !tagInput && tags.length) {
                   setTags(tags.slice(0, -1));
                 }
-              }} />
+              }}
+              autoComplete="off" />
+            <datalist id="cc-tag-suggestions">
+              {(() => {
+                // todos los tags del historial, sin los ya agregados
+                const set = new Set();
+                (txs || []).forEach((t) => (t.tags || []).forEach((tg) => set.add(tg)));
+                return [...set].filter((tg) => !tags.includes(tg)).map((tg) => (
+                  <option key={tg} value={tg} />
+                ));
+              })()}
+            </datalist>
             {suggestedTagsList.length > 0 && (
               <div style={{ marginTop: 8 }}>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600,
@@ -6129,6 +6152,18 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {config.accounts.length > 1 && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="cc-label">Cuenta</label>
+            <select className="cc-select" value={accountId}
+              onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
+              style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
+              <option value="">Elegir cuenta…</option>
+              {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
         )}
 
@@ -6146,18 +6181,6 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
               disabled={!accountId} />
           </div>
         </div>
-
-        {config.accounts.length > 1 && (
-          <div style={{ marginBottom: 14 }}>
-            <label className="cc-label">Cuenta</label>
-            <select className="cc-select" value={accountId}
-              onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
-              style={{ borderColor: !accountId ? "var(--gold)" : "var(--line)" }}>
-              <option value="">Elegir cuenta…</option>
-              {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-        )}
 
         <div style={{ marginBottom: 20 }}>
           {!accountId ? (
