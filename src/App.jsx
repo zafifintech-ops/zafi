@@ -505,13 +505,31 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   color:var(--ink);
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
-.cc-sheet{background:rgba(255,255,255,.55);backdrop-filter:blur(40px) saturate(160%);-webkit-backdrop-filter:blur(40px) saturate(160%);
+.cc-sheet{background:rgba(255,255,255,.86);backdrop-filter:blur(36px) saturate(140%);-webkit-backdrop-filter:blur(36px) saturate(140%);
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
-  border-top:1px solid rgba(255,255,255,.5);
-  box-shadow:0 -4px 24px rgba(0,0,0,.08);}
+  border-top:1px solid rgba(255,255,255,.7);
+  box-shadow:0 -4px 24px rgba(0,0,0,.06);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
+@keyframes ccChartDraw{from{stroke-dashoffset:1;}to{stroke-dashoffset:0;}}
+@keyframes ccChartFadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes ccChartScaleIn{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}
+@keyframes ccChartGrowY{from{transform:scaleY(0);}to{transform:scaleY(1);}}
+@keyframes ccChartGrowX{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+/* línea SVG que se dibuja */
+.cc-chart-line{stroke-dasharray:1;stroke-dashoffset:1;animation:ccChartDraw 1.2s cubic-bezier(.4,0,.2,1) forwards;}
+/* área debajo de línea: aparece cuando la línea ya se dibujó */
+.cc-chart-area{opacity:0;animation:ccChartFadeIn .6s ease forwards;animation-delay:.8s;}
+/* dots / labels que aparecen al final */
+.cc-chart-mark{opacity:0;transform-origin:center;animation:ccChartScaleIn .35s cubic-bezier(.2,1.5,.4,1) forwards;animation-delay:1.05s;}
+.cc-chart-label{opacity:0;animation:ccChartFadeIn .4s ease forwards;animation-delay:1.15s;}
+/* barras verticales que crecen desde abajo */
+.cc-chart-bar-y{transform-origin:center bottom;transform-box:fill-box;animation:ccChartGrowY .55s cubic-bezier(.3,1,.4,1) backwards;}
+/* barras horizontales que crecen desde la izquierda */
+.cc-chart-bar-x{transform-origin:left center;transform-box:fill-box;animation:ccChartGrowX .55s cubic-bezier(.3,1,.4,1) backwards;}
+/* slices del donut: fade + scale desde centro */
+.cc-chart-slice{transform-origin:center;transform-box:fill-box;animation:ccChartScaleIn .5s cubic-bezier(.3,1,.4,1) backwards;}
 @keyframes ccFadeOut{from{opacity:1;}to{opacity:0;}}
 @keyframes ccSheetOut{from{transform:none;}to{transform:translateY(100%);}}
 .cc-overlay.is-closing{animation:ccFadeOut .25s ease both;}
@@ -3694,8 +3712,6 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 
 /* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
-  const [closing, close] = useSheetClose(onToggle);
-  const dark = isDarkMode();
   const items = [
     { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
     { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
@@ -3714,36 +3730,44 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
         }}
         aria-label="Nueva transacción">＋</button>
 
-      {open && !hidden && createPortal(
-        <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-          <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="cc-grip" />
-            <div className="cc-sheet-top">
-              <h2>{t("addMovement")}</h2>
-              <button className="cc-sheet-close" onClick={close}>×</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
-              {items.map((it) => (
-                <button key={it.label} className="cc-card" onClick={it.onClick}
-                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 16px",
-                    cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--surface)",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                    {it.icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)", letterSpacing: "-.01em" }}>{it.label}</div>
-                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{it.desc}</div>
-                  </div>
-                  <span style={{ fontSize: 18, color: "var(--ink-faint)", flexShrink: 0 }}>›</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      {open && !hidden && <TopFabSheet items={items} onClose={onToggle} />}
     </>
+  );
+}
+
+/* Sub-componente del sheet del TopFab. Se monta/desmonta con `open`,
+   así el estado `closing` de useSheetClose se resetea en cada apertura. */
+function TopFabSheet({ items, onClose }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>{t("addMovement")}</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 4 }}>
+          {items.map((it) => (
+            <button key={it.label} className="cc-card" onClick={it.onClick}
+              style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 16px",
+                cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--surface)",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+                {it.icon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)", letterSpacing: "-.01em" }}>{it.label}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{it.desc}</div>
+              </div>
+              <span style={{ fontSize: 18, color: "var(--ink-faint)", flexShrink: 0 }}>›</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6731,7 +6755,7 @@ function CategoryChart({ rows, type, onPick }) {
 
       {chartType === "bars" && (
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {data.map((d) => {
+          {data.map((d, i) => {
             const pct = total ? Math.round((d.amt / total) * 100) : 0;
             const maxAmt = data[0].amt;
             const w = maxAmt ? (d.amt / maxAmt) * 100 : 0;
@@ -6747,7 +6771,11 @@ function CategoryChart({ rows, type, onPick }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{d.cat.name}</div>
                   <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 99, overflow: "hidden", marginTop: 5 }}>
-                    <div style={{ height: "100%", width: `${w}%`, background: type === "income" ? "var(--green)" : "var(--bar-fill)", borderRadius: 99 }} />
+                    <div style={{ height: "100%", width: `${w}%`,
+                      background: type === "income" ? "var(--green)" : "var(--bar-fill)",
+                      borderRadius: 99, transformOrigin: "left center",
+                      animation: `ccChartGrowX .65s cubic-bezier(.3,1,.4,1) backwards`,
+                      animationDelay: `${i * 0.05}s` }} />
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -6794,7 +6822,8 @@ function CatPie({ data, total, donut, active, onHover }) {
         s.end - s.start < 0.001 ? null :
         <path key={i} d={arc(s.start, s.end, active === i ? r + 4 : r, ir)} fill={s.color}
           opacity={active == null || active === i ? 1 : 0.45}
-          style={{ transition: "opacity .15s, d .15s", cursor: "pointer" }}
+          style={{ transition: "opacity .15s, d .15s", cursor: "pointer", animationDelay: `${i * 0.07}s` }}
+          className="cc-chart-slice"
           onMouseEnter={() => onHover && onHover(i)} onMouseLeave={() => onHover && onHover(null)} />
       )}
       {donut && (
@@ -6822,6 +6851,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
     { id: "kpis", label: "Indicadores (KPIs)", on: true },
     { id: "incCats", label: "Ingresos por categoría", on: true },
     { id: "expCats", label: "Gastos por categoría", on: true },
+    { id: "areaFlow", label: "Acumulado: ingresos vs gastos", on: true },
     { id: "trend", label: "Evolución de saldo", on: true },
     { id: "topCat", label: "En lo que más gastaste", on: true },
   ];
@@ -6889,6 +6919,28 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
     const k = d.toISOString().slice(0, 10);
     if (dayMap.has(k)) lastVal = dayMap.get(k);
     balancePoints.push({ date: k, val: lastVal });
+  }
+
+  // ============== Acumulado ingresos / gastos por día ==============
+  const incAccByDay = new Map();
+  const expAccByDay = new Map();
+  let accInc = 0, accExp = 0;
+  for (const t of sorted) {
+    if (t.date < rfrom || t.date > rto) continue;
+    if (t.type === "income") accInc += t.amount;
+    else accExp += t.amount;
+    incAccByDay.set(t.date, accInc);
+    expAccByDay.set(t.date, accExp);
+  }
+  const incomeAccPoints = [];
+  const expenseAccPoints = [];
+  let lastInc = 0, lastExp = 0;
+  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+    const k = d.toISOString().slice(0, 10);
+    if (incAccByDay.has(k)) lastInc = incAccByDay.get(k);
+    if (expAccByDay.has(k)) lastExp = expAccByDay.get(k);
+    incomeAccPoints.push({ date: k, val: lastInc });
+    expenseAccPoints.push({ date: k, val: lastExp });
   }
 
   // ============== KPIs ==============
@@ -7015,6 +7067,16 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
                 <div className="cc-card" style={{ padding: 18, marginTop: 10 }}>
                   <div className="cc-label" style={{ marginBottom: 10 }}>Tendencia por categoría</div>
                   <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config} />
+                </div>
+              </div>
+            );
+
+            if (s.id === "areaFlow" && incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0)) return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 10 }}>Acumulado · {rangeLabel(dateRange)}</div>
+                <AreaChart incomePoints={incomeAccPoints} expensePoints={expenseAccPoints} />
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
+                  Lo que has ingresado y gastado acumulado, día a día
                 </div>
               </div>
             );
@@ -7283,19 +7345,122 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         </defs>
         {/* promedio */}
         <line x1={P} y1={avgY} x2={W - P} y2={avgY} stroke="var(--ink-faint)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)">prom {fmtBare(avg)}</text>
-        {showArea && <path d={areaPath} fill="url(#ccLine)" />}
-        <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)" className="cc-chart-label">prom {fmtBare(avg)}</text>
+        {showArea && <path d={areaPath} fill="url(#ccLine)" className="cc-chart-area" />}
+        <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line" />
         {/* máximo y mínimo */}
-        <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill="var(--green)" />
-        <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--green)">{fmtBare(max)}</text>
-        <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill="var(--coral)" />
-        <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--coral)">{fmtBare(min)}</text>
+        <g className="cc-chart-mark">
+          <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill="var(--green)" />
+          <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--green)">{fmtBare(max)}</text>
+        </g>
+        <g className="cc-chart-mark">
+          <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill="var(--coral)" />
+          <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--coral)">{fmtBare(min)}</text>
+        </g>
         {/* cursor hover */}
         {hp && (
           <>
             <line x1={xOf(hover)} y1={P} x2={xOf(hover)} y2={H - PB} stroke="var(--ink-soft)" strokeWidth="1" opacity="0.4" />
             <circle cx={xOf(hover)} cy={yOf(hp.val)} r="5" fill="#fff" stroke={stroke} strokeWidth="2.5" />
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+/* ---------------------- gráfica de áreas (SVG) -------------------------- */
+/* Recibe dos series con [{date, val}] y dibuja ambas como áreas
+   superpuestas (acumulados o por día). Incluye animación de dibujo. */
+function AreaChart({ incomePoints, expensePoints, title }) {
+  const [hover, setHover] = useState(null);
+  // necesitamos al menos 2 puntos en alguna serie
+  const maxLen = Math.max(incomePoints?.length || 0, expensePoints?.length || 0);
+  if (maxLen < 2) {
+    return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
+  }
+  const W = 600, H = 220, P = 20, PB = 22;
+
+  // alinear longitudes (padding con último valor si falta)
+  const len = maxLen;
+  const inc = Array.from({ length: len }, (_, i) => incomePoints?.[i] || incomePoints?.[incomePoints.length - 1] || { date: "", val: 0 });
+  const exp = Array.from({ length: len }, (_, i) => expensePoints?.[i] || expensePoints?.[expensePoints.length - 1] || { date: "", val: 0 });
+
+  const allVals = [...inc.map(p => p.val), ...exp.map(p => p.val)];
+  const min = 0; // áreas siempre desde 0
+  const max = Math.max(1, ...allVals);
+  const range = max - min || 1;
+  const xOf = (i) => P + (i / (len - 1)) * (W - P * 2);
+  const yOf = (v) => H - PB - ((v - min) / range) * (H - P - PB);
+
+  const linePath = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
+  const areaPath = (pts) => `${linePath(pts)} L${xOf(len - 1).toFixed(1)},${H - PB} L${P},${H - PB} Z`;
+
+  const handleMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const x = ((clientX - rect.left) / rect.width) * W;
+    const i = Math.round(((x - P) / (W - P * 2)) * (len - 1));
+    setHover(Math.max(0, Math.min(len - 1, i)));
+  };
+
+  const hpInc = hover != null ? inc[hover] : null;
+  const hpExp = hover != null ? exp[hover] : null;
+  const incLast = inc[len - 1].val;
+  const expLast = exp[len - 1].val;
+  const refDate = (hpInc?.date || hpExp?.date) || inc[0].date;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, fontSize: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ color: "var(--ink-soft)" }}>{refDate}</span>
+        </div>
+        <div style={{ display: "flex", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--green)" }} />
+            <span className="cc-num" style={{ fontWeight: 700, color: "var(--green)", fontSize: 13 }}>
+              {fmtBare(hpInc ? hpInc.val : incLast)}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: "var(--coral)" }} />
+            <span className="cc-num" style={{ fontWeight: 700, color: "var(--coral)", fontSize: 13 }}>
+              {fmtBare(hpExp ? hpExp.val : expLast)}
+            </span>
+          </div>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none", overflow: "visible" }}
+        onMouseMove={handleMove} onMouseLeave={() => setHover(null)}
+        onTouchStart={handleMove} onTouchMove={handleMove} onTouchEnd={() => setHover(null)}>
+        <defs>
+          <linearGradient id="ccAreaGreen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--green)" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="var(--green)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="ccAreaCoral" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--coral)" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="var(--coral)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* área ingresos (verde) detrás */}
+        <path d={areaPath(inc)} fill="url(#ccAreaGreen)" className="cc-chart-area" />
+        <path d={linePath(inc)} fill="none" stroke="var(--green)" strokeWidth="2.2"
+          strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line" />
+        {/* área gastos (coral) delante */}
+        <path d={areaPath(exp)} fill="url(#ccAreaCoral)" className="cc-chart-area"
+          style={{ animationDelay: ".95s" }} />
+        <path d={linePath(exp)} fill="none" stroke="var(--coral)" strokeWidth="2.2"
+          strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line"
+          style={{ animationDelay: ".15s" }} />
+        {/* cursor hover */}
+        {hover != null && (
+          <>
+            <line x1={xOf(hover)} y1={P} x2={xOf(hover)} y2={H - PB} stroke="var(--ink-soft)" strokeWidth="1" opacity="0.4" />
+            <circle cx={xOf(hover)} cy={yOf(hpInc.val)} r="4.5" fill="#fff" stroke="var(--green)" strokeWidth="2.5" />
+            <circle cx={xOf(hover)} cy={yOf(hpExp.val)} r="4.5" fill="#fff" stroke="var(--coral)" strokeWidth="2.5" />
           </>
         )}
       </svg>
@@ -7330,10 +7495,11 @@ function PieChart({ data, total }) {
     <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 160, height: 160, flexShrink: 0 }}>
       {slices.map((s, i) =>
         s.end - s.start < 0.001 ? null :
-        <path key={i} d={arc(s.start, s.end)} fill={s.color} />
+        <path key={i} d={arc(s.start, s.end)} fill={s.color} className="cc-chart-slice"
+          style={{ animationDelay: `${i * 0.08}s` }} />
       )}
-      <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="13" fill="var(--ink-soft)">Total</text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="15" fontWeight="600" fill="var(--ink)">{fmt(total)}</text>
+      <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="13" fill="var(--ink-soft)" className="cc-chart-label">Total</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="15" fontWeight="600" fill="var(--ink)" className="cc-chart-label">{fmt(total)}</text>
     </svg>
   );
 }
@@ -7350,11 +7516,15 @@ function BarsChart({ bars }) {
         const cx = P + groupW * i + groupW / 2;
         const hi = (b.income / max) * (H - P * 2);
         const he = (b.expense / max) * (H - P * 2);
+        const delay = `${i * 0.06}s`;
         return (
           <g key={i}>
-            <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3" />
-            <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3" />
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif">
+            <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3"
+              className="cc-chart-bar-y" style={{ animationDelay: delay }} />
+            <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3"
+              className="cc-chart-bar-y" style={{ animationDelay: delay }} />
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif"
+              className="cc-chart-label" style={{ animationDelay: `${0.3 + i * 0.04}s` }}>
               {monthLabel(b.key).split(" ")[0]}
             </text>
           </g>
