@@ -4272,6 +4272,27 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
   const isOn = (id) => sections.find((s) => s.id === id)?.on;
 
+  // gráfica de líneas: gasto acumulado por día en el periodo
+  const expenseLinePoints = (() => {
+    const expTxs = rangeTxs.filter(t => t.type === "expense");
+    if (expTxs.length < 2) return [];
+    const daily = {};
+    expTxs.forEach(t => { daily[t.date] = (daily[t.date] || 0) + t.amount; });
+    const dates = Object.keys(daily).sort();
+    if (dates.length < 2) return [];
+    // llenar días sin gastos entre min y max
+    const start = new Date(dates[0]);
+    const end = new Date(dates[dates.length - 1]);
+    const pts = [];
+    let cumulative = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().slice(0, 10);
+      cumulative += daily[k] || 0;
+      pts.push({ date: k, val: cumulative });
+    }
+    return pts;
+  })();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* === selector de cuentas mejorado === */}
@@ -4383,6 +4404,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {/* Gráfica de líneas de gastos acumulados */}
+            {expenseLinePoints.length >= 2 && (
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
+                <div className="cc-label" style={{ marginBottom: 6 }}>Gasto acumulado</div>
+                <LineChart points={expenseLinePoints} color="var(--coral)" />
               </div>
             )}
           </div>
@@ -6698,7 +6726,7 @@ function KpiCard({ label, value, sub, color }) {
 }
 
 /* ----------------------- gráfica de línea (SVG) -------------------------- */
-function LineChart({ points, area: showArea = true }) {
+function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const [hover, setHover] = useState(null); // index hovered
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
@@ -6716,7 +6744,7 @@ function LineChart({ points, area: showArea = true }) {
   const last = points[points.length - 1].val;
   const first = points[0].val;
   const up = last >= first;
-  const stroke = up ? "var(--green)" : "var(--coral)";
+  const stroke = forcedColor || (up ? "var(--green)" : "var(--coral)");
   const avgY = yOf(avg);
 
   const maxIdx = vals.indexOf(max);
