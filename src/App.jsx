@@ -3825,6 +3825,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
   const avatarSrc = getAvatarSrc(config);
@@ -3832,7 +3833,9 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const savePersonal = () => {
     saveConfig({ ...config, userName: userName.trim(), phone: phone.trim(), userAge: Number(age) || null });
     showToast(t("infoUpdated"));
+    setSaved(true);
   };
+  const markDirty = () => setSaved(false);
   const saveLang = (l) => {
     setLang(l); setAppLang(l);
     saveConfig({ ...config, language: l });
@@ -3911,9 +3914,10 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         <button key={k} onClick={() => onPick(k)}
           style={{ flex: 1, padding: "12px 8px", borderRadius: 14, cursor: "pointer",
             fontFamily: "'Montserrat', sans-serif", fontSize: 14, fontWeight: current === k ? 600 : 400,
-            background: current === k ? "var(--ink)" : "var(--surface)",
+            background: current === k ? "var(--green)" : "var(--surface)",
             color: current === k ? "#fff" : "var(--ink)",
-            border: `1px solid ${current === k ? "var(--ink)" : "var(--line)"}` }}>
+            border: `1px solid ${current === k ? "var(--green)" : "var(--line)"}`,
+            transition: "all .15s ease" }}>
           {l}
         </button>
       ))}
@@ -3978,24 +3982,28 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label className="cc-label">{t("name")}</label>
-                <input className="cc-input" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Tu nombre" />
+                <input className="cc-input" value={userName} onChange={(e) => { setUserName(e.target.value); markDirty(); }} placeholder="Tu nombre" />
               </div>
               <div>
-                <label className="cc-label">Edad</label>
+                <label className="cc-label">{t("age")}</label>
                 <input className="cc-input" value={age} type="text" inputMode="numeric" placeholder="00"
-                  onChange={(e) => setAge(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+                  onChange={(e) => { setAge(e.target.value.replace(/[^0-9]/g, "").slice(0, 3)); markDirty(); }}
                   style={{ width: 100 }} />
               </div>
               <div>
                 <label className="cc-label">{t("phone")}</label>
-                <input className="cc-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+52 664 123 4567" type="tel" />
+                <input className="cc-input" value={phone} onChange={(e) => { setPhone(e.target.value); markDirty(); }} placeholder="+52 664 123 4567" type="tel" />
               </div>
               <div>
                 <label className="cc-label">{t("email")}</label>
                 <input className="cc-input" value={email} disabled style={{ opacity: 0.6 }} />
               </div>
-              <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14 }} onClick={savePersonal}>
-                {t("saveChanges")}
+              <button className="cc-btn" onClick={saved ? undefined : savePersonal} disabled={saved}
+                style={{ width: "100%", padding: 14,
+                  background: saved ? "var(--green)" : "var(--green)",
+                  color: "#fff", borderColor: "var(--green)",
+                  opacity: saved ? 0.6 : 1, transition: "opacity .2s" }}>
+                {saved ? "Listo ✓" : t("saveChanges")}
               </button>
             </div>
           </>
