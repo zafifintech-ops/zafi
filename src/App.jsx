@@ -295,6 +295,7 @@ body{
   border:1px solid var(--glass-border);background:var(--glass);color:var(--ink);outline:none;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   transition:border-color .15s ease;}
+textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-input:focus,.cc-select:focus{border-color:rgba(0,0,0,.15);background:rgba(255,255,255,.7);}
 .cc-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;letter-spacing:-.005em;}
 
@@ -479,8 +480,8 @@ body{
 .cc-amount-display input::placeholder{color:var(--ink-soft);opacity:.55;}
 
 /* ============== CHAT ============== */
-.cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:84%;
-  letter-spacing:-.005em;}
+.cc-bubble{padding:12px 15px;border-radius:18px;font-size:14.5px;line-height:1.5;max-width:88%;
+  letter-spacing:-.005em;word-wrap:break-word;overflow-wrap:break-word;width:fit-content;}
 .cc-bubble.bot{background:rgba(255,255,255,.55);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   color:var(--ink);border:1px solid var(--glass-border);
   border-bottom-left-radius:4px;}
@@ -5898,21 +5899,23 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
               {listening ? "●" : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><path d="M12 17v4"/></svg>}
             </button>
           )}
-          <input
+          <textarea
             className="cc-input"
-            placeholder={listening ? "Escuchando…" : "Dile algo… ej. quita la categoría Ropa"}
+            placeholder={listening ? "Escuchando…" : "Dile algo…"}
             value={input}
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+            rows={1}
+            style={{ resize: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.4 }}
           />
           <button disabled={busy || (!input.trim() && !listening && !attachedImgs.length)}
             onClick={() => { if (listening) stopVoice(false); setTimeout(() => send(), 100); }}
-            style={{ padding: "10px 18px", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+            style={{ padding: "10px 14px", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
               borderRadius: 14, border: "none", background: "#5B6EE8", color: "#fff",
               cursor: "pointer", opacity: (busy || (!input.trim() && !listening && !attachedImgs.length)) ? 0.4 : 1,
-              flexShrink: 0, transition: "opacity .15s" }}>
-            {t("send")}
+              flexShrink: 0, transition: "opacity .15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
           </button>
         </div>
         {listening && (
