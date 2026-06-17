@@ -149,6 +149,9 @@ body{
 .cc-dark .cc-bottomnav-inner{background:rgba(15,17,22,.7);}
 .cc-dark .cc-top.scrolled{background:rgba(15,17,22,.5);}
 .cc-dark .cc-card{background:rgba(255,255,255,.05);}
+.cc-dark .cc-bubble.bot{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);}
+.cc-dark .cc-bubble.me{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.15);}
+.cc-dark .cc-grip{background:rgba(255,255,255,.2);}
 .cc-root{
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
