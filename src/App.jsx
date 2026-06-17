@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
@@ -476,6 +477,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
+@keyframes ccSlideInRight{from{transform:translateX(8%);opacity:0;}to{transform:none;opacity:1;}}
+@keyframes ccSlideInLeft{from{transform:translateX(-8%);opacity:0;}to{transform:none;opacity:1;}}
+.cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
+.cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;cursor:grab;}
 .cc-sheet{transition:transform .25s ease;}
 .cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
@@ -3999,6 +4004,8 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
 
+        <div key={section} className={`cc-settings-section ${section === "menu" ? "is-menu" : ""}`}>
+
         {section === "menu" && (
           <>
             <div className="cc-sheet-top">
@@ -4209,6 +4216,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         {avatarOpen && (
           <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
         )}
+        </div>
       </div>
     </div>
   );
@@ -4717,7 +4725,7 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   };
   const reset = () => { setItems(DEFAULT_SECTIONS.map((s) => ({ ...s }))); setSaved(false); };
 
-  return (
+  return createPortal(
     <div className="cc-overlay" onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
@@ -4770,7 +4778,8 @@ function HomeConfigModal({ sections, onClose, onSave }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
