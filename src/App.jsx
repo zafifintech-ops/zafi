@@ -38,6 +38,8 @@ body{
 }
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
+.cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
+.cc-dark .cc-video-bg::after{background:rgba(0,0,0,.20);}
 .cc-video-bg video{width:100%;height:120%;object-fit:cover;
   filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
   transition:transform .05s linear;}
