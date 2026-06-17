@@ -149,7 +149,6 @@ body{
 .cc-dark .cc-acc-card.on{background:rgba(255,255,255,.14);border-color:var(--glass-border);}
 .cc-dark .cc-toast{background:linear-gradient(160deg,#1a1d24,#2a2d36);color:#E2E6ED;}
 .cc-dark .cc-bottomnav-inner{background:rgba(15,17,22,.7);}
-.cc-dark .cc-top.scrolled{background:rgba(15,17,22,.5);}
 .cc-dark .cc-card{background:rgba(255,255,255,.05);}
 .cc-dark .cc-bubble.bot{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);}
 .cc-dark .cc-bubble.me{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.15);}
@@ -176,14 +175,14 @@ body{
 
 /* ============== TOPBAR ============== */
 .cc-top{position:sticky;top:0;z-index:30;
-  background:transparent;
-  padding:calc(14px + env(safe-area-inset-top)) 20px 8px;
+  background:linear-gradient(to bottom, var(--bg) 0%, rgba(220,225,235,.7) 50%, transparent 100%);
+  padding:calc(14px + env(safe-area-inset-top)) 20px 30px;
   transition:.2s ease;}
-.cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:6px;
-  background:rgba(255,255,255,.1);
-  backdrop-filter:blur(3px);
-  -webkit-backdrop-filter:blur(3px);
+.cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:24px;
+  background:linear-gradient(to bottom, var(--bg) 0%, rgba(220,225,235,.6) 40%, transparent 100%);
   border-bottom:none;}
+.cc-dark .cc-top{background:linear-gradient(to bottom, rgba(13,15,20,.9) 0%, rgba(13,15,20,.5) 50%, transparent 100%);}
+.cc-dark .cc-top.scrolled{background:linear-gradient(to bottom, rgba(13,15,20,.85) 0%, rgba(13,15,20,.4) 40%, transparent 100%);}
 .cc-top-inner{max-width:760px;margin:0 auto;}
 
 /* logo centrado estilo Canva */
