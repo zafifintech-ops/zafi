@@ -36,9 +36,6 @@ html,body{min-height:100vh;}
 body{
   background-color:var(--bg)!important;
 }
-.cc-dark body, .cc-dark{
-  background-color:var(--bg)!important;
-}
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg video{width:100%;height:120%;object-fit:cover;
