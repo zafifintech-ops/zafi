@@ -3695,6 +3695,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 /* TopFab: botón circular (+) arriba a la derecha; abre hoja de captura */
 function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
   const [closing, close] = useSheetClose(onToggle);
+  const dark = isDarkMode();
   const items = [
     { icon: "✏️", label: t("manualCapture"), desc: t("manualCaptureDesc"), onClick: onPickManual },
     { icon: "🔁", label: t("recurringMovement"), desc: t("recurringDesc"), onClick: onPickRecurring },
@@ -3713,8 +3714,8 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
         }}
         aria-label="Nueva transacción">＋</button>
 
-      {open && !hidden && (
-        <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+      {open && !hidden && createPortal(
+        <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
           <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="cc-grip" />
             <div className="cc-sheet-top">
@@ -3739,7 +3740,8 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -4295,8 +4297,9 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
 /* ProfileNameModal: editar el nombre que se muestra en el header */
 function ProfileNameModal({ current, onClose, onSave }) {
   const [name, setName] = useState(current || "");
-  return (
-    <div className="cc-overlay" onClick={onClose} style={{ alignItems: "center" }}>
+  const dark = isDarkMode();
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onClose} style={{ alignItems: "center" }}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
         style={{ borderRadius: 24, maxWidth: 360, width: "calc(100% - 40px)" }}>
         <div className="cc-grip" />
@@ -4310,7 +4313,8 @@ function ProfileNameModal({ current, onClose, onSave }) {
           Guardar
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -5189,8 +5193,9 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
 
 /* diálogo de confirmación reutilizable */
 function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onCancel, onConfirm }) {
-  return (
-    <div className="cc-overlay" onClick={onCancel} style={{ alignItems: "center" }}>
+  const dark = isDarkMode();
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onCancel} style={{ alignItems: "center" }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ background: "var(--bg)", borderRadius: 18, maxWidth: 400, width: "90%", padding: 22, animation: "ccUp .25s" }}>
         <h3 className="cc-serif" style={{ fontSize: 19, fontWeight: 600, marginBottom: 8 }}>{title}</h3>
@@ -5208,7 +5213,8 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -5395,9 +5401,10 @@ function CatModal({ cat, accounts, onClose, onSave }) {
   const [emoji, setEmoji] = useState(cat.emoji || "📦");
   const [type, setType] = useState(cat.type || "expense");
   const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
+  const dark = isDarkMode();
 
-  return (
-    <div className="cc-overlay" onClick={onClose}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -5435,7 +5442,8 @@ function CatModal({ cat, accounts, onClose, onSave }) {
           Guardar
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -5574,9 +5582,10 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
 function AccountModal({ acc, onClose, onSave }) {
   const [name, setName] = useState(acc.name || "");
   const [bal, setBal] = useState(acc.initialBalance != null ? String(acc.initialBalance) : "");
+  const dark = isDarkMode();
 
-  return (
-    <div className="cc-overlay" onClick={onClose}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onClose}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -5611,7 +5620,8 @@ function AccountModal({ acc, onClose, onSave }) {
           Guardar
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6417,6 +6427,8 @@ function ImportModal({ config, txs, onClose, onSave }) {
   const [drafts, setDrafts] = useState([]); // movimientos extraídos editables
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const addFiles = (list) => {
     const imgs = Array.from(list || []).filter((f) => f.type.startsWith("image/"));
@@ -6553,13 +6565,13 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 
   /* ---------- pantalla: subir ---------- */
   if (phase === "upload") {
-    return (
-      <div className="cc-overlay" onClick={onClose}>
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <div className="cc-sheet-top">
             <h2>Importar screenshot</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
+            <button className="cc-sheet-close" onClick={close}>×</button>
           </div>
           <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
             Sube screenshots de tu app bancaria o estado de cuenta. La IA extrae los movimientos y tú los revisas.
@@ -6613,14 +6625,15 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
             ✨ Extraer movimientos
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   /* ---------- pantalla: procesando ---------- */
   if (phase === "processing") {
-    return (
-      <div className="cc-overlay">
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""}`}>
         <div className="cc-sheet" style={{ padding: "40px 18px" }}>
           <div className="cc-grip" />
           <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -6634,7 +6647,8 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
             <div className="cc-dots"><span /><span /><span /></div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
@@ -7055,6 +7069,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
 /* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
 function StatsConfigModal({ sections, onClose, onSave }) {
   const [items, setItems] = useState(sections.map((s) => ({ ...s })));
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const move = (i, dir) => {
     const j = i + dir;
@@ -7067,13 +7083,13 @@ function StatsConfigModal({ sections, onClose, onSave }) {
     setItems(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
   };
 
-  return (
-    <div className="cc-overlay" onClick={onClose}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>{t("customizeStatsTitle")}</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
           Reordena con las flechas y muestra u oculta cada sección.
@@ -7091,7 +7107,7 @@ function StatsConfigModal({ sections, onClose, onSave }) {
               <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.label}</span>
               <button onClick={() => toggle(i)}
                 style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
-                  background: s.on ? "var(--green)" : "var(--surface-2)", transition: "background .15s" }}>
+                  background: s.on ? "#5B6EE8" : "var(--surface-2)", transition: "background .15s" }}>
                 <span style={{ position: "absolute", top: 3, left: s.on ? 22 : 3, width: 21, height: 21, borderRadius: "50%",
                   background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
               </button>
@@ -7099,10 +7115,13 @@ function StatsConfigModal({ sections, onClose, onSave }) {
           ))}
         </div>
 
-        <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 14 }}
+        <button style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
+          fontFamily: "inherit", borderRadius: 14, border: "none",
+          background: "#5B6EE8", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
           onClick={() => onSave(items)}>Guardar</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -7647,6 +7666,8 @@ function ExcelImportModal({ config, txs, onClose, onSave }) {
   const [drafts, setDrafts] = useState([]);
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   async function handleFile(f) {
     if (!f) return;
@@ -7801,13 +7822,13 @@ REGLAS:
 
   /* ---------- upload ---------- */
   if (phase === "upload") {
-    return (
-      <div className="cc-overlay" onClick={onClose}>
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <div className="cc-sheet-top">
             <h2>Importar desde Excel</h2>
-            <button className="cc-sheet-close" onClick={onClose}>×</button>
+            <button className="cc-sheet-close" onClick={close}>×</button>
           </div>
           <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
             Sube un archivo de Excel (.xlsx, .xls) o CSV con tus movimientos. La IA detecta las columnas y los importa.
@@ -7850,14 +7871,15 @@ REGLAS:
             ✨ Detectar e importar
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   /* ---------- processing ---------- */
   if (phase === "processing") {
-    return (
-      <div className="cc-overlay">
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""}`}>
         <div className="cc-sheet" style={{ padding: "40px 18px" }}>
           <div className="cc-grip" />
           <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -7871,7 +7893,8 @@ REGLAS:
             <div className="cc-dots"><span /><span /><span /></div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
@@ -7923,6 +7946,8 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
   const okCount = drafts.filter((d) => d.selected && d.amount > 0).length;
   const dupCount = drafts.filter((d) => d.duplicate).length;
   const dupSelected = drafts.filter((d) => d.duplicate && d.selected).length;
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const markAllDupsOff = () => {
     drafts.forEach((d) => { if (d.duplicate && d.selected) updateDraft(d.tempId, { selected: false }); });
@@ -7931,13 +7956,13 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
     drafts.forEach((d) => { if (d.duplicate && !d.selected) updateDraft(d.tempId, { selected: true }); });
   };
 
-  return (
-    <div className="cc-overlay" onClick={onClose}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>Revisa los movimientos</h2>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
           {sourceLabel} <b>{drafts.length}</b>. Edita lo que esté mal o desmarca los que no quieras importar.
@@ -8023,7 +8048,8 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -8066,9 +8092,10 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
   const selectedTxs = Array.from(selected).map((id) => txs.find((t) => t.id === id)).filter(Boolean);
   const totalIn = selectedTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalOut = selectedTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const dark = isDarkMode();
 
-  return (
-    <div className="cc-overlay" onClick={onClose} style={{ zIndex: 70 }}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onClose} style={{ zIndex: 70 }}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -8170,7 +8197,8 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -8268,9 +8296,11 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
   // ordenar más recientes primero, agrupar por día
   const list = [...(detail.txs || [])].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
   const count = list.length;
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
-  return (
-    <div className="cc-overlay" onClick={onClose} style={{ zIndex: 60 }}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
@@ -8281,7 +8311,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
               {rangeLabel(dateRange)} · {count} movimiento{count === 1 ? "" : "s"}
             </div>
           </div>
-          <button className="cc-sheet-close" onClick={onClose}>×</button>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
         {/* total */}
@@ -8323,6 +8353,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
