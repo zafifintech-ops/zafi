@@ -3843,6 +3843,7 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
   const initial = userName.charAt(0).toUpperCase();
   const fileRef = useRef(null);
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const pickPreset = (id) => {
     const { avatarData, ...rest } = config;
@@ -3868,8 +3869,8 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
     onClose();
   };
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -3936,7 +3937,8 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -3945,6 +3947,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const user = auth.currentUser;
   const email = user?.email || "";
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
   const [section, setSection] = useState("menu"); // menu | personal | lang | currency | theme | legal | data
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
@@ -4059,8 +4062,8 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
     </div>
   );
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
 
@@ -4135,12 +4138,14 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                 <label className="cc-label">{t("email")}</label>
                 <input className="cc-input" value={email} disabled style={{ opacity: 0.6 }} />
               </div>
-              <button className="cc-btn" onClick={saved ? undefined : savePersonal} disabled={saved}
-                style={{ width: "100%", padding: 14,
-                  background: saved ? "var(--green)" : "var(--green)",
-                  color: "#fff", borderColor: "var(--green)",
-                  opacity: saved ? 0.6 : 1, transition: "opacity .2s" }}>
-                {saved ? "Listo ✓" : t("saveChanges")}
+              <button onClick={saved ? undefined : savePersonal} disabled={saved}
+                style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
+                  fontFamily: "inherit", borderRadius: 14, border: "none",
+                  background: "#5B6EE8", color: "#fff",
+                  cursor: saved ? "default" : "pointer",
+                  opacity: saved ? 0.5 : 1, transition: "opacity .2s",
+                  letterSpacing: "-.01em" }}>
+                {saved ? "Listo" : t("saveChanges")}
               </button>
             </div>
           </>
@@ -4278,7 +4283,8 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
         )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -4308,6 +4314,7 @@ function ProfileNameModal({ current, onClose, onSave }) {
 function DateRangeModal({ dateRange, onClose, onSave }) {
   const r = dateRange || DEFAULT_RANGE;
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
   const [preset, setPreset] = useState(r.preset);
   const [anchor, setAnchor] = useState(r.anchor || today());
   const [from, setFrom] = useState(r.from || "");
@@ -4379,8 +4386,8 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
     </button>
   );
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -4456,10 +4463,11 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
             fontFamily: "inherit", borderRadius: 14, border: "none",
             background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
             opacity: saved ? 0.5 : 1, transition: "opacity .2s" }}>
-          {saved ? "Listo ✓" : (_lang === "es" ? "Aplicar" : "Apply")}
+          {saved ? "Listo" : (_lang === "es" ? "Aplicar" : "Apply")}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -4796,7 +4804,8 @@ function HomeConfigModal({ sections, onClose, onSave }) {
           <h2>Personalizar inicio</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45 }}>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45,
+          fontFamily: "'Montserrat', sans-serif" }}>
           Activa o desactiva secciones, y arrastra para reordenarlas.
         </p>
 
@@ -4818,7 +4827,8 @@ function HomeConfigModal({ sections, onClose, onSave }) {
               </span>
               <span style={{ flex: 1, fontWeight: 500, fontSize: 14.5,
                 color: s.on ? "var(--ink)" : "var(--ink-faint)",
-                letterSpacing: "-.01em" }}>{s.label}</span>
+                letterSpacing: "-.01em",
+                fontFamily: "'Montserrat', sans-serif" }}>{s.label}</span>
               <button className="cc-row-arrow" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="18 15 12 9 6 15"/>
@@ -4851,7 +4861,7 @@ function HomeConfigModal({ sections, onClose, onSave }) {
               background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
               opacity: saved ? 0.5 : 1, transition: "opacity .2s",
               letterSpacing: "-.01em" }}>
-            {saved ? "Listo ✓" : t("saveChanges")}
+            {saved ? "Listo" : t("saveChanges")}
           </button>
         </div>
       </div>
@@ -5431,6 +5441,7 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   const save = (acc) => {
     let accounts, categories = config.categories;
@@ -5467,8 +5478,8 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
     if (resetAll) await resetAll();
   };
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -5551,7 +5562,8 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
           />
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -5603,6 +5615,7 @@ function AccountModal({ acc, onClose, onSave }) {
 function AddModal({ config, tx, txs, onClose, onSave }) {
   const editing = !!tx;
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
   const [type, setType] = useState(tx ? tx.type : "expense");
   const [amount, setAmount] = useState(tx ? String(tx.amount) : "");
   const [desc, setDesc] = useState(tx ? tx.description : "");
@@ -5697,8 +5710,8 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
 
   /* pantalla: preguntar categoría */
   if (phase === "ask") {
-    return (
-      <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 6 }}>¿Qué categoría es?</h2>
@@ -5719,12 +5732,13 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
             ))}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -5838,7 +5852,8 @@ function AddModal({ config, tx, txs, onClose, onSave }) {
             : editing ? "Guardar cambios" : `Guardar ${type === "income" ? "ingreso" : "gasto"}`}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -5850,6 +5865,7 @@ let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
   // Detectar patrones para saludo proactivo
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
   const patterns = detectFrequentPatterns(txs, config);
   const nonRecurring = patterns.filter(p =>
     !(config.recurring || []).find(r =>
@@ -6017,8 +6033,8 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
     setBusy(false);
   }
 
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -6147,7 +6163,8 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6157,6 +6174,7 @@ function RecurringModal({ config, onClose, onSave }) {
   const [view, setView] = useState(rules.length ? "list" : "form"); // list | form
   const [editingId, setEditingId] = useState(null);
   const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
 
   // form state
   const [type, setType] = useState("expense");
@@ -6233,8 +6251,8 @@ function RecurringModal({ config, onClose, onSave }) {
 
   // ===== Vista LISTA =====
   if (view === "list") {
-    return (
-      <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+    return createPortal(
+      <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
         <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="cc-grip" />
           <div className="cc-sheet-top">
@@ -6285,13 +6303,14 @@ function RecurringModal({ config, onClose, onSave }) {
           <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 13 }}
             onClick={startNew}>＋ Nuevo recurrente</button>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // ===== Vista FORM =====
-  return (
-    <div className={`cc-overlay ${closing ? "is-closing" : ""}`} onClick={close}>
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
@@ -6379,7 +6398,8 @@ function RecurringModal({ config, onClose, onSave }) {
           {detecting ? "Detectando categoría…" : (editingId ? "Guardar cambios" : "Crear recurrente")}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
