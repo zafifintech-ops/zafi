@@ -383,7 +383,8 @@ body{
   border-top:1px solid rgba(255,255,255,.6);
   box-shadow:0 -4px 24px rgba(0,0,0,.08);}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
-.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;}
+.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:99px;margin:8px auto 16px;cursor:grab;}
+.cc-sheet{transition:transform .25s ease;}
 .cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .cc-sheet-top h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;color:var(--ink);}
 .cc-sheet-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface);
@@ -2760,6 +2761,59 @@ export default function App() {
 
   // Splash de bienvenida — siempre primero al abrir la app
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
+
+  // Global: deslizar hacia abajo para cerrar cualquier modal (cc-sheet)
+  useEffect(() => {
+    let startY = 0, currentDy = 0, sheet = null, dragging = false;
+    const onStart = (e) => {
+      const grip = e.target.closest(".cc-grip");
+      if (!grip) return;
+      sheet = grip.closest(".cc-sheet");
+      if (!sheet) return;
+      startY = e.touches[0].clientY;
+      currentDy = 0;
+      dragging = true;
+      sheet.style.transition = "none";
+    };
+    const onMove = (e) => {
+      if (!dragging || !sheet) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy < 0) { currentDy = 0; return; }
+      currentDy = dy;
+      sheet.style.transform = `translateY(${dy}px)`;
+      sheet.style.opacity = Math.max(0.3, 1 - dy / 400);
+    };
+    const onEnd = () => {
+      if (!dragging || !sheet) return;
+      dragging = false;
+      sheet.style.transition = "transform .25s ease, opacity .2s ease";
+      if (currentDy > 100) {
+        sheet.style.transform = "translateY(100vh)";
+        sheet.style.opacity = "0";
+        // click en el overlay para cerrar
+        setTimeout(() => {
+          const overlay = sheet.closest(".cc-overlay");
+          if (overlay) overlay.click();
+          // reset
+          sheet.style.transform = "";
+          sheet.style.opacity = "";
+          sheet.style.transition = "";
+        }, 220);
+      } else {
+        sheet.style.transform = "";
+        sheet.style.opacity = "";
+      }
+      sheet = null;
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", onEnd);
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, []);
 
   // Pantalla de carga mientras Firebase verifica sesión
   if (user === undefined) return (
