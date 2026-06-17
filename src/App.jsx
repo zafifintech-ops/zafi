@@ -2946,11 +2946,25 @@ export default function App() {
     };
   }, []);
 
+  // Detectar tema del sistema para modo "auto"
+  const [systemDark, setSystemDark] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const handler = (e) => setSystemDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const themeMode = config?.theme || "auto";
+  const isDarkTheme = themeMode === "dark" || (themeMode === "auto" && systemDark);
+  const bgVideoSrc = isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
+
   // Body background para tema oscuro/claro
   useEffect(() => {
-    const dark = config?.theme === "dark";
-    document.body.style.backgroundColor = dark ? "#0D0F14" : "#DCE1E8";
-  }, [config?.theme]);
+    document.body.style.backgroundColor = isDarkTheme ? "#0D0F14" : "#DCE1E8";
+  }, [isDarkTheme]);
 
   // Splash de bienvenida — siempre primero al abrir la app
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
@@ -2987,9 +3001,6 @@ export default function App() {
     setTxs([]);
     showToast("Listo, empezamos desde cero");
   };
-
-  const isDarkTheme = config?.theme === "dark";
-  const bgVideoSrc = isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
 
   if (!loaded)
     return (
@@ -3822,12 +3833,13 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const IconShield = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
   const IconTheme = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>;
 
-  const curTheme = config.theme || "light";
-  const toggleTheme = () => {
-    const newTheme = curTheme === "dark" ? "light" : "dark";
-    saveConfig({ ...config, theme: newTheme });
-    showToast(newTheme === "dark" ? "Tema oscuro activado" : "Tema claro activado");
+  const curTheme = config.theme || "auto";
+  const setTheme = (t) => {
+    saveConfig({ ...config, theme: t });
+    const labels = { light: "☀️ Tema claro", dark: "🌙 Tema oscuro", auto: "🔄 Tema automático" };
+    showToast(labels[t]);
   };
+  const themeLabel = { light: "☀️ Claro", dark: "🌙 Oscuro", auto: "🔄 Auto" }[curTheme];
 
   const ROW = (Icon, label, value, onClick) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%",
@@ -3900,7 +3912,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("langcurrency"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("langcurrency"))}
               {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
-              {ROW(IconTheme, "Tema", curTheme === "dark" ? "🌙 Oscuro" : "☀️ Claro", toggleTheme)}
+              {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
               {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
             </div>
@@ -3958,6 +3970,16 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               <label className="cc-label" style={{ marginBottom: 10 }}>{t("currency")}</label>
               {CHIP_ROW([["MXN", "🇲🇽 MXN"], ["USD", "🇺🇸 USD"], ["EUR", "🇪🇺 EUR"]], currency, saveCurrency)}
             </div>
+          </>
+        )}
+
+        {section === "theme" && (
+          <>
+            {BACK("Tema")}
+            <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
+              Elige cómo se ve la app. "Automático" sigue la configuración de tu dispositivo.
+            </div>
+            {CHIP_ROW([["light", "☀️ Claro"], ["dark", "🌙 Oscuro"], ["auto", "🔄 Auto"]], curTheme, setTheme)}
           </>
         )}
 
