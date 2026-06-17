@@ -41,6 +41,9 @@ body{
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
 .cc-dark .cc-video-bg::after{background:rgba(0,0,0,.35);}
+.cc-solid-bg{position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(165deg, #E8ECF4 0%, #D8DDE8 40%, #CDD3E0 100%);}
+.cc-dark .cc-solid-bg{background:linear-gradient(165deg, #13161D 0%, #0D0F14 40%, #0A0C10 100%);}
 .cc-video-bg video{width:100%;height:180%;object-fit:cover;
   filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
   will-change:transform;}
@@ -3035,6 +3038,8 @@ export default function App() {
   const themeMode = config?.theme || "auto";
   const isDarkTheme = themeMode === "dark" || (themeMode === "auto" && systemDark);
   const bgVideoSrc = isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
+  const bgMode = config?.bgMode || "dynamic";
+  const showVideo = bgMode === "dynamic";
 
   // Body background para tema oscuro/claro
   useEffect(() => {
@@ -3083,9 +3088,10 @@ export default function App() {
     return (
       <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <style>{STYLE}</style>
-        <div className="cc-video-bg">
+        {showVideo && <div className="cc-video-bg">
           <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" key={bgVideoSrc} />
-        </div>
+        </div>}
+        {!showVideo && <div className="cc-solid-bg" />}
         <div className="cc-dots"><span /><span /><span /></div>
       </div>
     );
@@ -3097,9 +3103,10 @@ export default function App() {
   return (
     <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}>
       <style>{STYLE}</style>
-      <div className="cc-video-bg">
+      {showVideo && <div className="cc-video-bg">
         <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" key={bgVideoSrc} />
-      </div>
+      </div>}
+      {!showVideo && <div className="cc-solid-bg" />}
       <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
         <Onboarding onDone={(built) => saveConfig({ ...config, ...built })} />
@@ -3922,7 +3929,12 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
     const labels = { light: "Tema claro", dark: "Tema oscuro", auto: "Tema automático" };
     showToast(labels[t]);
   };
-  const themeLabel = { light: "Claro", dark: "Oscuro", auto: "Auto" }[curTheme];
+  const curBgMode = config.bgMode || "dynamic";
+  const setBgMode = (m) => {
+    saveConfig({ ...config, bgMode: m });
+    showToast(m === "dynamic" ? "Fondo dinámico" : "Fondo sólido");
+  };
+  const themeLabel = { light: "Claro", dark: "Oscuro", auto: "Auto" }[curTheme] + (curBgMode === "solid" ? " · Sólido" : "");
 
   const ROW = (Icon, label, value, onClick) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%",
@@ -4075,10 +4087,17 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
           <>
             {BACK("Tema")}
             <div style={{ minHeight: 200 }}>
-              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
-                Elige cómo se ve la app. "Automático" sigue la configuración de tu dispositivo.
+              <div className="cc-label" style={{ marginBottom: 8 }}>Apariencia</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.5 }}>
+                "Auto" sigue la configuración de tu dispositivo.
               </div>
               {CHIP_ROW([["light", "Claro"], ["dark", "Oscuro"], ["auto", "Auto"]], curTheme, setTheme)}
+
+              <div className="cc-label" style={{ marginTop: 24, marginBottom: 8 }}>Fondo</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.5 }}>
+                Dinámico usa un video animado. Sólido usa un fondo estático.
+              </div>
+              {CHIP_ROW([["dynamic", "Dinámico"], ["solid", "Sólido"]], curBgMode, setBgMode)}
             </div>
           </>
         )}
