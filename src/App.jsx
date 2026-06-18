@@ -781,6 +781,126 @@ const today = () => {
   return `${y}-${m}-${day}`;
 };
 
+/* =========== Helpers para sugerencias bien escritas ====================== */
+/* Detecta acrónimos (palabras 2-5 letras que aparecen all-caps en alguna entrada).
+   Si el texto entero es uppercase, solo cuenta si la entrada es UNA sola palabra
+   (para no confundir "TACOS CON FAMILIA" con tres acrónimos). */
+function detectAcronyms(rawTexts) {
+  const acronyms = new Set();
+  (rawTexts || []).forEach((t) => {
+    if (!t) return;
+    const text = String(t).trim();
+    if (!text) return;
+    const isEntirelyUpper = text === text.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(text);
+    text.split(/[\s\-_/]+/).forEach((w) => {
+      const stripped = w.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ]/g, "");
+      if (stripped.length < 2 || stripped.length > 5) return;
+      if (stripped !== stripped.toUpperCase() || stripped === stripped.toLowerCase()) return;
+      if (isEntirelyUpper) {
+        // Solo es acrónimo si es la única palabra (ej. "CFE", no "TACOS CON FAMILIA")
+        if (text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ]/g, "") === stripped) {
+          acronyms.add(stripped.toLowerCase());
+        }
+      } else {
+        acronyms.add(stripped.toLowerCase());
+      }
+    });
+  });
+  return acronyms;
+}
+
+/* ¿La cadena luce bien escrita? (capitalización mixta razonable) */
+function isWellWritten(text, kind) {
+  if (!text) return false;
+  const t = text.trim();
+  if (!t) return false;
+  if (kind === "tag") return t === t.toLowerCase() && /^[a-záéíóúñ0-9_]+$/i.test(t);
+  if (t === t.toUpperCase() && /[a-z]/i.test(t)) return false; // todo mayúsculas
+  if (t === t.toLowerCase() && /[a-z]/i.test(t)) {
+    // Para concepto está bien todo lowercase si tiene la primera mayúscula? No la tiene.
+    // Permitimos lowercase únicamente si es una sola palabra (probable tag-like)
+    return false;
+  }
+  const first = t[0];
+  return first && first === first.toUpperCase() && first !== first.toLowerCase();
+}
+
+/* Convierte una palabra a su forma propia respetando acrónimos */
+function fmtWord(w, acronyms, mode) {
+  if (!w) return w;
+  const stripped = w.toLowerCase().replace(/[^a-záéíóúñ]/g, "");
+  if (acronyms.has(stripped)) {
+    // Reemplazar la parte alfabética por mayúsculas
+    return w.replace(/[a-záéíóúñ]+/i, (m) => m.toUpperCase());
+  }
+  if (mode === "lower") return w.toLowerCase();
+  // Capitalizar primera letra
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+}
+
+/* Limpia una cadena según el tipo (concept/payee/tag) */
+function cleanString(text, kind, acronyms) {
+  if (!text) return "";
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  if (kind === "tag") {
+    return trimmed.toLowerCase().replace(/^#+/, "").replace(/[^a-záéíóúñ0-9_]/g, "");
+  }
+  if (kind === "payee") {
+    // Title Case: cada palabra capitalizada, acrónimos en mayúsculas
+    return trimmed.split(" ").map((w) => fmtWord(w, acronyms, "cap")).join(" ");
+  }
+  // concept: Sentence case — primera mayúscula, resto en minúsculas (excepto acrónimos)
+  const words = trimmed.split(" ").map((w, i) => {
+    const stripped = w.toLowerCase().replace(/[^a-záéíóúñ]/g, "");
+    if (acronyms.has(stripped)) {
+      return w.replace(/[a-záéíóúñ]+/i, (m) => m.toUpperCase());
+    }
+    return w.toLowerCase();
+  });
+  if (words.length) {
+    words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+  }
+  return words.join(" ");
+}
+
+/* Construye lista de sugerencias agrupando por forma normalizada y eligiendo
+   la mejor versión de cada grupo (o limpiando si no hay buena). */
+function buildSuggestions(rawTexts, kind) {
+  if (!rawTexts || !rawTexts.length) return [];
+  // Detectar acrónimos en TODO el dataset
+  const acronyms = detectAcronyms(rawTexts);
+  // Agrupar por clave normalizada
+  const groups = new Map();
+  rawTexts.forEach((t) => {
+    if (!t) return;
+    const s = String(t).trim();
+    if (!s) return;
+    const key = s.toLowerCase().replace(/\s+/g, " ").replace(/^#+/, "");
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  });
+  // Para cada grupo: si hay una variante bien escrita, usar la más común;
+  // si no, limpiar la variante más común
+  const out = [];
+  for (const [, variants] of groups) {
+    const counts = new Map();
+    variants.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
+    const wellWritten = variants.filter((v) => isWellWritten(v, kind));
+    let chosen;
+    if (wellWritten.length) {
+      const wcounts = new Map();
+      wellWritten.forEach((v) => wcounts.set(v, (wcounts.get(v) || 0) + 1));
+      chosen = [...wcounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    } else {
+      const mostFreq = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      chosen = cleanString(mostFreq, kind, acronyms);
+    }
+    if (chosen) out.push({ text: chosen, count: variants.length });
+  }
+  return out.sort((a, b) => b.count - a.count).map((r) => r.text);
+}
+
 /* ===== Sistema de idiomas (i18n) ===== */
 let _lang = (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) ? "es" : "en";
 const setAppLang = (l) => { _lang = l; };
@@ -6065,59 +6185,48 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
 
   // Tags sugeridos: los más frecuentes en otras txs, que no estén ya en `tags`
   const suggestedTagsList = (() => {
-    const counts = new Map();
-    (txs || []).forEach((t) => (t.tags || []).forEach((tg) => {
-      counts.set(tg, (counts.get(tg) || 0) + 1);
-    }));
-    return [...counts.entries()]
-      .filter(([tg]) => !tags.includes(tg))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([tg]) => tg);
+    const raws = [];
+    (txs || []).forEach((t) => (t.tags || []).forEach((tg) => raws.push(tg)));
+    return buildSuggestions(raws, "tag")
+      .filter((tg) => !tags.includes(tg))
+      .slice(0, 8);
   })();
 
-  // Payees sugeridos: los de los últimos 6 meses (únicos, ordenados por frecuencia)
+  // Payees sugeridos: bien escritos, agrupados y ordenados por frecuencia (últimos 6 meses)
   const payeeSuggestionsList = (() => {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const cutoff = sixMonthsAgo.toISOString().slice(0, 10);
-    const counts = new Map();
+    const raws = [];
     (txs || []).forEach((t) => {
       if (t.date < cutoff) return;
       if (!t.payee || !t.payee.trim()) return;
-      // separar por tipo: solo sugiero payees del mismo tipo (a quien le pago vs de quien recibo)
       if (t.type !== type) return;
-      const p = t.payee.trim();
-      counts.set(p, (counts.get(p) || 0) + 1);
+      raws.push(t.payee);
     });
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([p]) => p);
+    return buildSuggestions(raws, "payee");
   })();
 
-  // Conceptos sugeridos: descripciones únicas de los últimos 6 meses del mismo tipo
+  // Conceptos sugeridos: bien escritos, agrupados (últimos 6 meses, mismo tipo)
   const descSuggestionsList = (() => {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const cutoff = sixMonthsAgo.toISOString().slice(0, 10);
-    const counts = new Map();
+    const raws = [];
     (txs || []).forEach((t) => {
       if (t.date < cutoff) return;
       if (!t.description || !t.description.trim()) return;
       if (t.type !== type) return;
-      const d = t.description.trim();
-      counts.set(d, (counts.get(d) || 0) + 1);
+      raws.push(t.description);
     });
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([d]) => d);
+    return buildSuggestions(raws, "concept");
   })();
 
   // Hashtags sugeridos para el input (todos los del historial, sin los ya agregados)
   const allHistoricalTags = (() => {
-    const set = new Set();
-    (txs || []).forEach((t) => (t.tags || []).forEach((tg) => set.add(tg)));
-    return [...set].filter((tg) => !tags.includes(tg));
+    const raws = [];
+    (txs || []).forEach((t) => (t.tags || []).forEach((tg) => raws.push(tg)));
+    return buildSuggestions(raws, "tag").filter((tg) => !tags.includes(tg));
   })();
 
   const addTag = (raw) => {
