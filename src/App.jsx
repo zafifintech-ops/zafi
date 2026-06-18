@@ -545,8 +545,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccChartScaleIn{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}
 @keyframes ccChartGrowY{from{transform:scaleY(0);}to{transform:scaleY(1);}}
 @keyframes ccChartGrowX{from{transform:scaleX(0);}to{transform:scaleX(1);}}
-/* Form row: siempre side-by-side (con cc-combobox no hay corte de texto) */
-.cc-form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* Form row: Fecha más angosta, Categoría más ancha (necesita más espacio) */
+.cc-form-row{display:grid;grid-template-columns:0.85fr 1.15fr;gap:10px;}
 /* Chips de tags */
 .cc-tag-chip{display:inline-flex;align-items:center;gap:4px;
   padding:5px 10px;border-radius:99px;font-size:12px;font-weight:500;
@@ -569,8 +569,13 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-combobox-btn .chevron{font-size:11px;color:var(--ink-faint);flex-shrink:0;}
 .cc-combobox-popup{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;
   border:1px solid var(--line);border-radius:12px;
-  background:var(--paper);overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.18);}
-.cc-dark .cc-combobox-popup{background:rgba(28,30,40,.96);backdrop-filter:blur(20px);}
+  background:#fff;overflow:hidden;
+  box-shadow:0 10px 32px rgba(20,25,40,.14),0 2px 8px rgba(20,25,40,.06);}
+.cc-dark .cc-combobox-popup{background:rgba(34,36,46,.88);
+  backdrop-filter:blur(28px) saturate(160%);
+  -webkit-backdrop-filter:blur(28px) saturate(160%);
+  border-color:rgba(255,255,255,.08);
+  box-shadow:0 12px 36px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);}
 .cc-combobox-search{width:100%;padding:11px 14px;border:none;border-bottom:1px solid var(--line);
   background:transparent;color:var(--ink);font-family:inherit;font-size:13.5px;outline:none;}
 .cc-combobox-list{max-height:240px;overflow-y:auto;padding:4px 0;}
@@ -709,7 +714,14 @@ const SEED_KW = {
 
 /* ------------------------------ utilidades ------------------------------- */
 const uid = () => Math.random().toString(36).slice(2, 10);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  // Usar fecha local (no UTC) para que en zonas horarias negativas no muestre el día siguiente
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 /* ===== Sistema de idiomas (i18n) ===== */
 let _lang = (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) ? "es" : "en";
@@ -5825,7 +5837,7 @@ function CategoryCombobox({ value, categories, onChange, disabled }) {
 
   // valor visible en el input: query si está abierto, selección si está cerrado
   const inputValue = open ? query : selectedDisplay;
-  const placeholder = selected ? "" : "✨ Detectar automáticamente";
+  const placeholder = selected ? "" : "✨ Automático";
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
