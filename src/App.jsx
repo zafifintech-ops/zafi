@@ -426,6 +426,16 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   width:38px;height:38px;border-radius:10px;
   background:rgba(91,110,232,.1);color:#5B6EE8;}
 .cc-dark .cc-photo-btn-icon{background:rgba(91,110,232,.18);color:#8B9CFF;}
+/* Botón "Personalizar" pequeño para headers de cards */
+.cc-personalize-btn{display:inline-flex;align-items:center;gap:6px;
+  padding:6px 11px;border-radius:9px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink-soft);cursor:pointer;
+  font-family:'Montserrat',sans-serif;font-size:11.5px;font-weight:600;
+  letter-spacing:-.005em;transition:.15s;flex-shrink:0;}
+.cc-personalize-btn:hover{background:rgba(91,110,232,.08);
+  border-color:rgba(91,110,232,.3);color:#5B6EE8;}
+.cc-personalize-btn:hover svg{color:#5B6EE8;}
+.cc-personalize-btn svg{color:var(--ink-faint);}
 .cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
@@ -7414,6 +7424,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
   const [view, setView] = useState("all"); // all | accountId
   const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
   const [configOpen, setConfigOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState(null); // null | "expCats" | "catTrend"
 
   // secciones configurables (orden + visibilidad)
   const STATS_DEFAULT = [
@@ -7627,19 +7638,64 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
               </div>
             );
 
-            if (s.id === "expCats" && expRows.length > 0) return (
-              <div key={s.id}>
-                <div className="cc-card" style={{ padding: 18 }}>
-                  <div className="cc-label" style={{ marginBottom: 12 }}>Gastos por categoría</div>
-                  <CategoryChart rows={expRows} type="expense" onPick={openCategoryDetail} />
+            if (s.id === "expCats" && expRows.length > 0) {
+              // Filtros guardados por el usuario
+              const expCatsHidden = config.statsExpCatsHidden || [];
+              const filteredExpRows = expRows.filter((r) => !expCatsHidden.includes(r.cat.id));
+              const catTrendShown = config.statsCatTrendShown; // si undefined, default top 5
+              return (
+                <div key={s.id}>
+                  <div className="cc-card" style={{ padding: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                      marginBottom: 12, gap: 8 }}>
+                      <div className="cc-label" style={{ marginBottom: 0 }}>Gastos por categoría</div>
+                      <button onClick={() => setCatFilter("expCats")} className="cc-personalize-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14" />
+                          <line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" />
+                          <line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" />
+                          <line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="17" y1="16" x2="23" y2="16" />
+                        </svg>
+                        Personalizar
+                      </button>
+                    </div>
+                    {filteredExpRows.length > 0
+                      ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail} />
+                      : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
+                  </div>
+                  {/* Gráfica de líneas por categoría */}
+                  <div className="cc-card" style={{ padding: 18, marginTop: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                      marginBottom: 10, gap: 8 }}>
+                      <div className="cc-label" style={{ marginBottom: 0 }}>Tendencia por categoría</div>
+                      <button onClick={() => setCatFilter("catTrend")} className="cc-personalize-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14" />
+                          <line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" />
+                          <line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" />
+                          <line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="17" y1="16" x2="23" y2="16" />
+                        </svg>
+                        Personalizar
+                      </button>
+                    </div>
+                    <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config}
+                      selectedCatIds={catTrendShown} />
+                  </div>
                 </div>
-                {/* Gráfica de líneas por categoría */}
-                <div className="cc-card" style={{ padding: 18, marginTop: 10 }}>
-                  <div className="cc-label" style={{ marginBottom: 10 }}>Tendencia por categoría</div>
-                  <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config} />
-                </div>
-              </div>
-            );
+              );
+            }
 
             if (s.id === "areaFlow" && incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0)) return (
               <div key={s.id} className="cc-card" style={{ padding: 18 }}>
@@ -7686,6 +7742,20 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
           sections={statsSections}
           onClose={() => setConfigOpen(false)}
           onSave={(next) => { saveStatsSections(next); setConfigOpen(false); }}
+        />
+      )}
+
+      {catFilter && (
+        <CategoryFilterModal
+          mode={catFilter}
+          config={config}
+          expRows={expRows}
+          onClose={() => setCatFilter(null)}
+          onSave={(next) => {
+            if (catFilter === "expCats") saveConfig({ ...config, statsExpCatsHidden: next });
+            else saveConfig({ ...config, statsCatTrendShown: next });
+            setCatFilter(null);
+          }}
         />
       )}
 
@@ -7757,6 +7827,127 @@ function StatsConfigModal({ sections, onClose, onSave }) {
   );
 }
 
+/* ===== Modal: filtro de categorías para gráficas (expCats y catTrend) ===== */
+function CategoryFilterModal({ mode, config, expRows, onClose, onSave }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+
+  // Lista completa de categorías de gasto (ordenadas por gasto del periodo si hay datos)
+  const allExpCats = config.categories.filter((c) => c.type === "expense");
+  const orderedCats = (() => {
+    const amtById = Object.fromEntries(expRows.map((r) => [r.cat.id, r.amt]));
+    return [...allExpCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
+  })();
+
+  // Estado inicial: qué categorías están seleccionadas
+  const initialSelected = (() => {
+    if (mode === "expCats") {
+      // En este modal, "seleccionada" = visible. Default: todas visibles.
+      const hidden = config.statsExpCatsHidden || [];
+      return new Set(allExpCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
+    } else {
+      // catTrend: por default top 5 por gasto
+      if (config.statsCatTrendShown) return new Set(config.statsCatTrendShown);
+      const top5 = expRows.slice(0, 5).map((r) => r.cat.id);
+      return new Set(top5);
+    }
+  })();
+  const [selected, setSelected] = useState(initialSelected);
+
+  const toggle = (id) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  };
+  const selectAll = () => setSelected(new Set(allExpCats.map((c) => c.id)));
+  const clearAll = () => setSelected(new Set());
+
+  const save = () => {
+    if (mode === "expCats") {
+      // Guardamos las ocultas (categorías - seleccionadas)
+      const hidden = allExpCats.filter((c) => !selected.has(c.id)).map((c) => c.id);
+      onSave(hidden);
+    } else {
+      // Guardamos las mostradas explícitamente, en el orden de la lista visible
+      const shown = orderedCats.filter((c) => selected.has(c.id)).map((c) => c.id);
+      onSave(shown);
+    }
+  };
+
+  const title = mode === "expCats" ? "Categorías visibles" : "Tendencias visibles";
+  const desc = mode === "expCats"
+    ? "Selecciona las categorías que quieres ver en la gráfica de gastos."
+    : "Selecciona las categorías que aparecen como líneas en la tendencia.";
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>{title}</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 12,
+          fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>{desc}</p>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button onClick={selectAll} className="cc-personalize-btn">Marcar todas</button>
+          <button onClick={clearAll} className="cc-personalize-btn">Limpiar</button>
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 12, color: "var(--ink-faint)", alignSelf: "center",
+            fontFamily: "'Montserrat', sans-serif" }}>
+            {selected.size} de {allExpCats.length}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "55vh", overflowY: "auto",
+          paddingRight: 2, marginBottom: 14 }}>
+          {orderedCats.map((c) => {
+            const isOn = selected.has(c.id);
+            const amt = expRows.find((r) => r.cat.id === c.id)?.amt;
+            return (
+              <button key={c.id} onClick={() => toggle(c.id)}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                  border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                  borderRadius: 12,
+                  background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                  cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                  transition: "all .15s" }}>
+                <span className="cc-emoji" style={{ fontSize: 20 }}>{c.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
+                    fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+                  {amt != null && (
+                    <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2,
+                      fontFamily: "'Montserrat', sans-serif" }}>{fmt(amt)}</div>
+                  )}
+                </div>
+                <div style={{ width: 22, height: 22, borderRadius: 6,
+                  border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                  background: isOn ? "#5B6EE8" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {isOn && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                      strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <button style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
+          fontFamily: "inherit", borderRadius: 14, border: "none",
+          background: "#5B6EE8", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
+          onClick={save}>Guardar</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function KpiCard({ label, value, sub, color }) {
   return (
     <div className="cc-card cc-card-boxed" style={{ padding: 14, paddingTop: 14 }}>
@@ -7770,15 +7961,22 @@ function KpiCard({ label, value, sub, color }) {
 /* ----------------------- gráfica de línea (SVG) -------------------------- */
 /* CategoryTrendChart: gráfica de líneas multi-categoría */
 const CAT_LINE_COLORS = ["#F87171","#60A5FA","#34D399","#FBBF24","#A78BFA","#FB923C"];
-function CategoryTrendChart({ txs, dateRange, config }) {
+function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
   const [hover, setHover] = useState(null);
   const rangeTx = txsInRange(txs, dateRange).filter(t => t.type === "expense" && t.categoryId);
   if (rangeTx.length < 2) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Datos insuficientes.</div>;
 
-  // top 5 categorías por gasto total
+  // totales por categoría
   const totals = {};
   rangeTx.forEach(t => { totals[t.categoryId] = (totals[t.categoryId] || 0) + t.amount; });
-  const topCatIds = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+
+  // Si el usuario eligió categorías explícitas, usar esas (filtrando las que tienen datos);
+  // si no, default a top 5 por gasto total
+  const topCatIds = selectedCatIds && selectedCatIds.length
+    ? selectedCatIds.filter(id => totals[id] > 0)
+    : Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+
+  if (!topCatIds.length) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>No hay datos para las categorías elegidas.</div>;
 
   // compute daily cumulative per category
   const dates = [...new Set(rangeTx.map(t => t.date))].sort();
