@@ -5845,7 +5845,7 @@ function AccountModal({ acc, onClose, onSave }) {
 /* Input con sugerencias inline estilo Google: muestras un input normal y abajo
    aparece un popup con las sugerencias que coinciden con lo que escribiste.
    Permite escribir cualquier cosa nueva (no es selector cerrado). */
-function TypeaheadInput({ value, onChange, suggestions, placeholder, className = "cc-input", inputProps = {} }) {
+function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, className = "cc-input", inputProps = {} }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const containerRef = useRef(null);
@@ -5864,6 +5864,7 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, className =
   }, [open]);
 
   const filtered = (() => {
+    if (disabled) return [];
     const v = (value || "").trim().toLowerCase();
     const list = suggestions || [];
     if (!v) return list.slice(0, 8);
@@ -5890,19 +5891,18 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, className =
         value={value}
         placeholder={placeholder}
         autoComplete="off"
-        onFocus={() => { setFocused(true); setOpen(true); }}
+        onFocus={() => { setFocused(true); if (!disabled) setOpen(true); }}
         onBlur={() => setFocused(false)}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onChange={(e) => { onChange(e.target.value); if (!disabled) setOpen(true); }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
           if (e.key === "Enter" && filtered.length && (inputProps.onKeyDown == null)) {
-            // No prevenir default si el padre tiene su propio handler
             e.preventDefault(); pick(filtered[0]);
           }
         }}
         {...inputProps}
       />
-      {open && focused && filtered.length > 0 && (
+      {!disabled && open && focused && filtered.length > 0 && (
         <div className="cc-combobox-popup">
           <div className="cc-combobox-list">
             {filtered.map((s) => (
@@ -6044,7 +6044,9 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   const [showConfig, setShowConfig] = useState(false);
 
   // qué campos opcionales mostrar (configurable por el usuario)
-  const fields = config.addModalFields || { payee: true, tags: true };
+  const fields = config.addModalFields || { payee: true, tags: true, suggestions: true };
+  // Backfill: si el usuario ya tenía config guardada antes de existir `suggestions`, asumimos ON
+  if (fields.suggestions === undefined) fields.suggestions = true;
   const setFields = (next) => {
     if (saveConfig) saveConfig({ ...config, addModalFields: next });
   };
@@ -6253,6 +6255,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
             {[
               { id: "payee", label: "Pagué a / Recibí de", desc: "Beneficiario o quien te pagó (Walmart, Adolfo, etc.)" },
               { id: "tags", label: "Hashtags", desc: "Etiqueta tus transacciones (#vacaciones, #trabajo)" },
+              { id: "suggestions", label: "Sugerencias", desc: "Autocompletar concepto, pagué a y hashtags con lo que ya escribiste antes" },
             ].map((f) => (
               <div key={f.id} className="cc-sortable-v2"
                 style={{ padding: "14px 14px" }}>
@@ -6357,6 +6360,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
             value={desc}
             onChange={setDesc}
             suggestions={descSuggestionsList}
+            disabled={!fields.suggestions}
             placeholder="Ej. tacos con la familia, gasolina, pago de luz…" />
         </div>
 
@@ -6367,6 +6371,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
               value={payee}
               onChange={setPayee}
               suggestions={payeeSuggestionsList}
+              disabled={!fields.suggestions}
               placeholder={type === "income" ? "Ej. Cinthia, OchoaTransport, cliente…" : "Ej. Walmart, Adolfo, CFE…"} />
           </div>
         )}
@@ -6385,6 +6390,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
               value={tagInput}
               onChange={setTagInput}
               suggestions={allHistoricalTags}
+              disabled={!fields.suggestions}
               placeholder="Escribe un hashtag y Enter (ej. vacaciones)"
               inputProps={{
                 onKeyDown: (e) => {
@@ -6394,7 +6400,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
                   }
                 }
               }} />
-            {suggestedTagsList.length > 0 && (
+            {fields.suggestions && suggestedTagsList.length > 0 && (
               <div style={{ marginTop: 8 }}>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600,
                   letterSpacing: ".03em", marginBottom: 5 }}>SUGERIDOS</div>
