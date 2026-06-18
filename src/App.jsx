@@ -414,6 +414,18 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-add-option-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.35;
   font-family:'Montserrat',sans-serif;}
 .cc-add-option-chevron{color:var(--ink-faint);flex-shrink:0;}
+/* Botones "Elegir foto" / "Tomar foto" — sin emojis, con SVG */
+.cc-photo-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:14px 10px;border:1px solid var(--line);border-radius:14px;
+  background:var(--paper);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;
+  color:var(--ink);letter-spacing:-.01em;
+  transition:border-color .15s,background .15s,transform .12s;}
+.cc-photo-btn:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-photo-btn:active{transform:scale(.98);}
+.cc-photo-btn-icon{display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:10px;
+  background:rgba(91,110,232,.1);color:#5B6EE8;}
+.cc-dark .cc-photo-btn-icon{background:rgba(91,110,232,.18);color:#8B9CFF;}
 .cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
@@ -533,9 +545,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccChartScaleIn{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}
 @keyframes ccChartGrowY{from{transform:scaleY(0);}to{transform:scaleY(1);}}
 @keyframes ccChartGrowX{from{transform:scaleX(0);}to{transform:scaleX(1);}}
-/* Form row: side-by-side en desktop, stack en mobile */
-.cc-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-@media (max-width:520px){.cc-form-row{grid-template-columns:1fr;}}
+/* Form row: siempre side-by-side (con cc-combobox no hay corte de texto) */
+.cc-form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 /* Chips de tags */
 .cc-tag-chip{display:inline-flex;align-items:center;gap:4px;
   padding:5px 10px;border-radius:99px;font-size:12px;font-weight:500;
@@ -4020,9 +4031,13 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
               <button onClick={clear}
                 style={{ position: "absolute", top: -4, right: -4, width: 26, height: 26,
                   borderRadius: "50%", border: "none", background: "var(--surface)",
-                  boxShadow: "var(--shadow-sm)", cursor: "pointer", fontSize: 13,
+                  boxShadow: "var(--shadow-sm)", cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-soft)" }}>
-                🗑
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
               </button>
             )}
           </div>
@@ -4031,20 +4046,31 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
 
         {/* Upload photo buttons */}
         <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          <button className="cc-btn" onClick={() => fileRef.current?.click()}
-            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 22 }}>🖼</span>
-            {t("choosePhoto")}
+          <button className="cc-photo-btn" onClick={() => fileRef.current?.click()}>
+            <span className="cc-photo-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </span>
+            <span>{t("choosePhoto")}</span>
           </button>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
-          <button className="cc-btn" onClick={() => {
+          <button className="cc-photo-btn" onClick={() => {
             const inp = document.createElement("input");
             inp.type = "file"; inp.accept = "image/*"; inp.capture = "user";
             inp.onchange = handlePhoto; inp.click();
-          }}
-            style={{ flex: 1, padding: "12px 10px", fontSize: 13, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 22 }}>📷</span>
-            {t("takePhoto")}
+          }}>
+            <span className="cc-photo-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </span>
+            <span>{t("takePhoto")}</span>
           </button>
         </div>
 
@@ -4212,10 +4238,16 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                 <div className="cc-avatar" style={{ width: 72, height: 72, fontSize: 28, overflow: "hidden" }}>
                   {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
                 </div>
-                <div style={{ position: "absolute", bottom: -2, right: -2, width: 24, height: 24, borderRadius: "50%",
-                  background: "var(--ink)", color: "#fff", fontSize: 12,
+                <div style={{ position: "absolute", bottom: -2, right: -2, width: 26, height: 26, borderRadius: "50%",
+                  background: "#5B6EE8", color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "var(--shadow-sm)" }}>✎</div>
+                  boxShadow: "0 2px 8px rgba(91,110,232,.4)", border: "2px solid var(--paper)" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                  </svg>
+                </div>
               </button>
               <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName || t("user")}</div>
               <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{email}</div>
@@ -6149,14 +6181,14 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom: 10 }}>
           <label className="cc-label">Concepto</label>
           <input className="cc-input" placeholder="Ej. tacos con la familia, gasolina, pago de luz…"
             value={desc} onChange={(e) => setDesc(e.target.value)} />
         </div>
 
         {fields.payee && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 10 }}>
             <label className="cc-label">{type === "income" ? "Recibí de" : "Pagué a"}</label>
             <input className="cc-input"
               list="cc-payee-suggestions"
@@ -6170,7 +6202,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
         )}
 
         {fields.tags && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 10 }}>
             <label className="cc-label">Hashtags</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: tags.length ? 8 : 0 }}>
               {tags.map((t) => (
@@ -6218,7 +6250,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
         )}
 
         {config.accounts.length > 1 && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 10 }}>
             <label className="cc-label">Cuenta</label>
             <select className="cc-select" value={accountId}
               onChange={(e) => { setAccountId(e.target.value); setCatId("auto"); }}
@@ -6229,7 +6261,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
           </div>
         )}
 
-        <div className="cc-form-row" style={{ marginBottom: 14 }}>
+        <div className="cc-form-row" style={{ marginBottom: 10 }}>
           <div>
             <label className="cc-label">Fecha</label>
             <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -6244,19 +6276,16 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ marginBottom: 20 }}>
-          {!accountId ? (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              Elige primero una cuenta para ver sus categorías.
-            </div>
-          ) : catId === "auto" && (
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              La app intentará detectar la categoría con el concepto. Si no está segura, te pregunta.
-            </div>
-          )}
-        </div>
+        {(!accountId || catId === "auto") && (
+          <div style={{ marginBottom: 14, fontSize: 11.5, color: "var(--ink-soft)",
+            fontFamily: "'Montserrat', sans-serif", lineHeight: 1.4 }}>
+            {!accountId
+              ? "Elige primero una cuenta para ver sus categorías."
+              : "La app intentará detectar la categoría con el concepto. Si no está segura, te pregunta."}
+          </div>
+        )}
 
-        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 14, fontSize: 15 }}
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13, fontSize: 14.5, marginTop: 4 }}
           disabled={phase === "detecting" || !amount || parseFloat(amount) <= 0 || !accountId}
           onClick={handleSave}>
           {phase === "detecting"
