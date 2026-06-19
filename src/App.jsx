@@ -1340,6 +1340,9 @@ function grandTotal(config, txs) {
    la diferencia se cuenta como ingreso/gasto real (la "propina" o "lo que pusiste").
    Soporta cualquier combinación: 1-1, 1-n, n-1, n-m. */
 function statTxs(txs) {
+  // Filtrar transferencias entre cuentas: no son ingresos ni gastos reales,
+  // solo movimiento interno de dinero. NO afectan KPIs ni gráficas de categorías.
+  txs = txs.filter((t) => !t.isTransfer);
   const real = [];
   const synthetic = [];
   const used = new Set();
@@ -3658,6 +3661,46 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
+  const [accView, setAccView] = useState("all");
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  // Guarda una transferencia entre cuentas como dos txs vinculadas
+  const saveTransfer = ({ fromAccountId, toAccountId, amount, date, note }) => {
+    const fromAcc = config.accounts.find((a) => a.id === fromAccountId);
+    const toAcc = config.accounts.find((a) => a.id === toAccountId);
+    if (!fromAcc || !toAcc || fromAccountId === toAccountId) return;
+    const transferPairId = uid();
+    const amt = Math.abs(parseFloat(amount));
+    const baseNote = note && note.trim() ? ` · ${note.trim()}` : "";
+    const txOut = {
+      id: uid(),
+      type: "expense",
+      amount: amt,
+      accountId: fromAccountId,
+      date: date || today(),
+      description: `Transferencia a ${toAcc.name}${baseNote}`,
+      categoryId: "",
+      isTransfer: true,
+      transferPairId,
+      transferToAccountId: toAccountId,
+    };
+    const txIn = {
+      id: uid(),
+      type: "income",
+      amount: amt,
+      accountId: toAccountId,
+      date: date || today(),
+      description: `Transferencia de ${fromAcc.name}${baseNote}`,
+      categoryId: "",
+      isTransfer: true,
+      transferPairId,
+      transferFromAccountId: fromAccountId,
+    };
+    saveTxs([txOut, txIn, ...txs]);
+    setTransferOpen(false);
+    showToast(`Transferencia de ${fromAcc.name} a ${toAcc.name}`);
+  };
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
   const setDateRange = (newRange) => {
@@ -3747,10 +3790,10 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} onConfiguringChange={setCustomizeHomeOpen} />}
-          {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} />}
-          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} />}
-          {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
+          {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
+          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} />}
+          {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} accView={accView} setAccView={setAccView} />}
         </div>
       </div>
 
@@ -3768,9 +3811,18 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         onPickScreenshot={() => { setAddMenuOpen(false); setImportOpen(true); }}
         onPickManual={() => { setAddMenuOpen(false); setAdding(true); }}
         onPickRecurring={() => { setAddMenuOpen(false); setRecurringOpen(true); }}
-        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || recurringOpen}
+        onPickTransfer={config.accounts.length >= 2 ? () => { setAddMenuOpen(false); setTransferOpen(true); } : null}
+        hidden={chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || recurringOpen || transferOpen}
       />
 
+      {transferOpen && (
+        <TransferModal
+          config={config}
+          defaultFromId={accView !== "all" ? accView : null}
+          onClose={() => setTransferOpen(false)}
+          onSave={saveTransfer}
+        />
+      )}
       {(adding || editingTx) && (
         <AddModal
           config={config}
@@ -4006,7 +4058,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
 
 /* TopFab: ya no es flotante. El botón vive en el StickyHeader.
    Aquí solo gestionamos el sheet de opciones. */
-function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, hidden }) {
+function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, onPickRecurring, onPickTransfer, hidden }) {
   const items = [
     {
       key: "manual",
@@ -4035,6 +4087,21 @@ function TopFab({ open, onToggle, onPickExcel, onPickScreenshot, onPickManual, o
         </svg>
       ),
     },
+    ...(onPickTransfer ? [{
+      key: "transfer",
+      label: "Transferencia",
+      desc: "Mover dinero entre dos cuentas",
+      onClick: onPickTransfer,
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      ),
+    }] : []),
     {
       key: "screenshot",
       label: t("fromScreenshot"),
@@ -4887,8 +4954,10 @@ function loadSections(config) {
 }
 
 /* ============================= DASHBOARD ================================= */
-function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, onConfiguringChange }) {
-  const [view, setView] = useState("all"); // "all" o accountId
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, onConfiguringChange, accView, setAccView }) {
+  // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
+  const view = accView;
+  const setView = setAccView;
   const [configuring, setConfiguring] = useState(false);
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config);
@@ -5364,13 +5433,12 @@ function renderGroupedByDay(list) {
 }
 
 /* ============================ MOVIMIENTOS ================================ */
-function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit }) {
+function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accView, setAccView }) {
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc"); // date-desc | date-asc | amount-desc | amount-asc | account
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
-  const [accView, setAccView] = useState("all"); // account filter
   const multi = config.accounts.length > 1;
 
   // filtrar por cuenta, luego por rango global, luego por tipo
@@ -5604,11 +5672,10 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
 }
 
 /* ============================ CATEGORÍAS ================================= */
-function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring }) {
+function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring, accView, setAccView }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
   const [recurringOpen, setRecurringOpen] = useState(false);
-  const [accView, setAccView] = useState("all");
   const multi = config.accounts.length > 1;
   const visibleAccounts = accView === "all" ? config.accounts : config.accounts.filter((a) => a.id === accView);
 
@@ -5635,7 +5702,8 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
     if (t.categoryId) totalsByCat[t.categoryId] = (totalsByCat[t.categoryId] || 0) + t.amount;
   });
 
-  const recurring = config.recurring || [];
+  const allRecurring = config.recurring || [];
+  const recurring = accView === "all" ? allRecurring : allRecurring.filter((r) => r.accountId === accView);
   const activeRec = recurring.filter((r) => isRecActive(r));
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
   const catFor = (id) => config.categories.find((c) => c.id === id);
@@ -7233,6 +7301,118 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
   );
 }
 
+/* ===================== MODAL: TRANSFERENCIA ENTRE CUENTAS =============== */
+function TransferModal({ config, defaultFromId, onClose, onSave }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+  const [fromId, setFromId] = useState(defaultFromId || "");
+  const [toId, setToId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState("");
+
+  const fromAcc = config.accounts.find((a) => a.id === fromId);
+  const toAcc = config.accounts.find((a) => a.id === toId);
+  const otherAccounts = config.accounts.filter((a) => a.id !== fromId);
+
+  const canSave = fromId && toId && fromId !== toId && amount && parseFloat(amount) > 0;
+
+  const submit = () => {
+    if (!canSave) return;
+    onSave({
+      fromAccountId: fromId,
+      toAccountId: toId,
+      amount: parseFloat(amount),
+      date,
+      note,
+    });
+  };
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Transferencia entre cuentas</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 16,
+          fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
+          Mueve dinero entre dos de tus cuentas. No cuenta como ingreso ni gasto en tus estadísticas.
+        </p>
+
+        {/* Monto */}
+        <div className="cc-amount-display">
+          <span className="cc-amount-currency">$</span>
+          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} />
+          <span className="cc-amount-currency-code">mxn</span>
+        </div>
+
+        {/* From → To visual */}
+        <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">Desde</label>
+            <select className="cc-select" value={fromId}
+              onChange={(e) => { setFromId(e.target.value); if (e.target.value === toId) setToId(""); }}
+              style={{ borderColor: !fromId ? "var(--gold)" : "var(--line)" }}>
+              <option value="">Elegir…</option>
+              {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 14, color: "#5B6EE8" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="cc-label">A</label>
+            <select className="cc-select" value={toId}
+              onChange={(e) => setToId(e.target.value)}
+              style={{ borderColor: !toId && fromId ? "var(--gold)" : "var(--line)" }}
+              disabled={!fromId}>
+              <option value="">Elegir…</option>
+              {otherAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Fecha + Nota opcional */}
+        <div className="cc-form-row" style={{ marginBottom: 14 }}>
+          <div>
+            <label className="cc-label">Fecha</label>
+            <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="cc-label">Nota (opcional)</label>
+            <input className="cc-input" placeholder="Ej. ahorro mensual"
+              value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+        </div>
+
+        {fromAcc && toAcc && (
+          <div style={{ background: "rgba(91,110,232,.08)", border: "1px solid rgba(91,110,232,.2)",
+            borderRadius: 12, padding: "10px 12px", marginBottom: 14,
+            fontSize: 12.5, color: "var(--ink-soft)", fontFamily: "'Montserrat', sans-serif", lineHeight: 1.4 }}>
+            Se creará un cargo en <b style={{ color: "var(--ink)" }}>{fromAcc.name}</b> y un abono en <b style={{ color: "var(--ink)" }}>{toAcc.name}</b>.
+          </div>
+        )}
+
+        <button className="cc-btn cc-btn-green"
+          style={{ width: "100%", padding: 13, fontSize: 14.5, marginTop: 4 }}
+          disabled={!canSave}
+          onClick={submit}>
+          Hacer transferencia
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ===================== MODAL: IMPORTAR DESDE SCREENSHOTS ================= */
 function ImportModal({ config, txs, onClose, onSave }) {
   const [files, setFiles] = useState([]); // {file, previewUrl}
@@ -7635,8 +7815,9 @@ function CatPie({ data, total, donut, active, onHover }) {
   );
 }
 
-function Estadisticas({ config, txs, dateRange, onEdit, saveConfig }) {
-  const [view, setView] = useState("all"); // all | accountId
+function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, setAccView }) {
+  const view = accView;
+  const setView = setAccView;
   const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
   const [configOpen, setConfigOpen] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "expCats" | "catTrend"
