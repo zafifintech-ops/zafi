@@ -4959,6 +4959,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const view = accView;
   const setView = setAccView;
   const [configuring, setConfiguring] = useState(false);
+  const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config);
 
@@ -4977,9 +4978,18 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   monthStat.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
     byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
   });
-  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const dashExpCatsHidden = config.dashExpCatsHidden || [];
+  const rows = Object.entries(byCat)
+    .filter(([id]) => !dashExpCatsHidden.includes(id))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
   const maxCat = rows.length ? rows[0][1] : 1;
   const catOf = (id) => config.categories.find((c) => c.id === id);
+  // expRows con shape {cat, amt} para pasarle al modal de filtros (consistente con Estadisticas)
+  const dashExpRows = Object.entries(byCat)
+    .map(([id, amt]) => ({ cat: catOf(id), amt }))
+    .filter((x) => x.cat)
+    .sort((a, b) => b.amt - a.amt);
 
   // gastos más grandes del rango (excluyendo pass-through)
   const topExpenses = rangeTxs.filter((t) => t.type === "expense" && !t.passThrough)
@@ -5113,10 +5123,30 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "byCategory") return (
           <div key={s.id} className="cc-card" style={{ padding: "6px 18px" }}>
-            <div className="cc-label" style={{ marginTop: 12, marginBottom: 6 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginTop: 12, marginBottom: 6, gap: 8 }}>
+              <div className="cc-label" style={{ marginTop: 0, marginBottom: 0 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
+              {dashExpRows.length > 0 && (
+                <button onClick={() => setCatFilter("dashExpCats")} className="cc-personalize-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14" />
+                    <line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" />
+                    <line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" />
+                    <line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                  Personalizar
+                </button>
+              )}
+            </div>
             {rows.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>
-                No hay gastos en el periodo.
+                {dashExpCatsHidden.length > 0 ? "Todas las categorías están ocultas. Toca \"Personalizar\" para mostrar alguna." : "No hay gastos en el periodo."}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -5201,6 +5231,19 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           onSave={(newSections) => {
             saveConfig({ ...config, homeSections: newSections });
             setConfiguring(false);
+          }}
+        />
+      )}
+
+      {catFilter && (
+        <CategoryFilterModal
+          mode={catFilter}
+          config={config}
+          rows={dashExpRows}
+          onClose={() => setCatFilter(null)}
+          onSave={(next) => {
+            saveConfig({ ...config, dashExpCatsHidden: next });
+            setCatFilter(null);
           }}
         />
       )}
@@ -8027,12 +8070,36 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
               </div>
             );
 
-            if (s.id === "incCats" && incRows.length > 0) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Ingresos por categoría</div>
-                <CategoryChart rows={incRows} type="income" onPick={openCategoryDetail} />
-              </div>
-            );
+            if (s.id === "incCats" && incRows.length > 0) {
+              const incCatsHidden = config.statsIncCatsHidden || [];
+              const filteredIncRows = incRows.filter((r) => !incCatsHidden.includes(r.cat.id));
+              return (
+                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 12, gap: 8 }}>
+                    <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos por categoría</div>
+                    <button onClick={() => setCatFilter("incCats")} className="cc-personalize-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14" />
+                        <line x1="4" y1="10" x2="4" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12" y2="3" />
+                        <line x1="20" y1="21" x2="20" y2="16" />
+                        <line x1="20" y1="12" x2="20" y2="3" />
+                        <line x1="1" y1="14" x2="7" y2="14" />
+                        <line x1="9" y1="8" x2="15" y2="8" />
+                        <line x1="17" y1="16" x2="23" y2="16" />
+                      </svg>
+                      Personalizar
+                    </button>
+                  </div>
+                  {filteredIncRows.length > 0
+                    ? <CategoryChart rows={filteredIncRows} type="income" onPick={openCategoryDetail} />
+                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
+                </div>
+              );
+            }
 
             if (s.id === "expCats" && expRows.length > 0) {
               // Filtros guardados por el usuario
@@ -8145,10 +8212,11 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
         <CategoryFilterModal
           mode={catFilter}
           config={config}
-          expRows={expRows}
+          rows={catFilter === "incCats" ? incRows : expRows}
           onClose={() => setCatFilter(null)}
           onSave={(next) => {
             if (catFilter === "expCats") saveConfig({ ...config, statsExpCatsHidden: next });
+            else if (catFilter === "incCats") saveConfig({ ...config, statsIncCatsHidden: next });
             else saveConfig({ ...config, statsCatTrendShown: next });
             setCatFilter(null);
           }}
@@ -8224,29 +8292,36 @@ function StatsConfigModal({ sections, onClose, onSave }) {
 }
 
 /* ===== Modal: filtro de categorías para gráficas (expCats y catTrend) ===== */
-function CategoryFilterModal({ mode, config, expRows, onClose, onSave }) {
+function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
-  // Lista completa de categorías de gasto (ordenadas por gasto del periodo si hay datos)
-  const allExpCats = config.categories.filter((c) => c.type === "expense");
+  // Tipo de categorías según el modo: incCats es ingresos, los demás gastos
+  const catType = mode === "incCats" ? "income" : "expense";
+  const allCats = config.categories.filter((c) => c.type === catType);
   const orderedCats = (() => {
-    const amtById = Object.fromEntries(expRows.map((r) => [r.cat.id, r.amt]));
-    return [...allExpCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
+    const amtById = Object.fromEntries((rows || []).map((r) => [r.cat.id, r.amt]));
+    return [...allCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
   })();
 
   // Estado inicial: qué categorías están seleccionadas
   const initialSelected = (() => {
     if (mode === "expCats") {
-      // En este modal, "seleccionada" = visible. Default: todas visibles.
       const hidden = config.statsExpCatsHidden || [];
-      return new Set(allExpCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
-    } else {
-      // catTrend: por default top 5 por gasto
-      if (config.statsCatTrendShown) return new Set(config.statsCatTrendShown);
-      const top5 = expRows.slice(0, 5).map((r) => r.cat.id);
-      return new Set(top5);
+      return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
+    if (mode === "incCats") {
+      const hidden = config.statsIncCatsHidden || [];
+      return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
+    }
+    if (mode === "dashExpCats") {
+      const hidden = config.dashExpCatsHidden || [];
+      return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
+    }
+    // catTrend: por default top 5 por gasto
+    if (config.statsCatTrendShown) return new Set(config.statsCatTrendShown);
+    const top5 = (rows || []).slice(0, 5).map((r) => r.cat.id);
+    return new Set(top5);
   })();
   const [selected, setSelected] = useState(initialSelected);
 
@@ -8255,25 +8330,31 @@ function CategoryFilterModal({ mode, config, expRows, onClose, onSave }) {
     if (next.has(id)) next.delete(id); else next.add(id);
     setSelected(next);
   };
-  const selectAll = () => setSelected(new Set(allExpCats.map((c) => c.id)));
+  const selectAll = () => setSelected(new Set(allCats.map((c) => c.id)));
   const clearAll = () => setSelected(new Set());
 
   const save = () => {
-    if (mode === "expCats") {
-      // Guardamos las ocultas (categorías - seleccionadas)
-      const hidden = allExpCats.filter((c) => !selected.has(c.id)).map((c) => c.id);
-      onSave(hidden);
-    } else {
-      // Guardamos las mostradas explícitamente, en el orden de la lista visible
+    if (mode === "catTrend") {
+      // catTrend guarda las mostradas explícitamente
       const shown = orderedCats.filter((c) => selected.has(c.id)).map((c) => c.id);
       onSave(shown);
+    } else {
+      // expCats/incCats/dashExpCats guardan las ocultas (categorías - seleccionadas)
+      const hidden = allCats.filter((c) => !selected.has(c.id)).map((c) => c.id);
+      onSave(hidden);
     }
   };
 
-  const title = mode === "expCats" ? "Categorías visibles" : "Tendencias visibles";
-  const desc = mode === "expCats"
-    ? "Selecciona las categorías que quieres ver en la gráfica de gastos."
-    : "Selecciona las categorías que aparecen como líneas en la tendencia.";
+  const title =
+    mode === "expCats" ? "Gastos visibles" :
+    mode === "incCats" ? "Ingresos visibles" :
+    mode === "dashExpCats" ? "Categorías visibles" :
+    "Tendencias visibles";
+  const desc =
+    mode === "expCats" ? "Selecciona las categorías que quieres ver en la gráfica de gastos." :
+    mode === "incCats" ? "Selecciona las categorías que quieres ver en la gráfica de ingresos." :
+    mode === "dashExpCats" ? "Selecciona las categorías que quieres ver en la gráfica de gastos del inicio." :
+    "Selecciona las categorías que aparecen como líneas en la tendencia.";
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
@@ -8292,7 +8373,7 @@ function CategoryFilterModal({ mode, config, expRows, onClose, onSave }) {
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 12, color: "var(--ink-faint)", alignSelf: "center",
             fontFamily: "'Montserrat', sans-serif" }}>
-            {selected.size} de {allExpCats.length}
+            {selected.size} de {allCats.length}
           </span>
         </div>
 
@@ -8300,7 +8381,7 @@ function CategoryFilterModal({ mode, config, expRows, onClose, onSave }) {
           paddingRight: 2, marginBottom: 14 }}>
           {orderedCats.map((c) => {
             const isOn = selected.has(c.id);
-            const amt = expRows.find((r) => r.cat.id === c.id)?.amt;
+            const amt = (rows || []).find((r) => r.cat.id === c.id)?.amt;
             return (
               <button key={c.id} onClick={() => toggle(c.id)}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
