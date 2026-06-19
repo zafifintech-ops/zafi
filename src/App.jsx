@@ -436,6 +436,9 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   border-color:rgba(91,110,232,.3);color:#5B6EE8;}
 .cc-personalize-btn:hover svg{color:#5B6EE8;}
 .cc-personalize-btn svg{color:var(--ink-faint);}
+/* Placeholder coloreado cuando hay detección automática activa */
+.cc-input-detected::placeholder{color:#5B6EE8;opacity:.9;font-weight:500;font-style:italic;}
+.cc-dark .cc-input-detected::placeholder{color:#8B9CFF;opacity:.95;}
 .cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
@@ -1262,6 +1265,34 @@ const STOP = new Set(["para", "con", "los", "las", "del", "una", "uno", "este", 
 
 function extractKW(desc) {
   return norm(desc).split(/\s+/).filter((w) => w.length >= 4 && !STOP.has(w));
+}
+
+/* ¿Coincide este movimiento con alguna regla recurrente del usuario?
+   Match: mismo tipo + monto cercano (±5%) + (descripción similar O misma categoría).
+   Devuelve la regla recurrente que matcheó, o null. */
+function matchRecurringRule(candidate, rules) {
+  if (!rules || !rules.length) return null;
+  const candKws = new Set(extractKW(candidate.description || ""));
+  const candNorm = norm(candidate.description || "").trim();
+  for (const r of rules) {
+    if (r.type !== candidate.type) continue;
+    if (r.accountId && candidate.accountId && r.accountId !== candidate.accountId) continue;
+    // Monto cercano (±5%)
+    const rAmt = Math.abs(Number(r.amount) || 0);
+    const cAmt = Math.abs(Number(candidate.amount) || 0);
+    if (!rAmt || !cAmt) continue;
+    const amtRel = Math.abs(rAmt - cAmt) / Math.max(rAmt, cAmt);
+    if (amtRel > 0.05) continue;
+    // Descripción similar
+    const rNorm = norm(r.description || "").trim();
+    const sameDesc = rNorm && candNorm && rNorm === candNorm;
+    const rKws = extractKW(r.description || "");
+    const sharedKw = rKws.some((kw) => candKws.has(kw));
+    // Misma categoría asignada (cuando aplica)
+    const sameCat = r.categoryId && candidate.categoryId && r.categoryId === candidate.categoryId;
+    if (sameDesc || sharedKw || sameCat) return r;
+  }
+  return null;
 }
 
 /* detección de duplicados: ¿existe ya un movimiento equivalente?
@@ -3625,6 +3656,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [excelOpen, setExcelOpen] = useState(false);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
@@ -3747,6 +3779,11 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           saveConfig={saveConfig}
           onClose={() => { setAdding(false); setEditingTx(null); }}
           onSave={upsertTx}
+          onConvertToRecurring={(prefill) => {
+            setAdding(false); setEditingTx(null);
+            setRecurringPrefill(prefill);
+            setRecurringOpen(true);
+          }}
         />
       )}
 
@@ -3794,7 +3831,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       {recurringOpen && (
         <RecurringModal
           config={config}
-          onClose={() => setRecurringOpen(false)}
+          prefill={recurringPrefill}
+          onClose={() => { setRecurringOpen(false); setRecurringPrefill(null); }}
           onSave={saveRecurring}
         />
       )}
@@ -6058,7 +6096,7 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
 /* Combobox de categoría: input que también dispara dropdown.
    Tipo Google autocomplete — siempre puedes escribir, "Detectar automáticamente"
    aparece como primera opción de la lista. */
-function CategoryCombobox({ value, categories, onChange, disabled }) {
+function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef(null);
@@ -6100,12 +6138,15 @@ function CategoryCombobox({ value, categories, onChange, disabled }) {
 
   // valor visible en el input: query si está abierto, selección si está cerrado
   const inputValue = open ? query : selectedDisplay;
-  const placeholder = selected ? "" : "✨ Automático";
+  // Placeholder: si hay detección automática en vivo, mostrarla; si no, default
+  const placeholder = selected
+    ? ""
+    : (detectedCat ? `${detectedCat.emoji} ${detectedCat.name}` : "✨ Automático");
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
       <input ref={inputRef}
-        className="cc-input"
+        className={`cc-input ${detectedCat && !selected ? "cc-input-detected" : ""}`}
         value={inputValue}
         placeholder={placeholder}
         disabled={disabled}
@@ -6155,7 +6196,7 @@ function CategoryCombobox({ value, categories, onChange, disabled }) {
 }
 
 /* ===================== MODAL: NUEVO MOVIMIENTO =========================== */
-function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
+function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRecurring }) {
   const editing = !!tx;
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
@@ -6172,11 +6213,44 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   const [tagInput, setTagInput] = useState("");
   const [phase, setPhase] = useState("form");
   const [showConfig, setShowConfig] = useState(false);
+  // Detección automática en vivo mientras escribes el concepto
+  const [detectedCatId, setDetectedCatId] = useState(null);
+  // ¿El usuario eligió categoría manualmente? Si sí, dejamos de auto-detectar.
+  const [catManuallySet, setCatManuallySet] = useState(!!tx && tx.categoryId);
 
   // qué campos opcionales mostrar (configurable por el usuario)
   const fields = config.addModalFields || { payee: true, tags: true, suggestions: true };
   // Backfill: si el usuario ya tenía config guardada antes de existir `suggestions`, asumimos ON
   if (fields.suggestions === undefined) fields.suggestions = true;
+
+  // Detección en vivo de categoría con keywords locales (sin llamar a la IA)
+  useEffect(() => {
+    if (catManuallySet) { setDetectedCatId(null); return; }
+    if (!desc.trim() || !accountId) { setDetectedCatId(null); return; }
+    const tid = setTimeout(() => {
+      const accCats = config.categories.filter((c) => c.type === type && c.accountId === accountId);
+      const nd = norm(desc);
+      // Match directo en categorías de la cuenta
+      for (const c of accCats) {
+        for (const kw of c.keywords || []) {
+          if (nd.includes(norm(kw))) { setDetectedCatId(c.id); return; }
+        }
+      }
+      // Match aprendido de "gemelas" de otras cuentas
+      for (const c of accCats) {
+        const twins = config.categories.filter(
+          (x) => x.id !== c.id && x.type === c.type && norm(x.name).trim() === norm(c.name).trim()
+        );
+        for (const twin of twins) {
+          for (const kw of twin.keywords || []) {
+            if (nd.includes(norm(kw))) { setDetectedCatId(c.id); return; }
+          }
+        }
+      }
+      setDetectedCatId(null);
+    }, 300);
+    return () => clearTimeout(tid);
+  }, [desc, accountId, type, catManuallySet, config.categories]);
   const setFields = (next) => {
     if (saveConfig) saveConfig({ ...config, addModalFields: next });
   };
@@ -6300,6 +6374,10 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
   async function handleSave() {
     if (!amount || parseFloat(amount) <= 0) return;
     if (catId !== "auto") { finalize(catId, true); return; }
+    // Si ya hay una categoría detectada en vivo, usarla directo (sin AI)
+    if (detectedCatId && cats.some((c) => c.id === detectedCatId)) {
+      finalize(detectedCatId, false); return;
+    }
     // Si solo hay una categoría disponible, usarla directo
     if (cats.length === 1) { finalize(cats[0].id, true); return; }
     // Intentar detectar con keywords locales primero (sin IA)
@@ -6557,7 +6635,8 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
             <CategoryCombobox
               value={catId}
               categories={cats}
-              onChange={setCatId}
+              detectedCat={detectedCatId ? cats.find((c) => c.id === detectedCatId) : null}
+              onChange={(id) => { setCatId(id); setCatManuallySet(true); }}
               disabled={!accountId} />
           </div>
         </div>
@@ -6578,6 +6657,28 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave }) {
             ? "Detectando categoría…"
             : editing ? "Guardar cambios" : `Guardar ${type === "income" ? "ingreso" : "gasto"}`}
         </button>
+
+        {onConvertToRecurring && desc.trim() && amount && parseFloat(amount) > 0 && accountId && (
+          <button onClick={() => onConvertToRecurring({
+            type,
+            amount: Math.abs(parseFloat(amount)),
+            description: desc.trim(),
+            accountId,
+            categoryId: catId !== "auto" ? catId : (detectedCatId || ""),
+          })}
+            style={{ width: "100%", marginTop: 10, padding: 12, fontSize: 13.5, fontWeight: 600,
+              fontFamily: "inherit", borderRadius: 12, cursor: "pointer", letterSpacing: "-.01em",
+              border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-soft)",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            Convertir en recurrente
+          </button>
+        )}
       </div>
     </div>,
     document.body
@@ -6896,19 +6997,21 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
 }
 
 /* ===================== MODAL: MOVIMIENTOS RECURRENTES =================== */
-function RecurringModal({ config, onClose, onSave }) {
+function RecurringModal({ config, prefill, onClose, onSave }) {
   const rules = config.recurring || [];
-  const [view, setView] = useState(rules.length ? "list" : "form"); // list | form
+  const [view, setView] = useState(rules.length && !prefill ? "list" : "form"); // list | form
   const [editingId, setEditingId] = useState(null);
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
   // form state
-  const [type, setType] = useState("expense");
-  const [amount, setAmount] = useState("");
-  const [desc, setDesc] = useState("");
-  const [accountId, setAccountId] = useState(config.accounts.length === 1 ? config.accounts[0].id : "");
-  const [catId, setCatId] = useState("auto");
+  const [type, setType] = useState(prefill?.type || "expense");
+  const [amount, setAmount] = useState(prefill?.amount ? String(prefill.amount) : "");
+  const [desc, setDesc] = useState(prefill?.description || "");
+  const [accountId, setAccountId] = useState(
+    prefill?.accountId || (config.accounts.length === 1 ? config.accounts[0].id : "")
+  );
+  const [catId, setCatId] = useState(prefill?.categoryId || "auto");
   const [freq, setFreq] = useState("monthly");
   const [startDate, setStartDate] = useState(today());
   const [detecting, setDetecting] = useState(false);
@@ -7220,6 +7323,7 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
         return;
       }
       // mapear a drafts con resolución de categoría y detección de duplicados
+      const recurringRules = config.recurring || [];
       const ds = list.map((m, i) => {
         const c = m.categoryName ? findCat({ ...config }, m.categoryName, defaultAccountId) : null;
         const candidate = {
@@ -7228,14 +7332,16 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
           type: m.type === "income" ? "income" : "expense",
           description: m.description || "",
           accountId: defaultAccountId,
+          categoryId: c ? c.id : "",
         };
         const dup = findDuplicate(candidate, txs || []);
+        const rec = matchRecurringRule(candidate, recurringRules);
         return {
           tempId: "draft" + i,
           ...candidate,
-          categoryId: c ? c.id : "",
           selected: !dup, // desmarcar duplicados por defecto
           duplicate: dup ? { date: dup.date, amount: dup.amount, description: dup.description } : null,
+          recurringMatch: rec ? { id: rec.id, description: rec.description, freq: rec.freq } : null,
         };
       });
       setDrafts(ds);
@@ -8816,12 +8922,14 @@ REGLAS:
         for (const c of accCats) {
           if ((c.keywords || []).some((kw) => nd.includes(norm(kw)))) { catId = c.id; break; }
         }
-        const candidate = { date, amount, type, description: desc.trim(), accountId: defaultAccountId };
+        const candidate = { date, amount, type, description: desc.trim(), accountId: defaultAccountId, categoryId: catId };
         const dup = findDuplicate(candidate, txs || []);
+        const rec = matchRecurringRule(candidate, config.recurring || []);
         ds.push({
-          tempId: "x" + idx, ...candidate, categoryId: catId,
+          tempId: "x" + idx, ...candidate,
           selected: !dup,
           duplicate: dup ? { date: dup.date, amount: dup.amount, description: dup.description } : null,
+          recurringMatch: rec ? { id: rec.id, description: rec.description, freq: rec.freq } : null,
         });
       });
 
@@ -9048,6 +9156,20 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
                     background: "#FFF0CC", padding: "3px 8px", borderRadius: 6,
                     display: "inline-block", marginBottom: 8, letterSpacing: ".02em" }}>
                     🔁 YA EXISTE · {d.duplicate.date}{d.duplicate.description ? ` · "${d.duplicate.description}"` : ""}
+                  </div>
+                )}
+                {d.recurringMatch && !isDup && (
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "#3B4FCF",
+                    background: "rgba(91,110,232,.12)", padding: "3px 8px", borderRadius: 6,
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    marginBottom: 8, letterSpacing: ".02em" }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    RECURRENTE · {d.recurringMatch.description}
                   </div>
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
