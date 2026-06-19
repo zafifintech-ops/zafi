@@ -436,6 +436,23 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   border-color:rgba(91,110,232,.3);color:#5B6EE8;}
 .cc-personalize-btn:hover svg{color:#5B6EE8;}
 .cc-personalize-btn svg{color:var(--ink-faint);}
+/* Buscador de movimientos */
+.cc-search-wrap{position:relative;display:flex;align-items:center;flex:1;}
+.cc-search-input{width:100%;padding:11px 38px 11px 38px;border:1px solid var(--line);
+  border-radius:14px;background:var(--paper);color:var(--ink);
+  font-family:'Montserrat',sans-serif;font-size:14px;font-weight:500;
+  letter-spacing:-.005em;outline:none;transition:border-color .15s,background .15s;}
+.cc-search-input::placeholder{color:var(--ink-faint);font-weight:400;}
+.cc-search-input:focus{border-color:rgba(91,110,232,.45);background:var(--surface);}
+.cc-dark .cc-search-input:focus{background:rgba(91,110,232,.08);}
+.cc-search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  color:var(--ink-faint);pointer-events:none;}
+.cc-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--surface);color:var(--ink-soft);
+  display:flex;align-items:center;justify-content:center;
+  font-family:inherit;font-size:13px;line-height:1;transition:.15s;}
+.cc-search-clear:hover{background:var(--surface-2);color:var(--ink);}
 /* Placeholder coloreado cuando hay detección automática activa */
 .cc-input-detected::placeholder{color:#5B6EE8;opacity:.9;font-weight:500;font-style:italic;}
 .cc-dark .cc-input-detected::placeholder{color:#8B9CFF;opacity:.95;}
@@ -5478,16 +5495,30 @@ function renderGroupedByDay(list) {
 /* ============================ MOVIMIENTOS ================================ */
 function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accView, setAccView }) {
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date-desc"); // date-desc | date-asc | amount-desc | amount-asc | account
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
   const multi = config.accounts.length > 1;
 
-  // filtrar por cuenta, luego por rango global, luego por tipo
+  // filtrar por cuenta, luego por rango global, luego por tipo, luego por búsqueda
   const accTxs = accView === "all" ? txs : txs.filter((t) => t.accountId === accView);
   const rangeTxs = txsInRange(accTxs, dateRange);
-  const filtered = rangeTxs.filter((t) => filter === "all" || t.type === filter);
+  const byType = rangeTxs.filter((t) => filter === "all" || t.type === filter);
+
+  // Búsqueda: matchea concepto, payee, tags, categoría y monto
+  const q = norm(search).trim();
+  const filtered = !q ? byType : byType.filter((t) => {
+    if (norm(t.description || "").includes(q)) return true;
+    if (t.payee && norm(t.payee).includes(q)) return true;
+    if (t.tags && t.tags.some((tg) => norm(tg).includes(q))) return true;
+    const cat = config.categories.find((c) => c.id === t.categoryId);
+    if (cat && norm(cat.name).includes(q)) return true;
+    // Monto: comparar como string sin formato
+    if (String(t.amount).includes(q.replace(/[^\d.]/g, ""))) return true;
+    return false;
+  });
   const list = [...filtered].sort((a, b) => {
     if (sortBy === "date-desc") return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
     if (sortBy === "date-asc")  return a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
@@ -5565,6 +5596,23 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
       {/* barra superior: filtro normal o info de selección */}
       {!selectMode ? (
         <>
+          <div className="cc-search-wrap" style={{ marginBottom: 10 }}>
+            <svg className="cc-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input className="cc-search-input"
+              placeholder="Buscar por concepto, monto, categoría…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off" />
+            {search && (
+              <button className="cc-search-clear" onClick={() => setSearch("")} aria-label="Limpiar">
+                ×
+              </button>
+            )}
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <div className="cc-tabs" style={{ flex: 1 }}>
               {[["all", "Todos"], ["income", "Ingresos"], ["expense", "Gastos"]].map(([k, l]) => (
@@ -7966,7 +8014,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   // ============== KPIs ==============
   const days = Math.max(1, Math.round((endD - startD) / 86400000) + 1);
   const avgDaily = rangeExpense / days;
-  const topCat = expRows[0];
+  // topCat respeta las categorías ocultas por el usuario
+  const topCatHidden = config.statsTopCatHidden || [];
+  const topCat = expRows.find((r) => !topCatHidden.includes(r.cat.id));
   const txCount = rangeTxs.length;
 
   const showName = view === "all" ? "General" : (config.accounts.find((a) => a.id === view)?.name || "");
@@ -8180,20 +8230,47 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
               </div>
             );
 
-            if (s.id === "topCat" && topCat) return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 6 }}>En lo que más gastaste</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
-                    <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
-                      {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
-                    </div>
+            if (s.id === "topCat") {
+              if (!expRows.length) return null;
+              return (
+                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 6, gap: 8 }}>
+                    <div className="cc-label" style={{ marginBottom: 0 }}>En lo que más gastaste</div>
+                    <button onClick={() => setCatFilter("topCat")} className="cc-personalize-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14" />
+                        <line x1="4" y1="10" x2="4" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12" y2="3" />
+                        <line x1="20" y1="21" x2="20" y2="16" />
+                        <line x1="20" y1="12" x2="20" y2="3" />
+                        <line x1="1" y1="14" x2="7" y2="14" />
+                        <line x1="9" y1="8" x2="15" y2="8" />
+                        <line x1="17" y1="16" x2="23" y2="16" />
+                      </svg>
+                      Personalizar
+                    </button>
                   </div>
+                  {topCat ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
+                        <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                          {fmt(topCat.amt)} · {pieTotal ? Math.round((topCat.amt / pieTotal) * 100) : 0}% de tus gastos
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+                      Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
+              );
+            }
 
             return null;
           })}
@@ -8217,6 +8294,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           onSave={(next) => {
             if (catFilter === "expCats") saveConfig({ ...config, statsExpCatsHidden: next });
             else if (catFilter === "incCats") saveConfig({ ...config, statsIncCatsHidden: next });
+            else if (catFilter === "topCat") saveConfig({ ...config, statsTopCatHidden: next });
             else saveConfig({ ...config, statsCatTrendShown: next });
             setCatFilter(null);
           }}
@@ -8318,6 +8396,10 @@ function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
       const hidden = config.dashExpCatsHidden || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
+    if (mode === "topCat") {
+      const hidden = config.statsTopCatHidden || [];
+      return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
+    }
     // catTrend: por default top 5 por gasto
     if (config.statsCatTrendShown) return new Set(config.statsCatTrendShown);
     const top5 = (rows || []).slice(0, 5).map((r) => r.cat.id);
@@ -8349,11 +8431,13 @@ function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
     mode === "expCats" ? "Gastos visibles" :
     mode === "incCats" ? "Ingresos visibles" :
     mode === "dashExpCats" ? "Categorías visibles" :
+    mode === "topCat" ? "Categorías a considerar" :
     "Tendencias visibles";
   const desc =
     mode === "expCats" ? "Selecciona las categorías que quieres ver en la gráfica de gastos." :
     mode === "incCats" ? "Selecciona las categorías que quieres ver en la gráfica de ingresos." :
     mode === "dashExpCats" ? "Selecciona las categorías que quieres ver en la gráfica de gastos del inicio." :
+    mode === "topCat" ? "Selecciona qué categorías deben competir por el top. Útil para excluir cosas como renta o préstamos que siempre dominan." :
     "Selecciona las categorías que aparecen como líneas en la tendencia.";
 
   return createPortal(
