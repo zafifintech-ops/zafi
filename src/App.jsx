@@ -8735,6 +8735,7 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
   const svgRef = useRef(null);
+  const [activeId, setActiveId] = useState(null); // "node-L-i" | "node-R-i" | "flow-i"
 
   // Datos del Sankey
   const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
@@ -8743,15 +8744,24 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   const deficit = Math.max(0, totalOut - totalIn);
   const total = Math.max(totalIn, totalOut);
 
-  // Nodos derechos: gastos + (Ahorro si hubo) o Déficit si gastos > ingresos
-  const rightNodes = [...expRows.map((r) => ({ name: r.cat.name, emoji: r.cat.emoji, amt: r.amt, color: "#F87171" }))];
-  if (surplus > 0) rightNodes.push({ name: "Ahorro", emoji: "💰", amt: surplus, color: "#10B981" });
-  if (deficit > 0) rightNodes.push({ name: "Déficit", emoji: "⚠️", amt: deficit, color: "#F59E0B" });
+  // Helper: resuelve cat con fallback "Sin categoría"
+  const resolve = (r) => ({
+    name: r.cat?.name || "Sin categoría",
+    emoji: r.cat?.emoji || "❔",
+    amt: r.amt,
+  });
 
-  // Layout: damos 160px de margen a cada lado para los labels
+  // Nodos derechos: gastos + (Ahorro si hubo) o Déficit si gastos > ingresos
+  const rightNodes = [
+    ...expRows.map((r) => ({ ...resolve(r), color: "#F87171", side: "exp" })),
+  ];
+  if (surplus > 0) rightNodes.push({ name: "Ahorro", emoji: "💰", amt: surplus, color: "#10B981", side: "ahorro" });
+  if (deficit > 0) rightNodes.push({ name: "Déficit", emoji: "⚠️", amt: deficit, color: "#F59E0B", side: "deficit" });
+
+  // Layout
   const LABEL_W = 160;
   const COL_W = 16;
-  const FLOW_W = 360; // ancho central para los flujos
+  const FLOW_W = 360;
   const W = LABEL_W * 2 + COL_W * 2 + FLOW_W;
   const H = Math.max(420, (incRows.length + rightNodes.length) * 32 + 80);
   const PAD_Y = 30;
@@ -8760,12 +8770,10 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   const usableH = H - PAD_Y * 2;
   const GAP = 4;
 
-  // Colores para texto y fondo según tema (explícitos para que se exporten bien)
   const textColor = dark ? "#F5F5F7" : "#1B2230";
   const textSoftColor = dark ? "rgba(245,245,247,.55)" : "rgba(27,34,48,.55)";
   const bgColor = dark ? "#13161D" : "#F8F9FB";
 
-  // Posiciones de cada nodo
   function layoutColumn(rows, totalAmt) {
     const totalGap = (rows.length - 1) * GAP;
     const totalAvail = usableH - totalGap;
@@ -8777,19 +8785,24 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
       return { ...r, y, h };
     });
   }
-  const leftLayout = layoutColumn(incRows.map((r) => ({ name: r.cat.name, emoji: r.cat.emoji, amt: r.amt, color: "#34D399" })), Math.max(totalIn, totalOut));
+  const leftLayout = layoutColumn(
+    incRows.map((r) => ({ ...resolve(r), color: "#34D399" })),
+    Math.max(totalIn, totalOut)
+  );
   const rightLayout = layoutColumn(rightNodes, Math.max(totalIn, totalOut));
 
   // Conexiones
   const flows = [];
   if (total > 0) {
-    leftLayout.forEach((src) => {
+    leftLayout.forEach((src, srcIdx) => {
       let srcCursor = src.y;
-      rightLayout.forEach((dst) => {
+      rightLayout.forEach((dst, dstIdx) => {
         const flowAmt = src.amt * (dst.amt / Math.max(total, 1));
         const flowH = src.h * (dst.amt / Math.max(total, 1));
         flows.push({
-          src, dst, amt: flowAmt,
+          id: `flow-${srcIdx}-${dstIdx}`,
+          src, dst, srcIdx, dstIdx,
+          amt: flowAmt,
           srcY: srcCursor, srcH: flowH,
           color: src.color,
         });
@@ -8806,15 +8819,74 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
     });
   }
 
-  // Truncar nombres muy largos para que quepan en el label width
   const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
 
-  // Descargar como PNG en 2x
+  // Información del elemento activo (para mostrar en el tooltip superior)
+  const activeInfo = (() => {
+    if (!activeId) return null;
+    if (activeId.startsWith("node-L-")) {
+      const i = +activeId.slice(7);
+      const n = leftLayout[i];
+      if (!n) return null;
+      return { emoji: n.emoji, name: n.name, amt: n.amt, color: n.color,
+        pct: totalIn ? Math.round((n.amt / totalIn) * 100) : 0,
+        side: "Ingreso · " + (totalIn ? Math.round((n.amt / totalIn) * 100) : 0) + "% del total" };
+    }
+    if (activeId.startsWith("node-R-")) {
+      const i = +activeId.slice(7);
+      const n = rightLayout[i];
+      if (!n) return null;
+      const baseTotal = (n.side === "ahorro" || n.side === "deficit") ? totalIn : totalOut;
+      const label = n.side === "ahorro" ? "Ahorro" : n.side === "deficit" ? "Déficit" : "Gasto";
+      return { emoji: n.emoji, name: n.name, amt: n.amt, color: n.color,
+        side: `${label} · ${baseTotal ? Math.round((n.amt / baseTotal) * 100) : 0}% del total` };
+    }
+    if (activeId.startsWith("flow-")) {
+      const f = flows.find((x) => x.id === activeId);
+      if (!f) return null;
+      return { emoji: `${f.src.emoji} → ${f.dst.emoji}`,
+        name: `${f.src.name} → ${f.dst.name}`,
+        amt: f.amt, color: f.color, side: "Flujo" };
+    }
+    return null;
+  })();
+
+  const isActive = (id) => activeId === id;
+  const isRelated = (id) => {
+    if (!activeId) return false;
+    if (activeId === id) return true;
+    if (activeId.startsWith("node-L-")) {
+      const i = activeId.slice(7);
+      return id.startsWith(`flow-${i}-`);
+    }
+    if (activeId.startsWith("node-R-")) {
+      const i = activeId.slice(7);
+      return id.startsWith("flow-") && id.endsWith(`-${i}`);
+    }
+    if (activeId.startsWith("flow-")) {
+      const parts = activeId.split("-"); // flow-srcIdx-dstIdx
+      return id === `node-L-${parts[1]}` || id === `node-R-${parts[2]}`;
+    }
+    return false;
+  };
+
+  // Opacidades dinámicas
+  const flowOpacity = (id) => {
+    if (!activeId) return 0.32;
+    if (isRelated(id) || isActive(id)) return 0.55;
+    return 0.08;
+  };
+  const nodeOpacity = (id) => {
+    if (!activeId) return 1;
+    if (isRelated(id) || isActive(id)) return 1;
+    return 0.25;
+  };
+
+  // ===== Descargar PNG =====
   const downloadPng = () => {
     const svg = svgRef.current;
     if (!svg) return;
     const clone = svg.cloneNode(true);
-    // Agregar background al SVG para el export
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     bg.setAttribute("x", "0"); bg.setAttribute("y", "0");
     bg.setAttribute("width", String(W)); bg.setAttribute("height", String(H));
@@ -8847,94 +8919,313 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
     img.src = url;
   };
 
+  // ===== Descargar PDF (chart con emojis + tabla) =====
+  const downloadPdf = () => {
+    // Generar SVG sin texto descriptivo, solo emojis pequeños en cada barra
+    const PDF_W = 720, PDF_H = Math.max(360, (incRows.length + rightNodes.length) * 30 + 60);
+    const PDF_LEFT_X = 40, PDF_COL_W = 14;
+    const PDF_RIGHT_X = PDF_W - 40 - PDF_COL_W;
+    const PDF_FLOW_W = PDF_W - 80 - PDF_COL_W * 2;
+    const PDF_PAD_Y = 24;
+    const PDF_GAP = 3;
+    const pdfUsable = PDF_H - PDF_PAD_Y * 2;
+
+    function pdfLayout(rows, totalAmt) {
+      const totalGap = (rows.length - 1) * PDF_GAP;
+      const avail = pdfUsable - totalGap;
+      let cursor = PDF_PAD_Y;
+      return rows.map((r) => {
+        const h = totalAmt ? (r.amt / totalAmt) * avail : avail / rows.length;
+        const y = cursor;
+        cursor += h + PDF_GAP;
+        return { ...r, y, h };
+      });
+    }
+    const pdfLeft = pdfLayout(leftLayout.map((n) => ({ ...n })), Math.max(totalIn, totalOut));
+    const pdfRight = pdfLayout(rightLayout.map((n) => ({ ...n })), Math.max(totalIn, totalOut));
+    const pdfFlows = [];
+    if (total > 0) {
+      pdfLeft.forEach((src, si) => {
+        let cursor = src.y;
+        pdfRight.forEach((dst, di) => {
+          const flowH = src.h * (dst.amt / Math.max(total, 1));
+          pdfFlows.push({ src, dst, srcY: cursor, srcH: flowH, color: src.color });
+          cursor += flowH;
+        });
+      });
+      const dstCursors = new Map(pdfRight.map((d) => [d.name, d.y]));
+      pdfFlows.forEach((f) => {
+        const c = dstCursors.get(f.dst.name);
+        const dstFlowH = f.dst.h * ((f.srcH / Math.max(f.src.h, 1)));
+        f.dstY = c; f.dstH = dstFlowH;
+        dstCursors.set(f.dst.name, c + dstFlowH);
+      });
+    }
+
+    let svgPaths = pdfFlows.map((f) => {
+      const x1 = PDF_LEFT_X + PDF_COL_W;
+      const x2 = PDF_RIGHT_X;
+      const cx = (x1 + x2) / 2;
+      return `<path d="M ${x1} ${f.srcY} C ${cx} ${f.srcY}, ${cx} ${f.dstY}, ${x2} ${f.dstY} L ${x2} ${f.dstY + f.dstH} C ${cx} ${f.dstY + f.dstH}, ${cx} ${f.srcY + f.srcH}, ${x1} ${f.srcY + f.srcH} Z" fill="${f.color}" opacity="0.32" />`;
+    }).join("");
+    let svgNodes = "";
+    pdfLeft.forEach((n) => {
+      svgNodes += `<rect x="${PDF_LEFT_X}" y="${n.y}" width="${PDF_COL_W}" height="${n.h}" fill="${n.color}" rx="2" />`;
+      svgNodes += `<text x="${PDF_LEFT_X - 6}" y="${n.y + n.h / 2 + 5}" text-anchor="end" font-size="15">${n.emoji}</text>`;
+    });
+    pdfRight.forEach((n) => {
+      svgNodes += `<rect x="${PDF_RIGHT_X}" y="${n.y}" width="${PDF_COL_W}" height="${n.h}" fill="${n.color}" rx="2" />`;
+      svgNodes += `<text x="${PDF_RIGHT_X + PDF_COL_W + 6}" y="${n.y + n.h / 2 + 5}" text-anchor="start" font-size="15">${n.emoji}</text>`;
+    });
+    const sankeySvg = `<svg viewBox="0 0 ${PDF_W} ${PDF_H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${PDF_W}px;height:auto">${svgPaths}${svgNodes}</svg>`;
+
+    // Tablas
+    const incRowsHtml = leftLayout.map((n) => `<tr>
+      <td style="font-size:18px">${n.emoji}</td>
+      <td><strong>${escapeHtml(n.name)}</strong></td>
+      <td style="text-align:right">${fmtMxn(n.amt)}</td>
+      <td style="text-align:right;color:#888">${totalIn ? Math.round((n.amt / totalIn) * 100) : 0}%</td>
+    </tr>`).join("");
+    const expTableHtml = rightLayout.filter((n) => n.side === "exp" || !n.side).map((n) => {
+      const isExp = !n.side || n.side === "exp";
+      return `<tr>
+        <td style="font-size:18px">${n.emoji}</td>
+        <td><strong>${escapeHtml(n.name)}</strong></td>
+        <td style="text-align:right">${fmtMxn(n.amt)}</td>
+        <td style="text-align:right;color:#888">${totalOut ? Math.round((n.amt / totalOut) * 100) : 0}%</td>
+      </tr>`;
+    }).join("");
+    const ahorroRow = surplus > 0 ? `<tr style="background:#ECFDF5">
+      <td style="font-size:18px">💰</td>
+      <td><strong style="color:#10B981">Ahorro</strong></td>
+      <td style="text-align:right;color:#10B981"><strong>${fmtMxn(surplus)}</strong></td>
+      <td style="text-align:right;color:#888">${totalIn ? Math.round((surplus / totalIn) * 100) : 0}%</td>
+    </tr>` : "";
+    const deficitRow = deficit > 0 ? `<tr style="background:#FFFBEB">
+      <td style="font-size:18px">⚠️</td>
+      <td><strong style="color:#F59E0B">Déficit</strong></td>
+      <td style="text-align:right;color:#F59E0B"><strong>${fmtMxn(deficit)}</strong></td>
+      <td style="text-align:right;color:#888">${totalOut ? Math.round((deficit / totalOut) * 100) : 0}%</td>
+    </tr>` : "";
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Zafi · Flujo ${escapeHtml(rangeName)}</title>
+<style>
+  @media print { @page { size: A4; margin: 18mm; } }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #1B2230; padding: 28px; max-width: 760px; margin: 0 auto; line-height: 1.5; }
+  h1 { font-family: 'Georgia', serif; font-weight: 600; font-size: 32px; margin: 0 0 4px 0; letter-spacing: -.02em; }
+  h1 .dot { color: #4ADE80; }
+  .meta { color: #6B7280; font-size: 13px; margin-bottom: 26px; }
+  h2 { font-size: 15px; font-weight: 700; margin: 32px 0 10px 0; color: #1B2230;
+    border-bottom: 1px solid #E5E7EB; padding-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .sankey-wrap { background: #F8F9FB; border-radius: 14px; padding: 18px; margin: 20px 0 8px; }
+  .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0 4px; }
+  .summary-card { border: 1px solid #E5E7EB; border-radius: 10px; padding: 12px; }
+  .summary-card .l { font-size: 10.5px; color: #6B7280; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .summary-card .v { font-size: 18px; font-weight: 600; }
+  .green { color: #10B981; } .red { color: #EF4444; } .blue { color: #5B6EE8; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  td { padding: 8px 10px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+  td:first-child { width: 30px; text-align: center; }
+  .total-row td { border-top: 2px solid #1B2230; border-bottom: none; padding-top: 12px; font-weight: 700; }
+  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #5B6EE8;
+    color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(91,110,232,.3); font-family: inherit; }
+  @media print { .print-btn { display: none; } }
+  .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 600px) { .tables { grid-template-columns: 1fr; } }
+</style></head>
+<body>
+<button class="print-btn" onclick="window.print()">Guardar como PDF</button>
+<h1>zafi<span class="dot">.</span></h1>
+<div class="meta">Flujo de dinero · ${escapeHtml(rangeName)} · Generado ${new Date().toLocaleString("es-MX")}</div>
+
+<div class="summary">
+  <div class="summary-card"><div class="l">Ingresos</div><div class="v green">${fmtMxn(totalIn)}</div></div>
+  <div class="summary-card"><div class="l">Gastos</div><div class="v red">${fmtMxn(totalOut)}</div></div>
+  <div class="summary-card"><div class="l">${surplus > 0 ? "Ahorro" : deficit > 0 ? "Déficit" : "Flujo neto"}</div><div class="v ${surplus > 0 ? "green" : deficit > 0 ? "red" : "blue"}">${fmtMxn(totalIn - totalOut)}</div></div>
+</div>
+
+<div class="sankey-wrap">${sankeySvg}</div>
+
+<div class="tables">
+  <div>
+    <h2>Ingresos</h2>
+    <table>${incRowsHtml}
+      <tr class="total-row"><td></td><td>TOTAL</td><td style="text-align:right">${fmtMxn(totalIn)}</td><td></td></tr>
+    </table>
+  </div>
+  <div>
+    <h2>Gastos</h2>
+    <table>${expTableHtml}${ahorroRow}${deficitRow}
+      <tr class="total-row"><td></td><td>TOTAL GASTOS</td><td style="text-align:right">${fmtMxn(totalOut)}</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:40px;color:#9CA3AF;font-size:11px;text-align:center">Generado con Zafi · finanzas personales con IA</div>
+</body></html>`;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  };
+
+  // Cerrar tooltip al tocar fondo del modal
+  const clearActive = () => setActiveId(null);
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 920 }}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>Flujo de dinero</h2>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={downloadPng} aria-label="Descargar imagen"
-              style={{ width: 32, height: 32, borderRadius: "50%", border: "none",
-                background: "var(--surface)", color: "var(--ink-soft)", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-              title="Descargar como imagen">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-            <button className="cc-sheet-close" onClick={close}>×</button>
-          </div>
+          <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 16,
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 12,
           fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
           {rangeName} · Cómo se transformaron tus <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(totalIn)}</span> de ingresos
           {surplus > 0 ? <> en gastos y <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(surplus)}</span> de ahorro</> : <> en {fmtMxn(totalOut)} de gastos</>}.
         </p>
 
-        <div style={{ overflowX: "auto", padding: "8px 0", margin: "0 -4px" }}>
+        {/* Info bar dinámica — siempre visible para guiar al usuario */}
+        <div style={{
+          minHeight: 56, padding: "10px 14px", borderRadius: 12,
+          background: activeInfo ? `${activeInfo.color}20` : "var(--surface)",
+          border: `1px solid ${activeInfo ? activeInfo.color + "55" : "var(--line)"}`,
+          marginBottom: 14, transition: "background .2s, border-color .2s",
+          display: "flex", alignItems: "center", gap: 12,
+          fontFamily: "'Montserrat', sans-serif",
+        }}>
+          {activeInfo ? (
+            <>
+              <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{activeInfo.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeInfo.name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>{activeInfo.side}</div>
+              </div>
+              <div className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif",
+                fontSize: 16, fontWeight: 600, color: activeInfo.color, whiteSpace: "nowrap" }}>
+                {fmtMxn(activeInfo.amt)}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--ink-faint)", textAlign: "center", flex: 1 }}>
+              Pasa el cursor o toca una barra o flujo para ver los detalles.
+            </div>
+          )}
+        </div>
+
+        <div style={{ overflowX: "auto", padding: "8px 0", margin: "0 -4px" }} onClick={clearActive}>
           <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%"
-            style={{ minWidth: 720, display: "block" }}>
-            {/* Flujos (bezier curves) */}
-            {flows.map((f, i) => {
+            style={{ minWidth: 720, display: "block" }}
+            onMouseLeave={() => setActiveId(null)}>
+            {/* Flujos */}
+            {flows.map((f) => {
               const x1 = LEFT_X + COL_W;
               const x2 = RIGHT_X;
               const cx = (x1 + x2) / 2;
               return (
-                <path key={i}
+                <path key={f.id}
                   d={`M ${x1} ${f.srcY} C ${cx} ${f.srcY}, ${cx} ${f.dstY}, ${x2} ${f.dstY} L ${x2} ${f.dstY + f.dstH} C ${cx} ${f.dstY + f.dstH}, ${cx} ${f.srcY + f.srcH}, ${x1} ${f.srcY + f.srcH} Z`}
-                  fill={f.color} opacity=".26" />
+                  fill={f.color}
+                  opacity={flowOpacity(f.id)}
+                  style={{ cursor: "pointer", transition: "opacity .2s" }}
+                  onMouseEnter={() => setActiveId(f.id)}
+                  onClick={(e) => { e.stopPropagation(); setActiveId(f.id); }} />
               );
             })}
 
-            {/* Nodos izquierdos (ingresos) */}
-            {leftLayout.map((n, i) => (
-              <g key={"l" + i}>
-                <rect x={LEFT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
-                <text x={LEFT_X - 8} y={n.y + n.h / 2 + 4} textAnchor="end"
-                  fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
-                  {n.emoji} {truncate(n.name, 18)}
-                </text>
-                <text x={LEFT_X - 8} y={n.y + n.h / 2 + 18} textAnchor="end"
-                  fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
-                  {fmtMxn(n.amt)}
-                </text>
-              </g>
-            ))}
+            {/* Nodos izquierdos */}
+            {leftLayout.map((n, i) => {
+              const id = `node-L-${i}`;
+              const showLabel = n.h >= 18;
+              return (
+                <g key={id}
+                  style={{ cursor: "pointer", transition: "opacity .2s" }}
+                  opacity={nodeOpacity(id)}
+                  onMouseEnter={() => setActiveId(id)}
+                  onClick={(e) => { e.stopPropagation(); setActiveId(id); }}>
+                  <rect x={LEFT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
+                  {/* Hit area más grande para hover */}
+                  <rect x={LEFT_X - LABEL_W} y={n.y - 2} width={LABEL_W + COL_W} height={n.h + 4}
+                    fill="transparent" />
+                  {showLabel && (
+                    <>
+                      <text x={LEFT_X - 8} y={n.y + n.h / 2 + 4} textAnchor="end"
+                        fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
+                        {n.emoji} {truncate(n.name, 18)}
+                      </text>
+                      <text x={LEFT_X - 8} y={n.y + n.h / 2 + 18} textAnchor="end"
+                        fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
+                        {fmtMxn(n.amt)}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
 
             {/* Nodos derechos */}
-            {rightLayout.map((n, i) => (
-              <g key={"r" + i}>
-                <rect x={RIGHT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
-                <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 4} textAnchor="start"
-                  fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
-                  {n.emoji} {truncate(n.name, 18)}
-                </text>
-                <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 18} textAnchor="start"
-                  fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
-                  {fmtMxn(n.amt)}
-                </text>
-              </g>
-            ))}
+            {rightLayout.map((n, i) => {
+              const id = `node-R-${i}`;
+              const showLabel = n.h >= 18;
+              return (
+                <g key={id}
+                  style={{ cursor: "pointer", transition: "opacity .2s" }}
+                  opacity={nodeOpacity(id)}
+                  onMouseEnter={() => setActiveId(id)}
+                  onClick={(e) => { e.stopPropagation(); setActiveId(id); }}>
+                  <rect x={RIGHT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
+                  <rect x={RIGHT_X} y={n.y - 2} width={LABEL_W + COL_W} height={n.h + 4}
+                    fill="transparent" />
+                  {showLabel && (
+                    <>
+                      <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 4} textAnchor="start"
+                        fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
+                        {n.emoji} {truncate(n.name, 18)}
+                      </text>
+                      <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 18} textAnchor="start"
+                        fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
+                        {fmtMxn(n.amt)}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
           </svg>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <button onClick={downloadPng}
-            style={{ padding: "10px 18px", borderRadius: 12, border: "1px solid var(--line)",
+            style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid var(--line)",
               background: "var(--surface)", color: "var(--ink)", cursor: "pointer",
               fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 600,
-              display: "inline-flex", alignItems: "center", gap: 8, letterSpacing: "-.01em" }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "-.01em" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
             </svg>
-            Descargar como imagen
+            Imagen (PNG)
+          </button>
+          <button onClick={downloadPdf}
+            style={{ padding: "10px 16px", borderRadius: 12, border: "none",
+              background: "#5B6EE8", color: "#fff", cursor: "pointer",
+              fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 600,
+              display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "-.01em",
+              boxShadow: "0 4px 10px rgba(91,110,232,.3)" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+            Reporte PDF
           </button>
         </div>
       </div>
