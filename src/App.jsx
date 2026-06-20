@@ -8487,7 +8487,11 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
 
   // Tipo de categorías según el modo: incCats es ingresos, los demás gastos
   const catType = mode === "incCats" ? "income" : "expense";
-  const allCats = config.categories.filter((c) => c.type === catType);
+  // Filtrar también por cuenta cuando estás en una específica
+  // (si no, salían todas las categorías de todas las cuentas y se duplicaban nombres)
+  const allCats = config.categories.filter((c) =>
+    c.type === catType && (accView === "all" || !accView || c.accountId === accView)
+  );
   const orderedCats = (() => {
     const amtById = Object.fromEntries((rows || []).map((r) => [r.cat.id, r.amt]));
     return [...allCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
@@ -8893,8 +8897,10 @@ function ReportFilterModal({ config, incRowsAll, expRowsAll, accView, onClose, o
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
-  const incCats = config.categories.filter((c) => c.type === "income");
-  const expCats = config.categories.filter((c) => c.type === "expense");
+  // Si estás en una cuenta específica, filtra solo las categorías de esa cuenta
+  const accFilter = (c) => (accView === "all" || !accView || c.accountId === accView);
+  const incCats = config.categories.filter((c) => c.type === "income" && accFilter(c));
+  const expCats = config.categories.filter((c) => c.type === "expense" && accFilter(c));
 
   const orderedInc = (() => {
     const amtById = Object.fromEntries(incRowsAll.map((r) => [r.cat?.id, r.amt]));
