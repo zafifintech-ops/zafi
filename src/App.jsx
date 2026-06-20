@@ -4970,11 +4970,20 @@ const DEFAULT_SECTIONS = [
 function loadSections(config) {
   const saved = config.homeSections;
   if (!Array.isArray(saved) || !saved.length) return DEFAULT_SECTIONS;
-  // sincronizar con DEFAULT por si agregamos nuevas
-  const known = new Set(DEFAULT_SECTIONS.map((s) => s.id));
-  const cleaned = saved.filter((s) => known.has(s.id));
-  DEFAULT_SECTIONS.forEach((d) => {
-    if (!cleaned.find((s) => s.id === d.id)) cleaned.push({ ...d });
+  // Merge inteligente: respeta el orden guardado, pero las nuevas
+  // se insertan en su posición natural de DEFAULT_SECTIONS (no al final).
+  const savedIds = new Set(saved.map((s) => s.id));
+  const cleaned = saved.filter((s) => DEFAULT_SECTIONS.some((d) => d.id === s.id));
+  DEFAULT_SECTIONS.forEach((d, defIdx) => {
+    if (savedIds.has(d.id)) return;
+    let insertAfter = -1;
+    for (let j = defIdx - 1; j >= 0; j--) {
+      if (savedIds.has(DEFAULT_SECTIONS[j].id)) {
+        const idx = cleaned.findIndex((m) => m.id === DEFAULT_SECTIONS[j].id);
+        if (idx !== -1) { insertAfter = idx; break; }
+      }
+    }
+    cleaned.splice(insertAfter + 1, 0, { ...d });
   });
   return cleaned;
 }
@@ -7916,13 +7925,27 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   ];
   const statsSections = (() => {
     const saved = config.statsSections || [];
-    // merge: respeta orden guardado, agrega nuevas que falten
-    const byId = Object.fromEntries(saved.map((s) => [s.id, s]));
+    if (!saved.length) return STATS_DEFAULT;
+    // Merge inteligente: respeta el orden guardado, pero las secciones nuevas
+    // que el usuario nunca ha visto se insertan en su posición natural de STATS_DEFAULT
+    // (en vez de aparecer al final, perdidas debajo de las apagadas).
+    const savedIds = new Set(saved.map((s) => s.id));
     const merged = saved
       .filter((s) => STATS_DEFAULT.some((d) => d.id === s.id))
       .map((s) => ({ ...STATS_DEFAULT.find((d) => d.id === s.id), ...s }));
-    STATS_DEFAULT.forEach((d) => { if (!byId[d.id]) merged.push(d); });
-    return merged.length ? merged : STATS_DEFAULT;
+    STATS_DEFAULT.forEach((d, defIdx) => {
+      if (savedIds.has(d.id)) return;
+      // Buscar la sección previa en STATS_DEFAULT que el usuario sí tiene guardada
+      let insertAfter = -1;
+      for (let j = defIdx - 1; j >= 0; j--) {
+        if (savedIds.has(STATS_DEFAULT[j].id)) {
+          const idx = merged.findIndex((m) => m.id === STATS_DEFAULT[j].id);
+          if (idx !== -1) { insertAfter = idx; break; }
+        }
+      }
+      merged.splice(insertAfter + 1, 0, { ...d });
+    });
+    return merged;
   })();
   const saveStatsSections = (next) => saveConfig({ ...config, statsSections: next });
 
@@ -8711,6 +8734,7 @@ function escapeHtml(s) {
 function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
+  const svgRef = useRef(null);
 
   // Datos del Sankey
   const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
@@ -8724,14 +8748,22 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   if (surplus > 0) rightNodes.push({ name: "Ahorro", emoji: "💰", amt: surplus, color: "#10B981" });
   if (deficit > 0) rightNodes.push({ name: "Déficit", emoji: "⚠️", amt: deficit, color: "#F59E0B" });
 
-  // Layout
-  const W = 760, H = Math.max(380, (incRows.length + rightNodes.length) * 28 + 80);
-  const PAD_Y = 30;
+  // Layout: damos 160px de margen a cada lado para los labels
+  const LABEL_W = 160;
   const COL_W = 16;
-  const LEFT_X = 60;
-  const RIGHT_X = W - LEFT_X - COL_W;
+  const FLOW_W = 360; // ancho central para los flujos
+  const W = LABEL_W * 2 + COL_W * 2 + FLOW_W;
+  const H = Math.max(420, (incRows.length + rightNodes.length) * 32 + 80);
+  const PAD_Y = 30;
+  const LEFT_X = LABEL_W;
+  const RIGHT_X = W - LABEL_W - COL_W;
   const usableH = H - PAD_Y * 2;
-  const GAP = 4; // vertical gap entre nodos
+  const GAP = 4;
+
+  // Colores para texto y fondo según tema (explícitos para que se exporten bien)
+  const textColor = dark ? "#F5F5F7" : "#1B2230";
+  const textSoftColor = dark ? "rgba(245,245,247,.55)" : "rgba(27,34,48,.55)";
+  const bgColor = dark ? "#13161D" : "#F8F9FB";
 
   // Posiciones de cada nodo
   function layoutColumn(rows, totalAmt) {
@@ -8748,8 +8780,7 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
   const leftLayout = layoutColumn(incRows.map((r) => ({ name: r.cat.name, emoji: r.cat.emoji, amt: r.amt, color: "#34D399" })), Math.max(totalIn, totalOut));
   const rightLayout = layoutColumn(rightNodes, Math.max(totalIn, totalOut));
 
-  // Conexiones: cada ingreso se distribuye proporcionalmente entre los gastos
-  // (modelo simple: cada ingreso aporta a cada gasto en proporción al gasto/total)
+  // Conexiones
   const flows = [];
   if (total > 0) {
     leftLayout.forEach((src) => {
@@ -8765,7 +8796,6 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
         srcCursor += flowH;
       });
     });
-    // Reordenar para que en cada dst los flujos se acomoden verticalmente
     const dstCursors = new Map(rightLayout.map((d) => [d.name, d.y]));
     flows.forEach((f) => {
       const c = dstCursors.get(f.dst.name);
@@ -8776,13 +8806,68 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
     });
   }
 
+  // Truncar nombres muy largos para que quepan en el label width
+  const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
+
+  // Descargar como PNG en 2x
+  const downloadPng = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const clone = svg.cloneNode(true);
+    // Agregar background al SVG para el export
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", "0"); bg.setAttribute("y", "0");
+    bg.setAttribute("width", String(W)); bg.setAttribute("height", String(H));
+    bg.setAttribute("fill", bgColor);
+    clone.insertBefore(bg, clone.firstChild);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const svgStr = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        const a = document.createElement("a");
+        a.download = `Zafi - Flujo ${rangeName}.png`;
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        URL.revokeObjectURL(a.href);
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  };
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 860 }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 920 }}>
         <div className="cc-grip" />
         <div className="cc-sheet-top">
           <h2>Flujo de dinero</h2>
-          <button className="cc-sheet-close" onClick={close}>×</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={downloadPng} aria-label="Descargar imagen"
+              style={{ width: 32, height: 32, borderRadius: "50%", border: "none",
+                background: "var(--surface)", color: "var(--ink-soft)", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+              title="Descargar como imagen">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button className="cc-sheet-close" onClick={close}>×</button>
+          </div>
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 16,
           fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
@@ -8791,15 +8876,13 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
         </p>
 
         <div style={{ overflowX: "auto", padding: "8px 0", margin: "0 -4px" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 600, display: "block" }}>
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%"
+            style={{ minWidth: 720, display: "block" }}>
             {/* Flujos (bezier curves) */}
             {flows.map((f, i) => {
               const x1 = LEFT_X + COL_W;
               const x2 = RIGHT_X;
               const cx = (x1 + x2) / 2;
-              const y1 = f.srcY + f.srcH / 2;
-              const y2 = f.dstY + f.dstH / 2;
-              const h = Math.max((f.srcH + f.dstH) / 2, 1);
               return (
                 <path key={i}
                   d={`M ${x1} ${f.srcY} C ${cx} ${f.srcY}, ${cx} ${f.dstY}, ${x2} ${f.dstY} L ${x2} ${f.dstY + f.dstH} C ${cx} ${f.dstY + f.dstH}, ${cx} ${f.srcY + f.srcH}, ${x1} ${f.srcY + f.srcH} Z`}
@@ -8811,12 +8894,12 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
             {leftLayout.map((n, i) => (
               <g key={"l" + i}>
                 <rect x={LEFT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
-                <text x={LEFT_X - 6} y={n.y + n.h / 2 + 4} textAnchor="end"
-                  fontSize="11" fontWeight="600" fontFamily="Montserrat, sans-serif" fill="currentColor">
-                  {n.emoji} {n.name}
+                <text x={LEFT_X - 8} y={n.y + n.h / 2 + 4} textAnchor="end"
+                  fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
+                  {n.emoji} {truncate(n.name, 18)}
                 </text>
-                <text x={LEFT_X - 6} y={n.y + n.h / 2 + 17} textAnchor="end"
-                  fontSize="9.5" fontFamily="Montserrat, sans-serif" fill="currentColor" opacity=".55">
+                <text x={LEFT_X - 8} y={n.y + n.h / 2 + 18} textAnchor="end"
+                  fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
                   {fmtMxn(n.amt)}
                 </text>
               </g>
@@ -8826,17 +8909,33 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
             {rightLayout.map((n, i) => (
               <g key={"r" + i}>
                 <rect x={RIGHT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
-                <text x={RIGHT_X + COL_W + 6} y={n.y + n.h / 2 + 4} textAnchor="start"
-                  fontSize="11" fontWeight="600" fontFamily="Montserrat, sans-serif" fill="currentColor">
-                  {n.emoji} {n.name}
+                <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 4} textAnchor="start"
+                  fontSize="11.5" fontWeight="600" fontFamily="Montserrat, -apple-system, sans-serif" fill={textColor}>
+                  {n.emoji} {truncate(n.name, 18)}
                 </text>
-                <text x={RIGHT_X + COL_W + 6} y={n.y + n.h / 2 + 17} textAnchor="start"
-                  fontSize="9.5" fontFamily="Montserrat, sans-serif" fill="currentColor" opacity=".55">
+                <text x={RIGHT_X + COL_W + 8} y={n.y + n.h / 2 + 18} textAnchor="start"
+                  fontSize="10" fontFamily="Montserrat, -apple-system, sans-serif" fill={textSoftColor}>
                   {fmtMxn(n.amt)}
                 </text>
               </g>
             ))}
           </svg>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <button onClick={downloadPng}
+            style={{ padding: "10px 18px", borderRadius: 12, border: "1px solid var(--line)",
+              background: "var(--surface)", color: "var(--ink)", cursor: "pointer",
+              fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 600,
+              display: "inline-flex", alignItems: "center", gap: 8, letterSpacing: "-.01em" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Descargar como imagen
+          </button>
         </div>
       </div>
     </div>,
