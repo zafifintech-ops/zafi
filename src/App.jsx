@@ -1354,6 +1354,32 @@ function findDuplicate(candidate, existing) {
 }
 
 /* saldos: saldo inicial + movimientos */
+/* ===== Personalización por cuenta =========================================
+   Cada cuenta puede tener sus propias preferencias (qué gráficas se ven, qué
+   categorías están ocultas, etc.). Cuando accView === "all", se usa el config
+   global. Cuando es una cuenta específica, se lee/escribe en config.perAccount[id].
+   Si una cuenta nunca tuvo override, devuelve undefined (que activa los defaults
+   del consumidor — no caemos al global para no contaminar).
+*/
+function getPersonalize(config, key, accView) {
+  if (!accView || accView === "all") return config[key];
+  return config.perAccount?.[accView]?.[key];
+}
+function setPersonalize(config, key, value, accView) {
+  if (!accView || accView === "all") {
+    return { ...config, [key]: value };
+  }
+  const perAccount = config.perAccount || {};
+  const bucket = perAccount[accView] || {};
+  return {
+    ...config,
+    perAccount: {
+      ...perAccount,
+      [accView]: { ...bucket, [key]: value },
+    },
+  };
+}
+
 function accountBalance(config, txs, accId) {
   const acc = config.accounts.find((a) => a.id === accId);
   const init = acc ? acc.initialBalance || 0 : 0;
@@ -5002,8 +5028,8 @@ const DEFAULT_SECTIONS = [
   { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
 ];
 
-function loadSections(config) {
-  const saved = config.homeSections;
+function loadSections(config, accView) {
+  const saved = getPersonalize(config, "homeSections", accView);
   if (!Array.isArray(saved) || !saved.length) return DEFAULT_SECTIONS;
   // Merge inteligente: respeta el orden guardado, pero las nuevas
   // se insertan en su posición natural de DEFAULT_SECTIONS (no al final).
@@ -5031,7 +5057,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const [configuring, setConfiguring] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
-  const sections = loadSections(config);
+  const sections = loadSections(config, accView);
 
   const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
   // movimientos del rango global (en lugar de "mes actual")
@@ -5048,7 +5074,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   monthStat.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
     byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
   });
-  const dashExpCatsHidden = config.dashExpCatsHidden || [];
+  const dashExpCatsHidden = getPersonalize(config, "dashExpCatsHidden", accView) || [];
   const rows = Object.entries(byCat)
     .filter(([id]) => !dashExpCatsHidden.includes(id))
     .sort((a, b) => b[1] - a[1])
@@ -5297,8 +5323,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       {configuring && (
         <HomeConfigModal
           sections={sections}
+          accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           onClose={() => setConfiguring(false)}
-          onSave={(newSections) => saveConfig({ ...config, homeSections: newSections })}
+          onSave={(newSections) => saveConfig(setPersonalize(config, "homeSections", newSections, accView))}
         />
       )}
 
@@ -5307,9 +5334,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           mode={catFilter}
           config={config}
           rows={dashExpRows}
+          accView={accView}
           onClose={() => setCatFilter(null)}
           onSave={(next) => {
-            saveConfig({ ...config, dashExpCatsHidden: next });
+            saveConfig(setPersonalize(config, "dashExpCatsHidden", next, accView));
             setCatFilter(null);
           }}
         />
@@ -5319,7 +5347,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 }
 
 /* ============= MODAL: PERSONALIZAR INICIO ============================== */
-function HomeConfigModal({ sections, onClose, onSave }) {
+function HomeConfigModal({ sections, accountLabel, onClose, onSave }) {
   const [items, setItems] = useState(sections);
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
@@ -5367,6 +5395,14 @@ function HomeConfigModal({ sections, onClose, onSave }) {
           <h2>Personalizar inicio</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
+        {accountLabel && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+            background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+            borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+            fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
+            🏦 Configuración para {accountLabel}
+          </div>
+        )}
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45,
           fontFamily: "'Montserrat', sans-serif" }}>
           Activa o desactiva secciones, y arrastra para reordenarlas.
@@ -7959,7 +7995,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     { id: "reports", label: "Reportes", on: true },
   ];
   const statsSections = (() => {
-    const saved = config.statsSections || [];
+    const saved = getPersonalize(config, "statsSections", accView) || [];
     if (!saved.length) return STATS_DEFAULT;
     // Merge inteligente: respeta el orden guardado, pero las secciones nuevas
     // que el usuario nunca ha visto se insertan en su posición natural de STATS_DEFAULT
@@ -7970,7 +8006,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       .map((s) => ({ ...STATS_DEFAULT.find((d) => d.id === s.id), ...s }));
     STATS_DEFAULT.forEach((d, defIdx) => {
       if (savedIds.has(d.id)) return;
-      // Buscar la sección previa en STATS_DEFAULT que el usuario sí tiene guardada
       let insertAfter = -1;
       for (let j = defIdx - 1; j >= 0; j--) {
         if (savedIds.has(STATS_DEFAULT[j].id)) {
@@ -7982,7 +8017,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     });
     return merged;
   })();
-  const saveStatsSections = (next) => saveConfig({ ...config, statsSections: next });
+  const saveStatsSections = (next) => saveConfig(setPersonalize(config, "statsSections", next, accView));
 
   const scopedTxs = view === "all" ? txs : txs.filter((t) => t.accountId === view);
   const scopedInitial = view === "all"
@@ -8064,7 +8099,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const days = Math.max(1, Math.round((endD - startD) / 86400000) + 1);
   const avgDaily = rangeExpense / days;
   // topCat respeta las categorías ocultas por el usuario
-  const topCatHidden = config.statsTopCatHidden || [];
+  const topCatHidden = getPersonalize(config, "statsTopCatHidden", accView) || [];
   const topCat = expRows.find((r) => !topCatHidden.includes(r.cat.id));
   const txCount = rangeTxs.length;
 
@@ -8170,7 +8205,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             );
 
             if (s.id === "incCats" && incRows.length > 0) {
-              const incCatsHidden = config.statsIncCatsHidden || [];
+              const incCatsHidden = getPersonalize(config, "statsIncCatsHidden", accView) || [];
               const filteredIncRows = incRows.filter((r) => !incCatsHidden.includes(r.cat.id));
               return (
                 <div key={s.id} className="cc-card" style={{ padding: 18 }}>
@@ -8201,7 +8236,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "expCats" && expRows.length > 0) {
-              const expCatsHidden = config.statsExpCatsHidden || [];
+              const expCatsHidden = getPersonalize(config, "statsExpCatsHidden", accView) || [];
               const filteredExpRows = expRows.filter((r) => !expCatsHidden.includes(r.cat.id));
               return (
                 <div key={s.id} className="cc-card" style={{ padding: 18 }}>
@@ -8232,7 +8267,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "catTrend" && expRows.length > 0) {
-              const catTrendShown = config.statsCatTrendShown;
+              const catTrendShown = getPersonalize(config, "statsCatTrendShown", accView);
               return (
                 <div key={s.id} className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -8336,6 +8371,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
         <StatsConfigModal
           sections={statsSections}
           defaults={STATS_DEFAULT}
+          accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           onClose={() => setConfigOpen(false)}
           onSave={(next) => saveStatsSections(next)}
         />
@@ -8346,12 +8382,14 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           mode={catFilter}
           config={config}
           rows={catFilter === "incCats" ? incRows : expRows}
+          accView={accView}
           onClose={() => setCatFilter(null)}
           onSave={(next) => {
-            if (catFilter === "expCats") saveConfig({ ...config, statsExpCatsHidden: next });
-            else if (catFilter === "incCats") saveConfig({ ...config, statsIncCatsHidden: next });
-            else if (catFilter === "topCat") saveConfig({ ...config, statsTopCatHidden: next });
-            else saveConfig({ ...config, statsCatTrendShown: next });
+            const key = catFilter === "expCats" ? "statsExpCatsHidden"
+              : catFilter === "incCats" ? "statsIncCatsHidden"
+              : catFilter === "topCat" ? "statsTopCatHidden"
+              : "statsCatTrendShown";
+            saveConfig(setPersonalize(config, key, next, accView));
             setCatFilter(null);
           }}
         />
@@ -8367,7 +8405,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 }
 
 /* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
-function StatsConfigModal({ sections, onClose, onSave, defaults }) {
+function StatsConfigModal({ sections, accountLabel, onClose, onSave, defaults }) {
   const [items, setItems] = useState(sections.map((s) => ({ ...s })));
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
@@ -8394,6 +8432,14 @@ function StatsConfigModal({ sections, onClose, onSave, defaults }) {
           <h2>{t("customizeStatsTitle")}</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
+        {accountLabel && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+            background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+            borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+            fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
+            🏦 Configuración para {accountLabel}
+          </div>
+        )}
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
           Reordena con las flechas y muestra u oculta cada sección.
         </p>
@@ -8435,7 +8481,7 @@ function StatsConfigModal({ sections, onClose, onSave, defaults }) {
 }
 
 /* ===== Modal: filtro de categorías para gráficas (expCats y catTrend) ===== */
-function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
+function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
@@ -8447,26 +8493,27 @@ function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
     return [...allCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
   })();
 
-  // Estado inicial: qué categorías están seleccionadas
+  // Estado inicial: qué categorías están seleccionadas (per-account aware)
   const initialSelected = (() => {
     if (mode === "expCats") {
-      const hidden = config.statsExpCatsHidden || [];
+      const hidden = getPersonalize(config, "statsExpCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "incCats") {
-      const hidden = config.statsIncCatsHidden || [];
+      const hidden = getPersonalize(config, "statsIncCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "dashExpCats") {
-      const hidden = config.dashExpCatsHidden || [];
+      const hidden = getPersonalize(config, "dashExpCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "topCat") {
-      const hidden = config.statsTopCatHidden || [];
+      const hidden = getPersonalize(config, "statsTopCatHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     // catTrend: por default top 5 por gasto
-    if (config.statsCatTrendShown) return new Set(config.statsCatTrendShown);
+    const catTrendShown = getPersonalize(config, "statsCatTrendShown", accView);
+    if (catTrendShown) return new Set(catTrendShown);
     const top5 = (rows || []).slice(0, 5).map((r) => r.cat.id);
     return new Set(top5);
   })();
@@ -8586,8 +8633,8 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
     : (config.accounts.find((a) => a.id === accView)?.name || "");
 
   // Filtros guardados por usuario para el reporte
-  const reportsIncHidden = config.reportsIncHidden || [];
-  const reportsExpHidden = config.reportsExpHidden || [];
+  const reportsIncHidden = getPersonalize(config, "reportsIncHidden", accView) || [];
+  const reportsExpHidden = getPersonalize(config, "reportsExpHidden", accView) || [];
   const incRows = incRowsRaw.filter((r) => !reportsIncHidden.includes(r.cat?.id));
   const expRows = expRowsRaw.filter((r) => !reportsExpHidden.includes(r.cat?.id));
   const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
@@ -8829,9 +8876,12 @@ ${expRows.length ? `<h2>Gastos por categoría</h2><table>${expHtml}</table>` : "
       {filterOpen && (
         <ReportFilterModal config={config}
           incRowsAll={incRowsRaw} expRowsAll={expRowsRaw}
+          accView={accView}
           onClose={() => setFilterOpen(false)}
           onSave={(incHidden, expHidden) => {
-            saveConfig({ ...config, reportsIncHidden: incHidden, reportsExpHidden: expHidden });
+            const next1 = setPersonalize(config, "reportsIncHidden", incHidden, accView);
+            const next2 = setPersonalize(next1, "reportsExpHidden", expHidden, accView);
+            saveConfig(next2);
           }} />
       )}
     </div>
@@ -8839,7 +8889,7 @@ ${expRows.length ? `<h2>Gastos por categoría</h2><table>${expHtml}</table>` : "
 }
 
 /* Modal: filtro de categorías para reportes (cubre ingresos y gastos a la vez) */
-function ReportFilterModal({ config, incRowsAll, expRowsAll, onClose, onSave }) {
+function ReportFilterModal({ config, incRowsAll, expRowsAll, accView, onClose, onSave }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
@@ -8855,8 +8905,8 @@ function ReportFilterModal({ config, incRowsAll, expRowsAll, onClose, onSave }) 
     return [...expCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
   })();
 
-  const incHidden = config.reportsIncHidden || [];
-  const expHidden = config.reportsExpHidden || [];
+  const incHidden = getPersonalize(config, "reportsIncHidden", accView) || [];
+  const expHidden = getPersonalize(config, "reportsExpHidden", accView) || [];
   const [incSelected, setIncSelected] = useState(new Set(incCats.filter((c) => !incHidden.includes(c.id)).map((c) => c.id)));
   const [expSelected, setExpSelected] = useState(new Set(expCats.filter((c) => !expHidden.includes(c.id)).map((c) => c.id)));
 
