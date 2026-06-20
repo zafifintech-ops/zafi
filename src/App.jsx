@@ -453,6 +453,15 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   display:flex;align-items:center;justify-content:center;
   font-family:inherit;font-size:13px;line-height:1;transition:.15s;}
 .cc-search-clear:hover{background:var(--surface-2);color:var(--ink);}
+/* Botones de reporte (Excel, PDF, Sankey) */
+.cc-report-btn{display:flex;align-items:center;gap:12px;width:100%;
+  padding:12px 14px;border:1px solid var(--line);border-radius:14px;
+  background:var(--paper);cursor:pointer;text-align:left;font-family:inherit;
+  transition:border-color .15s,background .15s,transform .12s;}
+.cc-report-btn:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-report-btn:active{transform:scale(.985);}
+.cc-report-icon{display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;border-radius:11px;flex-shrink:0;}
 /* Placeholder coloreado cuando hay detección automática activa */
 .cc-input-detected::placeholder{color:#5B6EE8;opacity:.9;font-weight:500;font-style:italic;}
 .cc-dark .cc-input-detected::placeholder{color:#8B9CFF;opacity:.95;}
@@ -4950,12 +4959,12 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
 
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
-  { id: "balance", label: "Saldo destacado", on: false },
   { id: "kpis", label: "Ingresos y gastos del mes", on: true },
   { id: "byCategory", label: "Gastos por categoría", on: true },
-  { id: "trend", label: "Mini gráfica de saldo (30d)", on: true },
-  { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
   { id: "recent", label: "Movimientos recientes", on: true },
+  { id: "balance", label: "Saldo destacado", on: false },
+  { id: "trend", label: "Mini gráfica de saldo (30d)", on: false },
+  { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
 ];
 
 function loadSections(config) {
@@ -5245,10 +5254,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         <HomeConfigModal
           sections={sections}
           onClose={() => setConfiguring(false)}
-          onSave={(newSections) => {
-            saveConfig({ ...config, homeSections: newSections });
-            setConfiguring(false);
-          }}
+          onSave={(newSections) => saveConfig({ ...config, homeSections: newSections })}
         />
       )}
 
@@ -5273,16 +5279,13 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   const [items, setItems] = useState(sections);
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
-  const [saved, setSaved] = useState(true);
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
 
-  const isDirty = () => JSON.stringify(items) !== JSON.stringify(sections);
+  // Aplica el cambio en local Y dispara onSave inmediatamente
+  const apply = (next) => { setItems(next); onSave(next); };
 
-  const toggle = (id) => {
-    setItems((prev) => prev.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
-    setSaved(false);
-  };
+  const toggle = (id) => apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
 
   // drag & drop con HTML5
   const onDragStart = (i) => (e) => {
@@ -5297,26 +5300,20 @@ function HomeConfigModal({ sections, onClose, onSave }) {
   const onDrop = (i) => (e) => {
     e.preventDefault();
     if (dragIdx == null || dragIdx === i) { setDragIdx(null); setOverIdx(null); return; }
-    setItems((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(i, 0, moved);
-      return next;
-    });
+    const next = [...items];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(i, 0, moved);
+    apply(next);
     setDragIdx(null); setOverIdx(null);
-    setSaved(false);
   };
   const move = (i, dir) => {
-    setItems((prev) => {
-      const j = i + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-    setSaved(false);
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    apply(next);
   };
-  const reset = () => { setItems(DEFAULT_SECTIONS.map((s) => ({ ...s }))); setSaved(false); };
+  const reset = () => apply(DEFAULT_SECTIONS.map((s) => ({ ...s })));
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
@@ -5370,20 +5367,12 @@ function HomeConfigModal({ sections, onClose, onSave }) {
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <button onClick={reset}
-            style={{ padding: "14px 18px", fontSize: 13.5, fontWeight: 500, fontFamily: "inherit",
+            style={{ padding: "12px 24px", fontSize: 13.5, fontWeight: 500, fontFamily: "inherit",
               borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)",
               color: "var(--ink-soft)", cursor: "pointer" }}>
-            Restablecer
-          </button>
-          <button onClick={saved ? undefined : () => { onSave(items); setSaved(true); }} disabled={saved}
-            style={{ flex: 1, padding: 14, fontSize: 14.5, fontWeight: 600,
-              fontFamily: "inherit", borderRadius: 14, border: "none",
-              background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
-              opacity: saved ? 0.5 : 1, transition: "opacity .2s",
-              letterSpacing: "-.01em" }}>
-            {saved ? "Listo" : t("saveChanges")}
+            Restablecer valores por defecto
           </button>
         </div>
       </div>
@@ -7916,12 +7905,14 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   // secciones configurables (orden + visibilidad)
   const STATS_DEFAULT = [
     { id: "summary", label: "Resumen ingresos/gastos", on: true },
-    { id: "kpis", label: "Indicadores (KPIs)", on: true },
+    { id: "topCat", label: "En lo que más gastaste", on: true },
     { id: "incCats", label: "Ingresos por categoría", on: true },
     { id: "expCats", label: "Gastos por categoría", on: true },
-    { id: "areaFlow", label: "Acumulado: ingresos vs gastos", on: true },
-    { id: "trend", label: "Evolución de saldo", on: true },
-    { id: "topCat", label: "En lo que más gastaste", on: true },
+    { id: "catTrend", label: "Tendencia por categoría", on: false },
+    { id: "kpis", label: "Indicadores (KPIs)", on: false },
+    { id: "areaFlow", label: "Acumulado: ingresos vs gastos", on: false },
+    { id: "trend", label: "Evolución de saldo", on: false },
+    { id: "reports", label: "Reportes", on: true },
   ];
   const statsSections = (() => {
     const saved = config.statsSections || [];
@@ -8152,63 +8143,69 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "expCats" && expRows.length > 0) {
-              // Filtros guardados por el usuario
               const expCatsHidden = config.statsExpCatsHidden || [];
               const filteredExpRows = expRows.filter((r) => !expCatsHidden.includes(r.cat.id));
-              const catTrendShown = config.statsCatTrendShown; // si undefined, default top 5
               return (
-                <div key={s.id}>
-                  <div className="cc-card" style={{ padding: 18 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                      marginBottom: 12, gap: 8 }}>
-                      <div className="cc-label" style={{ marginBottom: 0 }}>Gastos por categoría</div>
-                      <button onClick={() => setCatFilter("expCats")} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" />
-                          <line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" />
-                          <line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" />
-                          <line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Personalizar
-                      </button>
-                    </div>
-                    {filteredExpRows.length > 0
-                      ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail} />
-                      : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
+                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 12, gap: 8 }}>
+                    <div className="cc-label" style={{ marginBottom: 0 }}>Gastos por categoría</div>
+                    <button onClick={() => setCatFilter("expCats")} className="cc-personalize-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14" />
+                        <line x1="4" y1="10" x2="4" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12" y2="3" />
+                        <line x1="20" y1="21" x2="20" y2="16" />
+                        <line x1="20" y1="12" x2="20" y2="3" />
+                        <line x1="1" y1="14" x2="7" y2="14" />
+                        <line x1="9" y1="8" x2="15" y2="8" />
+                        <line x1="17" y1="16" x2="23" y2="16" />
+                      </svg>
+                      Personalizar
+                    </button>
                   </div>
-                  {/* Gráfica de líneas por categoría */}
-                  <div className="cc-card" style={{ padding: 18, marginTop: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                      marginBottom: 10, gap: 8 }}>
-                      <div className="cc-label" style={{ marginBottom: 0 }}>Tendencia por categoría</div>
-                      <button onClick={() => setCatFilter("catTrend")} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" />
-                          <line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" />
-                          <line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" />
-                          <line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Personalizar
-                      </button>
-                    </div>
-                    <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config}
-                      selectedCatIds={catTrendShown} />
-                  </div>
+                  {filteredExpRows.length > 0
+                    ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail} />
+                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
                 </div>
               );
             }
+
+            if (s.id === "catTrend" && expRows.length > 0) {
+              const catTrendShown = config.statsCatTrendShown;
+              return (
+                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 10, gap: 8 }}>
+                    <div className="cc-label" style={{ marginBottom: 0 }}>Tendencia por categoría</div>
+                    <button onClick={() => setCatFilter("catTrend")} className="cc-personalize-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14" />
+                        <line x1="4" y1="10" x2="4" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12" y2="3" />
+                        <line x1="20" y1="21" x2="20" y2="16" />
+                        <line x1="20" y1="12" x2="20" y2="3" />
+                        <line x1="1" y1="14" x2="7" y2="14" />
+                        <line x1="9" y1="8" x2="15" y2="8" />
+                        <line x1="17" y1="16" x2="23" y2="16" />
+                      </svg>
+                      Personalizar
+                    </button>
+                  </div>
+                  <CategoryTrendChart txs={scopedTxs} dateRange={dateRange} config={config}
+                    selectedCatIds={catTrendShown} />
+                </div>
+              );
+            }
+
+            if (s.id === "reports" && (incRows.length > 0 || expRows.length > 0)) return (
+              <ReportsCard key={s.id} config={config} txs={scopedTxs} dateRange={dateRange}
+                incRows={incRows} expRows={expRows} />
+            );
 
             if (s.id === "areaFlow" && incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0)) return (
               <div key={s.id} className="cc-card" style={{ padding: 18 }}>
@@ -8280,8 +8277,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       {configOpen && (
         <StatsConfigModal
           sections={statsSections}
+          defaults={STATS_DEFAULT}
           onClose={() => setConfigOpen(false)}
-          onSave={(next) => { saveStatsSections(next); setConfigOpen(false); }}
+          onSave={(next) => saveStatsSections(next)}
         />
       )}
 
@@ -8311,21 +8309,24 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 }
 
 /* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
-function StatsConfigModal({ sections, onClose, onSave }) {
+function StatsConfigModal({ sections, onClose, onSave, defaults }) {
   const [items, setItems] = useState(sections.map((s) => ({ ...s })));
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
+
+  const apply = (next) => { setItems(next); onSave(next); };
 
   const move = (i, dir) => {
     const j = i + dir;
     if (j < 0 || j >= items.length) return;
     const next = [...items];
     [next[i], next[j]] = [next[j], next[i]];
-    setItems(next);
+    apply(next);
   };
   const toggle = (i) => {
-    setItems(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
+    apply(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
   };
+  const reset = () => { if (defaults) apply(defaults.map((s) => ({ ...s }))); };
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
@@ -8359,10 +8360,16 @@ function StatsConfigModal({ sections, onClose, onSave }) {
           ))}
         </div>
 
-        <button style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
-          fontFamily: "inherit", borderRadius: 14, border: "none",
-          background: "#5B6EE8", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
-          onClick={() => onSave(items)}>Guardar</button>
+        {defaults && (
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <button onClick={reset}
+              style={{ padding: "12px 24px", fontSize: 13.5, fontWeight: 500, fontFamily: "inherit",
+                borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)",
+                color: "var(--ink-soft)", cursor: "pointer" }}>
+              Restablecer valores por defecto
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body
@@ -8503,6 +8510,334 @@ function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
           fontFamily: "inherit", borderRadius: 14, border: "none",
           background: "#5B6EE8", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
           onClick={save}>Guardar</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ============== TARJETA DE REPORTES (Excel, PDF, Sankey) ================ */
+function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
+  const [sankeyOpen, setSankeyOpen] = useState(false);
+  const rangeName = rangeLabel(dateRange);
+  const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
+  const totalOut = expRows.reduce((s, r) => s + r.amt, 0);
+
+  // ===== Excel =====
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Hoja 1: Resumen
+    const resumen = [
+      ["Reporte de Zafi"],
+      ["Periodo", rangeName],
+      ["Total ingresos", totalIn],
+      ["Total gastos", totalOut],
+      ["Flujo neto", totalIn - totalOut],
+      [],
+      ["Generado", new Date().toLocaleString("es-MX")],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen");
+
+    // Hoja 2: Ingresos por categoría
+    if (incRows.length) {
+      const aoa = [["Categoría", "Monto", "% del total"]];
+      incRows.forEach((r) => aoa.push([
+        r.cat.name, r.amt, totalIn ? r.amt / totalIn : 0,
+      ]));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "Ingresos por categoría");
+    }
+
+    // Hoja 3: Gastos por categoría
+    if (expRows.length) {
+      const aoa = [["Categoría", "Monto", "% del total"]];
+      expRows.forEach((r) => aoa.push([
+        r.cat.name, r.amt, totalOut ? r.amt / totalOut : 0,
+      ]));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "Gastos por categoría");
+    }
+
+    // Hoja 4: Movimientos
+    const movsAoa = [["Fecha", "Tipo", "Concepto", "Categoría", "Cuenta", "Monto", "Pagué a / Recibí de", "Hashtags"]];
+    const rangeTx = txsInRange(txs, dateRange).sort((a, b) => a.date.localeCompare(b.date));
+    rangeTx.forEach((t) => {
+      const cat = config.categories.find((c) => c.id === t.categoryId);
+      const acc = config.accounts.find((a) => a.id === t.accountId);
+      movsAoa.push([
+        t.date,
+        t.type === "income" ? "Ingreso" : "Gasto",
+        t.description || "",
+        cat ? cat.name : "",
+        acc ? acc.name : "",
+        t.amount,
+        t.payee || "",
+        (t.tags || []).map((x) => "#" + x).join(" "),
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(movsAoa), "Movimientos");
+
+    XLSX.writeFile(wb, `Zafi - Reporte ${rangeName}.xlsx`);
+  };
+
+  // ===== PDF (vía print) =====
+  const exportPDF = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const incHtml = incRows.map((r) => `<tr><td>${r.cat.emoji} ${escapeHtml(r.cat.name)}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%</td></tr>`).join("");
+    const expHtml = expRows.map((r) => `<tr><td>${r.cat.emoji} ${escapeHtml(r.cat.name)}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%</td></tr>`).join("");
+    const html = `
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Zafi · Reporte ${escapeHtml(rangeName)}</title>
+<style>
+  @media print { @page { size: A4; margin: 20mm; } }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #1B2230; padding: 28px; max-width: 720px; margin: 0 auto; line-height: 1.5; }
+  h1 { font-family: 'Georgia', serif; font-weight: 600; font-size: 32px; margin: 0 0 4px 0; letter-spacing: -.02em; }
+  h1 .dot { color: #4ADE80; }
+  .meta { color: #6B7280; font-size: 13px; margin-bottom: 30px; }
+  h2 { font-size: 17px; font-weight: 700; margin: 28px 0 10px 0; color: #1B2230;
+    border-bottom: 1px solid #E5E7EB; padding-bottom: 6px; }
+  .totals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 24px 0; }
+  .total-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px; }
+  .total-card .label { font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .total-card .val { font-size: 22px; font-weight: 600; }
+  .green { color: #10B981; } .red { color: #EF4444; } .blue { color: #5B6EE8; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13.5px; }
+  td { padding: 8px 10px; border-bottom: 1px solid #F3F4F6; }
+  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #5B6EE8; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(91,110,232,.3); }
+  @media print { .print-btn { display: none; } }
+</style></head>
+<body>
+<button class="print-btn" onclick="window.print()">Guardar como PDF</button>
+<h1>zafi<span class="dot">.</span></h1>
+<div class="meta">Reporte personal · ${escapeHtml(rangeName)} · Generado ${new Date().toLocaleString("es-MX")}</div>
+<div class="totals">
+  <div class="total-card"><div class="label">Ingresos</div><div class="val green">${fmtMxn(totalIn)}</div></div>
+  <div class="total-card"><div class="label">Gastos</div><div class="val red">${fmtMxn(totalOut)}</div></div>
+  <div class="total-card"><div class="label">Flujo neto</div><div class="val blue">${fmtMxn(totalIn - totalOut)}</div></div>
+</div>
+${incRows.length ? `<h2>Ingresos por categoría</h2><table>${incHtml}</table>` : ""}
+${expRows.length ? `<h2>Gastos por categoría</h2><table>${expHtml}</table>` : ""}
+<div style="margin-top:40px;color:#9CA3AF;font-size:11px;text-align:center">Generado con Zafi · finanzas personales con IA</div>
+</body></html>`;
+    win.document.write(html);
+    win.document.close();
+  };
+
+  return (
+    <div className="cc-card" style={{ padding: 18 }}>
+      <div className="cc-label" style={{ marginBottom: 4 }}>Reportes</div>
+      <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 14,
+        fontFamily: "'Montserrat', sans-serif", lineHeight: 1.4 }}>
+        Exporta tu actividad de este periodo o visualízala como un flujo Sankey.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <button onClick={exportExcel} className="cc-report-btn">
+          <span className="cc-report-icon" style={{ background: "rgba(34,197,94,.12)", color: "#16A34A" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="8" y1="13" x2="16" y2="13" />
+              <line x1="8" y1="17" x2="16" y2="17" />
+            </svg>
+          </span>
+          <div style={{ flex: 1, textAlign: "left" }}>
+            <div style={{ fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>Excel</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Resumen, categorías y todos los movimientos</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-faint)" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+
+        <button onClick={exportPDF} className="cc-report-btn">
+          <span className="cc-report-icon" style={{ background: "rgba(239,68,68,.12)", color: "#DC2626" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </span>
+          <div style={{ flex: 1, textAlign: "left" }}>
+            <div style={{ fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>PDF</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Reporte imprimible bien presentado</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-faint)" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+
+        <button onClick={() => setSankeyOpen(true)} className="cc-report-btn">
+          <span className="cc-report-icon" style={{ background: "rgba(91,110,232,.12)", color: "#5B6EE8" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 4c8 0 8 5 16 5" />
+              <path d="M3 12c8 0 8 5 16 5" />
+              <path d="M3 20c8 0 8-5 16-5" />
+            </svg>
+          </span>
+          <div style={{ flex: 1, textAlign: "left" }}>
+            <div style={{ fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>Flujo Sankey</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Visualización de ingresos hacia gastos</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink-faint)" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
+      {sankeyOpen && (
+        <SankeyModal incRows={incRows} expRows={expRows} rangeName={rangeName}
+          onClose={() => setSankeyOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+/* ===== Modal con flujo Sankey: ingresos → centro → gastos + ahorro ===== */
+function SankeyModal({ incRows, expRows, rangeName, onClose }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+
+  // Datos del Sankey
+  const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
+  const totalOut = expRows.reduce((s, r) => s + r.amt, 0);
+  const surplus = Math.max(0, totalIn - totalOut);
+  const deficit = Math.max(0, totalOut - totalIn);
+  const total = Math.max(totalIn, totalOut);
+
+  // Nodos derechos: gastos + (Ahorro si hubo) o Déficit si gastos > ingresos
+  const rightNodes = [...expRows.map((r) => ({ name: r.cat.name, emoji: r.cat.emoji, amt: r.amt, color: "#F87171" }))];
+  if (surplus > 0) rightNodes.push({ name: "Ahorro", emoji: "💰", amt: surplus, color: "#10B981" });
+  if (deficit > 0) rightNodes.push({ name: "Déficit", emoji: "⚠️", amt: deficit, color: "#F59E0B" });
+
+  // Layout
+  const W = 760, H = Math.max(380, (incRows.length + rightNodes.length) * 28 + 80);
+  const PAD_Y = 30;
+  const COL_W = 16;
+  const LEFT_X = 60;
+  const RIGHT_X = W - LEFT_X - COL_W;
+  const usableH = H - PAD_Y * 2;
+  const GAP = 4; // vertical gap entre nodos
+
+  // Posiciones de cada nodo
+  function layoutColumn(rows, totalAmt) {
+    const totalGap = (rows.length - 1) * GAP;
+    const totalAvail = usableH - totalGap;
+    let cursor = PAD_Y;
+    return rows.map((r) => {
+      const h = totalAmt ? (r.amt / totalAmt) * totalAvail : totalAvail / rows.length;
+      const y = cursor;
+      cursor += h + GAP;
+      return { ...r, y, h };
+    });
+  }
+  const leftLayout = layoutColumn(incRows.map((r) => ({ name: r.cat.name, emoji: r.cat.emoji, amt: r.amt, color: "#34D399" })), Math.max(totalIn, totalOut));
+  const rightLayout = layoutColumn(rightNodes, Math.max(totalIn, totalOut));
+
+  // Conexiones: cada ingreso se distribuye proporcionalmente entre los gastos
+  // (modelo simple: cada ingreso aporta a cada gasto en proporción al gasto/total)
+  const flows = [];
+  if (total > 0) {
+    leftLayout.forEach((src) => {
+      let srcCursor = src.y;
+      rightLayout.forEach((dst) => {
+        const flowAmt = src.amt * (dst.amt / Math.max(total, 1));
+        const flowH = src.h * (dst.amt / Math.max(total, 1));
+        flows.push({
+          src, dst, amt: flowAmt,
+          srcY: srcCursor, srcH: flowH,
+          color: src.color,
+        });
+        srcCursor += flowH;
+      });
+    });
+    // Reordenar para que en cada dst los flujos se acomoden verticalmente
+    const dstCursors = new Map(rightLayout.map((d) => [d.name, d.y]));
+    flows.forEach((f) => {
+      const c = dstCursors.get(f.dst.name);
+      const dstFlowH = f.dst.h * (f.amt / Math.max(f.dst.amt, 1));
+      f.dstY = c;
+      f.dstH = dstFlowH;
+      dstCursors.set(f.dst.name, c + dstFlowH);
+    });
+  }
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 860 }}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Flujo de dinero</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 16,
+          fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
+          {rangeName} · Cómo se transformaron tus <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(totalIn)}</span> de ingresos
+          {surplus > 0 ? <> en gastos y <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(surplus)}</span> de ahorro</> : <> en {fmtMxn(totalOut)} de gastos</>}.
+        </p>
+
+        <div style={{ overflowX: "auto", padding: "8px 0", margin: "0 -4px" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 600, display: "block" }}>
+            {/* Flujos (bezier curves) */}
+            {flows.map((f, i) => {
+              const x1 = LEFT_X + COL_W;
+              const x2 = RIGHT_X;
+              const cx = (x1 + x2) / 2;
+              const y1 = f.srcY + f.srcH / 2;
+              const y2 = f.dstY + f.dstH / 2;
+              const h = Math.max((f.srcH + f.dstH) / 2, 1);
+              return (
+                <path key={i}
+                  d={`M ${x1} ${f.srcY} C ${cx} ${f.srcY}, ${cx} ${f.dstY}, ${x2} ${f.dstY} L ${x2} ${f.dstY + f.dstH} C ${cx} ${f.dstY + f.dstH}, ${cx} ${f.srcY + f.srcH}, ${x1} ${f.srcY + f.srcH} Z`}
+                  fill={f.color} opacity=".26" />
+              );
+            })}
+
+            {/* Nodos izquierdos (ingresos) */}
+            {leftLayout.map((n, i) => (
+              <g key={"l" + i}>
+                <rect x={LEFT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
+                <text x={LEFT_X - 6} y={n.y + n.h / 2 + 4} textAnchor="end"
+                  fontSize="11" fontWeight="600" fontFamily="Montserrat, sans-serif" fill="currentColor">
+                  {n.emoji} {n.name}
+                </text>
+                <text x={LEFT_X - 6} y={n.y + n.h / 2 + 17} textAnchor="end"
+                  fontSize="9.5" fontFamily="Montserrat, sans-serif" fill="currentColor" opacity=".55">
+                  {fmtMxn(n.amt)}
+                </text>
+              </g>
+            ))}
+
+            {/* Nodos derechos */}
+            {rightLayout.map((n, i) => (
+              <g key={"r" + i}>
+                <rect x={RIGHT_X} y={n.y} width={COL_W} height={n.h} fill={n.color} rx="2" />
+                <text x={RIGHT_X + COL_W + 6} y={n.y + n.h / 2 + 4} textAnchor="start"
+                  fontSize="11" fontWeight="600" fontFamily="Montserrat, sans-serif" fill="currentColor">
+                  {n.emoji} {n.name}
+                </text>
+                <text x={RIGHT_X + COL_W + 6} y={n.y + n.h / 2 + 17} textAnchor="start"
+                  fontSize="9.5" fontFamily="Montserrat, sans-serif" fill="currentColor" opacity=".55">
+                  {fmtMxn(n.amt)}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
       </div>
     </div>,
     document.body
