@@ -1264,7 +1264,10 @@ const dayLabel = (isoDate) => {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) return isoDate;
   const date = new Date(y, m - 1, d);
-  const todayD = new Date(today());
+  // Construir hoy con componentes locales (NO new Date("YYYY-MM-DD") porque se interpreta UTC)
+  const todayK = today();
+  const [ty, tm, td] = todayK.split("-").map(Number);
+  const todayD = new Date(ty, tm - 1, td);
   const yest = new Date(todayD); yest.setDate(yest.getDate() - 1);
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   if (sameDay(date, todayD)) return "Hoy";
@@ -1277,7 +1280,9 @@ const dayParts = (isoDate) => {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) return { num: "—", desc: isoDate, isSpecial: false };
   const date = new Date(y, m - 1, d);
-  const todayD = new Date(today());
+  const todayK = today();
+  const [ty, tm, td] = todayK.split("-").map(Number);
+  const todayD = new Date(ty, tm - 1, td);
   const yest = new Date(todayD); yest.setDate(yest.getDate() - 1);
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   if (sameDay(date, todayD)) return { num: String(d), desc: "HOY", isSpecial: true };
@@ -1791,18 +1796,28 @@ function processRecurring(config, txs) {
 
     const fires = recurringDatesBetween(rule, rule.startDate, todayK);
     if (!fires.length) return rule;
+    let lastFiredDate = null;
     fires.forEach((date) => {
-      newTxs.push({
-        id: uid(),
+      // Anti-duplicado: si ya existe una tx similar (manual o de antes) en esta cuenta,
+      // mismo monto, mismo día (±3), no la generamos otra vez.
+      const candidate = {
         type: rule.type || "expense",
         amount: Number(rule.amount) || 0,
-        description: rule.description || "(recurrencia)",
-        categoryId,
+        description: rule.description || "",
         accountId: rule.accountId,
         date,
+      };
+      if (findDuplicate(candidate, txs.concat(newTxs))) return;
+      newTxs.push({
+        id: uid(),
+        ...candidate,
+        categoryId,
         fromRecurring: rule.id,
       });
+      lastFiredDate = date;
     });
+    // Marcamos lastRunDate hasta el último día revisado (no solo el último que disparó)
+    // para que la próxima corrida no repase los mismos días.
     return { ...rule, lastRunDate: fires[fires.length - 1] };
   });
   if (!newTxs.length) return { config, txs, generated: 0 };
@@ -2097,26 +2112,46 @@ function applyActions(config0, txs0, actions) {
       } else if (a.type === "bulk_edit_category") {
         // re-categoriza muchos movimientos. Filtros opcionales: ids, fromCategoryId, accountId, keyword, fromDate, toDate
         const ac = a.accountId || a.accountName ? findAcc(config, a.accountId ?? a.accountName) : null;
-        const targetCat = findCat(config, a.toCategoryId ?? a.toCategoryName, ac?.id);
-        if (!targetCat) { no(`No encontré la categoría destino «${a.toCategoryName ?? a.toCategoryId}»`); }
-        else {
-          const fromCat = a.fromCategoryId || a.fromCategoryName ? findCat(config, a.fromCategoryId ?? a.fromCategoryName, ac?.id) : null;
-          const ids = Array.isArray(a.ids) ? new Set(a.ids) : null;
-          const kw = a.keyword ? norm(a.keyword) : null;
-          let touched = 0;
-          txs = txs.map((t) => {
-            if (ids && !ids.has(t.id)) return t;
-            if (!ids && ac && t.accountId !== ac.id) return t;
-            if (!ids && fromCat && t.categoryId !== fromCat.id) return t;
-            if (!ids && kw && !norm(t.description || "").includes(kw)) return t;
-            if (!ids && a.fromDate && t.date < a.fromDate) return t;
-            if (!ids && a.toDate && t.date > a.toDate) return t;
-            if (t.categoryId === targetCat.id) return t;
-            touched++;
-            return { ...t, categoryId: targetCat.id };
-          });
-          if (touched > 0) ok(`Re-categorizados ${touched} movimientos a ${targetCat.emoji} ${targetCat.name}`);
-          else no(`No encontré movimientos que coincidan con los filtros`);
+        // Resolvemos la categoría destino POR CUENTA de cada tx para que la asignación sea consistente
+        // (la app filtra categorías por accountId en el editor de tx, así que necesitamos el ID local).
+        const targetRef = a.toCategoryId ?? a.toCategoryName;
+        const fromCat = a.fromCategoryId || a.fromCategoryName ? findCat(config, a.fromCategoryId ?? a.fromCategoryName, ac?.id) : null;
+        const ids = Array.isArray(a.ids) ? new Set(a.ids) : null;
+        const kw = a.keyword ? norm(a.keyword) : null;
+        let touched = 0;
+        let skipped = 0;
+        let targetCatLabel = null;
+        // Cache: targetCat por accountId para no llamar findCat repetidas veces
+        const targetByAcc = new Map();
+        const resolveTarget = (accId) => {
+          if (targetByAcc.has(accId)) return targetByAcc.get(accId);
+          const c = findCat(config, targetRef, accId);
+          targetByAcc.set(accId, c);
+          if (c && !targetCatLabel) targetCatLabel = `${c.emoji} ${c.name}`;
+          return c;
+        };
+        txs = txs.map((t) => {
+          if (ids && !ids.has(t.id)) return t;
+          if (!ids && ac && t.accountId !== ac.id) return t;
+          if (!ids && fromCat && t.categoryId !== fromCat.id) return t;
+          if (!ids && kw && !norm(t.description || "").includes(kw)) return t;
+          if (!ids && a.fromDate && t.date < a.fromDate) return t;
+          if (!ids && a.toDate && t.date > a.toDate) return t;
+          const targetCat = resolveTarget(t.accountId);
+          if (!targetCat) { skipped++; return t; }
+          if (t.categoryId === targetCat.id) return t;
+          touched++;
+          return { ...t, categoryId: targetCat.id };
+        });
+        if (!targetCatLabel) targetCatLabel = String(targetRef);
+        if (touched > 0) {
+          let msg = `Re-categorizados ${touched} movimientos a ${targetCatLabel}`;
+          if (skipped > 0) msg += ` · ${skipped} se omitieron (su cuenta no tiene esa categoría)`;
+          ok(msg);
+        } else if (skipped > 0) {
+          no(`No pude categorizar ningún movimiento porque sus cuentas no tienen la categoría «${targetRef}»`);
+        } else {
+          no(`No encontré movimientos que coincidan con los filtros`);
         }
 
       } else if (a.type === "bulk_delete") {
@@ -8227,7 +8262,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 
             if (s.id === "reports" && (incRows.length > 0 || expRows.length > 0)) return (
               <ReportsCard key={s.id} config={config} txs={scopedTxs} dateRange={dateRange}
-                incRows={incRows} expRows={expRows} />
+                incRows={incRows} expRows={expRows} accView={view} saveConfig={saveConfig} />
             );
 
             if (s.id === "areaFlow" && incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0)) return (
@@ -8540,9 +8575,21 @@ function CategoryFilterModal({ mode, config, rows, onClose, onSave }) {
 }
 
 /* ============== TARJETA DE REPORTES (Excel, PDF, Sankey) ================ */
-function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
+function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: expRowsRaw, accView, saveConfig }) {
   const [sankeyOpen, setSankeyOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const rangeName = rangeLabel(dateRange);
+
+  // Account label: una cuenta específica o todas
+  const accountLabel = accView === "all"
+    ? (config.accounts.length === 1 ? config.accounts[0].name : "Todas las cuentas")
+    : (config.accounts.find((a) => a.id === accView)?.name || "");
+
+  // Filtros guardados por usuario para el reporte
+  const reportsIncHidden = config.reportsIncHidden || [];
+  const reportsExpHidden = config.reportsExpHidden || [];
+  const incRows = incRowsRaw.filter((r) => !reportsIncHidden.includes(r.cat?.id));
+  const expRows = expRowsRaw.filter((r) => !reportsExpHidden.includes(r.cat?.id));
   const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
   const totalOut = expRows.reduce((s, r) => s + r.amt, 0);
 
@@ -8550,10 +8597,13 @@ function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // Hoja 1: Resumen
+    // Hoja 1: Resumen (con periodo y cuenta claramente)
     const resumen = [
       ["Reporte de Zafi"],
+      [],
       ["Periodo", rangeName],
+      ["Cuenta", accountLabel],
+      [],
       ["Total ingresos", totalIn],
       ["Total gastos", totalOut],
       ["Flujo neto", totalIn - totalOut],
@@ -8566,25 +8616,31 @@ function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
     if (incRows.length) {
       const aoa = [["Categoría", "Monto", "% del total"]];
       incRows.forEach((r) => aoa.push([
-        r.cat.name, r.amt, totalIn ? r.amt / totalIn : 0,
+        r.cat?.name || "Sin categoría", r.amt, totalIn ? r.amt / totalIn : 0,
       ]));
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, "Ingresos por categoría");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Ingresos por categoría");
     }
 
     // Hoja 3: Gastos por categoría
     if (expRows.length) {
       const aoa = [["Categoría", "Monto", "% del total"]];
       expRows.forEach((r) => aoa.push([
-        r.cat.name, r.amt, totalOut ? r.amt / totalOut : 0,
+        r.cat?.name || "Sin categoría", r.amt, totalOut ? r.amt / totalOut : 0,
       ]));
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      XLSX.utils.book_append_sheet(wb, ws, "Gastos por categoría");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Gastos por categoría");
     }
 
-    // Hoja 4: Movimientos
+    // Hoja 4: Movimientos (respeta los filtros de categoría)
     const movsAoa = [["Fecha", "Tipo", "Concepto", "Categoría", "Cuenta", "Monto", "Pagué a / Recibí de", "Hashtags"]];
-    const rangeTx = txsInRange(txs, dateRange).sort((a, b) => a.date.localeCompare(b.date));
+    const visibleIncCatIds = new Set(incRows.map((r) => r.cat?.id).filter(Boolean));
+    const visibleExpCatIds = new Set(expRows.map((r) => r.cat?.id).filter(Boolean));
+    const rangeTx = txsInRange(txs, dateRange)
+      .filter((t) => {
+        if (t.type === "income" && t.categoryId) return visibleIncCatIds.has(t.categoryId);
+        if (t.type === "expense" && t.categoryId) return visibleExpCatIds.has(t.categoryId);
+        return true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
     rangeTx.forEach((t) => {
       const cat = config.categories.find((c) => c.id === t.categoryId);
       const acc = config.accounts.find((a) => a.id === t.accountId);
@@ -8592,7 +8648,7 @@ function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
         t.date,
         t.type === "income" ? "Ingreso" : "Gasto",
         t.description || "",
-        cat ? cat.name : "",
+        cat ? cat.name : "Sin categoría",
         acc ? acc.name : "",
         t.amount,
         t.payee || "",
@@ -8601,25 +8657,29 @@ function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(movsAoa), "Movimientos");
 
-    XLSX.writeFile(wb, `Zafi - Reporte ${rangeName}.xlsx`);
+    const safeAcc = accountLabel.replace(/[\\/:*?"<>|]/g, "");
+    XLSX.writeFile(wb, `Zafi - ${rangeName} - ${safeAcc}.xlsx`);
   };
 
-  // ===== PDF (vía print) =====
+  // ===== PDF =====
   const exportPDF = () => {
     const win = window.open("", "_blank");
     if (!win) return;
-    const incHtml = incRows.map((r) => `<tr><td>${r.cat.emoji} ${escapeHtml(r.cat.name)}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%</td></tr>`).join("");
-    const expHtml = expRows.map((r) => `<tr><td>${r.cat.emoji} ${escapeHtml(r.cat.name)}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%</td></tr>`).join("");
+    const incHtml = incRows.map((r) => `<tr><td>${(r.cat?.emoji || "❔")} ${escapeHtml(r.cat?.name || "Sin categoría")}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%</td></tr>`).join("");
+    const expHtml = expRows.map((r) => `<tr><td>${(r.cat?.emoji || "❔")} ${escapeHtml(r.cat?.name || "Sin categoría")}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#888">${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%</td></tr>`).join("");
     const html = `
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
-<title>Zafi · Reporte ${escapeHtml(rangeName)}</title>
+<title>Zafi · ${escapeHtml(rangeName)} · ${escapeHtml(accountLabel)}</title>
 <style>
   @media print { @page { size: A4; margin: 20mm; } }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: #1B2230; padding: 28px; max-width: 720px; margin: 0 auto; line-height: 1.5; }
   h1 { font-family: 'Georgia', serif; font-weight: 600; font-size: 32px; margin: 0 0 4px 0; letter-spacing: -.02em; }
   h1 .dot { color: #4ADE80; }
-  .meta { color: #6B7280; font-size: 13px; margin-bottom: 30px; }
+  .header-meta { background: #F8F9FB; border-radius: 12px; padding: 14px 18px; margin: 18px 0 28px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .meta-item .label { font-size: 10.5px; color: #6B7280; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; font-weight: 600; }
+  .meta-item .val { font-size: 15px; font-weight: 600; color: #1B2230; }
   h2 { font-size: 17px; font-weight: 700; margin: 28px 0 10px 0; color: #1B2230;
     border-bottom: 1px solid #E5E7EB; padding-bottom: 6px; }
   .totals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 24px 0; }
@@ -8629,13 +8689,18 @@ function ReportsCard({ config, txs, dateRange, incRows, expRows }) {
   .green { color: #10B981; } .red { color: #EF4444; } .blue { color: #5B6EE8; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13.5px; }
   td { padding: 8px 10px; border-bottom: 1px solid #F3F4F6; }
-  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #5B6EE8; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(91,110,232,.3); }
+  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #5B6EE8; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(91,110,232,.3); font-family: inherit; }
   @media print { .print-btn { display: none; } }
+  .meta-foot { color: #9CA3AF; font-size: 11px; }
 </style></head>
 <body>
 <button class="print-btn" onclick="window.print()">Guardar como PDF</button>
 <h1>zafi<span class="dot">.</span></h1>
-<div class="meta">Reporte personal · ${escapeHtml(rangeName)} · Generado ${new Date().toLocaleString("es-MX")}</div>
+<div class="meta-foot">Reporte personal · Generado ${new Date().toLocaleString("es-MX")}</div>
+<div class="header-meta">
+  <div class="meta-item"><div class="label">Periodo</div><div class="val">${escapeHtml(rangeName)}</div></div>
+  <div class="meta-item"><div class="label">Cuenta</div><div class="val">${escapeHtml(accountLabel)}</div></div>
+</div>
 <div class="totals">
   <div class="total-card"><div class="label">Ingresos</div><div class="val green">${fmtMxn(totalIn)}</div></div>
   <div class="total-card"><div class="label">Gastos</div><div class="val red">${fmtMxn(totalOut)}</div></div>
@@ -8649,13 +8714,52 @@ ${expRows.length ? `<h2>Gastos por categoría</h2><table>${expHtml}</table>` : "
     win.document.close();
   };
 
+  const hiddenCount = reportsIncHidden.length + reportsExpHidden.length;
+
   return (
     <div className="cc-card" style={{ padding: 18 }}>
-      <div className="cc-label" style={{ marginBottom: 4 }}>Reportes</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 4, gap: 8 }}>
+        <div className="cc-label" style={{ marginBottom: 0 }}>Reportes</div>
+        <button onClick={() => setFilterOpen(true)} className="cc-personalize-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          Categorías
+        </button>
+      </div>
+
+      {/* Meta visible: periodo + cuenta */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12,
+        fontFamily: "'Montserrat', sans-serif" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
+          background: "rgba(91,110,232,.1)", padding: "3px 9px", borderRadius: 99,
+          letterSpacing: ".01em" }}>📅 {rangeName}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-soft)",
+          background: "var(--surface)", padding: "3px 9px", borderRadius: 99,
+          letterSpacing: ".01em" }}>🏦 {accountLabel}</span>
+        {hiddenCount > 0 && (
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#9A6B16",
+            background: "rgba(232,201,122,.15)", padding: "3px 9px", borderRadius: 99 }}>
+            {hiddenCount} categoría{hiddenCount === 1 ? "" : "s"} oculta{hiddenCount === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
       <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 14,
         fontFamily: "'Montserrat', sans-serif", lineHeight: 1.4 }}>
         Exporta tu actividad de este periodo o visualízala como un flujo Sankey.
       </p>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button onClick={exportExcel} className="cc-report-btn">
           <span className="cc-report-icon" style={{ background: "rgba(34,197,94,.12)", color: "#16A34A" }}>
@@ -8718,11 +8822,153 @@ ${expRows.length ? `<h2>Gastos por categoría</h2><table>${expHtml}</table>` : "
 
       {sankeyOpen && (
         <SankeyModal incRows={incRows} expRows={expRows} rangeName={rangeName}
+          accountLabel={accountLabel}
           onClose={() => setSankeyOpen(false)} />
+      )}
+
+      {filterOpen && (
+        <ReportFilterModal config={config}
+          incRowsAll={incRowsRaw} expRowsAll={expRowsRaw}
+          onClose={() => setFilterOpen(false)}
+          onSave={(incHidden, expHidden) => {
+            saveConfig({ ...config, reportsIncHidden: incHidden, reportsExpHidden: expHidden });
+          }} />
       )}
     </div>
   );
 }
+
+/* Modal: filtro de categorías para reportes (cubre ingresos y gastos a la vez) */
+function ReportFilterModal({ config, incRowsAll, expRowsAll, onClose, onSave }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+
+  const incCats = config.categories.filter((c) => c.type === "income");
+  const expCats = config.categories.filter((c) => c.type === "expense");
+
+  const orderedInc = (() => {
+    const amtById = Object.fromEntries(incRowsAll.map((r) => [r.cat?.id, r.amt]));
+    return [...incCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
+  })();
+  const orderedExp = (() => {
+    const amtById = Object.fromEntries(expRowsAll.map((r) => [r.cat?.id, r.amt]));
+    return [...expCats].sort((a, b) => (amtById[b.id] || 0) - (amtById[a.id] || 0));
+  })();
+
+  const incHidden = config.reportsIncHidden || [];
+  const expHidden = config.reportsExpHidden || [];
+  const [incSelected, setIncSelected] = useState(new Set(incCats.filter((c) => !incHidden.includes(c.id)).map((c) => c.id)));
+  const [expSelected, setExpSelected] = useState(new Set(expCats.filter((c) => !expHidden.includes(c.id)).map((c) => c.id)));
+
+  const toggle = (which, id) => {
+    const setFn = which === "inc" ? setIncSelected : setExpSelected;
+    const cur = which === "inc" ? incSelected : expSelected;
+    const next = new Set(cur);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setFn(next);
+    // Auto-aplicar
+    const newIncHidden = which === "inc"
+      ? incCats.filter((c) => !next.has(c.id)).map((c) => c.id)
+      : incCats.filter((c) => !incSelected.has(c.id)).map((c) => c.id);
+    const newExpHidden = which === "exp"
+      ? expCats.filter((c) => !next.has(c.id)).map((c) => c.id)
+      : expCats.filter((c) => !expSelected.has(c.id)).map((c) => c.id);
+    onSave(newIncHidden, newExpHidden);
+  };
+
+  const markAll = (which) => {
+    if (which === "inc") {
+      const next = new Set(incCats.map((c) => c.id));
+      setIncSelected(next);
+      onSave([], expCats.filter((c) => !expSelected.has(c.id)).map((c) => c.id));
+    } else {
+      const next = new Set(expCats.map((c) => c.id));
+      setExpSelected(next);
+      onSave(incCats.filter((c) => !incSelected.has(c.id)).map((c) => c.id), []);
+    }
+  };
+  const clearAll = (which) => {
+    if (which === "inc") {
+      setIncSelected(new Set());
+      onSave(incCats.map((c) => c.id), expCats.filter((c) => !expSelected.has(c.id)).map((c) => c.id));
+    } else {
+      setExpSelected(new Set());
+      onSave(incCats.filter((c) => !incSelected.has(c.id)).map((c) => c.id), expCats.map((c) => c.id));
+    }
+  };
+
+  const renderSection = (label, color, ordered, selected, which, rowsAll) => (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color, letterSpacing: ".05em",
+          textTransform: "uppercase", fontFamily: "'Montserrat', sans-serif" }}>{label}</span>
+        <span style={{ fontSize: 11, color: "var(--ink-faint)", flex: 1 }}>
+          ({selected.size}/{ordered.length})
+        </span>
+        <button onClick={() => markAll(which)} className="cc-personalize-btn" style={{ fontSize: 11 }}>Todas</button>
+        <button onClick={() => clearAll(which)} className="cc-personalize-btn" style={{ fontSize: 11 }}>Ninguna</button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 10 }}>
+        {ordered.map((c) => {
+          const isOn = selected.has(c.id);
+          const amt = rowsAll.find((r) => r.cat?.id === c.id)?.amt;
+          return (
+            <button key={c.id} onClick={() => toggle(which, c.id)}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                border: `1px solid ${isOn ? color + "55" : "var(--line)"}`,
+                borderRadius: 11,
+                background: isOn ? color + "12" : "var(--paper)",
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                transition: "all .15s" }}>
+              <span className="cc-emoji" style={{ fontSize: 18 }}>{c.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)",
+                  fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+                {amt != null && (
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1,
+                    fontFamily: "'Montserrat', sans-serif" }}>{fmt(amt)}</div>
+                )}
+              </div>
+              <div style={{ width: 20, height: 20, borderRadius: 6,
+                border: `2px solid ${isOn ? color : "var(--line)"}`,
+                background: isOn ? color : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {isOn && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Categorías del reporte</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 6,
+          fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
+          Elige qué categorías incluir en Excel, PDF y Sankey. Los cambios se aplican al instante.
+        </p>
+        <div style={{ maxHeight: "60vh", overflowY: "auto", paddingRight: 2 }}>
+          {incCats.length > 0 && renderSection("Ingresos", "#10B981", orderedInc, incSelected, "inc", incRowsAll)}
+          {expCats.length > 0 && renderSection("Gastos", "#F87171", orderedExp, expSelected, "exp", expRowsAll)}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
@@ -8731,7 +8977,7 @@ function escapeHtml(s) {
 }
 
 /* ===== Modal con flujo Sankey: ingresos → centro → gastos + ahorro ===== */
-function SankeyModal({ incRows, expRows, rangeName, onClose }) {
+function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = isDarkMode();
   const svgRef = useRef(null);
@@ -9039,7 +9285,11 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
 <body>
 <button class="print-btn" onclick="window.print()">Guardar como PDF</button>
 <h1>zafi<span class="dot">.</span></h1>
-<div class="meta">Flujo de dinero · ${escapeHtml(rangeName)} · Generado ${new Date().toLocaleString("es-MX")}</div>
+<div class="meta">Flujo de dinero · Generado ${new Date().toLocaleString("es-MX")}</div>
+<div style="background:#F8F9FB;border-radius:12px;padding:14px 18px;margin:18px 0 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div><div style="font-size:10.5px;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600">Periodo</div><div style="font-size:15px;font-weight:600">${escapeHtml(rangeName)}</div></div>
+  <div><div style="font-size:10.5px;color:#6B7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;font-weight:600">Cuenta</div><div style="font-size:15px;font-weight:600">${escapeHtml(accountLabel || "Todas las cuentas")}</div></div>
+</div>
 
 <div class="summary">
   <div class="summary-card"><div class="l">Ingresos</div><div class="v green">${fmtMxn(totalIn)}</div></div>
@@ -9083,9 +9333,19 @@ function SankeyModal({ incRows, expRows, rangeName, onClose }) {
           <h2>Flujo de dinero</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 12,
+        {/* Chips de meta: periodo + cuenta */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -2, marginBottom: 10,
+          fontFamily: "'Montserrat', sans-serif" }}>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
+            background: "rgba(91,110,232,.1)", padding: "3px 9px", borderRadius: 99 }}>📅 {rangeName}</span>
+          {accountLabel && (
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-soft)",
+              background: "var(--surface)", padding: "3px 9px", borderRadius: 99 }}>🏦 {accountLabel}</span>
+          )}
+        </div>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 0, marginBottom: 12,
           fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
-          {rangeName} · Cómo se transformaron tus <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(totalIn)}</span> de ingresos
+          Cómo se transformaron tus <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(totalIn)}</span> de ingresos
           {surplus > 0 ? <> en gastos y <span style={{ color: "#10B981", fontWeight: 600 }}>{fmtMxn(surplus)}</span> de ahorro</> : <> en {fmtMxn(totalOut)} de gastos</>}.
         </p>
 
