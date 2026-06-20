@@ -8564,7 +8564,19 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
           <h2>{title}</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 12,
+        {(() => {
+          const acc = accView && accView !== "all" ? config.accounts.find((a) => a.id === accView) : null;
+          const lbl = acc ? acc.name : "todas las cuentas";
+          return (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+              background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+              borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+              fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
+              🏦 Configuración para {lbl}
+            </div>
+          );
+        })()}
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -2, marginBottom: 12,
           fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>{desc}</p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -9011,7 +9023,19 @@ function ReportFilterModal({ config, incRowsAll, expRowsAll, accView, onClose, o
           <h2>Categorías del reporte</h2>
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -4, marginBottom: 6,
+        {(() => {
+          const acc = accView && accView !== "all" ? config.accounts.find((a) => a.id === accView) : null;
+          const lbl = acc ? acc.name : "todas las cuentas";
+          return (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+              background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+              borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+              fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
+              🏦 Configuración para {lbl}
+            </div>
+          );
+        })()}
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: -2, marginBottom: 6,
           fontFamily: "'Montserrat', sans-serif", lineHeight: 1.5 }}>
           Elige qué categorías incluir en Excel, PDF y Sankey. Los cambios se aplican al instante.
         </p>
