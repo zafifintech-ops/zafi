@@ -6338,11 +6338,7 @@ function AccountModal({ acc, onClose, onSave }) {
         </div>
         <div style={{ marginBottom: 22 }}>
           <label className="cc-label">Saldo inicial</label>
-          <div className="cc-amount-display">
-            <span className="cc-amount-currency">$</span>
-            <MonetaryInput value={bal} onChange={setBal} />
-            <span className="cc-amount-mxn">mxn</span>
-          </div>
+          <MonetaryInput value={bal} onChange={setBal} />
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
             Dinero que tienes ahorita en esta cuenta. Puede ser 0.
           </div>
@@ -6361,37 +6357,51 @@ function AccountModal({ acc, onClose, onSave }) {
 /* Input con sugerencias inline estilo Google: muestras un input normal y abajo
    aparece un popup con las sugerencias que coinciden con lo que escribiste.
    Permite escribir cualquier cosa nueva (no es selector cerrado). */
-/* Input de monto con auto-coma + hint gris ".00" pegado al texto.
+/* Input de monto: incluye el "$" y "mxn", auto-coma, hint gris ".00" pegado.
+   Tap en cualquier parte (incluso sobre el .00 o el "mxn") enfoca el input.
    Usa un span "espejo" oculto para medir el ancho real del texto y evitar
    que el input quede más ancho que su contenido (el ch-unit sobrestima en serif). */
-function MonetaryInput({ value, onChange, placeholder = "0" }) {
+function MonetaryInput({ value, onChange, placeholder = "0", currencyCode = "mxn" }) {
   const mirrorRef = useRef(null);
+  const inputRef = useRef(null);
   const [width, setWidth] = useState(28);
   const display = formatAmtInput(value);
   const hint = amountDecimalHint(value);
   useLayoutEffect(() => {
     if (mirrorRef.current) {
-      // +1 para que no se corte el caret/text en bordes
       setWidth(Math.max(mirrorRef.current.offsetWidth + 1, 10));
     }
   }, [display, placeholder]);
+  const focusInput = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    try {
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    } catch (_) {}
+  };
   return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", position: "relative" }}>
-      <span ref={mirrorRef} aria-hidden="true"
-        style={{
-          position: "absolute", visibility: "hidden", whiteSpace: "pre",
-          pointerEvents: "none", top: 0, left: 0,
-          fontFamily: "'Fraunces', serif", fontSize: 42, fontWeight: 600,
-          letterSpacing: "-.02em", fontFeatureSettings: '"tnum"',
-        }}>
-        {display || placeholder}
+    <div className="cc-amount-display" onClick={focusInput} style={{ cursor: "text" }}>
+      <span className="cc-amount-currency">$</span>
+      <span style={{ display: "inline-flex", alignItems: "baseline", position: "relative" }}>
+        <span ref={mirrorRef} aria-hidden="true"
+          style={{
+            position: "absolute", visibility: "hidden", whiteSpace: "pre",
+            pointerEvents: "none", top: 0, left: 0,
+            fontFamily: "'Fraunces', serif", fontSize: 42, fontWeight: 600,
+            letterSpacing: "-.02em", fontFeatureSettings: '"tnum"',
+          }}>
+          {display || placeholder}
+        </span>
+        <input ref={inputRef} className="cc-num" type="text" inputMode="decimal" placeholder={placeholder}
+          value={display}
+          onChange={(e) => onChange(parseAmtInput(e.target.value))}
+          style={{ width: `${width}px`, transition: "width .15s ease" }} />
+        {hint && <span className="cc-amount-decimal-hint">{hint}</span>}
       </span>
-      <input className="cc-num" type="text" inputMode="decimal" placeholder={placeholder}
-        value={display}
-        onChange={(e) => onChange(parseAmtInput(e.target.value))}
-        style={{ width: `${width}px`, transition: "width .15s ease" }} />
-      {hint && <span className="cc-amount-decimal-hint">{hint}</span>}
-    </span>
+      <span className="cc-amount-mxn">{currencyCode}</span>
+    </div>
   );
 }
 
@@ -6888,11 +6898,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
           ))}
         </div>
 
-        <div className="cc-amount-display">
-          <span className="cc-amount-currency">$</span>
-          <MonetaryInput value={amount} onChange={setAmount} />
-          <span className="cc-amount-mxn">mxn</span>
-        </div>
+        <MonetaryInput value={amount} onChange={setAmount} />
 
         <div style={{ marginBottom: 10 }}>
           <label className="cc-label">Concepto</label>
@@ -7498,11 +7504,7 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
           ))}
         </div>
 
-        <div className="cc-amount-display">
-          <span className="cc-amount-currency">$</span>
-          <MonetaryInput value={amount} onChange={setAmount} />
-          <span className="cc-amount-mxn">mxn</span>
-        </div>
+        <MonetaryInput value={amount} onChange={setAmount} />
 
         <div style={{ marginBottom: 14 }}>
           <label className="cc-label">Concepto</label>
@@ -7611,11 +7613,7 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         </p>
 
         {/* Monto */}
-        <div className="cc-amount-display">
-          <span className="cc-amount-currency">$</span>
-          <MonetaryInput value={amount} onChange={setAmount} />
-          <span className="cc-amount-currency-code">mxn</span>
-        </div>
+        <MonetaryInput value={amount} onChange={setAmount} />
 
         {/* From → To visual */}
         <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 14 }}>
