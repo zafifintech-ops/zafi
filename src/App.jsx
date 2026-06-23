@@ -5094,6 +5094,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const [configuring, setConfiguring] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
+  const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config, accView);
 
@@ -5366,11 +5367,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "incVsExp") {
           const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
+          const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
+          const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
           const baseTxs = statTxs(rangeTxs).all;
-          const chartTxs = view === "all"
-            ? baseTxs.filter((t) => !accHidden.includes(t.accountId))
-            : baseTxs;
-          const hiddenCount = view === "all" ? accHidden.length : 0;
+          let chartTxs;
+          if (view === "all") {
+            chartTxs = baseTxs.filter((t) => !accHidden.includes(t.accountId));
+          } else {
+            chartTxs = baseTxs.filter((t) => {
+              if (t.type === "income" && incCatsHidden.length > 0 && incCatsHidden.includes(t.categoryId)) return false;
+              if (t.type === "expense" && expCatsHidden.length > 0 && expCatsHidden.includes(t.categoryId)) return false;
+              return true;
+            });
+          }
+          const hiddenCount = view === "all" ? accHidden.length : (incCatsHidden.length + expCatsHidden.length);
           return (
             <div key={s.id} className="cc-card" style={{ padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -5380,17 +5390,26 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   <button onClick={() => setIncVsExpAccountsOpen(true)} className="cc-personalize-btn">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="4" y1="21" x2="4" y2="14" />
-                      <line x1="4" y1="10" x2="4" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="12" />
-                      <line x1="12" y1="8" x2="12" y2="3" />
-                      <line x1="20" y1="21" x2="20" y2="16" />
-                      <line x1="20" y1="12" x2="20" y2="3" />
-                      <line x1="1" y1="14" x2="7" y2="14" />
-                      <line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
                       <line x1="17" y1="16" x2="23" y2="16" />
                     </svg>
                     Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
+                  </button>
+                )}
+                {view !== "all" && (
+                  <button onClick={() => setIncVsExpCatsOpen(true)} className="cc-personalize-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                    Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
                   </button>
                 )}
               </div>
@@ -5461,6 +5480,18 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           desc="Elige qué cuentas sumar en Ingresos vs gastos."
           onClose={() => setIncVsExpAccountsOpen(false)}
           onSave={(hidden) => saveConfig(setPersonalize(config, "incVsExpAccountsHidden", hidden, accView))}
+        />
+      )}
+      {incVsExpCatsOpen && (
+        <IncVsExpCatsModal
+          config={config}
+          accView={accView}
+          incHidden={getPersonalize(config, "incVsExpIncCatsHidden", accView) || []}
+          expHidden={getPersonalize(config, "incVsExpExpCatsHidden", accView) || []}
+          onClose={() => setIncVsExpCatsOpen(false)}
+          onSave={(incH, expH) => saveConfig(
+            setPersonalize(setPersonalize(config, "incVsExpIncCatsHidden", incH, accView), "incVsExpExpCatsHidden", expH, accView)
+          )}
         />
       )}
     </div>
@@ -8148,6 +8179,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const [configOpen, setConfigOpen] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "expCats" | "catTrend"
   const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
+  const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
 
   // secciones configurables (orden + visibilidad)
   const STATS_DEFAULT = [
@@ -8371,10 +8403,19 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 
             if (s.id === "incVsExp") {
               const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
-              const chartTxs = view === "all"
-                ? rangeStat.filter((t) => !accHidden.includes(t.accountId))
-                : rangeStat;
-              const hiddenCount = view === "all" ? accHidden.length : 0;
+              const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
+              const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
+              let chartTxs;
+              if (view === "all") {
+                chartTxs = rangeStat.filter((t) => !accHidden.includes(t.accountId));
+              } else {
+                chartTxs = rangeStat.filter((t) => {
+                  if (t.type === "income" && incCatsHidden.length > 0 && incCatsHidden.includes(t.categoryId)) return false;
+                  if (t.type === "expense" && expCatsHidden.length > 0 && expCatsHidden.includes(t.categoryId)) return false;
+                  return true;
+                });
+              }
+              const hiddenCount = view === "all" ? accHidden.length : (incCatsHidden.length + expCatsHidden.length);
               return (
                 <div key={s.id} className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -8384,17 +8425,26 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                       <button onClick={() => setIncVsExpAccountsOpen(true)} className="cc-personalize-btn">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" />
-                          <line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" />
-                          <line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" />
-                          <line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
                           <line x1="17" y1="16" x2="23" y2="16" />
                         </svg>
                         Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
+                      </button>
+                    )}
+                    {view !== "all" && (
+                      <button onClick={() => setIncVsExpCatsOpen(true)} className="cc-personalize-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="17" y1="16" x2="23" y2="16" />
+                        </svg>
+                        Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
                       </button>
                     )}
                   </div>
@@ -8612,6 +8662,19 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           desc="Elige qué cuentas sumar en Ingresos vs gastos."
           onClose={() => setIncVsExpAccountsOpen(false)}
           onSave={(hidden) => saveConfig(setPersonalize(config, "incVsExpAccountsHidden", hidden, accView))}
+        />
+      )}
+
+      {incVsExpCatsOpen && (
+        <IncVsExpCatsModal
+          config={config}
+          accView={accView}
+          incHidden={getPersonalize(config, "incVsExpIncCatsHidden", accView) || []}
+          expHidden={getPersonalize(config, "incVsExpExpCatsHidden", accView) || []}
+          onClose={() => setIncVsExpCatsOpen(false)}
+          onSave={(incH, expH) => saveConfig(
+            setPersonalize(setPersonalize(config, "incVsExpIncCatsHidden", incH, accView), "incVsExpExpCatsHidden", expH, accView)
+          )}
         />
       )}
 
@@ -9216,6 +9279,143 @@ function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, 
             </div>
           )}
         </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ===== Modal: filtro de categorías de ingresos Y gastos para Ingresos vs Gastos (vista de cuenta) ===== */
+function IncVsExpCatsModal({ config, accView, incHidden, expHidden, onClose, onSave }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = isDarkMode();
+  const acc = accView && accView !== "all" ? config.accounts.find((a) => a.id === accView) : null;
+  const lbl = acc ? acc.name : "todas las cuentas";
+
+  const incCats = (config.categories || []).filter((c) => c.type === "income");
+  const expCats = (config.categories || []).filter((c) => c.type === "expense");
+
+  const [selInc, setSelInc] = useState(new Set(incCats.filter((c) => !incHidden.includes(c.id)).map((c) => c.id)));
+  const [selExp, setSelExp] = useState(new Set(expCats.filter((c) => !expHidden.includes(c.id)).map((c) => c.id)));
+
+  const apply = (nextInc, nextExp) => {
+    setSelInc(nextInc);
+    setSelExp(nextExp);
+    const hInc = incCats.filter((c) => !nextInc.has(c.id)).map((c) => c.id);
+    const hExp = expCats.filter((c) => !nextExp.has(c.id)).map((c) => c.id);
+    onSave(hInc, hExp);
+  };
+
+  const toggleInc = (id) => {
+    const next = new Set(selInc);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    apply(next, selExp);
+  };
+  const toggleExp = (id) => {
+    const next = new Set(selExp);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    apply(selInc, next);
+  };
+
+  const CatToggle = ({ cat, selected, onToggle }) => {
+    const isOn = selected.has(cat.id);
+    return (
+      <button onClick={() => onToggle(cat.id)}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
+          width: "100%" }}>
+        <span style={{ fontSize: 18 }}>{cat.emoji || "📂"}</span>
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
+          fontFamily: "'Montserrat', sans-serif" }}>{cat.name}</div>
+        <div style={{ width: 20, height: 20, borderRadius: 5,
+          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+          background: isOn ? "#5B6EE8" : "transparent",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {isOn && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Categorías en la gráfica</h2>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+          background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+          borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+          fontFamily: "'Montserrat', sans-serif", marginBottom: 12, letterSpacing: ".01em" }}>
+          🏦 {lbl}
+        </div>
+
+        {/* Ingresos */}
+        {incCats.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)",
+                  display: "inline-block" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: ".06em", color: "var(--green)", fontFamily: "'Montserrat', sans-serif" }}>
+                  Ingresos
+                </span>
+                <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+                  {selInc.size}/{incCats.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => apply(new Set(incCats.map((c) => c.id)), selExp)}
+                  className="cc-personalize-btn" style={{ fontSize: 11 }}>Todas</button>
+                <button onClick={() => apply(new Set(), selExp)}
+                  className="cc-personalize-btn" style={{ fontSize: 11 }}>Ninguna</button>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {incCats.map((c) => <CatToggle key={c.id} cat={c} selected={selInc} onToggle={toggleInc} />)}
+            </div>
+          </div>
+        )}
+
+        {/* Gastos */}
+        {expCats.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--coral)",
+                  display: "inline-block" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: ".06em", color: "var(--coral)", fontFamily: "'Montserrat', sans-serif" }}>
+                  Gastos
+                </span>
+                <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+                  {selExp.size}/{expCats.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => apply(selInc, new Set(expCats.map((c) => c.id)))}
+                  className="cc-personalize-btn" style={{ fontSize: 11 }}>Todas</button>
+                <button onClick={() => apply(selInc, new Set())}
+                  className="cc-personalize-btn" style={{ fontSize: 11 }}>Ninguna</button>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {expCats.map((c) => <CatToggle key={c.id} cat={c} selected={selExp} onToggle={toggleExp} />)}
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body
