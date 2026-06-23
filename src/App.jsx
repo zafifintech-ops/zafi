@@ -3546,7 +3546,9 @@ export default function App() {
 
   const themeMode = config?.theme || "auto";
   const isDarkTheme = themeMode === "dark" || (themeMode === "auto" && systemDark);
-  const bgVideoSrc = isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4";
+  // El "?v=" obliga al navegador a tratar el video como un recurso nuevo
+  // cuando lo actualices. Sube el número cuando reemplaces el archivo .mp4
+  const bgVideoSrc = (isDarkTheme ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4") + "?v=3";
   const bgMode = config?.bgMode || "dynamic";
   const showVideo = bgMode === "dynamic";
 
