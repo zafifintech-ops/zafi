@@ -810,6 +810,22 @@ const today = () => {
   return `${y}-${m}-${day}`;
 };
 
+/* Auto-coma en input de montos: state guarda raw ("1234.56"), input muestra "1,234.56" */
+function formatAmtInput(raw) {
+  if (raw == null || raw === "") return "";
+  const s = String(raw);
+  const parts = s.split(".");
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.length > 1 ? `${intPart}.${parts[1]}` : intPart;
+}
+function parseAmtInput(input) {
+  const cleaned = input.replace(/[^0-9.]/g, "");
+  const parts = cleaned.split(".");
+  if (parts.length > 2) return parts[0] + "." + parts.slice(1).join("").slice(0, 2);
+  if (parts[1] && parts[1].length > 2) return parts[0] + "." + parts[1].slice(0, 2);
+  return cleaned;
+}
+
 /* =========== Helpers para sugerencias bien escritas ====================== */
 /* Detecta acrónimos (palabras 2-5 letras que aparecen all-caps en alguna entrada).
    Si el texto entero es uppercase, solo cuenta si la entrada es UNA sola palabra
@@ -5072,6 +5088,11 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
   const byCat = {};
   monthStat.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
+    // Solo cuenta si la categoría asignada es realmente de tipo gasto
+    // (evita que un movimiento mal-categorizado con una categoría de ingresos —
+    // ej. "Ingresos de paso" — aparezca en la gráfica de gastos).
+    const cat = config.categories.find((c) => c.id === t.categoryId);
+    if (!cat || cat.type !== "expense") return;
     byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
   });
   const dashExpCatsHidden = getPersonalize(config, "dashExpCatsHidden", accView) || [];
@@ -5081,10 +5102,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     .slice(0, 6);
   const maxCat = rows.length ? rows[0][1] : 1;
   const catOf = (id) => config.categories.find((c) => c.id === id);
-  // expRows con shape {cat, amt} para pasarle al modal de filtros (consistente con Estadisticas)
   const dashExpRows = Object.entries(byCat)
     .map(([id, amt]) => ({ cat: catOf(id), amt }))
-    .filter((x) => x.cat)
+    .filter((x) => x.cat && x.cat.type === "expense")
     .sort((a, b) => b.amt - a.amt);
 
   // gastos más grandes del rango (excluyendo pass-through)
@@ -6215,12 +6235,9 @@ function AccountModal({ acc, onClose, onSave }) {
           <div className="cc-amount-display">
             <span className="cc-amount-currency">$</span>
             <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-              value={bal}
-              onChange={(e) => {
-                const v = e.target.value.replace(/[^0-9.]/g, "");
-                if ((v.match(/\./g) || []).length <= 1) setBal(v);
-              }}
-              style={{ width: `${Math.max((bal || "0.00").length, 4)}ch` }} />
+              value={formatAmtInput(bal)}
+              onChange={(e) => setBal(parseAmtInput(e.target.value))}
+              style={{ width: `${Math.max(formatAmtInput(bal).length || 4, 4)}ch`, transition: "width .15s ease" }} />
             <span className="cc-amount-mxn">mxn</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
@@ -6770,12 +6787,9 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
           <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={amount}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
-              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
-            }}
-            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
+            value={formatAmtInput(amount)}
+            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+            style={{ width: `${Math.max(formatAmtInput(amount).length || 4, 4)}ch`, transition: "width .15s ease" }} />
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7386,12 +7400,9 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
           <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={amount}
-            onChange={(e) => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
-              if ((v.match(/\./g) || []).length <= 1) setAmount(v);
-            }}
-            style={{ width: `${Math.max((amount || "0.00").length, 4)}ch` }} />
+            value={formatAmtInput(amount)}
+            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+            style={{ width: `${Math.max(formatAmtInput(amount).length || 4, 4)}ch`, transition: "width .15s ease" }} />
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7505,8 +7516,9 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
           <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} />
+            value={formatAmtInput(amount)}
+            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+            style={{ transition: "width .15s ease" }} />
           <span className="cc-amount-currency-code">mxn</span>
         </div>
 
@@ -8041,10 +8053,11 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   });
   const expRows = Object.entries(expByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
-    .filter((x) => x.cat).sort((a, b) => b.amt - a.amt);
+    .filter((x) => x.cat && x.cat.type === "expense")
+    .sort((a, b) => b.amt - a.amt);
   const incRows = Object.entries(incByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
-    .filter((x) => x.cat).sort((a, b) => b.amt - a.amt);
+    .filter((x) => x.cat && x.cat.type === "income").sort((a, b) => b.amt - a.amt);
 
   // pie de gastos (siempre del rango)
   const pieTotal = rangeExpense;
@@ -9703,6 +9716,10 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const first = points[0].val;
   const up = last >= first;
   const stroke = forcedColor || (up ? "var(--green)" : "var(--coral)");
+  // Si se fuerza color (ej. coral para gastos acumulados), todos los markers
+  // siguen ese color para que la gráfica sea visualmente coherente.
+  const maxColor = forcedColor || "var(--green)";
+  const minColor = forcedColor || "var(--coral)";
   const avgY = yOf(avg);
 
   const maxIdx = vals.indexOf(max);
@@ -9744,12 +9761,12 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line" />
         {/* máximo y mínimo */}
         <g className="cc-chart-mark">
-          <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill="var(--green)" />
-          <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--green)">{fmtBare(max)}</text>
+          <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill={maxColor} />
+          <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill={maxColor}>{fmtBare(max)}</text>
         </g>
         <g className="cc-chart-mark">
-          <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill="var(--coral)" />
-          <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--coral)">{fmtBare(min)}</text>
+          <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill={minColor} />
+          <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill={minColor}>{fmtBare(min)}</text>
         </g>
         {/* cursor hover */}
         {hp && (
