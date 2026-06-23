@@ -3785,7 +3785,13 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
-  const [accView, setAccView] = useState("all");
+  // Arranca en la cuenta default si hay una configurada
+  const [accView, setAccView] = useState(() => {
+    const saved = loadConfig();
+    const def = saved?.defaultHomeView;
+    if (def && def !== "all" && saved?.accounts?.find((a) => a.id === def)) return def;
+    return "all";
+  });
   const [transferOpen, setTransferOpen] = useState(false);
 
   // Guarda una transferencia entre cuentas como dos txs vinculadas
@@ -4534,6 +4540,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [saved, setSaved] = useState(true);
+  const [defaultHome, setDefaultHome] = useState(config.defaultHomeView || "all");
 
   const initial = userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
   const avatarSrc = getAvatarSrc(config);
@@ -4680,6 +4687,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
               {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
+              {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
               {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
             </div>
@@ -4728,6 +4736,48 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                   letterSpacing: "-.01em" }}>
                 {saved ? "Listo" : t("saveChanges")}
               </button>
+            </div>
+          </>
+        )}
+
+        {section === "home" && (
+          <>
+            {BACK("Cuenta de inicio")}
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
+                Elige qué cuenta se muestra por default al abrir la app.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[{ id: "all", name: "General (todas las cuentas)" }, ...config.accounts].map((a) => {
+                  const isOn = defaultHome === a.id;
+                  return (
+                    <button key={a.id} onClick={() => {
+                      setDefaultHome(a.id);
+                      saveConfig({ ...config, defaultHomeView: a.id });
+                      showToast("Cuenta de inicio actualizada");
+                    }}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
+                        border: `1px solid ${isOn ? "rgba(91,110,232,.4)" : "var(--line)"}`,
+                        borderRadius: 12, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s" }}>
+                      <span style={{ fontSize: 20 }}>{a.id === "all" ? "🌐" : "🏦"}</span>
+                      <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--ink)",
+                        fontFamily: "'Montserrat', sans-serif" }}>{a.name || a.id === "all" ? (a.name || "General") : a.name}</div>
+                      <div style={{ width: 22, height: 22, borderRadius: 6,
+                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                        background: isOn ? "#5B6EE8" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isOn && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                            strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
@@ -8375,19 +8425,19 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                     style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
                       border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
                       fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
                       textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
                     <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
                   </button>
                   <button onClick={() => openDetail("expense")}
                     style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
                       border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
                       fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
                       textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
                     <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>Tocar para detalle ▸</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
                   </button>
                 </div>
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
@@ -9292,8 +9342,10 @@ function IncVsExpCatsModal({ config, accView, incHidden, expHidden, onClose, onS
   const acc = accView && accView !== "all" ? config.accounts.find((a) => a.id === accView) : null;
   const lbl = acc ? acc.name : "todas las cuentas";
 
-  const incCats = (config.categories || []).filter((c) => c.type === "income");
-  const expCats = (config.categories || []).filter((c) => c.type === "expense");
+  // Solo categorías de la cuenta seleccionada
+  const accId = accView && accView !== "all" ? accView : null;
+  const incCats = (config.categories || []).filter((c) => c.type === "income" && (!accId || c.accountId === accId));
+  const expCats = (config.categories || []).filter((c) => c.type === "expense" && (!accId || c.accountId === accId));
 
   const [selInc, setSelInc] = useState(new Set(incCats.filter((c) => !incHidden.includes(c.id)).map((c) => c.id)));
   const [selExp, setSelExp] = useState(new Set(expCats.filter((c) => !expHidden.includes(c.id)).map((c) => c.id)));
