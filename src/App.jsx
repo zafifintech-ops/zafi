@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
@@ -5196,18 +5196,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             <button className="cc-gear" onClick={() => setConfiguring(true)}><IconGear /> Personalizar</button>
           </div>
           <div className="cc-scroll-x">
-            {/* tarjeta General */}
-            <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
-              <div className="cc-acc-icon">∑</div>
-              <div className="cc-acc-label">Total</div>
-              <div className="cc-acc-name">General</div>
-              <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
-                {fmt(balance)}
-              </div>
-              <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
-            </button>
-            {/* tarjetas por cuenta */}
-            {config.accounts.map((a) => {
+            {/* tarjeta General (Total) — respeta config.hiddenAccountCards */}
+            {!(config.hiddenAccountCards || []).includes("all") && (
+              <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
+                <div className="cc-acc-icon">∑</div>
+                <div className="cc-acc-label">Total</div>
+                <div className="cc-acc-name">General</div>
+                <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
+                  {fmt(balance)}
+                </div>
+                <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
+              </button>
+            )}
+            {/* tarjetas por cuenta — solo las visibles */}
+            {config.accounts.filter((a) => !(config.hiddenAccountCards || []).includes(a.id)).map((a) => {
               const b = accountBalance(config, txs, a.id);
               const accTxs = txs.filter((t) => t.accountId === a.id);
               const rangeAccStat = statTxs(txsInRange(accTxs, dateRange)).all;
@@ -5371,6 +5373,18 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         <HomeConfigModal
           sections={sections}
           accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
+          accounts={config.accounts}
+          hiddenAccountCards={config.hiddenAccountCards || []}
+          onToggleAccountCard={(id) => {
+            const cur = config.hiddenAccountCards || [];
+            const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+            saveConfig({ ...config, hiddenAccountCards: next });
+            // Si la cuenta seleccionada se está ocultando, regresamos a la primera visible
+            if (id === view && !cur.includes(id)) {
+              const candidates = ["all", ...config.accounts.map((a) => a.id)].filter((x) => !next.includes(x));
+              if (candidates.length) setView(candidates[0]);
+            }
+          }}
           onClose={() => setConfiguring(false)}
           onSave={(newSections) => saveConfig(setPersonalize(config, "homeSections", newSections, accView))}
         />
@@ -5394,7 +5408,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 }
 
 /* ============= MODAL: PERSONALIZAR INICIO ============================== */
-function HomeConfigModal({ sections, accountLabel, onClose, onSave }) {
+function HomeConfigModal({ sections, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, onClose, onSave }) {
   const [items, setItems] = useState(sections);
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
@@ -5493,6 +5507,41 @@ function HomeConfigModal({ sections, accountLabel, onClose, onSave }) {
             </div>
           ))}
         </div>
+
+        {/* Cuentas a mostrar en el selector del inicio */}
+        {accounts && accounts.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)",
+              letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 4,
+              fontFamily: "'Montserrat', sans-serif" }}>Cuentas en el selector</div>
+            <p style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 12,
+              fontFamily: "'Montserrat', sans-serif", lineHeight: 1.45 }}>
+              Apaga las que no quieras ver como botones al cambiar de vista.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[{ id: "all", name: "Total (suma general)", emoji: "∑" }, ...accounts].map((a) => {
+                const isOn = !(hiddenAccountCards || []).includes(a.id);
+                return (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line)",
+                    background: "var(--paper)", opacity: isOn ? 1 : 0.55, transition: "opacity .15s" }}>
+                    <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{a.emoji || "🏦"}</span>
+                    <span style={{ flex: 1, fontWeight: 500, fontSize: 14,
+                      color: "var(--ink)", fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
+                    <button onClick={() => onToggleAccountCard && onToggleAccountCard(a.id)}
+                      style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer",
+                        position: "relative", background: isOn ? "#5B6EE8" : "var(--surface-2)",
+                        transition: "background .15s" }}>
+                      <span style={{ position: "absolute", top: 3, left: isOn ? 22 : 3, width: 21, height: 21,
+                        borderRadius: "50%", background: "#fff",
+                        transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "center" }}>
           <button onClick={reset}
@@ -6291,15 +6340,7 @@ function AccountModal({ acc, onClose, onSave }) {
           <label className="cc-label">Saldo inicial</label>
           <div className="cc-amount-display">
             <span className="cc-amount-currency">$</span>
-            <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-              <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
-                value={formatAmtInput(bal)}
-                onChange={(e) => setBal(parseAmtInput(e.target.value))}
-                style={{ width: `${Math.max(formatAmtInput(bal).length, 1)}ch`, transition: "width .15s ease" }} />
-              {amountDecimalHint(bal) && (
-                <span className="cc-amount-decimal-hint">{amountDecimalHint(bal)}</span>
-              )}
-            </span>
+            <MonetaryInput value={bal} onChange={setBal} />
             <span className="cc-amount-mxn">mxn</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
@@ -6320,6 +6361,40 @@ function AccountModal({ acc, onClose, onSave }) {
 /* Input con sugerencias inline estilo Google: muestras un input normal y abajo
    aparece un popup con las sugerencias que coinciden con lo que escribiste.
    Permite escribir cualquier cosa nueva (no es selector cerrado). */
+/* Input de monto con auto-coma + hint gris ".00" pegado al texto.
+   Usa un span "espejo" oculto para medir el ancho real del texto y evitar
+   que el input quede más ancho que su contenido (el ch-unit sobrestima en serif). */
+function MonetaryInput({ value, onChange, placeholder = "0" }) {
+  const mirrorRef = useRef(null);
+  const [width, setWidth] = useState(28);
+  const display = formatAmtInput(value);
+  const hint = amountDecimalHint(value);
+  useLayoutEffect(() => {
+    if (mirrorRef.current) {
+      // +1 para que no se corte el caret/text en bordes
+      setWidth(Math.max(mirrorRef.current.offsetWidth + 1, 10));
+    }
+  }, [display, placeholder]);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", position: "relative" }}>
+      <span ref={mirrorRef} aria-hidden="true"
+        style={{
+          position: "absolute", visibility: "hidden", whiteSpace: "pre",
+          pointerEvents: "none", top: 0, left: 0,
+          fontFamily: "'Fraunces', serif", fontSize: 42, fontWeight: 600,
+          letterSpacing: "-.02em", fontFeatureSettings: '"tnum"',
+        }}>
+        {display || placeholder}
+      </span>
+      <input className="cc-num" type="text" inputMode="decimal" placeholder={placeholder}
+        value={display}
+        onChange={(e) => onChange(parseAmtInput(e.target.value))}
+        style={{ width: `${width}px`, transition: "width .15s ease" }} />
+      {hint && <span className="cc-amount-decimal-hint">{hint}</span>}
+    </span>
+  );
+}
+
 function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, className = "cc-input", inputProps = {} }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -6815,15 +6890,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
 
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
-              value={formatAmtInput(amount)}
-              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
-            {amountDecimalHint(amount) && (
-              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
-            )}
-          </span>
+          <MonetaryInput value={amount} onChange={setAmount} />
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7433,15 +7500,7 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
 
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
-              value={formatAmtInput(amount)}
-              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
-            {amountDecimalHint(amount) && (
-              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
-            )}
-          </span>
+          <MonetaryInput value={amount} onChange={setAmount} />
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7554,15 +7613,7 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         {/* Monto */}
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
-              value={formatAmtInput(amount)}
-              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
-            {amountDecimalHint(amount) && (
-              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
-            )}
-          </span>
+          <MonetaryInput value={amount} onChange={setAmount} />
           <span className="cc-amount-currency-code">mxn</span>
         </div>
 
