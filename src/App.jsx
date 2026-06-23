@@ -659,6 +659,9 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   padding:18px 0;margin-bottom:6px;width:100%;}
 .cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink-soft);flex-shrink:0;}
 .cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;}
+/* "00" gris que aparece después del número cuando no hay punto */
+.cc-amount-decimal-hint{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
+  color:var(--ink-faint);opacity:.5;pointer-events:none;font-feature-settings:"tnum";flex-shrink:0;}
 .cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
   width:auto;max-width:240px;min-width:30px;font-feature-settings:"tnum";
@@ -824,6 +827,21 @@ function parseAmtInput(input) {
   if (parts.length > 2) return parts[0] + "." + parts.slice(1).join("").slice(0, 2);
   if (parts[1] && parts[1].length > 2) return parts[0] + "." + parts[1].slice(0, 2);
   return cleaned;
+}
+/* Hint gris que se renderiza después del input para completar visualmente el ".00".
+   - "": muestra ".00" (combinado con placeholder "0" del input → "0.00" gris)
+   - "2": muestra ".00" (input "2" negro + hint ".00" gris → "2.00")
+   - "2.": muestra "00" (input "2." negro + hint "00" gris → "2.00")
+   - "2.5": muestra "0" (input "2.5" + hint "0" → "2.50")
+   - "2.50": no hint (sin "" — todo en negro). */
+function amountDecimalHint(raw) {
+  if (!raw) return ".00";
+  const idx = String(raw).indexOf(".");
+  if (idx === -1) return ".00";
+  const decimals = String(raw).length - idx - 1;
+  if (decimals >= 2) return "";
+  if (decimals === 1) return "0";
+  return "00";
 }
 
 /* =========== Helpers para sugerencias bien escritas ====================== */
@@ -3895,7 +3913,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         <div key={tab} className="cc-page">
           {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
-          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} />}
+          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} accView={accView} setAccView={setAccView} />}
         </div>
       </div>
@@ -5140,7 +5158,16 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
   // gráfica de líneas: gasto acumulado por día en el periodo
   const expenseLinePoints = (() => {
-    const expTxs = rangeTxs.filter(t => t.type === "expense");
+    // Respeta el filtro de categorías de la gráfica de "Gastos por categoría"
+    // y excluye txs cuya categoría no sea de tipo gasto (Ingresos de paso, etc).
+    const expTxs = rangeTxs.filter((t) => {
+      if (t.type !== "expense") return false;
+      if (!t.categoryId) return false;
+      const cat = config.categories.find((c) => c.id === t.categoryId);
+      if (!cat || cat.type !== "expense") return false;
+      if (dashExpCatsHidden.includes(t.categoryId)) return false;
+      return true;
+    });
     if (expTxs.length < 2) return [];
     const daily = {};
     expTxs.forEach(t => { daily[t.date] = (daily[t.date] || 0) + t.amount; });
@@ -5852,12 +5879,29 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
 }
 
 /* ============================ CATEGORÍAS ================================= */
-function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring, accView, setAccView }) {
+function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurring, accView, setAccView, onEdit }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // categoría a eliminar
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [catDetail, setCatDetail] = useState(null); // {kind, label, color, emoji, txs, total}
   const multi = config.accounts.length > 1;
   const visibleAccounts = accView === "all" ? config.accounts : config.accounts.filter((a) => a.id === accView);
+
+  // Abre el detalle de una categoría: lista de movimientos del rango
+  const openCatDetail = (cat) => {
+    const rangeTx = txsInRange(txs || [], dateRange);
+    const list = rangeTx.filter((t) => t.categoryId === cat.id);
+    const total = list.reduce((s, t) => s + t.amount, 0);
+    const isInc = cat.type === "income";
+    setCatDetail({
+      kind: isInc ? "income" : "expense",
+      label: cat.name,
+      emoji: cat.emoji,
+      color: isInc ? "var(--green)" : "var(--coral)",
+      txs: list,
+      total,
+    });
+  };
 
   const save = (cat) => {
     let cats;
@@ -5986,7 +6030,13 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                   {list.map((c) => {
                     const total = totalsByCat[c.id] || 0;
                     return (
-                      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
+                      <div key={c.id}
+                        onClick={() => openCatDetail(c)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 4px",
+                          borderBottom: "1px solid var(--line)", cursor: "pointer",
+                          borderRadius: 8, transition: "background .15s" }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                         <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
@@ -5996,8 +6046,10 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                             </div>
                           )}
                         </div>
-                        <button className="cc-btn" style={{ padding: "4px 9px", fontSize: 12 }} onClick={() => setEditing(c)}>Editar</button>
-                        <button className="cc-btn" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => askDel(c)}>✕</button>
+                        <button className="cc-btn" style={{ padding: "4px 9px", fontSize: 12 }}
+                          onClick={(e) => { e.stopPropagation(); setEditing(c); }}>Editar</button>
+                        <button className="cc-btn" style={{ padding: "4px 8px", fontSize: 12 }}
+                          onClick={(e) => { e.stopPropagation(); askDel(c); }}>✕</button>
                       </div>
                     );
                   })}
@@ -6012,6 +6064,11 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
         );
       })}
       {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
+      {catDetail && (
+        <DetailModal config={config} detail={catDetail} dateRange={dateRange}
+          onClose={() => setCatDetail(null)}
+          onEditTx={(t) => { setCatDetail(null); if (onEdit) onEdit(t); }} />
+      )}
       {recurringOpen && (
         <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring} />
       )}
@@ -6234,10 +6291,15 @@ function AccountModal({ acc, onClose, onSave }) {
           <label className="cc-label">Saldo inicial</label>
           <div className="cc-amount-display">
             <span className="cc-amount-currency">$</span>
-            <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-              value={formatAmtInput(bal)}
-              onChange={(e) => setBal(parseAmtInput(e.target.value))}
-              style={{ width: `${Math.max(formatAmtInput(bal).length || 4, 4)}ch`, transition: "width .15s ease" }} />
+            <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+              <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
+                value={formatAmtInput(bal)}
+                onChange={(e) => setBal(parseAmtInput(e.target.value))}
+                style={{ width: `${Math.max(formatAmtInput(bal).length, 1)}ch`, transition: "width .15s ease" }} />
+              {amountDecimalHint(bal) && (
+                <span className="cc-amount-decimal-hint">{amountDecimalHint(bal)}</span>
+              )}
+            </span>
             <span className="cc-amount-mxn">mxn</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, textAlign: "center" }}>
@@ -6279,9 +6341,10 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
   const filtered = (() => {
     if (disabled) return [];
     const v = (value || "").trim().toLowerCase();
+    // Sin escribir nada: no mostramos nada para mantener la UI limpia.
+    // Las sugerencias solo aparecen al empezar a escribir.
+    if (!v) return [];
     const list = suggestions || [];
-    if (!v) return list.slice(0, 8);
-    // Coincidencias por inclusión, priorizando las que empiezan con el query
     return list
       .filter((s) => s.toLowerCase().includes(v) && s.toLowerCase() !== v)
       .sort((a, b) => {
@@ -6750,46 +6813,17 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
           ))}
         </div>
 
-        {/* Sugerencias de movimientos frecuentes */}
-        {!editing && (() => {
-          const patterns = detectFrequentPatterns(txs, config).filter(p => p.type === type).slice(0, 5);
-          if (!patterns.length) return null;
-          return (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600, letterSpacing: ".03em", marginBottom: 6 }}>
-                FRECUENTES
-              </div>
-              <div className="cc-scroll-x" style={{ gap: 6 }}>
-                {patterns.map((p, i) => (
-                  <button key={i} onClick={() => {
-                    setDesc(p.description);
-                    setAmount(String(p.amount));
-                    if (p.accountId) setAccountId(p.accountId);
-                    if (p.categoryId) setCatId(p.categoryId);
-                  }}
-                    style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-                      background: p.annual ? "rgba(99,102,241,.08)" : "var(--surface)",
-                      border: `1px solid ${p.annual ? "rgba(99,102,241,.25)" : "var(--glass-border)"}`,
-                      cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 500,
-                      color: "var(--ink)", whiteSpace: "nowrap",
-                      display: "flex", alignItems: "center", gap: 6 }}>
-                    {p.categoryEmoji && <span>{p.categoryEmoji}</span>}
-                    <span>{p.description}</span>
-                    <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>{fmtBare(p.amount)}</span>
-                    {p.annual && <span style={{ fontSize: 10, color: "#6366F1", fontWeight: 600 }}>ANUAL</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={formatAmtInput(amount)}
-            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-            style={{ width: `${Math.max(formatAmtInput(amount).length || 4, 4)}ch`, transition: "width .15s ease" }} />
+          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
+              value={formatAmtInput(amount)}
+              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
+            {amountDecimalHint(amount) && (
+              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
+            )}
+          </span>
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7399,10 +7433,15 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
 
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={formatAmtInput(amount)}
-            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-            style={{ width: `${Math.max(formatAmtInput(amount).length || 4, 4)}ch`, transition: "width .15s ease" }} />
+          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
+              value={formatAmtInput(amount)}
+              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
+            {amountDecimalHint(amount) && (
+              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
+            )}
+          </span>
           <span className="cc-amount-mxn">mxn</span>
         </div>
 
@@ -7515,10 +7554,15 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         {/* Monto */}
         <div className="cc-amount-display">
           <span className="cc-amount-currency">$</span>
-          <input className="cc-num" type="text" inputMode="decimal" placeholder="0.00"
-            value={formatAmtInput(amount)}
-            onChange={(e) => setAmount(parseAmtInput(e.target.value))}
-            style={{ transition: "width .15s ease" }} />
+          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+            <input className="cc-num" type="text" inputMode="decimal" placeholder="0"
+              value={formatAmtInput(amount)}
+              onChange={(e) => setAmount(parseAmtInput(e.target.value))}
+              style={{ width: `${Math.max(formatAmtInput(amount).length, 1)}ch`, transition: "width .15s ease" }} />
+            {amountDecimalHint(amount) && (
+              <span className="cc-amount-decimal-hint">{amountDecimalHint(amount)}</span>
+            )}
+          </span>
           <span className="cc-amount-currency-code">mxn</span>
         </div>
 
