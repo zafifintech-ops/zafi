@@ -5058,6 +5058,7 @@ function DateRangeModal({ dateRange, onClose, onSave }) {
 const DEFAULT_SECTIONS = [
   { id: "kpis", label: "Ingresos y gastos del mes", on: true },
   { id: "byCategory", label: "Gastos por categoría", on: true },
+  { id: "incVsExp", label: "Ingresos vs gastos", on: false },
   { id: "recent", label: "Movimientos recientes", on: true },
   { id: "balance", label: "Saldo destacado", on: false },
   { id: "trend", label: "Mini gráfica de saldo (30d)", on: false },
@@ -5352,6 +5353,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             ) : (
               topExpenses.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
             )}
+          </div>
+        );
+
+        if (s.id === "incVsExp") return (
+          <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+            <div className="cc-label" style={{ marginBottom: 6 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
+            <IncomeVsExpenseChart txs={statTxs(rangeTxs).all} dateRange={dateRange} />
           </div>
         );
 
@@ -8092,6 +8100,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   // secciones configurables (orden + visibilidad)
   const STATS_DEFAULT = [
     { id: "summary", label: "Resumen ingresos/gastos", on: true },
+    { id: "incVsExp", label: "Ingresos vs gastos", on: true },
     { id: "topCat", label: "En lo que más gastaste", on: true },
     { id: "incCats", label: "Ingresos por categoría", on: true },
     { id: "expCats", label: "Gastos por categoría", on: true },
@@ -8302,6 +8311,13 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                     {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
                   </span>
                 </div>
+              </div>
+            );
+
+            if (s.id === "incVsExp") return (
+              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+                <div className="cc-label" style={{ marginBottom: 6 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
+                <IncomeVsExpenseChart txs={rangeStat} dateRange={dateRange} />
               </div>
             );
 
@@ -10077,6 +10093,196 @@ function shortMoney(v) {
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
   if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
   return `${sign}$${Math.round(abs)}`;
+}
+
+/* Gráfica Ingresos vs Gastos: barras agrupadas por periodo
+   Auto-bucketing: día si rango <=14d, semana si <=60d, mes si más. */
+function IncomeVsExpenseChart({ txs, dateRange, onPickPeriod }) {
+  const [hover, setHover] = useState(null); // bucket index
+  const r = resolveRange(dateRange);
+  const fromDate = new Date(r.from + "T12:00:00");
+  const toDate = new Date(r.to + "T12:00:00");
+  const diffDays = Math.max(1, Math.round((toDate - fromDate) / 86400000) + 1);
+
+  // Elegir bucket
+  let bucketKind;
+  if (diffDays <= 14) bucketKind = "day";
+  else if (diffDays <= 60) bucketKind = "week";
+  else bucketKind = "month";
+
+  // Generar buckets
+  const buckets = (() => {
+    const out = [];
+    if (bucketKind === "day") {
+      for (let i = 0; i < diffDays; i++) {
+        const d = new Date(fromDate); d.setDate(d.getDate() + i);
+        const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+        const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const lbl = `${day} ${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][m]}`;
+        out.push({ key, label: lbl, start: key, end: key, income: 0, expense: 0 });
+      }
+    } else if (bucketKind === "week") {
+      // semanas que arrancan en lunes
+      const start = new Date(fromDate);
+      const wd = (start.getDay() + 6) % 7; // 0 = lunes
+      start.setDate(start.getDate() - wd);
+      for (let d = new Date(start); d <= toDate; d.setDate(d.getDate() + 7)) {
+        const wkStart = new Date(d);
+        const wkEnd = new Date(d); wkEnd.setDate(wkEnd.getDate() + 6);
+        const fmt = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+        const lbl = `${wkStart.getDate()}-${wkEnd.getDate()} ${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][wkStart.getMonth()]}`;
+        out.push({ key: fmt(wkStart), label: lbl, start: fmt(wkStart), end: fmt(wkEnd), income: 0, expense: 0 });
+      }
+    } else {
+      // meses
+      let cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 12);
+      const end = new Date(toDate.getFullYear(), toDate.getMonth(), 1, 12);
+      while (cursor <= end) {
+        const y = cursor.getFullYear(), m = cursor.getMonth();
+        const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+        const startK = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+        const endK = `${y}-${String(m + 1).padStart(2, "0")}-${new Date(y, m + 1, 0).getDate()}`;
+        const lbl = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][m];
+        out.push({ key, label: lbl, start: startK, end: endK, income: 0, expense: 0 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    }
+    return out;
+  })();
+
+  // Sumar txs en sus buckets
+  txs.forEach((t) => {
+    const b = buckets.find((bk) => t.date >= bk.start && t.date <= bk.end);
+    if (!b) return;
+    if (t.type === "income") b.income += t.amount;
+    else if (t.type === "expense") b.expense += t.amount;
+  });
+
+  const maxVal = Math.max(1, ...buckets.flatMap((b) => [b.income, b.expense]));
+  // Si no hay nada que mostrar
+  if (maxVal <= 1) {
+    return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0", textAlign: "center" }}>Sin datos en el periodo.</div>;
+  }
+
+  const W = 600, H = 220, P = 24, PB = 36;
+  const innerW = W - P * 2;
+  const innerH = H - P - PB;
+  const groupW = innerW / buckets.length;
+  const barW = Math.max(4, Math.min(20, (groupW - 6) / 2));
+  const yOf = (v) => H - PB - (v / maxVal) * innerH;
+
+  // Etiquetas: si hay muchos buckets, mostramos cada N
+  const labelEvery = buckets.length > 12 ? Math.ceil(buckets.length / 8) : 1;
+
+  // Totales del periodo
+  const totalInc = buckets.reduce((s, b) => s + b.income, 0);
+  const totalExp = buckets.reduce((s, b) => s + b.expense, 0);
+  const diff = totalInc - totalExp;
+
+  const hb = hover != null ? buckets[hover] : null;
+
+  return (
+    <div>
+      {/* Mini header con totales */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: 10, fontFamily: "'Montserrat', sans-serif", fontSize: 12 }}>
+        <div style={{ display: "flex", gap: 16 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--green)" }} />
+            <span style={{ color: "var(--ink-soft)" }}>Ingresos</span>
+            <span className="cc-num" style={{ fontWeight: 700, color: "var(--green)" }}>{fmt(totalInc)}</span>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--coral)" }} />
+            <span style={{ color: "var(--ink-soft)" }}>Gastos</span>
+            <span className="cc-num" style={{ fontWeight: 700, color: "var(--coral)" }}>{fmt(totalExp)}</span>
+          </span>
+        </div>
+        <span className="cc-num" style={{ fontWeight: 700, fontSize: 13,
+          color: diff >= 0 ? "var(--green)" : "var(--coral)" }}>
+          {diff >= 0 ? "+" : ""}{fmt(diff)}
+        </span>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", touchAction: "none" }}
+        onMouseLeave={() => setHover(null)}>
+        {/* líneas guía horizontales */}
+        {(() => {
+          const { ticks } = niceTicks(0, maxVal, 4);
+          return ticks.filter((t) => t > 0 && t <= maxVal).map((t, i) => (
+            <g key={i}>
+              <line x1={P} y1={yOf(t)} x2={W - P} y2={yOf(t)} stroke="var(--ink-faint)" strokeWidth="0.5" opacity="0.25" />
+              <text x={P - 4} y={yOf(t) + 3} fontSize="9" textAnchor="end" fill="var(--ink-faint)" className="cc-num">
+                {fmtBare(t)}
+              </text>
+            </g>
+          ));
+        })()}
+
+        {/* barras agrupadas */}
+        {buckets.map((b, i) => {
+          const cx = P + groupW * i + groupW / 2;
+          const incX = cx - barW - 1;
+          const expX = cx + 1;
+          const incH = Math.max(1, (b.income / maxVal) * innerH);
+          const expH = Math.max(1, (b.expense / maxVal) * innerH);
+          const isHovered = hover === i;
+          return (
+            <g key={b.key}
+              style={{ cursor: "pointer" }}
+              onMouseEnter={() => setHover(i)}
+              onClick={() => onPickPeriod && onPickPeriod(b)}>
+              {/* hit area */}
+              <rect x={P + groupW * i} y={P} width={groupW} height={innerH}
+                fill="transparent" />
+              {/* income bar */}
+              {b.income > 0 && (
+                <rect x={incX} y={yOf(b.income)} width={barW} height={incH}
+                  fill="var(--green)" rx="2"
+                  opacity={hover != null && !isHovered ? 0.35 : 1}
+                  style={{ transition: "opacity .15s" }} />
+              )}
+              {/* expense bar */}
+              {b.expense > 0 && (
+                <rect x={expX} y={yOf(b.expense)} width={barW} height={expH}
+                  fill="var(--coral)" rx="2"
+                  opacity={hover != null && !isHovered ? 0.35 : 1}
+                  style={{ transition: "opacity .15s" }} />
+              )}
+              {/* label */}
+              {(i % labelEvery === 0 || isHovered) && (
+                <text x={cx} y={H - PB + 14} textAnchor="middle"
+                  fontSize="10" fontWeight={isHovered ? 700 : 500}
+                  fill={isHovered ? "var(--ink)" : "var(--ink-soft)"}
+                  fontFamily="'Montserrat', sans-serif">
+                  {b.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* eje x */}
+        <line x1={P} y1={H - PB} x2={W - P} y2={H - PB} stroke="var(--ink-faint)" strokeWidth="0.6" opacity="0.6" />
+
+        {/* Tooltip valores cuando hover */}
+        {hb && (
+          <g>
+            <rect x={P + groupW * hover + groupW / 2 - 60} y={P - 2} width="120" height="34"
+              fill="var(--paper)" stroke="var(--line)" rx="6" />
+            <text x={P + groupW * hover + groupW / 2} y={P + 12} textAnchor="middle"
+              fontSize="10" fontWeight="700" fill="var(--green)" fontFamily="'Montserrat', sans-serif">
+              +{fmtBare(hb.income)}
+            </text>
+            <text x={P + groupW * hover + groupW / 2} y={P + 25} textAnchor="middle"
+              fontSize="10" fontWeight="700" fill="var(--coral)" fontFamily="'Montserrat', sans-serif">
+              −{fmtBare(hb.expense)}
+            </text>
+          </g>
+        )}
+      </svg>
+    </div>
+  );
 }
 
 /* genera ticks "redondos" para el eje Y */
