@@ -3785,13 +3785,19 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
-  // Arranca en la cuenta default si hay una configurada
-  const [accView, setAccView] = useState(() => {
-    const saved = loadConfig();
-    const def = saved?.defaultHomeView;
-    if (def && def !== "all" && saved?.accounts?.find((a) => a.id === def)) return def;
-    return "all";
-  });
+  const [accView, setAccView] = useState("all");
+  // Aplica la cuenta de inicio cuando config carga (defaultHomeView)
+  const accViewApplied = useRef(false);
+  useEffect(() => {
+    if (accViewApplied.current) return;
+    const def = config?.defaultHomeView;
+    if (def && def !== "all" && config?.accounts?.find((a) => a.id === def)) {
+      setAccView(def);
+      accViewApplied.current = true;
+    } else if (config?.accounts?.length > 0) {
+      accViewApplied.current = true; // no hay default, quedamos en "all"
+    }
+  }, [config]);
   const [transferOpen, setTransferOpen] = useState(false);
 
   // Guarda una transferencia entre cuentas como dos txs vinculadas
