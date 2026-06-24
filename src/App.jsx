@@ -10189,6 +10189,7 @@ function KpiCard({ label, value, sub, color }) {
 const CAT_LINE_COLORS = ["#F87171","#60A5FA","#34D399","#FBBF24","#A78BFA","#FB923C"];
 function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
   const [hover, setHover] = useState(null);
+  const [trendRef, , animKey] = useInView(0.2);
   const rangeTx = txsInRange(txs, dateRange).filter(t => t.type === "expense" && t.categoryId);
   if (rangeTx.length < 2) return <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Datos insuficientes.</div>;
 
@@ -10237,7 +10238,7 @@ function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}
+      <svg ref={trendRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}
         onMouseMove={handleMove} onTouchMove={handleMove} onMouseLeave={() => setHover(null)} onTouchEnd={() => setHover(null)}>
         {/* grid lines */}
         {[0.25, 0.5, 0.75].map(f => (
@@ -10247,7 +10248,9 @@ function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
         {/* lines per category */}
         {series.map(s => {
           const path = s.pts.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(" ");
-          return <path key={s.catId} d={path} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity=".85" />;
+          return <path key={`tl-${animKey}-${s.catId}`} d={path} fill="none" stroke={s.color} strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" opacity=".85"
+            className="cc-chart-line" pathLength="1" />;
         })}
         {/* hover vertical line */}
         {hover !== null && (
@@ -10286,6 +10289,7 @@ function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
 
 function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const [hover, setHover] = useState(null); // index hovered
+  const [lineRef, , animKey] = useInView(0.2);
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
   }
@@ -10324,7 +10328,7 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const hp = hover != null ? points[hover] : null;
 
   return (
-    <div>
+    <div ref={lineRef}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, color: "var(--ink-soft)" }}>
         <span>{hp ? hp.date : points[0].date}</span>
         <span className="cc-num" style={{ fontWeight: 700, color: stroke, fontSize: 14 }}>
@@ -10343,15 +10347,15 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         </defs>
         {/* promedio */}
         <line x1={P} y1={avgY} x2={W - P} y2={avgY} stroke="var(--ink-faint)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)" className="cc-chart-label">prom {fmtBare(avg)}</text>
-        {showArea && <path d={areaPath} fill="url(#ccLine)" className="cc-chart-area" />}
-        <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line" />
+        <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="10" fill="var(--ink-faint)" className="cc-chart-label" key={`lbl-${animKey}`}>prom {fmtBare(avg)}</text>
+        {showArea && <path d={areaPath} fill="url(#ccLine)" className="cc-chart-area" key={`area-${animKey}`} />}
+        <path d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" pathLength="1" className="cc-chart-line" key={`line-${animKey}`} />
         {/* máximo y mínimo */}
-        <g className="cc-chart-mark">
+        <g className="cc-chart-mark" key={`mark-max-${animKey}`}>
           <circle cx={xOf(maxIdx)} cy={yOf(max)} r="3.5" fill={maxColor} />
           <text x={xOf(maxIdx)} y={yOf(max) - 7} textAnchor="middle" fontSize="10" fontWeight="600" fill={maxColor}>{fmtBare(max)}</text>
         </g>
-        <g className="cc-chart-mark">
+        <g className="cc-chart-mark" key={`mark-min-${animKey}`}>
           <circle cx={xOf(minIdx)} cy={yOf(min)} r="3.5" fill={minColor} />
           <text x={xOf(minIdx)} y={yOf(min) + 14} textAnchor="middle" fontSize="10" fontWeight="600" fill={minColor}>{fmtBare(min)}</text>
         </g>
@@ -10470,6 +10474,7 @@ function AreaChart({ incomePoints, expensePoints, title }) {
 const PIE_COLORS = ["#B8482A", "#B0863A", "#2E6F4E", "#7B5E2E", "#9E3F26", "#5C7A4C", "#A07344", "#7A4630"];
 
 function PieChart({ data, total }) {
+  const [pieRef, , animKey] = useInView(0.2);
   const size = 160, cx = size / 2, cy = size / 2, r = 70, ir = 42;
   let acc = 0;
   const slices = data.map((d, i) => {
@@ -10490,45 +10495,48 @@ function PieChart({ data, total }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: 160, height: 160, flexShrink: 0 }}>
+    <svg ref={pieRef} viewBox={`0 0 ${size} ${size}`} style={{ width: 160, height: 160, flexShrink: 0 }}>
       {slices.map((s, i) =>
         s.end - s.start < 0.001 ? null :
-        <path key={i} d={arc(s.start, s.end)} fill={s.color} className="cc-chart-slice"
+        <path key={`ps-${animKey}-${i}`} d={arc(s.start, s.end)} fill={s.color} className="cc-chart-slice"
           style={{ animationDelay: `${i * 0.08}s` }} />
       )}
-      <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="13" fill="var(--ink-soft)" className="cc-chart-label">Total</text>
-      <text x={cx} y={cy + 14} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="15" fontWeight="600" fill="var(--ink)" className="cc-chart-label">{fmt(total)}</text>
+      <text x={cx} y={cy - 4} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="13" fill="var(--ink-soft)" className="cc-chart-label" key={`pt-${animKey}`}>Total</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontFamily="Fraunces, serif" fontSize="15" fontWeight="600" fill="var(--ink)" className="cc-chart-label" key={`pv-${animKey}`}>{fmt(total)}</text>
     </svg>
   );
 }
 
 /* ---------------------- gráfica de barras (SVG) -------------------------- */
 function BarsChart({ bars }) {
+  const [barsRef, , animKey] = useInView(0.2);
   const W = 600, H = 180, P = 18;
   const max = Math.max(1, ...bars.map((b) => Math.max(b.expense, b.income)));
   const groupW = (W - P * 2) / bars.length;
   const barW = groupW * 0.38;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
-      {bars.map((b, i) => {
-        const cx = P + groupW * i + groupW / 2;
-        const hi = (b.income / max) * (H - P * 2);
-        const he = (b.expense / max) * (H - P * 2);
-        const delay = `${i * 0.06}s`;
-        return (
-          <g key={i}>
-            <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3"
-              className="cc-chart-bar-y" style={{ animationDelay: delay }} />
-            <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3"
-              className="cc-chart-bar-y" style={{ animationDelay: delay }} />
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif"
-              className="cc-chart-label" style={{ animationDelay: `${0.3 + i * 0.04}s` }}>
-              {monthLabel(b.key).split(" ")[0]}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div ref={barsRef}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}>
+        {bars.map((b, i) => {
+          const cx = P + groupW * i + groupW / 2;
+          const hi = (b.income / max) * (H - P * 2);
+          const he = (b.expense / max) * (H - P * 2);
+          const delay = `${i * 0.06}s`;
+          return (
+            <g key={i}>
+              <rect x={cx - barW - 2} y={H - P - hi} width={barW} height={hi} fill="var(--green)" rx="3"
+                className="cc-chart-bar-y" key={`bi-${animKey}-${i}`} style={{ animationDelay: delay }} />
+              <rect x={cx + 2} y={H - P - he} width={barW} height={he} fill="var(--coral)" rx="3"
+                className="cc-chart-bar-y" key={`be-${animKey}-${i}`} style={{ animationDelay: delay }} />
+              <text x={cx} y={H - 4} textAnchor="middle" fontSize="10" fill="var(--ink-soft)" fontFamily="Montserrat, sans-serif"
+                className="cc-chart-label" key={`bt-${animKey}-${i}`} style={{ animationDelay: `${0.3 + i * 0.04}s` }}>
+                {monthLabel(b.key).split(" ")[0]}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -10575,20 +10583,29 @@ function shortMoney(v) {
    Auto-bucketing: día si rango <=14d, semana si <=60d, mes si más.
    Recibe `chartKind` ("bars" o "lines") y `onChangeKind` para alternar. */
 /* ── Hook: dispara cuando el elemento entra al viewport ── */
+/* Devuelve [ref, inView, animKey]
+   animKey se incrementa cada vez que el elemento entra al viewport,
+   úsalo como key en elementos SVG para forzar que las animaciones CSS se reinicien */
 function useInView(threshold = 0.25) {
   const ref = useRef(null);
-  const [inView, setInView] = useState(false);
+  const [state, setState] = useState({ inView: false, key: 0 });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(false); requestAnimationFrame(() => setInView(true)); } else { setInView(false); } },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setState(s => ({ inView: true, key: s.key + 1 }));
+        } else {
+          setState(s => ({ ...s, inView: false }));
+        }
+      },
       { threshold }
     );
     obs.observe(el);
     return () => obs.disconnect();
   }, [threshold]);
-  return [ref, inView];
+  return [ref, state.inView, state.key];
 }
 
 /* ── Hook: count-up numérico ─────────────────────────────── */
@@ -10612,7 +10629,7 @@ function useCountUp(target, active, duration = 700) {
 
 function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind }) {
   const [hover, setHover] = useState(null); // bucket index
-  const [chartRef, inView] = useInView(0.2);
+  const [chartRef, inView, animKey] = useInView(0.2);
   const r = resolveRange(dateRange);
   const fromDate = new Date(r.from + "T12:00:00");
   const toDate = new Date(r.to + "T12:00:00");
@@ -10765,9 +10782,9 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
           <>
             <path d={expenseAreaPath} fill="url(#expGradLines)" />
             <path d={incomeAreaPath} fill="url(#incGradLines)" />
-            <path d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+            <path key={`exp-line-${animKey}`} d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
               style={inView ? { strokeDasharray: 2000, strokeDashoffset: 0, animation: "ccLineDraw 900ms cubic-bezier(.4,0,.2,1) both 80ms" } : { strokeDasharray: 2000, strokeDashoffset: 2000 }} />
-            <path d={incomePath} fill="none" stroke="var(--green)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+            <path key={`inc-line-${animKey}`} d={incomePath} fill="none" stroke="var(--green)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
               style={inView ? { strokeDasharray: 2000, strokeDashoffset: 0, animation: "ccLineDraw 900ms cubic-bezier(.4,0,.2,1) both" } : { strokeDasharray: 2000, strokeDashoffset: 2000 }} />
             {buckets.map((b, i) => (
               <g key={b.key} style={{ cursor: "pointer" }} onMouseEnter={() => setHover(i)}>
@@ -10805,24 +10822,26 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
               <g key={b.key} style={{ cursor: "pointer" }} onMouseEnter={() => setHover(i)}>
                 <rect x={P + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
                 {b.income > 0 && (
-                  <rect x={incX} y={yOf(b.income)} width={barW} height={incH}
-                    fill="var(--green)" rx="2"
-                    opacity={hover != null && !isHovered ? 0.35 : 1}
-                    style={{
-                      transition: "opacity .15s",
-                      transformOrigin: `${incX + barW / 2}px ${H - PB}px`,
-                      animation: inView ? `ccBarRise ${400 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none"
-                    }} />
+                  <g key={`gi-${animKey}-${i}`}
+                    style={{ transformOrigin: `${(incX + barW / 2).toFixed(1)}px ${H - PB}px`,
+                      transformBox: "fill-box",
+                      animation: inView ? `ccBarRise ${400 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none" }}>
+                    <rect x={incX} y={yOf(b.income)} width={barW} height={incH}
+                      fill="var(--green)" rx="2"
+                      opacity={hover != null && !isHovered ? 0.35 : 1}
+                      style={{ transition: "opacity .15s" }} />
+                  </g>
                 )}
                 {b.expense > 0 && (
-                  <rect x={expX} y={yOf(b.expense)} width={barW} height={expH}
-                    fill="var(--coral)" rx="2"
-                    opacity={hover != null && !isHovered ? 0.35 : 1}
-                    style={{
-                      transition: "opacity .15s",
-                      transformOrigin: `${expX + barW / 2}px ${H - PB}px`,
-                      animation: inView ? `ccBarRise ${440 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none"
-                    }} />
+                  <g key={`ge-${animKey}-${i}`}
+                    style={{ transformOrigin: `${(expX + barW / 2).toFixed(1)}px ${H - PB}px`,
+                      transformBox: "fill-box",
+                      animation: inView ? `ccBarRise ${440 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none" }}>
+                    <rect x={expX} y={yOf(b.expense)} width={barW} height={expH}
+                      fill="var(--coral)" rx="2"
+                      opacity={hover != null && !isHovered ? 0.35 : 1}
+                      style={{ transition: "opacity .15s" }} />
+                  </g>
                 )}
                 {(i % labelEvery === 0 || isHovered) && (
                   <text x={cx} y={H - PB + 14} textAnchor="middle"
