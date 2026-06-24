@@ -38,6 +38,11 @@ html,body{min-height:100vh;}
 body{
   background-color:var(--bg)!important;
 }
+/* ── chart animations ───────────────────────────────────── */
+@keyframes ccBarRise{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes ccLineDraw{from{stroke-dashoffset:var(--dash-len)}to{stroke-dashoffset:0}}
+@keyframes ccCountUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ccCardFlipIn{from{opacity:0;transform:rotateY(-12deg) scale(.97)}to{opacity:1;transform:rotateY(0) scale(1)}}
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
@@ -8228,6 +8233,54 @@ function CatPie({ data, total, donut, active, onHover }) {
   );
 }
 
+/* ── Resumen animado con count-up + card flip ────────────── */
+function ResumenAnimCard({ rangeIncome, rangeExpense, rangeFlow, dateRange, openDetail }) {
+  const [cardRef, inView] = useInView(0.2);
+  const dispInc = useCountUp(rangeIncome, inView, 750);
+  const dispExp = useCountUp(rangeExpense, inView, 750);
+  const dispFlow = useCountUp(Math.abs(rangeFlow), inView, 750);
+  return (
+    <div ref={cardRef} className="cc-card" style={{ padding: 18 }}>
+      <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => openDetail("income")}
+          style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+            border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+            fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4,
+            animation: inView ? "ccCardFlipIn 480ms cubic-bezier(.2,.8,.3,1) both" : "none" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+            textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>
+            {fmtBare(dispInc)}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+        </button>
+        <button onClick={() => openDetail("expense")}
+          style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
+            border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
+            fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4,
+            animation: inView ? "ccCardFlipIn 480ms cubic-bezier(.2,.8,.3,1) both 80ms" : "none" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
+            textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>
+            {fmtBare(dispExp)}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
+        </button>
+      </div>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
+        display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
+        <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
+          color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)",
+          animation: inView ? "ccCountUp 500ms cubic-bezier(.2,.8,.3,1) both 180ms" : "none" }}>
+          {rangeFlow >= 0 ? "+" : "−"}{fmtBare(dispFlow)}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, setAccView }) {
   const view = accView;
   const setView = setAccView;
@@ -8424,37 +8477,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
         <>
           {statsSections.filter((s) => s.on).map((s) => {
             if (s.id === "summary") return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 12 }}>Resumen · {rangeLabel(dateRange)}</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => openDetail("income")}
-                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
-                      textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--green)" }}>{fmtBare(rangeIncome)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
-                  </button>
-                  <button onClick={() => openDetail("expense")}
-                    style={{ flex: 1, padding: "14px 15px", background: "var(--surface)",
-                      border: "1px solid var(--line-soft)", borderRadius: 14, cursor: "pointer", textAlign: "left",
-                      fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)",
-                      textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-                    <div className="cc-serif cc-num" style={{ fontSize: 22, fontWeight: 500, color: "var(--coral)" }}>{fmtBare(rangeExpense)}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>Tocar para detalle ▸</div>
-                  </button>
-                </div>
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line-soft)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>Flujo neto</span>
-                  <span className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
-                    color: rangeFlow >= 0 ? "var(--ink)" : "var(--coral)" }}>
-                    {rangeFlow >= 0 ? "+" : "−"}{fmtBare(Math.abs(rangeFlow))}<span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
-                  </span>
-                </div>
-              </div>
+              <ResumenAnimCard key={s.id}
+                rangeIncome={rangeIncome} rangeExpense={rangeExpense} rangeFlow={rangeFlow}
+                dateRange={dateRange} openDetail={openDetail} />
             );
 
             if (s.id === "incVsExp") {
@@ -10549,8 +10574,45 @@ function shortMoney(v) {
 /* Gráfica Ingresos vs Gastos: barras agrupadas O líneas
    Auto-bucketing: día si rango <=14d, semana si <=60d, mes si más.
    Recibe `chartKind` ("bars" o "lines") y `onChangeKind` para alternar. */
+/* ── Hook: dispara cuando el elemento entra al viewport ── */
+function useInView(threshold = 0.25) {
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(false); requestAnimationFrame(() => setInView(true)); } else { setInView(false); } },
+      { threshold }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return [ref, inView];
+}
+
+/* ── Hook: count-up numérico ─────────────────────────────── */
+function useCountUp(target, active, duration = 700) {
+  const [val, setVal] = useState(0);
+  const frame = useRef(null);
+  useEffect(() => {
+    if (!active) { setVal(0); return; }
+    const start = performance.now();
+    const tick = (now) => {
+      const p = Math.min(1, (now - start) / duration);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(target * ease));
+      if (p < 1) frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
+  }, [target, active, duration]);
+  return val;
+}
+
 function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind }) {
   const [hover, setHover] = useState(null); // bucket index
+  const [chartRef, inView] = useInView(0.2);
   const r = resolveRange(dateRange);
   const fromDate = new Date(r.from + "T12:00:00");
   const toDate = new Date(r.to + "T12:00:00");
@@ -10632,7 +10694,7 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
   const expenseAreaPath = `${expensePath} L ${xOfCenter(buckets.length - 1).toFixed(1)} ${H - PB} L ${xOfCenter(0).toFixed(1)} ${H - PB} Z`;
 
   return (
-    <div>
+    <div ref={chartRef} style={{ perspective: 800 }}>
       {/* Header: totales + toggle bars/lines */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
         marginBottom: 10, fontFamily: "'Montserrat', sans-serif", fontSize: 12, gap: 12, flexWrap: "wrap" }}>
@@ -10703,8 +10765,10 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
           <>
             <path d={expenseAreaPath} fill="url(#expGradLines)" />
             <path d={incomeAreaPath} fill="url(#incGradLines)" />
-            <path d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-            <path d={incomePath} fill="none" stroke="var(--green)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+              style={inView ? { strokeDasharray: 2000, strokeDashoffset: 0, animation: "ccLineDraw 900ms cubic-bezier(.4,0,.2,1) both 80ms" } : { strokeDasharray: 2000, strokeDashoffset: 2000 }} />
+            <path d={incomePath} fill="none" stroke="var(--green)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+              style={inView ? { strokeDasharray: 2000, strokeDashoffset: 0, animation: "ccLineDraw 900ms cubic-bezier(.4,0,.2,1) both" } : { strokeDasharray: 2000, strokeDashoffset: 2000 }} />
             {buckets.map((b, i) => (
               <g key={b.key} style={{ cursor: "pointer" }} onMouseEnter={() => setHover(i)}>
                 <rect x={P + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
@@ -10744,13 +10808,21 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
                   <rect x={incX} y={yOf(b.income)} width={barW} height={incH}
                     fill="var(--green)" rx="2"
                     opacity={hover != null && !isHovered ? 0.35 : 1}
-                    style={{ transition: "opacity .15s" }} />
+                    style={{
+                      transition: "opacity .15s",
+                      transformOrigin: `${incX + barW / 2}px ${H - PB}px`,
+                      animation: inView ? `ccBarRise ${400 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none"
+                    }} />
                 )}
                 {b.expense > 0 && (
                   <rect x={expX} y={yOf(b.expense)} width={barW} height={expH}
                     fill="var(--coral)" rx="2"
                     opacity={hover != null && !isHovered ? 0.35 : 1}
-                    style={{ transition: "opacity .15s" }} />
+                    style={{
+                      transition: "opacity .15s",
+                      transformOrigin: `${expX + barW / 2}px ${H - PB}px`,
+                      animation: inView ? `ccBarRise ${440 + i * 35}ms cubic-bezier(.2,.8,.3,1) both` : "none"
+                    }} />
                 )}
                 {(i % labelEvery === 0 || isHovered) && (
                   <text x={cx} y={H - PB + 14} textAnchor="middle"
