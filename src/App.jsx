@@ -41,7 +41,7 @@ body{
 /* video background - see <video> in JSX */
 .cc-video-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
 .cc-video-bg::after{content:"";position:absolute;inset:0;background:transparent;pointer-events:none;}
-.cc-dark .cc-video-bg::after{background:rgba(0,0,0,.35);}
+.cc-dark .cc-video-bg::after{background:rgba(0,0,0,.62);}
 .cc-solid-bg{position:fixed;inset:0;z-index:-1;
   background:linear-gradient(165deg, #E8ECF4 0%, #D8DDE8 40%, #CDD3E0 100%);}
 .cc-dark .cc-solid-bg{background:linear-gradient(165deg, #13161D 0%, #0D0F14 40%, #0A0C10 100%);}
