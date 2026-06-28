@@ -3123,9 +3123,6 @@ async function callClaude(system, messages) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
-  // Timeout de 30 segundos para no colgar el PDF
-  const ctrl = new AbortController();
-  const timeoutId = setTimeout(() => ctrl.abort(), 30000);
   let res;
   try {
     if (isLocal) {
@@ -3134,27 +3131,27 @@ async function callClaude(system, messages) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
         body: JSON.stringify(body),
-        signal: ctrl.signal,
       });
     } else {
       // En Capacitor la URL relativa no funciona — usar URL absoluta de Vercel
       const apiUrl = isCapacitor ? "https://zafi.vercel.app/api/claude" : "/api/claude";
+      console.log("[callClaude] Fetching:", apiUrl, "isCapacitor:", isCapacitor);
       res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: ctrl.signal,
       });
+      console.log("[callClaude] Response status:", res.status);
     }
-    clearTimeout(timeoutId);
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
+      console.error("[callClaude] Not OK:", res.status, errText);
       throw new Error(`api ${res.status}${errText ? ": " + errText.slice(0, 100) : ""}`);
     }
     const data = await res.json();
     return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
   } catch (e) {
-    clearTimeout(timeoutId);
+    console.error("[callClaude] Fetch error:", e?.message, e);
     throw e;
   }
 }
@@ -10725,9 +10722,26 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
         `${r.cat?.emoji||""} ${r.cat?.name||"Sin cat"}: ${fmtMxn(r.amt)}`
       ).join(", ");
 
+      // Detectar cuentas filtradas y categorías ocultas
+      const hiddenAccsForReport = accView === "all"
+        ? (config.hiddenAccountCards || []).filter(id => id !== "all" && config.accounts.find(a => a.id === id))
+        : [];
+      const hiddenAccNames = hiddenAccsForReport
+        .map(id => config.accounts.find(a => a.id === id)?.name)
+        .filter(Boolean);
+      const hiddenIncCatNames = reportsIncHidden
+        .map(id => config.categories.find(c => c.id === id)?.name)
+        .filter(Boolean);
+      const hiddenExpCatNames = reportsExpHidden
+        .map(id => config.categories.find(c => c.id === id)?.name)
+        .filter(Boolean);
+
       const promptData = {
         periodo: rangeName,
         cuenta: accountLabel,
+        cuentas_excluidas: hiddenAccNames.length ? hiddenAccNames.join(", ") : "Ninguna",
+        categorias_ingreso_ocultas: hiddenIncCatNames.length ? hiddenIncCatNames.join(", ") : "Ninguna",
+        categorias_gasto_ocultas: hiddenExpCatNames.length ? hiddenExpCatNames.join(", ") : "Ninguna",
         ingresos_totales: fmtMxn(totalIn),
         gastos_totales: fmtMxn(totalOut),
         flujo_neto: fmtMxn(net),
@@ -10740,21 +10754,24 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
         total_movimientos: allTxs.length,
       };
 
-      const systemPrompt = `Eres el asistente financiero de Zafi, una app de finanzas personales. 
+      const systemPrompt = `Eres el asistente financiero de Zafi, una app de finanzas personales.
 Analiza los datos financieros del usuario y genera un análisis breve, empático y útil en español.
-El análisis debe tener máximo 250 palabras y estar dividido en estas secciones (usa exactamente estos títulos en HTML):
-1. <h3>💡 Panorama general</h3> — 2-3 oraciones sobre la salud financiera general
+El análisis debe tener máximo 280 palabras y estar dividido en estas secciones (usa exactamente estos títulos en HTML):
+1. <h3>💡 Panorama general</h3> — 2-3 oraciones sobre la salud financiera general. Si el usuario excluyó cuentas o categorías del reporte, MENCIÓNALO al inicio con algo como "Considerando solo X cuenta(s) y excluyendo Y..." o "Sin tomar en cuenta la(s) cuenta(s) Z que desmarcaste...".
 2. <h3>📊 Patrones detectados</h3> — gastos fijos identificados, tendencias de gasto, semanas más caras
 3. <h3>⚠️ Puntos de atención</h3> — si gasta más de lo que ingresa, categorías que se salen del rango saludable, etc. Si no hay nada negativo, di algo positivo
 4. <h3>✅ Lo que está bien</h3> — destacar algo positivo de sus finanzas
 
-Usa lenguaje casual pero profesional. Sé directo y específico con los números. 
-NO uses markdown, solo HTML simple (párrafos <p>, negritas <strong>). 
+Usa lenguaje casual pero profesional. Sé directo y específico con los números.
+NO uses markdown, solo HTML simple (párrafos <p>, negritas <strong>).
 NO inventes datos que no están en el prompt.
 Al final agrega siempre: <p class="disclaimer">⚠️ Este análisis es generado automáticamente por IA y puede contener errores. No constituye asesoría financiera profesional. Los datos son interpretados de forma superficial.</p>`;
 
       const userMsg = `Aquí están los datos financieros del usuario para el periodo ${promptData.periodo}:
-- Cuenta: ${promptData.cuenta}
+- Vista actual: ${promptData.cuenta}
+- Cuentas EXCLUIDAS del reporte (no se contaron): ${promptData.cuentas_excluidas}
+- Categorías de ingreso OCULTAS del reporte: ${promptData.categorias_ingreso_ocultas}
+- Categorías de gasto OCULTAS del reporte: ${promptData.categorias_gasto_ocultas}
 - Ingresos totales: ${promptData.ingresos_totales}
 - Gastos totales: ${promptData.gastos_totales}
 - Flujo neto: ${promptData.flujo_neto} (${net >= 0 ? "positivo ✅" : "negativo ⚠️"})
@@ -10765,6 +10782,8 @@ Al final agrega siempre: <p class="disclaimer">⚠️ Este análisis es generado
 - Principales categorías de INGRESO: ${promptData.top_categorias_ingreso}
 - Posibles gastos fijos (se repiten): ${promptData.posibles_gastos_fijos}
 - Total de movimientos: ${promptData.total_movimientos}
+
+Importante: si "Cuentas EXCLUIDAS" o "Categorías OCULTAS" no son "Ninguna", MENCIÓNALO al inicio del Panorama general para que el usuario sepa que el análisis es parcial.
 
 Genera el análisis financiero ahora.`;
 
