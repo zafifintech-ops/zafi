@@ -727,17 +727,20 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   align-items:center;justify-content:center;gap:0;
   background:#ffffff;
   animation:ccSplashOut .4s ease 0.9s forwards;}
+@media(prefers-color-scheme:dark){.cc-splash{background:#1c1e22;}}
 @keyframes ccSplashOut{to{opacity:0;visibility:hidden;}}
 .cc-splash-word{font-family:'Fraunces',serif;font-weight:400;
   font-size:52px;letter-spacing:-.05em;color:#1A1815;
   opacity:0;transform:translateY(6px);
   animation:ccSplashFade .7s cubic-bezier(.2,.8,.3,1) .15s forwards;}
+@media(prefers-color-scheme:dark){.cc-splash-word{color:#F5F5F7;}}
 @keyframes ccSplashFade{to{opacity:1;transform:translateY(0);}}
 
 /* ===== Loading screen (Firebase auth verification) ===== */
 .cc-loading{position:fixed;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:32px;
   background:#ffffff;overflow:hidden;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light){background:linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%);}}
 .cc-loading.cc-dark{background:linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%);}
 /* Halo radial detrás del logo */
 .cc-loading-halo{position:absolute;width:360px;height:360px;border-radius:50%;
@@ -756,6 +759,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   letter-spacing:-.06em;color:#1B2230;
   opacity:0;animation:ccLoadingLogoIn .7s cubic-bezier(.16,1,.3,1) .1s forwards;}
 .cc-loading.cc-dark .cc-loading-wordmark{color:#F5F5F7;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-wordmark{color:#F5F5F7;}}
 @keyframes ccLoadingLogoIn{
   from{opacity:0;transform:translateY(6px);}
   to{opacity:1;transform:translateY(0);}
@@ -3377,6 +3381,11 @@ function AuthScreen() {
   const [ok, setOk] = useState("");
   const [showForgot, setShowForgot] = useState(false);
 
+  // Limpiar chat al mostrar la pantalla de login (nueva sesión)
+  useEffect(() => {
+    if (window.__zafiClearChat) window.__zafiClearChat();
+  }, []);
+
   function reset() { setEmail(""); setPassword(""); setConfirmPassword(""); setErr(""); setOk(""); }
   function switchTab(t) { reset(); setTab(t); setShowForgot(false); }
 
@@ -5177,6 +5186,8 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
     setBusy(true);
     try { await withTimeout(signOut(auth), 3000); } catch (e) {}
     window.__zafiCurrentUser = null;
+    // Limpiar chat al cerrar sesión
+    if (window.__zafiClearChat) window.__zafiClearChat();
     // Limpiar credenciales de Face ID al cerrar sesión
     try {
       await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER });
@@ -8239,13 +8250,11 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
 // El historial del chat persiste en memoria mientras la app esté abierta,
 // para que no se pierda al cerrar y reabrir el asistente.
 let CHAT_MSGS_STORE = null;
-// Limpiar el historial del chat cuando se cierra la app
+// Exponer función para limpiar el chat desde fuera
 if (typeof window !== "undefined") {
-  const clearChat = () => { CHAT_MSGS_STORE = null; };
-  window.addEventListener("pagehide", clearChat);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") CHAT_MSGS_STORE = null;
-  });
+  window.__zafiClearChat = () => { CHAT_MSGS_STORE = null; };
+  // Limpiar al cerrar/ocultar la app
+  window.addEventListener("pagehide", () => { CHAT_MSGS_STORE = null; });
 }
 let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
