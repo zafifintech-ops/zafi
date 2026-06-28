@@ -217,7 +217,7 @@ body{
 /* logo centrado estilo Canva */
 .cc-zafi-wordmark{font-family:'Fraunces',serif;font-weight:400;font-size:16px;
   letter-spacing:-.03em;text-align:center;color:var(--ink);
-  font-feature-settings:"ss01"; margin-bottom:12px; transition:font-size .2s ease, margin .2s ease;}
+  font-feature-settings:"ss01"; margin-bottom:12px; transition:font-size .15s ease-out, margin .15s ease-out;}
 .cc-top.scrolled .cc-zafi-wordmark{margin-bottom:6px;font-size:14px;}
 
 /* fila de perfil: avatar + nombre + plan */
@@ -236,7 +236,7 @@ body{
   letter-spacing:-.03em;line-height:1.2;color:var(--ink);transition:.2s;}
 .cc-top.scrolled .cc-profile-name{font-size:15px;}
 .cc-profile-plan{font-size:11px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;
-  transition:opacity .15s ease, transform .2s ease;transform-origin:top left;height:16px;line-height:16px;}
+  transition:opacity .12s ease-out, transform .15s ease-out;transform-origin:top left;height:16px;line-height:16px;}
 .cc-top.scrolled .cc-profile-plan{opacity:0;pointer-events:none;transform:scaleY(0);}
 /* Badges de plan */
 .cc-plan-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;
@@ -3989,10 +3989,10 @@ function SplashScreen({ onDone }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
-  // Detectar tema: primero localStorage (preferencia del usuario), luego SO
+  // Detectar tema: claro/oscuro explícito → eso. Auto/sin preferencia → según SO
   const savedTheme = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
   const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const isDark = savedTheme === "dark" || (savedTheme !== "light" && sysDark);
+  const isDark = savedTheme === "dark" || (savedTheme === "auto" && sysDark) || (!savedTheme && sysDark);
 
   return (
     <div style={{
@@ -4197,10 +4197,11 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
 
-  // Pantalla de carga — inline styles para garantizar tema correcto incluso si CSS no ha cargado
+  // Pantalla de carga — inline styles. Si no hay preferencia guardada, usar SO solo si está en auto
   const savedThemeLoad = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
   const sysDarkLoad = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad !== "light" && sysDarkLoad);
+  // Si el usuario eligió explícitamente claro → claro. Oscuro → oscuro. Auto/sin preferencia → según SO
+  const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad === "auto" && sysDarkLoad) || (!savedThemeLoad && sysDarkLoad);
   if (user === undefined) return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 99999,
@@ -4995,7 +4996,16 @@ function TopFabSheet({ items, onClose }) {
 function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onOpenSettings, onOpenAdd }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 2);
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 2);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -8336,22 +8346,82 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
     !(config.recurring || []).find(r =>
       r.description.toLowerCase().trim() === p.description.toLowerCase().trim()));
 
-  const GREET = nonRecurring.length > 0
-    ? `¡Hola! Soy tu asistente. 💡 Noté que registras frecuentemente:\n\n${nonRecurring.slice(0, 3).map(p =>
-        `• "${p.description}" — ${fmtBare(p.amount)} (${p.count} veces${p.annual ? ", también el año pasado" : ""})`).join("\n")}\n\n¿Quieres que los haga recurrentes para que se registren solos?`
-    : "¡Hola! Soy tu asistente. Dime qué quieres y yo lo hago en la app — crear o quitar categorías, cuentas, registrar movimientos… o pregúntame sobre tus gastos.";
+  // Calcular insights variables para variar el saludo
+  const now = new Date();
+  const thisMonth = now.toISOString().slice(0, 7);
+  const txsThisMonth = txs.filter(t => t.date && t.date.startsWith(thisMonth));
+  const spentThisMonth = txsThisMonth.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const incomeThisMonth = txsThisMonth.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const topCatThisMonth = (() => {
+    const byCat = {};
+    txsThisMonth.filter(t => t.type === "expense" && t.categoryId).forEach(t => {
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    });
+    const sorted = Object.entries(byCat).sort((a,b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    const cat = config.categories.find(c => c.id === sorted[0][0]);
+    return cat ? { name: cat.name, emoji: cat.emoji, amount: sorted[0][1] } : null;
+  })();
+  const dayOfMonth = now.getDate();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
 
-  const QUICK = nonRecurring.length > 0
-    ? [
-        `Hazme recurrente "${nonRecurring[0]?.description}"`,
-        "¿Cuánto llevo gastado este mes?",
-        "Registra un gasto de 250 en gasolina",
-      ]
-    : [
-        "Crea la categoría Mascotas 🐶",
-        "Registra un gasto de 250 en gasolina",
-        "¿Cuánto llevo gastado este mes?",
-      ];
+  // Pool de mensajes — el primero que aplique es el que se muestra
+  const greetCandidates = [];
+
+  // 1. Patrones recurrentes detectados (más alto valor)
+  if (nonRecurring.length > 0) {
+    greetCandidates.push(`¡Hola! ${greeting} 💡 Noté que registras frecuentemente:\n\n${nonRecurring.slice(0, 3).map(p =>
+      `• "${p.description}" — ${fmtBare(p.amount)} (${p.count} veces${p.annual ? ", también el año pasado" : ""})`).join("\n")}\n\n¿Quieres que los haga recurrentes para que se registren solos?`);
+  }
+
+  // 2. Resumen del mes con top categoría
+  if (topCatThisMonth && txsThisMonth.length >= 5) {
+    greetCandidates.push(`${greeting} 👋 Este mes llevas ${fmtBare(spentThisMonth)} en gastos. Tu categoría con más movimiento es ${topCatThisMonth.emoji} ${topCatThisMonth.name} con ${fmtBare(topCatThisMonth.amount)}. ¿Quieres que te ayude con algo?`);
+  }
+
+  // 3. Balance del mes
+  if (incomeThisMonth > 0 && spentThisMonth > 0) {
+    const diff = incomeThisMonth - spentThisMonth;
+    if (diff > 0) {
+      greetCandidates.push(`${greeting} 👋 Este mes vas bien: llevas ${fmtBare(incomeThisMonth)} de ingresos y ${fmtBare(spentThisMonth)} de gastos. Saldo positivo de ${fmtBare(diff)}. ¿En qué te ayudo?`);
+    } else if (diff < 0) {
+      greetCandidates.push(`${greeting} 👋 Este mes llevas ${fmtBare(spentThisMonth)} en gastos contra ${fmtBare(incomeThisMonth)} de ingresos. ¿Quieres revisar en qué se está yendo el dinero?`);
+    }
+  }
+
+  // 4. Inicio del mes
+  if (dayOfMonth <= 5 && txsThisMonth.length < 3) {
+    greetCandidates.push(`${greeting} ✨ Empezando el mes. ¿Quieres registrar tus primeros movimientos o revisar tus categorías?`);
+  }
+
+  // 5. Saludos genéricos rotando
+  const genericGreets = [
+    `${greeting} 👋 ¿En qué te puedo ayudar hoy? Puedo registrar movimientos, crear categorías, o responderte sobre tus finanzas.`,
+    `${greeting} ✨ Dime qué necesitas y lo hago — desde registrar un gasto rápido hasta ver tu resumen del mes.`,
+    `${greeting} 💬 ¿Qué quieres hacer? Estoy aquí para ayudarte con tu dinero.`,
+    `Hola 👋 ¿Necesitas ayuda con algo? Puedo registrar gastos, crear categorías, hacer recurrentes, o lo que necesites.`,
+  ];
+  // Rotar genéricos usando el día del mes como seed
+  greetCandidates.push(genericGreets[dayOfMonth % genericGreets.length]);
+
+  const GREET = greetCandidates[0];
+
+  // Sugerencias rápidas — también variar
+  const quickCandidates = [];
+  if (nonRecurring.length > 0) {
+    quickCandidates.push(`Hazme recurrente "${nonRecurring[0]?.description}"`);
+  }
+  if (topCatThisMonth) {
+    quickCandidates.push(`¿Cuánto he gastado en ${topCatThisMonth.name}?`);
+  }
+  quickCandidates.push("¿Cuánto llevo gastado este mes?");
+  quickCandidates.push("Registra un gasto de 250 en gasolina");
+  quickCandidates.push("Muéstrame mis ingresos del mes");
+  quickCandidates.push("Crea la categoría Mascotas 🐶");
+  quickCandidates.push("¿Cuáles son mis gastos fijos?");
+
+  const QUICK = quickCandidates.slice(0, 3);
   const [msgs, setMsgs] = useState(() => CHAT_MSGS_STORE || [{ role: "bot", text: GREET }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
