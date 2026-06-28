@@ -236,8 +236,8 @@ body{
   letter-spacing:-.03em;line-height:1.2;color:var(--ink);transition:.2s;}
 .cc-top.scrolled .cc-profile-name{font-size:15px;}
 .cc-profile-plan{font-size:11px;color:var(--ink-soft);font-weight:500;letter-spacing:-.005em;
-  transition:opacity .2s ease, max-height .25s ease, margin .2s ease;max-height:40px;}
-.cc-top.scrolled .cc-profile-plan{opacity:0;pointer-events:none;max-height:0;overflow:hidden;margin:0;padding:0;}
+  transition:opacity .15s ease, transform .2s ease;transform-origin:top left;height:16px;line-height:16px;}
+.cc-top.scrolled .cc-profile-plan{opacity:0;pointer-events:none;transform:scaleY(0);}
 /* Badges de plan */
 .cc-plan-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;
   font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
@@ -2981,6 +2981,36 @@ async function firestoreGet(uid, idToken, docPath) {
 
 /* ── Compartir archivos en Capacitor (iOS/Android) ── */
 async function shareFile(filename, mimeType, dataBase64OrText, isBase64 = false) {
+  const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  // En web (Vercel) — usar descarga del navegador
+  if (!isCapacitor) {
+    try {
+      let blob;
+      if (isBase64) {
+        // Convertir base64 a Blob
+        const byteChars = atob(dataBase64OrText);
+        const byteArray = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+        blob = new Blob([byteArray], { type: mimeType });
+      } else {
+        blob = new Blob([dataBase64OrText], { type: mimeType });
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Liberar URL después de un momento
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("shareFile web error", e);
+      alert("No se pudo descargar el archivo: " + (e?.message || e));
+    }
+    return;
+  }
+  // En Capacitor — usar Filesystem + Share nativos
   try {
     const result = await Filesystem.writeFile({
       path: filename,
@@ -3093,22 +3123,40 @@ async function callClaude(system, messages) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  // Timeout de 30 segundos para no colgar el PDF
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 30000);
   let res;
-  if (isLocal) {
-    const key = import.meta.env.VITE_ANTHROPIC_KEY;
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
-      body: JSON.stringify(body),
-    });
-  } else {
-    // En Capacitor la URL relativa no funciona — usar URL absoluta de Vercel
-    const apiUrl = isCapacitor ? "https://zafi.vercel.app/api/claude" : "/api/claude";
-    res = await fetch(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    if (isLocal) {
+      const key = import.meta.env.VITE_ANTHROPIC_KEY;
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } else {
+      // En Capacitor la URL relativa no funciona — usar URL absoluta de Vercel
+      const apiUrl = isCapacitor ? "https://zafi.vercel.app/api/claude" : "/api/claude";
+      res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    }
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`api ${res.status}${errText ? ": " + errText.slice(0, 100) : ""}`);
+    }
+    const data = await res.json();
+    return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  } catch (e) {
+    clearTimeout(timeoutId);
+    throw e;
   }
-  if (!res.ok) throw new Error("api " + res.status);
-  const data = await res.json();
-  return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
 }
 function parseJSON(text) {
   const clean = text.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -4149,18 +4197,29 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
 
-  // Pantalla de carga — primero localStorage, luego SO
+  // Pantalla de carga — inline styles para garantizar tema correcto incluso si CSS no ha cargado
   const savedThemeLoad = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
   const sysDarkLoad = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
   const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad !== "light" && sysDarkLoad);
   if (user === undefined) return (
-    <div className={`cc-loading ${isLoadDark ? "cc-dark" : "cc-light"}`}>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 99999,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 32,
+      background: isLoadDark
+        ? "linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%)"
+        : "#ffffff",
+      overflow: "hidden",
+    }}>
       <style>{STYLE}</style>
       <div className="cc-loading-halo" />
-      <div className="cc-loading-wordmark">
-        <span>zafi</span>
-      </div>
-      <div className="cc-loading-dots">
+      <div style={{
+        position: "relative", zIndex: 2,
+        fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 44,
+        letterSpacing: "-.06em",
+        color: isLoadDark ? "#F5F5F7" : "#1B2230",
+      }}>zafi</div>
+      <div className="cc-loading-dots" style={{ position: "relative", zIndex: 2 }}>
         <span /><span /><span />
       </div>
     </div>
@@ -10660,7 +10719,7 @@ Genera el análisis financiero ahora.`;
         ? "Se necesitan al menos 3 movimientos para generar un análisis."
         : totalIn === 0 && totalOut === 0
           ? "No hay movimientos en el periodo seleccionado."
-          : `No se pudo conectar con el análisis de IA (${e?.message || "error desconocido"}). Verifica tu conexión.`;
+          : `Servicio de IA no disponible temporalmente. El reporte sin análisis ya está listo. Intenta exportar de nuevo en unos minutos.`;
       analysisHtml = `<div class="analysis-section"><div class="analysis-header"><span class="analysis-icon">🤖</span><div><div class="analysis-title">Análisis de IA</div><div class="analysis-sub">No disponible</div></div></div><div class="analysis-body"><p style="color:#9CA3AF">${errMsg}</p></div></div>`;
     }
 
