@@ -3089,6 +3089,7 @@ function fileToB64(file) {
 async function callClaude(system, messages) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
   let res;
   if (isLocal) {
     const key = import.meta.env.VITE_ANTHROPIC_KEY;
@@ -3098,7 +3099,9 @@ async function callClaude(system, messages) {
       body: JSON.stringify(body),
     });
   } else {
-    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // En Capacitor la URL relativa no funciona — usar URL absoluta de Vercel
+    const apiUrl = isCapacitor ? "https://zafi.vercel.app/api/claude" : "/api/claude";
+    res = await fetch(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   }
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
@@ -6416,7 +6419,7 @@ function useDragSort(items, onApply) {
   };
   const onDragEnd = () => { setDragIdx(null); setOverIdx(null); };
 
-  // Props para cada ítem
+  // Props para cada ítem — touchAction solo en el grip (no en todo el ítem)
   const getItemProps = (i) => ({
     ref: (el) => { itemRefs.current[i] = el; },
     draggable: true,
@@ -6424,15 +6427,20 @@ function useDragSort(items, onApply) {
     onDragOver: onDragOver(i),
     onDrop: onDrop(i),
     onDragEnd,
+    "data-drag-idx": i,
+  });
+
+  // Props del grip — aquí sí bloqueamos el scroll
+  const getGripProps = (i) => ({
     onTouchStart: onTouchStart(i),
     onTouchMove,
     onTouchEnd,
-    "data-drag-idx": i,
+    style: { touchAction: "none", cursor: "grab" },
   });
 
   // Estilos para cada ítem
   const getItemStyle = (i) => ({
-    touchAction: "none",
+    touchAction: "auto",
     transition: dragIdx !== null ? "transform .15s, box-shadow .15s, border-color .15s, background .15s" : "box-shadow .15s",
     transform: dragIdx === i ? "scale(1.03) translateY(-2px)" : "scale(1)",
     boxShadow: dragIdx === i
@@ -6497,7 +6505,8 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
               className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}
               style={{ ...getItemStyle(i) }}>
               <span className="cc-grip-dots" aria-hidden="true"
-                style={{ color: dragIdx === i ? "var(--gold)" : undefined }}>
+                {...getGripProps(i)}
+                style={{ ...getGripProps(i).style, color: dragIdx === i ? "var(--gold)" : undefined }}>
                 <span /><span /><span /><span /><span /><span />
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -10144,7 +10153,8 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
                 className="cc-sortable-v2"
                 style={{ ...getItemStyle(i), opacity: getItemStyle(i).opacity !== undefined ? (s.on ? getItemStyle(i).opacity : Math.min(getItemStyle(i).opacity ?? 1, 0.55)) : (s.on ? 1 : 0.55) }}>
                 <span className="cc-grip-dots" aria-hidden="true"
-                  style={{ color: dragIdx === i ? "var(--gold)" : undefined }}>
+                  {...getGripProps(i)}
+                  style={{ ...getGripProps(i).style, color: dragIdx === i ? "var(--gold)" : undefined }}>
                   <span /><span /><span /><span /><span /><span />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -10510,7 +10520,7 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
     await shareFile(`Zafi - ${rangeName} - ${safeAcc}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64, true);
   };
 
-  // ===== PDF mejorado =====
+  // ===== PDF mejorado con análisis IA =====
   const exportPDF = async () => {
     const net = totalIn - totalOut;
     const visibleIncCatIds2 = new Set(incRows.map(r => r.cat?.id).filter(Boolean));
@@ -10518,6 +10528,107 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
     const allTxs = txsInRange(txs, dateRange)
       .filter(t => { if (t.type==="income"&&t.categoryId) return visibleIncCatIds2.has(t.categoryId); if (t.type==="expense"&&t.categoryId) return visibleExpCatIds2.has(t.categoryId); return true; })
       .sort((a,b) => b.date.localeCompare(a.date));
+
+    // ── Generar análisis con IA ──────────────────────────────────────────
+    let analysisHtml = "";
+    try {
+      const weeks = (() => {
+        if (!allTxs.length) return 1;
+        const dates = allTxs.map(t => new Date(t.date));
+        const minD = new Date(Math.min(...dates));
+        const maxD = new Date(Math.max(...dates));
+        const diff = (maxD - minD) / (1000 * 60 * 60 * 24 * 7);
+        return Math.max(1, Math.round(diff));
+      })();
+
+      // Detectar gastos recurrentes (misma descripción ≥2 veces)
+      const descCount = {};
+      allTxs.filter(t => t.type === "expense").forEach(t => {
+        const k = (t.description || "").toLowerCase().trim();
+        if (k) descCount[k] = (descCount[k] || 0) + 1;
+      });
+      const recurringExpenses = Object.entries(descCount)
+        .filter(([,c]) => c >= 2)
+        .sort((a,b) => b[1]-a[1])
+        .slice(0, 5)
+        .map(([k]) => k);
+
+      // Top categorías de gasto
+      const topExpCats = expRows.slice(0, 5).map(r =>
+        `${r.cat?.emoji||""} ${r.cat?.name||"Sin cat"}: ${fmtMxn(r.amt)} (${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%)`
+      ).join(", ");
+
+      const topIncCats = incRows.slice(0, 3).map(r =>
+        `${r.cat?.emoji||""} ${r.cat?.name||"Sin cat"}: ${fmtMxn(r.amt)}`
+      ).join(", ");
+
+      const promptData = {
+        periodo: rangeName,
+        cuenta: accountLabel,
+        ingresos_totales: fmtMxn(totalIn),
+        gastos_totales: fmtMxn(totalOut),
+        flujo_neto: fmtMxn(net),
+        semanas_en_periodo: weeks,
+        ingreso_semanal_promedio: fmtMxn(totalIn / weeks),
+        gasto_semanal_promedio: fmtMxn(totalOut / weeks),
+        top_categorias_gasto: topExpCats || "Sin datos",
+        top_categorias_ingreso: topIncCats || "Sin datos",
+        posibles_gastos_fijos: recurringExpenses.join(", ") || "No detectados",
+        total_movimientos: allTxs.length,
+      };
+
+      const systemPrompt = `Eres el asistente financiero de Zafi, una app de finanzas personales. 
+Analiza los datos financieros del usuario y genera un análisis breve, empático y útil en español.
+El análisis debe tener máximo 250 palabras y estar dividido en estas secciones (usa exactamente estos títulos en HTML):
+1. <h3>💡 Panorama general</h3> — 2-3 oraciones sobre la salud financiera general
+2. <h3>📊 Patrones detectados</h3> — gastos fijos identificados, tendencias de gasto, semanas más caras
+3. <h3>⚠️ Puntos de atención</h3> — si gasta más de lo que ingresa, categorías que se salen del rango saludable, etc. Si no hay nada negativo, di algo positivo
+4. <h3>✅ Lo que está bien</h3> — destacar algo positivo de sus finanzas
+
+Usa lenguaje casual pero profesional. Sé directo y específico con los números. 
+NO uses markdown, solo HTML simple (párrafos <p>, negritas <strong>). 
+NO inventes datos que no están en el prompt.
+Al final agrega siempre: <p class="disclaimer">⚠️ Este análisis es generado automáticamente por IA y puede contener errores. No constituye asesoría financiera profesional. Los datos son interpretados de forma superficial.</p>`;
+
+      const userMsg = `Aquí están los datos financieros del usuario para el periodo ${promptData.periodo}:
+- Cuenta: ${promptData.cuenta}
+- Ingresos totales: ${promptData.ingresos_totales}
+- Gastos totales: ${promptData.gastos_totales}
+- Flujo neto: ${promptData.flujo_neto} (${net >= 0 ? "positivo ✅" : "negativo ⚠️"})
+- Periodo: ${promptData.semanas_en_periodo} semanas
+- Ingreso semanal promedio: ${promptData.ingreso_semanal_promedio}
+- Gasto semanal promedio: ${promptData.gasto_semanal_promedio}
+- Principales categorías de GASTO: ${promptData.top_categorias_gasto}
+- Principales categorías de INGRESO: ${promptData.top_categorias_ingreso}
+- Posibles gastos fijos (se repiten): ${promptData.posibles_gastos_fijos}
+- Total de movimientos: ${promptData.total_movimientos}
+
+Genera el análisis financiero ahora.`;
+
+      const analysisText = await callClaude(systemPrompt, [{ role: "user", content: userMsg }]);
+
+      analysisHtml = `
+<div class="analysis-section">
+  <div class="analysis-header">
+    <span class="analysis-icon">🤖</span>
+    <div>
+      <div class="analysis-title">Análisis de IA</div>
+      <div class="analysis-sub">Generado automáticamente con base en tus datos de ${rangeName}</div>
+    </div>
+  </div>
+  <div class="analysis-body">
+    ${analysisText}
+  </div>
+</div>`;
+    } catch (e) {
+      console.error("Analysis error:", e);
+      const errMsg = allTxs.length < 3
+        ? "Se necesitan al menos 3 movimientos para generar un análisis."
+        : totalIn === 0 && totalOut === 0
+          ? "No hay movimientos en el periodo seleccionado."
+          : `No se pudo conectar con el análisis de IA (${e?.message || "error desconocido"}). Verifica tu conexión.`;
+      analysisHtml = `<div class="analysis-section"><div class="analysis-header"><span class="analysis-icon">🤖</span><div><div class="analysis-title">Análisis de IA</div><div class="analysis-sub">No disponible</div></div></div><div class="analysis-body"><p style="color:#9CA3AF">${errMsg}</p></div></div>`;
+    }
 
     const incHtml = incRows.map((r) => `
       <tr>
@@ -10589,6 +10700,18 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
   .total-row td{font-weight:700;border-top:1.5px solid #E5E7EB!important;background:#F9FAFB;padding-top:10px;}
   .foot{margin-top:36px;padding-top:14px;border-top:1px solid #F3F4F6;display:flex;justify-content:space-between;font-size:10.5px;color:#9CA3AF;}
   .print-btn{position:fixed;top:16px;right:16px;padding:10px 18px;background:#5B6EE8;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(91,110,232,.35);}
+  /* ── Análisis IA ── */
+  .analysis-section{margin:28px 0;background:linear-gradient(135deg,#F0F4FF 0%,#F5F0FF 100%);border-radius:16px;overflow:hidden;border:1px solid rgba(91,110,232,.15);}
+  .analysis-header{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid rgba(91,110,232,.12);background:rgba(91,110,232,.06);}
+  .analysis-icon{font-size:24px;flex-shrink:0;}
+  .analysis-title{font-size:15px;font-weight:700;color:#1B2230;letter-spacing:-.01em;}
+  .analysis-sub{font-size:11px;color:#6B7585;margin-top:2px;}
+  .analysis-body{padding:18px 20px;font-size:13px;line-height:1.7;color:#374151;}
+  .analysis-body h3{font-size:13px;font-weight:700;color:#1B2230;margin:14px 0 6px;padding:0;border:none;}
+  .analysis-body h3:first-child{margin-top:0;}
+  .analysis-body p{margin:0 0 8px;}
+  .analysis-body strong{color:#1B2230;font-weight:600;}
+  .disclaimer{font-size:10.5px!important;color:#9CA3AF!important;background:rgba(0,0,0,.04);padding:8px 12px;border-radius:8px;border-left:3px solid #D1D5DB;margin-top:12px!important;}
 </style></head>
 <body>
 <button class="print-btn no-print" onclick="window.print()">Guardar como PDF ↓</button>
@@ -10604,6 +10727,7 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
   <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val expense">${fmtMxn(totalOut)}</div></div>
   <div class="kpi"><div class="kpi-lbl">Flujo neto</div><div class="kpi-val" style="color:${net>=0?"#059669":"#DC2626"}">${net>=0?"+":"−"}${fmtMxn(Math.abs(net))}</div></div>
 </div>
+${analysisHtml}
 ${incRows.length?`<div class="section-title">💚 Ingresos por categoría</div><table><thead><tr><th></th><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th><th></th></tr></thead><tbody>${incHtml}</tbody><tfoot><tr class="total-row"><td></td><td>Total</td><td class="num income">${fmtMxn(totalIn)}</td><td></td><td></td></tr></tfoot></table>`:""}
 ${expRows.length?`<div class="section-title">🔴 Gastos por categoría</div><table><thead><tr><th></th><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th><th></th></tr></thead><tbody>${expHtml}</tbody><tfoot><tr class="total-row"><td></td><td>Total</td><td class="num expense">${fmtMxn(totalOut)}</td><td></td><td></td></tr></tfoot></table>`:""}
 ${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})</div><table><thead><tr><th>Fecha</th><th></th><th>Concepto</th><th>Categoría</th>${accColHdr}<th style="text-align:right">Monto</th></tr></thead><tbody>${txHtml}</tbody></table>`:""}
