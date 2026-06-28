@@ -562,8 +562,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-sortable-v2.disabled{background:transparent;border-color:var(--line-soft);}
 .cc-dark .cc-sortable-v2{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}
 .cc-dark .cc-sortable-v2.disabled{background:transparent;border-color:rgba(255,255,255,.05);}
-.cc-grip-dots{display:flex;flex-direction:column;gap:3px;cursor:grab;padding:4px 2px;color:var(--ink-faint);}
-.cc-grip-dots span{display:block;width:3px;height:3px;border-radius:50%;background:currentColor;}
+.cc-grip-dots{display:flex;flex-direction:column;gap:4px;cursor:grab;padding:4px 6px;color:var(--ink-faint);}
+.cc-grip-dots span{display:block;width:14px;height:2px;border-radius:2px;background:currentColor;}
 .cc-row-arrow{width:30px;height:30px;border-radius:50%;border:none;background:var(--surface);
   color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:.15s ease;}
@@ -1103,7 +1103,7 @@ const STRINGS = {
   ofYourExpenses: { es: "de tus gastos", en: "of your expenses" },
   customizeStats: { es: "Personalizar", en: "Customize" },
   customizeStatsTitle: { es: "Personalizar estadísticas", en: "Customize statistics" },
-  reorderHint: { es: "Reordena con las flechas y muestra u oculta cada sección.", en: "Reorder with arrows and show or hide each section." },
+  reorderHint: { es: "Arrastra desde las líneas ≡ para reordenar. Activa o desactiva con el switch.", en: "Drag from the ≡ lines to reorder. Toggle to show or hide." },
   bars: { es: "Barras", en: "Bars" },
   pie: { es: "Pastel", en: "Pie" },
   donut: { es: "Dona", en: "Donut" },
@@ -3933,10 +3933,16 @@ function SplashScreen({ onDone }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
+  const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
   return (
-    <div className="cc-splash">
+    <div className="cc-splash" style={{
+      background: sysDark ? "#1c1e22" : "#ffffff",
+    }}>
       <style>{STYLE}</style>
-      <div className="cc-splash-word">zafi</div>
+      <div className="cc-splash-word" style={{
+        color: sysDark ? "#F5F5F7" : "#1A1815",
+      }}>zafi</div>
     </div>
   );
 }
@@ -4119,9 +4125,11 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
 
-  // Pantalla de carga mientras Firebase verifica sesión
+  // Pantalla de carga — detecta tema del SO (no del config que aún no cargó)
+  const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
   if (user === undefined) return (
-    <div className={`cc-loading ${isDarkTheme ? "cc-dark" : ""}`}>
+    <div className={`cc-loading ${sysDark ? "cc-dark" : ""}`}>
+      <style>{STYLE}</style>
       <div className="cc-loading-halo" />
       <div className="cc-loading-wordmark">
         <span>zafi</span>
@@ -6455,7 +6463,7 @@ function useDragSort(items, onApply) {
     position: "relative",
   });
 
-  return { dragIdx, overIdx, getItemProps, getItemStyle };
+  return { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps };
 }
 
 function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, onClose, onSave }) {
@@ -6464,7 +6472,7 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
   const dark = useDarkMode();
 
   const apply = (next) => { setItems(next); onSave(next); };
-  const { dragIdx, overIdx, getItemProps, getItemStyle } = useDragSort(items, apply);
+  const { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps } = useDragSort(items, apply);
 
   const toggle = (id) => apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
 
@@ -10109,7 +10117,7 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
   const userPlan = config ? getUserPlan(config) : "free";
 
   const apply = (next) => { setItems(next); onSave(next); };
-  const { dragIdx, overIdx, getItemProps, getItemStyle } = useDragSort(items, apply);
+  const { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps } = useDragSort(items, apply);
 
   const toggle = (i) => apply(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
   const move = (i, dir) => {
@@ -10138,7 +10146,7 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
           </div>
         )}
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
-          Arrastra para reordenar · toca el toggle para activar/desactivar.
+          Arrastra desde las líneas <span style={{ fontWeight:600, color:"var(--ink)" }}>≡</span> para reordenar. Activa o desactiva con el switch.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
