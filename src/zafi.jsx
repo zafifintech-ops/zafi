@@ -562,8 +562,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-sortable-v2.disabled{background:transparent;border-color:var(--line-soft);}
 .cc-dark .cc-sortable-v2{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);}
 .cc-dark .cc-sortable-v2.disabled{background:transparent;border-color:rgba(255,255,255,.05);}
-.cc-grip-dots{display:flex;flex-direction:column;gap:4px;cursor:grab;padding:4px 6px;color:var(--ink-faint);}
-.cc-grip-dots span{display:block;width:14px;height:2px;border-radius:2px;background:currentColor;}
+.cc-grip-dots{display:flex;flex-direction:column;gap:5px;cursor:grab;padding:4px 8px;color:var(--ink-faint);flex-shrink:0;}
+.cc-grip-dots span{display:block;width:16px;height:1.5px;border-radius:2px;background:currentColor;}
 .cc-row-arrow{width:30px;height:30px;border-radius:50%;border:none;background:var(--surface);
   color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:.15s ease;}
@@ -3936,12 +3936,19 @@ function SplashScreen({ onDone }) {
   const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
   return (
-    <div className="cc-splash" style={{
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 99999,
+      display: "flex", alignItems: "center", justifyContent: "center",
       background: sysDark ? "#1c1e22" : "#ffffff",
+      animation: "ccSplashOut .4s ease 0.9s forwards",
     }}>
       <style>{STYLE}</style>
-      <div className="cc-splash-word" style={{
+      <div style={{
+        fontFamily: "'Fraunces', serif", fontWeight: 400,
+        fontSize: 52, letterSpacing: "-.05em",
         color: sysDark ? "#F5F5F7" : "#1A1815",
+        opacity: 0, transform: "translateY(6px)",
+        animation: "ccSplashFade .7s cubic-bezier(.2,.8,.3,1) .15s forwards",
       }}>zafi</div>
     </div>
   );
@@ -4133,7 +4140,6 @@ export default function App() {
       <div className="cc-loading-halo" />
       <div className="cc-loading-wordmark">
         <span>zafi</span>
-        <span className="cc-loading-dot" />
       </div>
       <div className="cc-loading-dots">
         <span /><span /><span />
@@ -6515,7 +6521,7 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
               <span className="cc-grip-dots" aria-hidden="true"
                 {...getGripProps(i)}
                 style={{ ...getGripProps(i).style, color: dragIdx === i ? "var(--gold)" : undefined }}>
-                <span /><span /><span /><span /><span /><span />
+                <span /><span />
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontWeight: 500, fontSize: 14.5,
@@ -10163,7 +10169,7 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
                 <span className="cc-grip-dots" aria-hidden="true"
                   {...getGripProps(i)}
                   style={{ ...getGripProps(i).style, color: dragIdx === i ? "var(--gold)" : undefined }}>
-                  <span /><span /><span /><span /><span /><span />
+                  <span /><span />
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 14, fontWeight: 600,
