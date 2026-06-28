@@ -1,12 +1,21 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { NativeBiometric } from "capacitor-native-biometric";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail, signInWithPopup, deleteUser,
-  GoogleAuthProvider, OAuthProvider } from "firebase/auth";
+  sendPasswordResetEmail, signInWithCredential, GoogleAuthProvider,
+  OAuthProvider, deleteUser } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
+
+/* ── Constantes de autenticación ── */
+const GOOGLE_CLIENT_ID = "308516673564-ju957earku47i36hav3m14epkld3ti91.apps.googleusercontent.com";
+const BIOMETRIC_SERVER = "zafi.app"; // clave para keychain
+const BIOMETRIC_USERNAME = "zafi_user";
 
 /* Firebase config */
 const firebaseApp = initializeApp({
@@ -511,16 +520,16 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   position:relative;overflow:hidden;
   transition:all .2s ease;}
 .cc-acc-card:hover{background:rgba(255,255,255,.7);}
-.cc-acc-card.on{border-color:rgba(29,78,216,.3);
-  background:var(--accent-grad-soft);
-  box-shadow:0 0 0 1px rgba(29,78,216,.2);}
-.cc-acc-card.on .cc-acc-label{color:var(--accent-solid);}
-.cc-acc-card.on .cc-acc-icon{background:rgba(29,78,216,.12);}
+.cc-acc-card.on{border-color:rgba(140,127,174,.35);
+  background:rgba(140,127,174,.08);
+  box-shadow:0 0 0 1px rgba(140,127,174,.2);}
+.cc-acc-card.on .cc-acc-label{color:var(--gold);}
+.cc-acc-card.on .cc-acc-icon{background:var(--gold-soft);}
 .cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
   border-radius:7px;background:var(--surface-2);font-size:13px;margin-bottom:7px;
   transition:.2s;}
 .cc-acc-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);}
-.cc-acc-name{font-weight:600;font-size:14px;margin:2px 0 7px;letter-spacing:-.012em;color:var(--ink);}
+.cc-acc-name{font-weight:600;font-size:13px;margin:2px 0 7px;letter-spacing:-.012em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;}
 .cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:19px;letter-spacing:-.03em;line-height:1.05;}
 .cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-fill-color:transparent;}
@@ -578,15 +587,13 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 
 /* ============== SEPARADOR DE DÍA ============== */
 .cc-day-sep{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:13px 0 8px;border-bottom:1px solid var(--line-soft);margin-bottom:2px;
-  position:sticky;top:0;background:transparent;
-  z-index:5;}
-.cc-day-sep:first-child{padding-top:6px;}
-.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:19px;line-height:1;letter-spacing:-.03em;
-  color:var(--ink);min-width:24px;}
-.cc-day-name{flex:1;font-size:10.5px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
+  padding:10px 14px 8px;border-bottom:1px solid var(--line-soft);margin-bottom:0;
+  background:transparent;}
+.cc-day-num{font-family:'Fraunces',serif;font-weight:500;font-size:18px;line-height:1;letter-spacing:-.03em;
+  color:var(--ink);min-width:22px;}
+.cc-day-name{flex:1;font-size:10px;font-weight:600;color:var(--ink-faint);letter-spacing:.04em;
   text-transform:uppercase;}
-.cc-day-totals{display:flex;gap:9px;align-items:center;font-size:11px;
+.cc-day-totals{display:flex;gap:9px;align-items:center;font-size:10.5px;
   font-variant-numeric:tabular-nums;font-weight:500;opacity:.7;}
 .cc-day-totals .pos{color:var(--green);}
 .cc-day-totals .neg{color:var(--coral);}
@@ -690,7 +697,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;}
 /* "00" gris que aparece después del número cuando no hay punto */
 .cc-amount-decimal-hint{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
-  color:var(--ink-soft);opacity:.45;pointer-events:none;font-feature-settings:"tnum";flex-shrink:0;}
+  color:var(--ink);opacity:.25;pointer-events:none;font-feature-settings:"tnum";flex-shrink:0;}
 .cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
   width:auto;max-width:240px;min-width:30px;font-feature-settings:"tnum";
@@ -1768,7 +1775,8 @@ function hasFeature(config, feature) {
                 "unlimited_txs", "3_accounts", "excel_export", "full_stats",
                 "dashboard_recent", "dashboard_balance",
                 "date_week", "date_year",
-                "stats_full"];
+                "stats_full", "account_toggle",
+                "stats_expCats", "stats_trend"];
   const PRO = [...LITE, "unlimited_accounts", "photo_capture", "ai_unlimited",
                "income_vs_expense", "sankey", "reports",
                "dashboard_top_expenses", "dashboard_trend", "dashboard_incvsexp",
@@ -1781,6 +1789,129 @@ function hasFeature(config, feature) {
 }
 
 /* Hook reactivo — se actualiza cuando el tema cambia */
+/* ====== FaceIDSettings — componente de configuración de Face ID ====== */
+function FaceIDSettings() {
+  const [available, setAvailable] = useState(null); // null=cargando, true/false
+  const [enrolled, setEnrolled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const dark = useDarkMode();
+  const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+
+  useEffect(() => {
+    if (!isCapacitor) { setAvailable(false); return; }
+    NativeBiometric.isAvailable()
+      .then((res) => setAvailable(res.isAvailable))
+      .catch(() => setAvailable(false));
+    // Verificar si ya hay credenciales guardadas
+    NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER })
+      .then((c) => setEnrolled(!!c?.username))
+      .catch(() => setEnrolled(false));
+  }, []);
+
+  const enable = async () => {
+    setBusy(true); setMsg("");
+    try {
+      await NativeBiometric.verifyIdentity({
+        reason: "Confirma tu identidad para activar Face ID en Zafi",
+        title: "Activar Face ID",
+      });
+      // Pedir al usuario su contraseña para guardarla
+      setMsg("Face ID activado. La próxima vez que inicies sesión con correo y contraseña, quedará guardado automáticamente.");
+      setEnrolled(true);
+    } catch (e) {
+      setMsg("No se pudo activar Face ID.");
+    }
+    setBusy(false);
+  };
+
+  const disable = async () => {
+    setBusy(true); setMsg("");
+    try {
+      await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER });
+      setEnrolled(false);
+      setMsg("Face ID desactivado.");
+    } catch (e) {
+      setMsg("Error al desactivar.");
+    }
+    setBusy(false);
+  };
+
+  if (!isCapacitor) return (
+    <div style={{ padding: "24px 0", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
+      Face ID solo está disponible en la app de iOS.
+    </div>
+  );
+
+  if (available === null) return (
+    <div style={{ padding: "24px 0", textAlign: "center" }}>
+      <div className="cc-dots"><span /><span /><span /></div>
+    </div>
+  );
+
+  if (!available) return (
+    <div style={{ padding: "24px 0" }}>
+      <div style={{ fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6 }}>
+        Este dispositivo no tiene Face ID disponible o no está configurado en Ajustes de iOS.
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ paddingTop: 8 }}>
+      <div className="cc-card" style={{ padding: "18px 16px", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12,
+            background: enrolled ? "var(--green-soft)" : "var(--surface-2)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke={enrolled ? "var(--green)" : "var(--ink-soft)"} strokeWidth="1.5" strokeLinecap="round">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" opacity=".2"/>
+              <path d="M9 9h.01M15 9h.01M9.5 15.5c.83.67 2.17.67 3 0"/>
+              <rect x="3" y="3" width="4" height="4" rx="1"/>
+              <rect x="17" y="3" width="4" height="4" rx="1"/>
+              <rect x="3" y="17" width="4" height="4" rx="1"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)" }}>Face ID</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>
+              {enrolled ? "Activado — puedes entrar sin contraseña" : "Desactivado"}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600,
+            color: enrolled ? "var(--green)" : "var(--ink-faint)",
+            background: enrolled ? "var(--green-soft)" : "var(--surface-2)",
+            padding: "4px 10px", borderRadius: 99 }}>
+            {enrolled ? "ON" : "OFF"}
+          </div>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 20 }}>
+        {enrolled
+          ? "Con Face ID activado, puedes entrar a Zafi tocando el botón Face ID en la pantalla de inicio de sesión — sin escribir tu contraseña."
+          : "Activa Face ID para entrar a Zafi sin contraseña. Tus credenciales se guardan de forma segura en el llavero de iOS."}
+      </p>
+
+      {msg && (
+        <div style={{ fontSize: 13, color: msg.includes("Error") || msg.includes("No se pudo") ? "var(--coral)" : "var(--green)",
+          background: msg.includes("Error") || msg.includes("No se pudo") ? "var(--coral-soft)" : "var(--green-soft)",
+          padding: "10px 14px", borderRadius: 12, marginBottom: 16, lineHeight: 1.5 }}>
+          {msg}
+        </div>
+      )}
+
+      <button onClick={enrolled ? disable : enable} disabled={busy}
+        className={enrolled ? "cc-btn" : "cc-btn cc-btn-green"}
+        style={{ width: "100%", padding: 14, fontSize: 15, fontWeight: 600,
+          opacity: busy ? .6 : 1 }}>
+        {busy ? "…" : enrolled ? "Desactivar Face ID" : "Activar Face ID"}
+      </button>
+    </div>
+  );
+}
+
 function useDarkMode() {
   const [dark, setDark] = useState(() => isDarkMode());
   useEffect(() => {
@@ -2845,34 +2976,61 @@ async function firestoreGet(uid, idToken, docPath) {
   return obj;
 }
 
-async function loadAll() {
-  const sdkUser = auth.currentUser;
+/* ── Compartir archivos en Capacitor (iOS/Android) ── */
+async function shareFile(filename, mimeType, dataBase64OrText, isBase64 = false) {
+  try {
+    const result = await Filesystem.writeFile({
+      path: filename,
+      data: dataBase64OrText,
+      directory: Directory.Cache,
+      encoding: isBase64 ? undefined : Encoding.UTF8,
+    });
+    await Share.share({
+      title: filename,
+      url: result.uri,
+      dialogTitle: "Compartir reporte Zafi",
+    });
+  } catch (e) {
+    console.error("shareFile error", e);
+    alert("No se pudo compartir el archivo: " + (e?.message || e));
+  }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))
+  ]);
+}
+
+async function loadAll(userOverride) {
+  const sdkUser = userOverride || auth.currentUser;
   const restUser = window.__zafiCurrentUser;
   const u = sdkUser || restUser;
   if (!u) return { config: null, txs: [] };
   let config = null, txs = [];
-  // Try SDK first
+  // Try SDK con timeout de 4s (en Capacitor puede colgarse indefinidamente)
   if (sdkUser) {
     try {
-      const snap = await getDoc(doc(db, "users", u.uid, "data", "config"));
+      const snap = await withTimeout(getDoc(doc(db, "users", u.uid, "data", "config")), 1500);
       if (snap.exists()) config = snap.data().value;
-    } catch (e) { console.error("loadAll config SDK", e); }
+    } catch (e) { console.error("loadAll config SDK", e.message); }
     try {
-      const snap = await getDoc(doc(db, "users", u.uid, "data", "txs"));
+      const snap = await withTimeout(getDoc(doc(db, "users", u.uid, "data", "txs")), 1500);
       if (snap.exists()) txs = snap.data().value || [];
-    } catch (e) { console.error("loadAll txs SDK", e); }
+    } catch (e) { console.error("loadAll txs SDK", e.message); }
     if (config !== null) return { config, txs };
   }
-  // Fallback: REST API with idToken — usa sdkUser si restUser no está disponible
+  // Fallback REST: usa sdkUser si restUser no disponible
   try {
     const tokenUser = restUser || sdkUser;
-    const idToken = await tokenUser?.getIdToken();
+    const idToken = await withTimeout(tokenUser?.getIdToken(), 3000);
     if (!idToken) return { config, txs };
     const configDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/config`);
     if (configDoc?.value !== undefined) config = configDoc.value;
     const txsDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/txs`);
     if (txsDoc?.value !== undefined) txs = txsDoc.value || [];
-  } catch (e) { console.error("loadAll REST", e); }
+  } catch (e) { console.error("loadAll REST", e.message); }
   return { config, txs };
 }
 
@@ -3023,7 +3181,46 @@ function buildConfig(raw) {
       });
     });
   });
-  return { setupComplete: true, accountMode, accounts, categories };
+  // Secciones del home por default según plan
+  // Secciones por plan — activar todo lo disponible + 1 sección del siguiente plan visible
+  const plan = raw.plan || "free";
+  let defaultSections;
+  if (plan === "pro") {
+    defaultSections = [
+      { id: "balance",    on: true  },
+      { id: "kpis",       on: true  },
+      { id: "byCategory", on: true  },
+      { id: "recent",     on: true  },
+      { id: "trend",      on: true  },
+      { id: "topExpenses",on: true  },
+      { id: "incVsExp",   on: true  },
+    ];
+  } else if (plan === "lite") {
+    // Todo lo de Lite activado + incVsExp (Pro) visible pero bloqueado
+    defaultSections = [
+      { id: "balance",    on: true  },
+      { id: "byCategory", on: true  },
+      { id: "recent",     on: true  },
+      { id: "trend",      on: true  },
+      { id: "topExpenses",on: true  },
+      { id: "kpis",       on: false },
+      { id: "incVsExp",   on: false },
+    ];
+  } else {
+    // Free: solo lo suyo (balance + byCategory) + trend (Lite) como "muestra"
+    defaultSections = [
+      { id: "balance",    on: true  },
+      { id: "byCategory", on: true  },
+      { id: "trend",      on: true  }, // visible pero bloqueado → muestra que existe
+      { id: "kpis",       on: false },
+      { id: "recent",     on: false },
+      { id: "incVsExp",   on: false },
+      { id: "topExpenses",on: false },
+    ];
+  }
+
+  return { setupComplete: true, accountMode, accounts, categories,
+    personalize: { "all:homeSections": defaultSections } };
 }
 
 /* migración: convierte categorías globales (versión vieja) en categorías por cuenta */
@@ -3144,7 +3341,7 @@ function ZafiLogo() {
 }
 
 /* ── Input reutilizable fuera del componente para no perder foco ── */
-function AuthInput({ icon, type, placeholder, value, onChange, right }) {
+function AuthInput({ icon, type, placeholder, value, onChange, right, contentType, autoComplete }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{
@@ -3160,7 +3357,8 @@ function AuthInput({ icon, type, placeholder, value, onChange, right }) {
         style={{ flex: 1, border: "none", background: "transparent", outline: "none",
           fontSize: 15, color: "#1A1815", fontFamily: "'Montserrat', sans-serif",
           fontWeight: 300, letterSpacing: "-.01em" }}
-        autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+        autoCapitalize="off" autoCorrect="off" spellCheck={false}
+        autoComplete={autoComplete || (type === "email" ? "email" : type === "password" ? "current-password" : "off")} />
       {right}
     </div>
   );
@@ -3230,6 +3428,20 @@ function AuthScreen() {
       } else {
         if (window.__zafiSetUser) window.__zafiSetUser(restUser);
       }
+      // Guardar credenciales en keychain para Face ID (solo en Capacitor)
+      const isCapNow = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+      if (isCapNow) {
+        try {
+          const biometricAvailable = await NativeBiometric.isAvailable().catch(() => ({ isAvailable: false }));
+          if (biometricAvailable?.isAvailable) {
+            await NativeBiometric.setCredentials({
+              username: email,
+              password: password,
+              server: BIOMETRIC_SERVER,
+            });
+          }
+        } catch (e) { /* silencioso */ }
+      }
     } catch (e) { setErr(ferr(e.code)); }
     finally { setBusy(false); }
   }
@@ -3261,7 +3473,7 @@ function AuthScreen() {
       // Registro exitoso via REST
       const restUser = { uid: data.localId, email: data.email, getIdToken: async () => data.idToken };
       window.__zafiCurrentUser = restUser;
-      // Intentar SDK con timeout corto
+      // Intentar SDK con timeout corto (puede fallar si REST ya creó la cuenta)
       const sdkResult = await Promise.race([
         createUserWithEmailAndPassword(auth, email, password).catch(() => null),
         new Promise(resolve => setTimeout(() => resolve(null), 3000))
@@ -3270,9 +3482,17 @@ function AuthScreen() {
         window.__zafiCurrentUser = sdkResult.user;
         if (window.__zafiSetUser) window.__zafiSetUser(sdkResult.user);
       } else {
+        // SDK falló o timeout — usar restUser directamente
         if (window.__zafiSetUser) window.__zafiSetUser(restUser);
       }
-    } catch (e) { setErr(ferr(e.code)); }
+    } catch (e) {
+      // Si el error es email-already-in-use pero ya teníamos restUser, continuar
+      if (window.__zafiCurrentUser) {
+        if (window.__zafiSetUser) window.__zafiSetUser(window.__zafiCurrentUser);
+      } else {
+        setErr(ferr(e.code));
+      }
+    }
     finally { setBusy(false); }
   }
 
@@ -3280,10 +3500,93 @@ function AuthScreen() {
     if (!email) { setErr("Escribe tu correo primero."); return; }
     setBusy(true); setErr(""); setOk("");
     try {
-      await withTimeout(sendPasswordResetEmail(auth, email));
-      setOk("✓ Correo enviado. Revisa tu bandeja.");
+      // Configuración de deep link para que el correo redirija a la app
+      const actionCodeSettings = {
+        url: "https://zafi-524b8.firebaseapp.com/resetPassword",
+        handleCodeInApp: true,
+        iOS: {
+          bundleId: "com.zafifintech.app",
+        },
+      };
+      await withTimeout(sendPasswordResetEmail(auth, email, actionCodeSettings));
+      setOk("✓ Correo enviado. Revisa tu bandeja y toca el enlace para cambiar tu contraseña.");
       setShowForgot(false);
     } catch (e) { setErr(ferr(e.code)); }
+    finally { setBusy(false); }
+  }
+
+  async function doGoogleSignIn() {
+    setBusy(true); setErr("");
+    try {
+      // Usar FirebaseAuthentication plugin de Capacitor
+      const result = await FirebaseAuthentication.signInWithGoogle();
+      const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+      const sdkResult = await signInWithCredential(auth, credential).catch(() => null);
+      const uid = sdkResult?.user?.uid || result.user?.uid;
+      const email = sdkResult?.user?.email || result.user?.email;
+      const displayName = sdkResult?.user?.displayName || result.user?.displayName || "";
+      if (!uid) throw new Error("No se pudo obtener el usuario de Google.");
+      // Crear restUser compatible con el sistema actual
+      const idToken = result.credential?.idToken;
+      const restUser = { uid, email, displayName, getIdToken: async () => idToken };
+      window.__zafiCurrentUser = sdkResult?.user || restUser;
+      if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
+    } catch (e) {
+      console.error("Google Sign In error:", e);
+      if (e?.message?.includes("cancelled") || e?.code === "CANCELLED") {
+        // Usuario canceló, no mostrar error
+      } else {
+        setErr("No se pudo iniciar sesión con Google. Intenta de nuevo.");
+      }
+    }
+    finally { setBusy(false); }
+  }
+
+  async function doFaceID() {
+    setBusy(true); setErr("");
+    try {
+      // Verificar si hay credenciales guardadas
+      const creds = await NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER }).catch(() => null);
+      if (!creds?.username || !creds?.password) {
+        setErr("Primero inicia sesión con correo y contraseña para activar Face ID.");
+        setBusy(false); return;
+      }
+      // Verificar biometría
+      await NativeBiometric.verifyIdentity({
+        reason: "Confirma tu identidad para entrar a Zafi",
+        title: "Face ID",
+        subtitle: "Usa Face ID para acceder",
+        description: "Toca el sensor para continuar",
+      });
+      // Usar las credenciales guardadas para hacer login
+      const savedEmail = creds.username;
+      const savedPassword = creds.password;
+      const API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: savedEmail, password: savedPassword, returnSecureToken: true })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error("Credenciales inválidas");
+      const restUser = { uid: data.localId, email: data.email, getIdToken: async () => data.idToken };
+      window.__zafiCurrentUser = restUser;
+      const sdkResult = await Promise.race([
+        signInWithEmailAndPassword(auth, savedEmail, savedPassword).catch(() => null),
+        new Promise(resolve => setTimeout(() => resolve(null), 3000))
+      ]);
+      if (sdkResult?.user) {
+        window.__zafiCurrentUser = sdkResult.user;
+        if (window.__zafiSetUser) window.__zafiSetUser(sdkResult.user);
+      } else {
+        if (window.__zafiSetUser) window.__zafiSetUser(restUser);
+      }
+    } catch (e) {
+      if (e?.message?.includes("Cancel") || e?.message?.includes("cancel") || e?.code === -128) {
+        // Usuario canceló, no mostrar error
+      } else {
+        setErr("No se pudo verificar Face ID. Intenta con contraseña.");
+      }
+    }
     finally { setBusy(false); }
   }
 
@@ -3381,9 +3684,10 @@ function AuthScreen() {
         ) : tab === "login" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder="Correo electrónico"
-              value={email} onChange={e => setEmail(e.target.value)} />
+              value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" />
             <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder="Contraseña"
               value={password} onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
               right={
                 <button onClick={() => { setShowForgot(true); setErr(""); }}
                   style={{ ...softLink, color: "rgba(26,24,21,.45)", fontSize: 12,
@@ -3397,23 +3701,95 @@ function AuthScreen() {
             <button style={{ ...btnMain, marginTop: 8 }} onClick={doLogin} disabled={busy}>
               {busy ? "Entrando…" : "Iniciar sesión →"}
             </button>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
+              <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
+              <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
+              <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:4 }}>
+              {/* Google */}
+              <button onClick={doGoogleSignIn} disabled={busy}
+                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                  border:"1px solid rgba(26,24,21,.15)",
+                  background:"rgba(255,255,255,.55)", cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  color:"#1A1815", backdropFilter:"blur(4px)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Google
+              </button>
+              {/* Apple — disponible cuando tengas cuenta de Apple Developer */}
+              <button disabled
+                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                  border:"1px solid rgba(26,24,21,.15)",
+                  background:"rgba(26,24,21,.08)", cursor:"not-allowed",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  color:"rgba(26,24,21,.35)", opacity:.5 }}
+                title="Próximamente">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                Apple
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder="Correo electrónico"
-              value={email} onChange={e => setEmail(e.target.value)} />
+              value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" />
             <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder="Contraseña (mín. 6 caracteres)"
-              value={password} onChange={e => setPassword(e.target.value)} />
+              value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" />
             <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>} type="password" placeholder="Confirmar contraseña"
-              value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+              value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
             <button style={{ ...btnMain, marginTop: 8 }} onClick={doRegister} disabled={busy}>
               {busy ? "Creando cuenta…" : "Crear cuenta gratis →"}
             </button>
-            <p style={{ textAlign: "center", fontSize: 11, color: "rgba(26,24,21,.35)",
-              lineHeight: 1.6, fontFamily: "'Montserrat', sans-serif", fontWeight: 300,
-              marginTop: 4, marginBottom: 0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
+              <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
+              <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif" }}>o regístrate con</span>
+              <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:4 }}>
+              <button onClick={doGoogleSignIn} disabled={busy}
+                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                  border:"1px solid rgba(26,24,21,.15)",
+                  background:"rgba(255,255,255,.55)", cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  color:"#1A1815" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Google
+              </button>
+              <button disabled
+                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                  border:"1px solid rgba(26,24,21,.15)",
+                  background:"rgba(26,24,21,.08)", cursor:"not-allowed",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  color:"rgba(26,24,21,.35)", opacity:.5 }}
+                title="Próximamente">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                Apple
+              </button>
+            </div>
+            <p style={{ textAlign:"center", fontSize:11, color:"rgba(26,24,21,.35)",
+              lineHeight:1.6, fontFamily:"'Montserrat',sans-serif", fontWeight:300,
+              marginTop:8, marginBottom:0 }}>
               Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
             </p>
           </div>
@@ -3456,27 +3832,44 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
     setBusy(false);
   };
 
+  const dark = useDarkMode();
+  const inkColor = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const cardBg = dark ? "rgba(28,30,34,.55)" : "rgba(255,255,255,.55)";
+  // Mismo video que AuthScreen
+  const isCapacitorPS = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  const bgVideoSrc = isCapacitorPS ? (dark ? "./zafi-bg-dark.mp4" : "./zafi-bg.mp4") : (dark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4");
   const stepWrap = {
     minHeight:"100vh", display:"flex", flexDirection:"column",
-    background:"#EAEEF4", fontFamily:FONT,
+    fontFamily:FONT, position:"relative",
   };
-  const lbl = { fontFamily:FONT, fontSize:12, fontWeight:600, color:"#6B7585", letterSpacing:".02em", marginBottom:6, display:"block" };
-  const inp = { width:"100%", padding:"14px 16px", borderRadius:16,
-    border:"1px solid rgba(0,0,0,.06)", fontSize:15, fontFamily:FONT, fontWeight:400,
-    background:"rgba(255,255,255,.7)", color:"#1B2230", outline:"none" };
+  const lbl = { fontFamily:FONT, fontSize:11.5, fontWeight:600, color:inkSoft, letterSpacing:".02em", marginBottom:6, display:"block", textTransform:"uppercase" };
+  const inp = { width:"100%", padding:"12px 14px", borderRadius:14,
+    border:`1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"}`,
+    fontSize:15, fontFamily:FONT, fontWeight:400,
+    background: dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.9)",
+    color: dark ? "#F5F5F7" : "#1B2230", outline:"none" };
 
   return (
-    <div style={stepWrap}>
-      <div style={{ flex:1, padding:"100px 26px 0" }}>
-        <div style={{ fontSize:28, fontWeight:700, color:"#1B2230", letterSpacing:"-.02em", lineHeight:1.2 }}>
-          Welcome to Zafi
+    <div className={`cc-root ${dark ? "cc-dark" : ""}`} style={stepWrap}>
+      <style>{STYLE}</style>
+      <div className="cc-video-bg">
+        <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
+          ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }} />
+      </div>
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+        <div style={{ width:"100%", maxWidth:400, background:cardBg,
+          backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+          borderRadius:28, padding:"36px 28px", border:"1px solid rgba(255,255,255,.15)" }}>
+        <div style={{ fontSize:26, fontWeight:700, color:inkColor, letterSpacing:"-.02em", lineHeight:1.2, marginBottom:6 }}>
+          Bienvenido a Zafi
         </div>
-        <div style={{ fontSize:14, color:"#6B7585", marginTop:8, lineHeight:1.6 }}>
-          {t("tellUsAboutYou")}
+        <div style={{ fontSize:13.5, color:inkSoft, marginBottom:24, lineHeight:1.6 }}>
+          Cuéntanos un poco de ti para personalizar tu experiencia.
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
-            <label style={lbl}>Your name</label>
+            <label style={lbl}>Tu nombre</label>
             <input style={inp} type="text" placeholder={t("howToCallYou")} value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
@@ -3516,15 +3909,15 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             </div>
           </div>
         </div>
-        {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:12 }}>{err}</div>}
-      </div>
-      <div style={{ padding:"0 26px calc(28px + env(safe-area-inset-bottom))" }}>
-        <button style={{ width:"100%", padding:15, borderRadius:99, border:"none",
-          background:"#1B2230", color:"#fff", fontSize:15, fontWeight:600,
-          fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.6:1 }}
+        {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:16 }}>{err}</div>}
+        <button style={{ width:"100%", padding:15, borderRadius:12, border:"none", marginTop:24,
+          background:"rgba(26,24,21,.82)", color:"#fff", fontSize:14, fontWeight:400,
+          fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.65:1,
+          letterSpacing:".02em" }}
           onClick={save} disabled={busy}>
-          {busy ? t("saving") : t("continueBtn")}
+          {busy ? "Guardando…" : "Continuar"}
         </button>
+        </div>
       </div>
     </div>
   );
@@ -3584,7 +3977,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const { config: c, txs: t } = await loadAll();
+        const { config: c, txs: t } = await loadAll(user);
         if (cancelled) return;
         if (c) {
           const m = migrate(c, t || []);
@@ -3705,9 +4098,12 @@ export default function App() {
   // En Capacitor las rutas absolutas no funcionan, usar relativas
   const isCapacitor = window.location.protocol === "capacitor:";
   const videoBase = isCapacitor ? "." : "";
-  const bgVideoSrc = (isDarkTheme ? `${videoBase}/zafi-bg-dark.mp4` : `${videoBase}/zafi-bg.mp4`) + "?v=3";
   const bgMode = config?.bgMode || "dynamic";
   const showVideo = bgMode === "dynamic";
+  // Video seleccionable para tema claro: "main" = zafi-bg.mp4, "auth" = zafi-auth.mp4
+  const lightVideo = config?.lightVideo || "main";
+  const lightVideoFile = lightVideo === "auth" ? "zafi-auth.mp4" : "zafi-bg.mp4";
+  const bgVideoSrc = (isDarkTheme ? `${videoBase}/zafi-bg-dark.mp4` : `${videoBase}/${lightVideoFile}`) + "?v=3";
 
   // Body background para tema oscuro/claro
   useEffect(() => {
@@ -4762,8 +5158,14 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   };
   const doSignOut = async () => {
     setBusy(true);
-    try { await signOut(auth); } catch (e) {}
-    setBusy(false); onClose();
+    try { await withTimeout(signOut(auth), 3000); } catch (e) {}
+    window.__zafiCurrentUser = null;
+    // Limpiar credenciales de Face ID al cerrar sesión
+    try {
+      await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER });
+    } catch (e) { /* silencioso */ }
+    // Forzar recarga limpia de la app
+    window.location.reload();
   };
   const doReset = () => { resetAll(); setConfirmReset(false); onClose(); };
   const doDeleteAccount = async () => {
@@ -4895,6 +5297,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
               {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
+              {ROW(IconShield, "Face ID / Biometría", "", () => setSection("faceid"))}
             </div>
 
             {/* Sign out */}
@@ -4907,6 +5310,13 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
             <div style={{ textAlign: "center", fontSize: 11, color: "var(--ink-faint)", padding: "6px 0 4px" }}>
               Zafi · Finanzas personales con IA · v1.0
             </div>
+          </>
+        )}
+
+        {section === "faceid" && (
+          <>
+            {BACK("Face ID / Biometría")}
+            <FaceIDSettings />
           </>
         )}
 
@@ -5075,6 +5485,41 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                 Dinámico usa un video animado. Sólido usa un fondo estático.
               </div>
               {CHIP_ROW([["dynamic", "Dinámico"], ["solid", "Sólido"]], curBgMode, setBgMode)}
+
+              {curBgMode === "dynamic" && curTheme !== "dark" && (
+                <>
+                  <div className="cc-label" style={{ marginTop: 24, marginBottom: 8 }}>Video (tema claro)</div>
+                  <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginBottom: 12, lineHeight: 1.5 }}>
+                    Elige el video de fondo para el tema claro.
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {[["main", "Inicio", "zafi-bg.mp4"], ["auth", "Login", "zafi-auth.mp4"]].map(([key, label, file]) => {
+                      const isCapV = window.location.protocol === "capacitor:";
+                      const src = (isCapV ? "./" : "/") + file;
+                      const active = (config.lightVideo || "main") === key;
+                      return (
+                        <button key={key} onClick={() => saveConfig({ ...config, lightVideo: key })}
+                          style={{ flex: 1, padding: 0, border: `2px solid ${active ? "var(--gold)" : "var(--line)"}`,
+                            borderRadius: 16, overflow: "hidden", cursor: "pointer",
+                            background: "none", position: "relative",
+                            boxShadow: active ? "0 0 0 1px var(--gold)" : "none",
+                            transition: "border-color .2s" }}>
+                          <video src={src} autoPlay muted loop playsInline
+                            style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }}
+                            ref={(el) => { if (el) { el.muted = true; el.play().catch(() => {}); } }} />
+                          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0,
+                            padding: "6px 8px", background: "rgba(0,0,0,.45)",
+                            color: "#fff", fontSize: 11.5, fontWeight: 600,
+                            fontFamily: "'Montserrat',sans-serif", textAlign: "center" }}>
+                            {label}
+                            {active && <span style={{ marginLeft: 4 }}>✓</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
@@ -5356,15 +5801,13 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
             <div>
               <label className="cc-label" style={{ marginBottom: 6, display: "block" }}>{_lang === "es" ? "Desde" : "From"}</label>
-              <input className="cc-input" type="date" value={from}
-                onChange={(e) => { setFrom(e.target.value); setSaved(false); }}
-                style={{ fontSize: 14, width: "100%" }} />
+              <DateButton value={from}
+                onChange={(v) => { setFrom(v); setSaved(false); }} />
             </div>
             <div>
               <label className="cc-label" style={{ marginBottom: 6, display: "block" }}>{_lang === "es" ? "Hasta" : "To"}</label>
-              <input className="cc-input" type="date" value={to}
-                onChange={(e) => { setTo(e.target.value); setSaved(false); }}
-                style={{ fontSize: 14, width: "100%" }} />
+              <DateButton value={to}
+                onChange={(v) => { setTo(v); setSaved(false); }} />
             </div>
           </div>
         )}
@@ -5533,13 +5976,32 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       {/* === selector de cuentas mejorado === */}
       {config.accounts.length > 0 && (
         <div className="cc-fade">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="cc-label">Tus cuentas</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: config.hideAccountCards ? 0 : 10 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div className="cc-label" style={{ marginBottom:0 }}>Tus cuentas</div>
+              <button onClick={() => saveConfig({ ...config, hideAccountCards: !config.hideAccountCards })}
+                style={{ background:"none", border:"none", padding:"2px 4px", cursor:"pointer",
+                  color:"var(--ink-faint)", display:"flex", alignItems:"center" }}
+                title={config.hideAccountCards ? "Mostrar cuentas" : "Ocultar cuentas"}>
+                {config.hideAccountCards ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            </div>
             <button className="cc-gear" onClick={() => setConfiguring(true)}><IconGear /> Personalizar</button>
           </div>
-          <div className="cc-scroll-x">
-            {/* tarjeta General (Total) — respeta config.hiddenAccountCards */}
-            {!(config.hiddenAccountCards || []).includes("all") && (
+          {!config.hideAccountCards && <div className="cc-scroll-x">
+            {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
+            {config.accounts.length > 1 && !(config.hiddenAccountCards || []).includes("all") && (
               <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
                 <div className="cc-acc-icon">∑</div>
                 <div className="cc-acc-label">Total</div>
@@ -5559,8 +6021,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               const active = view === a.id;
               return (
                 <button key={a.id} className={`cc-acc-card ${active ? "on" : ""}`}
-                  onClick={() => hasFeature(config, "account_toggle") ? setView(a.id) : null}
-                  style={{ opacity: hasFeature(config, "account_toggle") ? 1 : .5, cursor: hasFeature(config, "account_toggle") ? "pointer" : "default" }}>
+                  onClick={() => (config.accounts.length > 1 && hasFeature(config, "account_toggle")) ? setView(a.id) : null}
+                  style={{ opacity: 1, cursor: config.accounts.length > 1 ? "pointer" : "default" }}>
                   <div className="cc-acc-icon">🏦</div>
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
@@ -5573,14 +6035,29 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 </button>
               );
             })}
-            {/* tarjeta agregar */}
-            <button className="cc-acc-card" onClick={onAddAccount}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                minWidth: 130, borderStyle: "dashed", color: "var(--ink-soft)" }}>
-              <div style={{ fontSize: 30, lineHeight: 1, marginBottom: 6, color: "var(--gold)" }}>＋</div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>Agregar cuenta</div>
-            </button>
-          </div>
+            {/* tarjeta agregar — Free no puede, Lite hasta 3, Pro ilimitado */}
+            {(() => {
+              const plan = getUserPlan(config);
+              const numAccounts = config.accounts.length;
+              const canAdd = plan === "pro" || (plan === "lite" && numAccounts < 3);
+              if (plan === "free") return null;
+              if (!canAdd) return (
+                <div className="cc-acc-card" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:130, borderStyle:"dashed", color:"var(--ink-faint)", opacity:.5, cursor:"default" }}>
+                  <div style={{ fontSize:24, marginBottom:4 }}>🔒</div>
+                  <div style={{ fontWeight:600, fontSize:12 }}>Máx. 3 cuentas</div>
+                  <div style={{ fontSize:10.5, color:"var(--ink-faint)", marginTop:2 }}>Plan Lite</div>
+                </div>
+              );
+              return (
+                <button className="cc-acc-card" onClick={onAddAccount}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                    minWidth:130, borderStyle:"dashed", color:"var(--ink-soft)" }}>
+                  <div style={{ fontSize:30, lineHeight:1, marginBottom:6, color:"var(--gold)" }}>＋</div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>Agregar cuenta</div>
+                </button>
+              );
+            })()}
+          </div>}
         </div>
       )}
 
@@ -5598,10 +6075,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "kpis") {
-          if (!hasFeature(config, "income_vs_expense")) return (
-            <LockedSection key={s.id} label="Indicadores KPI" icon="📈" plan="pro"
-              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("income_vs_expense")} />
-          );
+          if (!hasFeature(config, "income_vs_expense")) return null;
           return (
           <div key={s.id} style={{ display: "flex", gap: 10 }} className="cc-fade">
             <div className="cc-card" style={{ flex: 1, padding: 14 }}>
@@ -5683,8 +6157,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "trend") {
           if (!hasFeature(config, "income_vs_expense")) return (
-            <LockedSection key={s.id} label="Mini gráfica de saldo" icon="📈" plan="pro"
-              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("income_vs_expense")} />
+            <LockedSection key={s.id} label="Mini gráfica de saldo" icon="📈" plan="lite"
+              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
           );
           return (
           <div key={s.id} className="cc-card" style={{ padding: 20 }}>
@@ -5699,10 +6173,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "topExpenses") {
-          if (!hasFeature(config, "dashboard_top_expenses")) return (
-            <LockedSection key={s.id} label="Gastos más grandes" icon="💸" plan="lite"
-              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
-          );
+          if (!hasFeature(config, "dashboard_top_expenses")) return null;
           return (
           <div key={s.id} className="cc-card" style={{ padding: 20 }}>
             <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
@@ -5716,10 +6187,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "incVsExp") {
-          if (!hasFeature(config, "income_vs_expense")) return (
-            <LockedSection key={s.id} label="Ingresos vs gastos" icon="📊" plan="pro"
-              onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
-          );
+          if (!hasFeature(config, "income_vs_expense")) return null;
           const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
           const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
           const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
@@ -5777,7 +6245,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         if (s.id === "recent") {
           if (!hasFeature(config, "dashboard_recent")) return (
             <LockedSection key={s.id} label="Movimientos recientes" icon="🕐" plan="lite"
-              onUpgrade={() => setUpgradeFeature("recurring")} />
+              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
           );
           return (
           <div key={s.id} className="cc-card" style={{ padding: 20 }}>
@@ -5796,9 +6264,27 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         return null;
       })}
 
+      {/* Mini banner Free → invitación a Lite, solo si es Free */}
+      {getUserPlan(config) === "free" && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px",
+          borderRadius:14, border:"1px solid var(--line)", background:"var(--surface-2)",
+          fontFamily:"'Montserrat',sans-serif" }}>
+          <span style={{ fontSize:16 }}>✦</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"var(--ink)", letterSpacing:"-.01em" }}>
+              Mini gráfica de saldo · Movimientos recientes
+            </div>
+            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>Disponible en Zafi Lite</div>
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:"var(--gold)", letterSpacing:".04em",
+            textTransform:"uppercase", flexShrink:0 }}>LITE</div>
+        </div>
+      )}
+
       {configuring && (
         <HomeConfigModal
           sections={sections}
+          config={config}
           accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           accounts={config.accounts}
           hiddenAccountCards={config.hiddenAccountCards || []}
@@ -5860,19 +6346,56 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 }
 
 /* ============= MODAL: PERSONALIZAR INICIO ============================== */
-function HomeConfigModal({ sections, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, onClose, onSave }) {
-  const [items, setItems] = useState(sections);
+/* ====================================================================
+   useDragSort — drag táctil para iOS WKWebView + mouse desktop
+   Feedback visual: el ítem arrastrado se eleva, el destino se resalta
+   ==================================================================== */
+function useDragSort(items, onApply) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
-  const [closing, close] = useSheetClose(onClose);
-  const dark = useDarkMode();
+  const itemRefs = useRef([]);
+  const touchDragIdx = useRef(null);
+  const touchOverIdx = useRef(null);
+  const ghostRef = useRef(null);
 
-  // Aplica el cambio en local Y dispara onSave inmediatamente
-  const apply = (next) => { setItems(next); onSave(next); };
+  // Touch drag (iOS)
+  const onTouchStart = (i) => (e) => {
+    touchDragIdx.current = i;
+    touchOverIdx.current = null;
+    setDragIdx(i);
+    setOverIdx(null);
+  };
+  const onTouchMove = (e) => {
+    if (touchDragIdx.current == null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    let found = null;
+    itemRefs.current.forEach((el, idx) => {
+      if (!el || idx === touchDragIdx.current) return;
+      const rect = el.getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) found = idx;
+    });
+    if (found !== null && found !== touchOverIdx.current) {
+      touchOverIdx.current = found;
+      setOverIdx(found);
+    }
+  };
+  const onTouchEnd = () => {
+    const from = touchDragIdx.current;
+    const to = touchOverIdx.current;
+    if (from != null && to != null && from !== to) {
+      const next = [...items];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      onApply(next);
+    }
+    touchDragIdx.current = null;
+    touchOverIdx.current = null;
+    setDragIdx(null);
+    setOverIdx(null);
+  };
 
-  const toggle = (id) => apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
-
-  // drag & drop con HTML5
+  // Mouse drag (desktop)
   const onDragStart = (i) => (e) => {
     setDragIdx(i);
     e.dataTransfer.effectAllowed = "move";
@@ -5888,9 +6411,55 @@ function HomeConfigModal({ sections, accountLabel, accounts, hiddenAccountCards,
     const next = [...items];
     const [moved] = next.splice(dragIdx, 1);
     next.splice(i, 0, moved);
-    apply(next);
+    onApply(next);
     setDragIdx(null); setOverIdx(null);
   };
+  const onDragEnd = () => { setDragIdx(null); setOverIdx(null); };
+
+  // Props para cada ítem
+  const getItemProps = (i) => ({
+    ref: (el) => { itemRefs.current[i] = el; },
+    draggable: true,
+    onDragStart: onDragStart(i),
+    onDragOver: onDragOver(i),
+    onDrop: onDrop(i),
+    onDragEnd,
+    onTouchStart: onTouchStart(i),
+    onTouchMove,
+    onTouchEnd,
+    "data-drag-idx": i,
+  });
+
+  // Estilos para cada ítem
+  const getItemStyle = (i) => ({
+    touchAction: "none",
+    transition: dragIdx !== null ? "transform .15s, box-shadow .15s, border-color .15s, background .15s" : "box-shadow .15s",
+    transform: dragIdx === i ? "scale(1.03) translateY(-2px)" : "scale(1)",
+    boxShadow: dragIdx === i
+      ? "0 12px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.10)"
+      : overIdx === i
+        ? "0 0 0 2px var(--gold), 0 4px 14px rgba(140,127,174,.18)"
+        : undefined,
+    borderColor: overIdx === i ? "var(--gold)" : dragIdx === i ? "rgba(140,127,174,.5)" : undefined,
+    background: overIdx === i ? "var(--gold-soft)" : dragIdx === i ? "var(--surface-2)" : undefined,
+    opacity: dragIdx !== null && dragIdx !== i && overIdx !== i ? 0.5 : 1,
+    zIndex: dragIdx === i ? 10 : undefined,
+    position: "relative",
+  });
+
+  return { dragIdx, overIdx, getItemProps, getItemStyle };
+}
+
+function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, onClose, onSave }) {
+  const [items, setItems] = useState(sections);
+  const [closing, close] = useSheetClose(onClose);
+  const dark = useDarkMode();
+
+  const apply = (next) => { setItems(next); onSave(next); };
+  const { dragIdx, overIdx, getItemProps, getItemStyle } = useDragSort(items, apply);
+
+  const toggle = (id) => apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
+
   const move = (i, dir) => {
     const j = i + dir;
     if (j < 0 || j >= items.length) return;
@@ -5924,23 +6493,40 @@ function HomeConfigModal({ sections, accountLabel, accounts, hiddenAccountCards,
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
           {items.map((s, i) => (
             <div key={s.id}
-              draggable
-              onDragStart={onDragStart(i)}
-              onDragOver={onDragOver(i)}
-              onDrop={onDrop(i)}
-              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+              {...getItemProps(i)}
               className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}
-              style={{
-                borderColor: overIdx === i ? "#5B6EE8" : undefined,
-                opacity: dragIdx === i ? 0.4 : 1,
-              }}>
-              <span className="cc-grip-dots" aria-hidden="true">
+              style={{ ...getItemStyle(i) }}>
+              <span className="cc-grip-dots" aria-hidden="true"
+                style={{ color: dragIdx === i ? "var(--gold)" : undefined }}>
                 <span /><span /><span /><span /><span /><span />
               </span>
-              <span style={{ flex: 1, fontWeight: 500, fontSize: 14.5,
-                color: s.on ? "var(--ink)" : "var(--ink-faint)",
-                letterSpacing: "-.01em",
-                fontFamily: "'Montserrat', sans-serif" }}>{s.label}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 500, fontSize: 14.5,
+                  color: s.on ? "var(--ink)" : "var(--ink-faint)",
+                  letterSpacing: "-.01em",
+                  fontFamily: "'Montserrat', sans-serif" }}>{s.label}</span>
+                {(() => {
+                  const planMap = {
+                    kpis: "pro", incVsExp: "pro", trend: "lite", topExpenses: "lite",
+                    recent: "lite", balance: "lite",
+                  };
+                  const needed = planMap[s.id];
+                  const userPlan = config ? getUserPlan(config) : "free";
+                  const hasIt = !needed || needed === "free" ||
+                    (needed === "lite" && (userPlan === "lite" || userPlan === "pro")) ||
+                    (needed === "pro" && userPlan === "pro");
+                  if (needed && !hasIt) return (
+                    <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
+                      padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
+                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(91,110,232,.12)",
+                      color: needed === "pro" ? "#fff" : "#5B6EE8",
+                      fontFamily:"'Montserrat',sans-serif", letterSpacing:".05em" }}>
+                      {needed === "pro" ? "✦ PRO" : "LITE"}
+                    </span>
+                  );
+                  return null;
+                })()}
+              </div>
               <button className="cc-row-arrow" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="18 15 12 9 6 15"/>
@@ -6118,6 +6704,7 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // ids[] o null
+  const [hideSummary, setHideSummary] = useState(false);
   const multi = config.accounts.length > 1;
 
   // filtrar por cuenta, luego por rango global, luego por tipo, luego por búsqueda
@@ -6146,6 +6733,11 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
       const an = (config.accounts.find((x) => x.id === a.accountId) || {}).name || "";
       const bn = (config.accounts.find((x) => x.id === b.accountId) || {}).name || "";
       return an.localeCompare(bn) || b.date.localeCompare(a.date);
+    }
+    if (sortBy === "category") {
+      const ac = (config.categories.find((x) => x.id === a.categoryId) || {}).name || "";
+      const bc = (config.categories.find((x) => x.id === b.categoryId) || {}).name || "";
+      return ac.localeCompare(bc) || b.date.localeCompare(a.date);
     }
     return 0;
   });
@@ -6214,7 +6806,7 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
       {/* barra superior: filtro normal o info de selección */}
       {!selectMode ? (
         <>
-          <div className="cc-search-wrap" style={{ marginBottom: 8 }}>
+          <div className="cc-search-wrap" style={{ marginBottom: 10 }}>
             <svg className="cc-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
@@ -6252,8 +6844,11 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
                 <option value="date-asc">📅 Más antiguo primero</option>
                 <option value="amount-desc">💰 Mayor monto</option>
                 <option value="amount-asc">💰 Menor monto</option>
-                {config.accounts.length > 1 && (
+                {config.accounts.length > 1 && accView === "all" && (
                   <option value="account">🏦 Por cuenta</option>
+                )}
+                {accView !== "all" && (
+                  <option value="category">📂 Por categoría</option>
                 )}
               </select>
               <span style={{ fontSize: 11, color: "var(--ink-faint)", whiteSpace: "nowrap", fontWeight: 500 }}>
@@ -6283,45 +6878,101 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
         </div>
       )}
 
-      {/* tarjeta resumen del periodo */}
+      {/* tarjeta resumen del periodo — con ojito en el header */}
       {!selectMode && rangeStat.length > 0 && (
-        <SummaryCard filter={filter} totalIn={totalIn} totalOut={totalOut}
-          topCatRows={hasFeature(config, "reports") ? topCatRows : []}
-          topTotal={topTotal} config={config}
-          locked={!hasFeature(config, "reports")}
-          onUpgrade={() => setUpgradeFeature && setUpgradeFeature("reports")} />
+        <div className="cc-card" style={{ padding: "10px 14px", marginBottom: 10 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: hideSummary ? 0 : 8 }}>
+            <div style={{ fontSize:10.5, fontWeight:600, color:"var(--ink-faint)",
+              textTransform:"uppercase", letterSpacing:".06em" }}>
+              Resumen del periodo
+            </div>
+            <button onClick={() => setHideSummary(h => !h)}
+              style={{ background:"none", border:"none", padding:"4px", cursor:"pointer",
+                color:"var(--ink-faint)", display:"flex", alignItems:"center" }}>
+              {hideSummary ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
+          {!hideSummary && (
+            <SummaryCard filter={filter} totalIn={totalIn} totalOut={totalOut}
+              topCatRows={hasFeature(config, "reports") ? topCatRows : []}
+              topTotal={topTotal} config={config}
+              locked={!hasFeature(config, "reports")}
+              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("reports")}
+              embedded />
+          )}
+        </div>
       )}
 
-      <div className="cc-card" style={{ padding: "6px 18px" }}>
-        {list.length === 0 ? (
-          <div style={{ color: "var(--ink-soft)", fontSize: 14, padding: "16px 0" }}>Nada por aquí todavía.</div>
-        ) : (sortBy === "date-desc" || sortBy === "date-asc") ? (
-          renderGroupedByDay(list).map((entry) =>
-            entry.type === "header" ? (
-              <div key={`h-${entry.date}`} className="cc-day-sep">
-                {(() => { const p = dayParts(entry.date); return (
-                  <>
-                    <span className="cc-day-num">{p.num}</span>
-                    <span className="cc-day-name">{p.desc}</span>
-                  </>
-                ); })()}
-                <div className="cc-day-totals">
-                  {entry.income > 0 && <span className="pos">+{fmtBare(entry.income)}</span>}
-                  {entry.expense > 0 && <span className="neg">−{fmtBare(entry.expense)}</span>}
+      {list.length === 0 ? (
+        <div className="cc-card" style={{ padding: "16px 18px", color: "var(--ink-soft)", fontSize: 14 }}>
+          Nada por aquí todavía.
+        </div>
+      ) : (sortBy === "date-desc" || sortBy === "date-asc") ? (
+        // Un card por día — fecha integrada como header del card
+        (() => {
+          const groups = renderGroupedByDay(list);
+          let currentHeader = null;
+          let currentRows = [];
+          const result = [];
+          const flushDay = () => {
+            if (!currentHeader) return;
+            const h = currentHeader;
+            const rows = [...currentRows];
+            result.push(
+              <div key={`day-${h.date}`} className="cc-card" style={{ padding: 0, overflow: "hidden", marginBottom: 8 }}>
+                <div className="cc-day-sep">
+                  {(() => { const p = dayParts(h.date); return (
+                    <>
+                      <span className="cc-day-num">{p.num}</span>
+                      <span className="cc-day-name">{p.desc}</span>
+                    </>
+                  ); })()}
+                  <div className="cc-day-totals">
+                    {h.income > 0 && <span className="pos">+{fmtBare(h.income)}</span>}
+                    {h.expense > 0 && <span className="neg">−{fmtBare(h.expense)}</span>}
+                  </div>
+                </div>
+                <div style={{ padding: "0 14px" }}>
+                  {rows}
                 </div>
               </div>
-            ) : (
-              <TxRow key={entry.t.id} t={entry.t} config={config}
-                onEdit={selectMode ? null : onEdit}
-                onDelete={selectMode ? null : askDeleteOne}
-                selectable={selectMode}
-                selected={selected.has(entry.t.id)}
-                onToggle={toggleOne}
-              />
-            )
-          )
-        ) : (
-          list.map((t) => (
+            );
+            currentHeader = null;
+            currentRows = [];
+          };
+          groups.forEach((entry) => {
+            if (entry.type === "header") {
+              flushDay();
+              currentHeader = entry;
+            } else {
+              currentRows.push(
+                <TxRow key={entry.t.id} t={entry.t} config={config}
+                  onEdit={selectMode ? null : onEdit}
+                  onDelete={selectMode ? null : askDeleteOne}
+                  selectable={selectMode}
+                  selected={selected.has(entry.t.id)}
+                  onToggle={toggleOne}
+                />
+              );
+            }
+          });
+          flushDay();
+          return result;
+        })()
+      ) : (
+        <div className="cc-card" style={{ padding: "0 14px" }}>
+          {list.map((t) => (
             <TxRow key={t.id} t={t} config={config}
               onEdit={selectMode ? null : onEdit}
               onDelete={selectMode ? null : askDeleteOne}
@@ -6329,9 +6980,9 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
               selected={selected.has(t.id)}
               onToggle={toggleOne}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {list.length > 0 && !selectMode && (
         <div style={{ fontSize: 12, color: "var(--ink-soft)", textAlign: "center", marginTop: 10 }}>
@@ -6730,13 +7381,32 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
           })}
         </div>
 
-        <button onClick={() => setEditing({ name: "", initialBalance: 0 })}
-          style={{ width: "100%", marginTop: 16, padding: 14, fontSize: 14, fontWeight: 600,
-            fontFamily: "inherit", borderRadius: 14, border: "1px dashed var(--line)",
-            background: "transparent", color: "var(--ink-soft)", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          ＋ {t("addAccount")}
-        </button>
+        {(() => {
+          const plan = getUserPlan(config);
+          const numAccounts = config.accounts.length;
+          const canAdd = plan === "pro" || (plan === "lite" && numAccounts < 3);
+          if (plan === "free") return (
+            <div style={{ marginTop:16, padding:14, borderRadius:14, border:"1px solid var(--line)",
+              background:"var(--surface-2)", textAlign:"center" }}>
+              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Las cuentas múltiples son Lite o Pro</div>
+            </div>
+          );
+          if (!canAdd) return (
+            <div style={{ marginTop:16, padding:14, borderRadius:14, border:"1px solid var(--line)",
+              background:"var(--surface-2)", textAlign:"center" }}>
+              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Máximo 3 cuentas en el plan Lite</div>
+            </div>
+          );
+          return (
+            <button onClick={() => setEditing({ name: "", initialBalance: 0 })}
+              style={{ width:"100%", marginTop:16, padding:14, fontSize:14, fontWeight:600,
+                fontFamily:"inherit", borderRadius:14, border:"1px dashed var(--line)",
+                background:"transparent", color:"var(--ink-soft)", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              ＋ {t("addAccount")}
+            </button>
+          );
+        })()}
 
         <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "14px 0 0", lineHeight: 1.5 }}>
           {_lang === "es"
@@ -6773,7 +7443,7 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
 
 function AccountModal({ acc, onClose, onSave }) {
   const [name, setName] = useState(acc.name || "");
-  const [bal, setBal] = useState(acc.initialBalance != null ? String(acc.initialBalance) : "");
+  const [bal, setBal] = useState(acc.id && acc.initialBalance ? String(acc.initialBalance) : "");
   const dark = useDarkMode();
 
   return createPortal(
@@ -6814,6 +7484,61 @@ function AccountModal({ acc, onClose, onSave }) {
    Tap en cualquier parte (incluso sobre el .00 o el "mxn") enfoca el input.
    Usa un span "espejo" oculto para medir el ancho real del texto y evitar
    que el input quede más ancho que su contenido (el ch-unit sobrestima en serif). */
+/* DateButton: muestra la fecha bonito, el input nativo queda invisible detrás
+   Evita que el picker de iOS desborde visualmente el modal */
+function DateButton({ value, onChange }) {
+  const inputRef = useRef(null);
+  const dark = useDarkMode();
+
+  // Formatear fecha YYYY-MM-DD a texto legible
+  const fmtDate = (v) => {
+    if (!v) return "Seleccionar fecha";
+    const [y, m, d] = v.split("-").map(Number);
+    const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+    const date = new Date(y, m - 1, d);
+    return `${DIAS[date.getDay()]} ${d} ${MESES[m - 1]} ${y}`;
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* Botón visual */}
+      <button type="button"
+        onClick={() => inputRef.current?.showPicker?.() || inputRef.current?.click()}
+        style={{
+          width: "100%", padding: "12px 14px", borderRadius: 12,
+          border: "1px solid var(--line)", background: "var(--paper)",
+          color: value ? "var(--ink)" : "var(--ink-faint)",
+          fontSize: 15, fontFamily: "inherit", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 10,
+          textAlign: "left",
+        }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+          style={{ color: "var(--gold)", flexShrink: 0 }}>
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span style={{ flex: 1 }}>{fmtDate(value)}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          style={{ color: "var(--ink-faint)", flexShrink: 0 }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {/* Input nativo invisible — solo abre el picker */}
+      <input ref={inputRef} type="date" value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          position: "absolute", top: 0, left: 0,
+          width: "100%", height: "100%",
+          opacity: 0, pointerEvents: "none",
+        }} />
+    </div>
+  );
+}
+
 function MonetaryInput({ value, onChange, placeholder = "0", currencyCode = "mxn" }) {
   const mirrorRef = useRef(null);
   const inputRef = useRef(null);
@@ -7429,20 +8154,18 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
           </div>
         )}
 
-        <div className="cc-form-row" style={{ marginBottom: 10 }}>
-          <div>
-            <label className="cc-label">Fecha</label>
-            <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="cc-label">Categoría</label>
+        <div style={{ marginBottom: 10 }}>
+          <label className="cc-label">Fecha</label>
+          <DateButton value={date} onChange={setDate} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label className="cc-label">Categoría</label>
             <CategoryCombobox
               value={catId}
               categories={cats}
               detectedCat={detectedCatId ? cats.find((c) => c.id === detectedCatId) : null}
               onChange={(id) => { setCatId(id); setCatManuallySet(true); }}
               disabled={!accountId} />
-          </div>
         </div>
 
         {(!accountId || catId === "auto") && (
@@ -7493,6 +8216,14 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
 // El historial del chat persiste en memoria mientras la app esté abierta,
 // para que no se pierda al cerrar y reabrir el asistente.
 let CHAT_MSGS_STORE = null;
+// Limpiar el historial del chat cuando se cierra la app
+if (typeof window !== "undefined") {
+  const clearChat = () => { CHAT_MSGS_STORE = null; };
+  window.addEventListener("pagehide", clearChat);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") CHAT_MSGS_STORE = null;
+  });
+}
 let CHAT_HISTORY_STORE = [];
 function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, autoVoice }) {
   // Detectar patrones para saludo proactivo
@@ -7986,7 +8717,7 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1 }}>
             <label className="cc-label">Empieza el</label>
-            <input className="cc-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <DateButton value={startDate} onChange={setStartDate} />
           </div>
           {config.accounts.length > 1 && (
             <div style={{ flex: 1 }}>
@@ -8104,7 +8835,7 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         <div className="cc-form-row" style={{ marginBottom: 14 }}>
           <div>
             <label className="cc-label">Fecha</label>
-            <input className="cc-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateButton value={date} onChange={setDate} />
           </div>
           <div>
             <label className="cc-label">Nota (opcional)</label>
@@ -9163,9 +9894,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "catTrend") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="Tendencia por categoría" icon="📈" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
+              if (!hasFeature(config, "stats_full")) return (
+                <LockedSection key={s.id} label="Tendencia por categoría" icon="📈" plan="lite"
+                  onUpgrade={() => setUpgradeFeature("recurring")} />
               );
               if (!expRows.length) return null;
               const catTrendShown = getPersonalize(config, "statsCatTrendShown", accView);
@@ -9225,9 +9956,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "trend") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="Evolución de saldo" icon="📈" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
+              if (!hasFeature(config, "stats_trend")) return (
+                <LockedSection key={s.id} label="Evolución de saldo" icon="📈" plan="lite"
+                  onUpgrade={() => setUpgradeFeature("recurring")} />
               );
               if (!(balancePoints.length >= 2)) return null;
               return (
@@ -9242,9 +9973,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "topCat") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="En lo que más gastaste" icon="💸" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
+              if (!hasFeature(config, "stats_expCats")) return (
+                <LockedSection key={s.id} label="En lo que más gastaste" icon="💸" plan="lite"
+                  onUpgrade={() => setUpgradeFeature("recurring")} />
               );
               if (!expRows.length) return null;
               return (
@@ -9295,6 +10026,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       {configOpen && (
         <StatsConfigModal
           sections={statsSections}
+          config={config}
           defaults={STATS_DEFAULT}
           accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           onClose={() => setConfigOpen(false)}
@@ -9356,22 +10088,27 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 }
 
 /* ===== Modal: personalizar secciones de Estadísticas (reordenar + on/off) ===== */
-function StatsConfigModal({ sections, accountLabel, onClose, onSave, defaults }) {
+function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, defaults }) {
   const [items, setItems] = useState(sections.map((s) => ({ ...s })));
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
 
-  const apply = (next) => { setItems(next); onSave(next); };
+  const statsPlanMap = {
+    incVsExp: "pro", kpis: "pro", areaFlow: "pro", catTrend: "lite",
+    trend: "lite", topCat: "lite", expCats: "lite", incCats: "lite",
+  };
+  const userPlan = config ? getUserPlan(config) : "free";
 
+  const apply = (next) => { setItems(next); onSave(next); };
+  const { dragIdx, overIdx, getItemProps, getItemStyle } = useDragSort(items, apply);
+
+  const toggle = (i) => apply(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
   const move = (i, dir) => {
     const j = i + dir;
     if (j < 0 || j >= items.length) return;
     const next = [...items];
     [next[i], next[j]] = [next[j], next[i]];
     apply(next);
-  };
-  const toggle = (i) => {
-    apply(items.map((s, idx) => (idx === i ? { ...s, on: !s.on } : s)));
   };
   const reset = () => { if (defaults) apply(defaults.map((s) => ({ ...s }))); };
 
@@ -9392,27 +10129,45 @@ function StatsConfigModal({ sections, accountLabel, onClose, onSave, defaults })
           </div>
         )}
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16 }}>
-          Reordena con las flechas y muestra u oculta cada sección.
+          Arrastra para reordenar · toca el toggle para activar/desactivar.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-          {items.map((s, i) => (
-            <div key={s.id} className="cc-card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, opacity: s.on ? 1 : 0.55 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <button onClick={() => move(i, -1)} disabled={i === 0}
-                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▲</button>
-                <button onClick={() => move(i, 1)} disabled={i === items.length - 1}
-                  style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 26, height: 20, cursor: i === items.length - 1 ? "default" : "pointer", opacity: i === items.length - 1 ? 0.3 : 1, fontSize: 11, lineHeight: 1, color: "var(--ink)" }}>▼</button>
+          {items.map((s, i) => {
+            const needed = statsPlanMap[s.id];
+            const hasIt = !needed || needed === "free" ||
+              (needed === "lite" && (userPlan === "lite" || userPlan === "pro")) ||
+              (needed === "pro" && userPlan === "pro");
+            return (
+              <div key={s.id}
+                {...getItemProps(i)}
+                className="cc-sortable-v2"
+                style={{ ...getItemStyle(i), opacity: getItemStyle(i).opacity !== undefined ? (s.on ? getItemStyle(i).opacity : Math.min(getItemStyle(i).opacity ?? 1, 0.55)) : (s.on ? 1 : 0.55) }}>
+                <span className="cc-grip-dots" aria-hidden="true"
+                  style={{ color: dragIdx === i ? "var(--gold)" : undefined }}>
+                  <span /><span /><span /><span /><span /><span />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600,
+                    color: s.on ? "var(--ink)" : "var(--ink-faint)" }}>{s.label}</span>
+                  {needed && !hasIt && (
+                    <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
+                      padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
+                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(91,110,232,.12)",
+                      color: needed === "pro" ? "#fff" : "#5B6EE8",
+                      fontFamily:"'Montserrat',sans-serif", letterSpacing:".05em" }}>
+                      {needed === "pro" ? "✦ PRO" : "LITE"}
+                    </span>
+                  )}
+                </div>
+                <label className={`cc-switch ${s.on ? "on" : ""}`} onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={s.on} onChange={() => toggle(i)} />
+                  <span className="cc-switch-track" />
+                  <span className="cc-switch-thumb" />
+                </label>
               </div>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.label}</span>
-              <button onClick={() => toggle(i)}
-                style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
-                  background: s.on ? "#5B6EE8" : "var(--surface-2)", transition: "background .15s" }}>
-                <span style={{ position: "absolute", top: 3, left: s.on ? 22 : 3, width: 21, height: 21, borderRadius: "50%",
-                  background: "#fff", transition: "left .15s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {defaults && (
@@ -9607,45 +10362,109 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
   const totalIn = incRows.reduce((s, r) => s + r.amt, 0);
   const totalOut = expRows.reduce((s, r) => s + r.amt, 0);
 
-  // ===== Excel =====
-  const exportExcel = () => {
+  // ===== Excel con formato ===== 
+  const exportExcel = async () => {
     const wb = XLSX.utils.book_new();
+    const net = totalIn - totalOut;
 
-    // Hoja 1: Resumen (con periodo y cuenta claramente)
-    const resumen = [
-      ["Reporte de Zafi"],
-      [],
-      ["Periodo", rangeName],
-      ["Cuenta", accountLabel],
-      [],
-      ["Total ingresos", totalIn],
-      ["Total gastos", totalOut],
-      ["Flujo neto", totalIn - totalOut],
-      [],
-      ["Generado", new Date().toLocaleString("es-MX")],
+    // Helpers de estilo
+    const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 }, fill: { fgColor: { rgb: "1B2230" } }, alignment: { horizontal: "center" } };
+    const incStyle = { font: { bold: true, color: { rgb: "1A7A6E" } }, alignment: { horizontal: "right" } };
+    const expStyle = { font: { bold: true, color: { rgb: "B5453A" } }, alignment: { horizontal: "right" } };
+    const netStyle = { font: { bold: true, color: { rgb: net >= 0 ? "1A7A6E" : "B5453A" } }, alignment: { horizontal: "right" } };
+    const pctStyle = { numFmt: "0.0%", alignment: { horizontal: "right" } };
+    const mxnStyle = { numFmt: '"$"#,##0.00', alignment: { horizontal: "right" } };
+    const boldStyle = { font: { bold: true } };
+    const titleStyle = { font: { bold: true, sz: 16, color: { rgb: "1B2230" } } };
+    const subtitleStyle = { font: { sz: 11, color: { rgb: "6B7585" } } };
+    const totalRowStyle = { font: { bold: true, sz: 11 }, fill: { fgColor: { rgb: "F3F4F6" } }, border: { top: { style: "thin", color: { rgb: "1B2230" } } } };
+
+    function styleSheet(ws, styles) {
+      // styles: array de { cell: "A1", style: {...} }
+      styles.forEach(({ cell, style }) => {
+        if (!ws[cell]) ws[cell] = { v: "", t: "s" };
+        ws[cell].s = style;
+      });
+    }
+
+    // ── Hoja 1: Resumen ──────────────────────────────
+    const resAoa = [
+      ["zafi · Reporte de finanzas personales", "", ""],
+      ["", "", ""],
+      ["Periodo", rangeName, ""],
+      ["Cuenta", accountLabel, ""],
+      ["Generado", new Date().toLocaleString("es-MX"), ""],
+      ["", "", ""],
+      ["RESUMEN", "", ""],
+      ["Ingresos totales", totalIn, ""],
+      ["Gastos totales", totalOut, ""],
+      ["Flujo neto", net, ""],
     ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen");
+    const wsRes = XLSX.utils.aoa_to_sheet(resAoa);
+    wsRes["!cols"] = [{ wch: 22 }, { wch: 20 }, { wch: 14 }];
+    wsRes["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    styleSheet(wsRes, [
+      { cell: "A1", style: titleStyle },
+      { cell: "A3", style: boldStyle }, { cell: "A4", style: boldStyle }, { cell: "A5", style: boldStyle },
+      { cell: "A7", style: { font: { bold: true, sz: 12, color: { rgb: "5B6EE8" } } } },
+      { cell: "A8", style: boldStyle }, { cell: "B8", style: { ...mxnStyle, ...incStyle } },
+      { cell: "A9", style: boldStyle }, { cell: "B9", style: { ...mxnStyle, ...expStyle } },
+      { cell: "A10", style: boldStyle }, { cell: "B10", style: { ...mxnStyle, ...netStyle } },
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsRes, "📊 Resumen");
 
-    // Hoja 2: Ingresos por categoría
+    // ── Hoja 2: Ingresos por categoría ───────────────
     if (incRows.length) {
-      const aoa = [["Categoría", "Monto", "% del total"]];
+      const aoa = [["Categoría", "Emoji", "Monto", "% del total"]];
       incRows.forEach((r) => aoa.push([
-        r.cat?.name || "Sin categoría", r.amt, totalIn ? r.amt / totalIn : 0,
+        r.cat?.name || "Sin categoría",
+        r.cat?.emoji || "",
+        r.amt,
+        totalIn ? r.amt / totalIn : 0,
       ]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Ingresos por categoría");
+      aoa.push(["TOTAL", "", totalIn, 1]);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [{ wch: 24 }, { wch: 6 }, { wch: 16 }, { wch: 12 }];
+      // Encabezados
+      ["A1","B1","C1","D1"].forEach(c => { ws[c] = ws[c] || { v:"", t:"s" }; ws[c].s = hdrStyle; });
+      // Datos
+      for (let i = 2; i <= incRows.length + 1; i++) {
+        if (ws[`C${i}`]) ws[`C${i}`].s = mxnStyle;
+        if (ws[`D${i}`]) ws[`D${i}`].s = pctStyle;
+      }
+      // Total row
+      const tRow = incRows.length + 2;
+      ["A","B","C","D"].forEach(c => { const k = `${c}${tRow}`; if (ws[k]) ws[k].s = totalRowStyle; });
+      if (ws[`C${tRow}`]) ws[`C${tRow}`].s = { ...totalRowStyle, ...mxnStyle };
+      if (ws[`D${tRow}`]) ws[`D${tRow}`].s = { ...totalRowStyle, ...pctStyle };
+      XLSX.utils.book_append_sheet(wb, ws, "💚 Ingresos");
     }
 
-    // Hoja 3: Gastos por categoría
+    // ── Hoja 3: Gastos por categoría ─────────────────
     if (expRows.length) {
-      const aoa = [["Categoría", "Monto", "% del total"]];
+      const aoa = [["Categoría", "Emoji", "Monto", "% del total"]];
       expRows.forEach((r) => aoa.push([
-        r.cat?.name || "Sin categoría", r.amt, totalOut ? r.amt / totalOut : 0,
+        r.cat?.name || "Sin categoría",
+        r.cat?.emoji || "",
+        r.amt,
+        totalOut ? r.amt / totalOut : 0,
       ]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Gastos por categoría");
+      aoa.push(["TOTAL", "", totalOut, 1]);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [{ wch: 24 }, { wch: 6 }, { wch: 16 }, { wch: 12 }];
+      ["A1","B1","C1","D1"].forEach(c => { ws[c] = ws[c] || { v:"", t:"s" }; ws[c].s = hdrStyle; });
+      for (let i = 2; i <= expRows.length + 1; i++) {
+        if (ws[`C${i}`]) ws[`C${i}`].s = { ...mxnStyle, ...expStyle };
+        if (ws[`D${i}`]) ws[`D${i}`].s = pctStyle;
+      }
+      const tRow = expRows.length + 2;
+      ["A","B","C","D"].forEach(c => { const k = `${c}${tRow}`; if (ws[k]) ws[k].s = totalRowStyle; });
+      if (ws[`C${tRow}`]) ws[`C${tRow}`].s = { ...totalRowStyle, ...mxnStyle };
+      if (ws[`D${tRow}`]) ws[`D${tRow}`].s = { ...totalRowStyle, ...pctStyle };
+      XLSX.utils.book_append_sheet(wb, ws, "🔴 Gastos");
     }
 
-    // Hoja 4: Movimientos (respeta los filtros de categoría)
-    const movsAoa = [["Fecha", "Tipo", "Concepto", "Categoría", "Cuenta", "Monto", "Pagué a / Recibí de", "Hashtags"]];
+    // ── Hoja 4: Movimientos ───────────────────────────
     const visibleIncCatIds = new Set(incRows.map((r) => r.cat?.id).filter(Boolean));
     const visibleExpCatIds = new Set(expRows.map((r) => r.cat?.id).filter(Boolean));
     const rangeTx = txsInRange(txs, dateRange)
@@ -9655,6 +10474,8 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
         return true;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
+
+    const movsAoa = [["Fecha", "Tipo", "Concepto", "Categoría", "Cuenta", "Monto", "Payee", "Tags"]];
     rangeTx.forEach((t) => {
       const cat = config.categories.find((c) => c.id === t.categoryId);
       const acc = config.accounts.find((a) => a.id === t.accountId);
@@ -9662,113 +10483,134 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
         t.date,
         t.type === "income" ? "Ingreso" : "Gasto",
         t.description || "",
-        cat ? cat.name : "Sin categoría",
-        acc ? acc.name : "",
-        t.amount,
+        (cat?.emoji ? cat.emoji + " " : "") + (cat?.name || "Sin categoría"),
+        acc?.name || "",
+        t.type === "income" ? t.amount : -t.amount,
         t.payee || "",
         (t.tags || []).map((x) => "#" + x).join(" "),
       ]);
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(movsAoa), "Movimientos");
+    const wsMov = XLSX.utils.aoa_to_sheet(movsAoa);
+    wsMov["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 16 }];
+    ["A1","B1","C1","D1","E1","F1","G1","H1"].forEach(c => { wsMov[c] = wsMov[c] || { v:"", t:"s" }; wsMov[c].s = hdrStyle; });
+    for (let i = 2; i <= rangeTx.length + 1; i++) {
+      const t = rangeTx[i - 2];
+      if (!t) continue;
+      const isInc = t.type === "income";
+      if (wsMov[`F${i}`]) wsMov[`F${i}`].s = { ...mxnStyle, font: { color: { rgb: isInc ? "1A7A6E" : "B5453A" } } };
+    }
+    XLSX.utils.book_append_sheet(wb, wsMov, "📋 Movimientos");
 
     const safeAcc = accountLabel.replace(/[\\/:*?"<>|]/g, "");
-    const filename = `Zafi - ${rangeName} - ${safeAcc}.xlsx`;
-    // Capacitor WKWebView no soporta XLSX.writeFile directo; usamos blob + <a download>
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
+    const uint8 = new Uint8Array(wbout);
+    let binary = "";
+    uint8.forEach((b) => { binary += String.fromCharCode(b); });
+    const base64 = btoa(binary);
+    await shareFile(`Zafi - ${rangeName} - ${safeAcc}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64, true);
   };
 
-  // ===== PDF =====
-  const exportPDF = () => {
-    const incHtml = incRows.map((r) => `<tr><td>${escapeHtml(r.cat?.name || "Sin categoría")}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#6B7280">${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%</td></tr>`).join("");
-    const expHtml = expRows.map((r) => `<tr><td>${escapeHtml(r.cat?.name || "Sin categoría")}</td><td style="text-align:right">${fmtMxn(r.amt)}</td><td style="text-align:right;color:#6B7280">${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%</td></tr>`).join("");
-    const txHtml = (() => {
-      const visibleIncCatIds = new Set(incRows.map(r => r.cat?.id).filter(Boolean));
-      const visibleExpCatIds = new Set(expRows.map(r => r.cat?.id).filter(Boolean));
-      const rows = txsInRange(txs, dateRange)
-        .filter(t => { if (t.type==="income"&&t.categoryId) return visibleIncCatIds.has(t.categoryId); if (t.type==="expense"&&t.categoryId) return visibleExpCatIds.has(t.categoryId); return true; })
-        .sort((a,b) => b.date.localeCompare(a.date));
-      if (!rows.length) return "";
-      const rowsHtml = rows.map(t => {
-        const cat = config.categories.find(c => c.id === t.categoryId);
-        const acc = config.accounts.find(a => a.id === t.accountId);
-        const color = t.type==="income" ? "#10B981" : "#EF4444";
-        return `<tr><td style="color:#6B7280">${t.date}</td><td>${escapeHtml(t.description||"")}</td><td>${escapeHtml(cat?.name||"Sin categoría")}</td><td>${escapeHtml(acc?.name||"")}</td><td style="text-align:right;font-weight:600;color:${color}">${t.type==="income"?"+":"−"}${fmtMxn(t.amount)}</td></tr>`;
-      }).join("");
-      return `<h2>Movimientos</h2><table><thead><tr style="background:#F9FAFB"><th style="text-align:left;padding:8px 10px;font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Fecha</th><th style="text-align:left;padding:8px 10px;font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Concepto</th><th style="text-align:left;padding:8px 10px;font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Categoría</th><th style="text-align:left;padding:8px 10px;font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Cuenta</th><th style="text-align:right;padding:8px 10px;font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Monto</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
-    })();
-    const html = `
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+  // ===== PDF mejorado =====
+  const exportPDF = async () => {
+    const net = totalIn - totalOut;
+    const visibleIncCatIds2 = new Set(incRows.map(r => r.cat?.id).filter(Boolean));
+    const visibleExpCatIds2 = new Set(expRows.map(r => r.cat?.id).filter(Boolean));
+    const allTxs = txsInRange(txs, dateRange)
+      .filter(t => { if (t.type==="income"&&t.categoryId) return visibleIncCatIds2.has(t.categoryId); if (t.type==="expense"&&t.categoryId) return visibleExpCatIds2.has(t.categoryId); return true; })
+      .sort((a,b) => b.date.localeCompare(a.date));
+
+    const incHtml = incRows.map((r) => `
+      <tr>
+        <td><span class="emoji">${r.cat?.emoji||"💰"}</span></td>
+        <td>${escapeHtml(r.cat?.name || "Sin categoría")}</td>
+        <td class="num income">${fmtMxn(r.amt)}</td>
+        <td class="pct">${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%</td>
+        <td class="bar-cell"><div class="bar-wrap"><div class="bar" style="width:${totalIn ? Math.round((r.amt/totalIn)*100) : 0}%;background:#10B981"></div></div></td>
+      </tr>`).join("");
+
+    const expHtml = expRows.map((r) => `
+      <tr>
+        <td><span class="emoji">${r.cat?.emoji||"📦"}</span></td>
+        <td>${escapeHtml(r.cat?.name || "Sin categoría")}</td>
+        <td class="num expense">${fmtMxn(r.amt)}</td>
+        <td class="pct">${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%</td>
+        <td class="bar-cell"><div class="bar-wrap"><div class="bar" style="width:${totalOut ? Math.round((r.amt/totalOut)*100) : 0}%;background:#EF4444"></div></div></td>
+      </tr>`).join("");
+
+    const txHtml = allTxs.map(t => {
+      const cat = config.categories.find(c => c.id === t.categoryId);
+      const acc = config.accounts.find(a => a.id === t.accountId);
+      const isInc = t.type === "income";
+      return `<tr>
+        <td class="date-col">${t.date}</td>
+        <td><span class="emoji">${cat?.emoji||"❔"}</span></td>
+        <td class="desc">${escapeHtml(t.description||cat?.name||"")}</td>
+        <td class="cat-col">${escapeHtml(cat?.name||"Sin cat")}</td>
+        ${config.accounts.length > 1 ? `<td class="acc-col">${escapeHtml(acc?.name||"")}</td>` : ""}
+        <td class="num ${isInc?"income":"expense"}">${isInc?"+":"−"}${fmtMxn(t.amount)}</td>
+      </tr>`;
+    }).join("");
+
+    const accColHdr = config.accounts.length > 1 ? `<th>Cuenta</th>` : "";
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>Reporte Zafi · ${escapeHtml(rangeName)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-  @media print { @page { size: A4; margin: 18mm 20mm; } }
-  * { box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, sans-serif; color: #111827;
-    padding: 40px 36px; max-width: 780px; margin: 0 auto; line-height: 1.6; font-size: 13.5px; }
-  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #111827; }
-  .brand { font-size: 28px; font-weight: 300; letter-spacing: -.04em; color: #111827; }
-  .brand span { color: #5B6EE8; }
-  .header-right { text-align: right; }
-  .header-right .title { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #6B7280; margin-bottom: 4px; }
-  .header-right .value { font-size: 15px; font-weight: 600; color: #111827; }
-  .totals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: #E5E7EB; border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; margin-bottom: 32px; }
-  .total-cell { background: #fff; padding: 18px 20px; }
-  .total-cell .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: #9CA3AF; font-weight: 500; margin-bottom: 6px; }
-  .total-cell .val { font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
-  .income { color: #059669; } .expense { color: #DC2626; } .net { color: #5B6EE8; }
-  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #6B7280; font-weight: 600; margin: 28px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #F3F4F6; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-  thead tr { background: #F9FAFB; }
-  th { padding: 8px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; font-weight: 600; text-align: left; }
-  td { padding: 9px 12px; border-bottom: 1px solid #F3F4F6; color: #374151; }
-  tr:last-child td { border-bottom: none; }
-  .bar-wrap { background: #F3F4F6; border-radius: 99px; height: 4px; min-width: 60px; overflow: hidden; margin-top: 4px; }
-  .bar { height: 100%; border-radius: 99px; }
-  .foot { margin-top: 48px; padding-top: 16px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; font-size: 11px; color: #9CA3AF; }
-  .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #111827; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; letter-spacing: -.01em; }
-  @media print { .print-btn { display: none; } }
+  @media print { @page { size: A4; margin: 14mm 16mm; } .no-print { display:none!important; } }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',-apple-system,sans-serif;color:#111827;background:#fff;padding:36px 32px;max-width:820px;margin:0 auto;font-size:13px;line-height:1.5;}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111827;}
+  .brand{font-size:30px;font-weight:200;letter-spacing:-.05em;color:#111827;font-family:Georgia,serif;}
+  .brand b{color:#5B6EE8;font-weight:200;}
+  .meta{text-align:right;}
+  .meta-row{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9CA3AF;margin-bottom:2px;}
+  .meta-val{font-size:14px;font-weight:600;color:#111827;margin-bottom:8px;}
+  .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#E5E7EB;border-radius:12px;overflow:hidden;margin-bottom:28px;border:1px solid #E5E7EB;}
+  .kpi{background:#fff;padding:16px 18px;}
+  .kpi-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#9CA3AF;font-weight:600;margin-bottom:6px;}
+  .kpi-val{font-size:22px;font-weight:700;letter-spacing:-.02em;}
+  .section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#9CA3AF;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid #F3F4F6;}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px;}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9CA3AF;font-weight:600;padding:7px 10px;text-align:left;background:#F9FAFB;}
+  td{padding:8px 10px;border-bottom:1px solid #F9FAFB;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .emoji{font-size:15px;}
+  .num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
+  .income{color:#059669;} .expense{color:#DC2626;}
+  .pct{text-align:right;color:#9CA3AF;font-size:11px;width:36px;}
+  .bar-cell{width:90px;padding-left:6px;}
+  .bar-wrap{background:#F3F4F6;border-radius:99px;height:5px;overflow:hidden;}
+  .bar{height:100%;border-radius:99px;}
+  .date-col{color:#9CA3AF;font-size:11.5px;white-space:nowrap;width:88px;}
+  .desc{font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cat-col{color:#6B7280;font-size:11.5px;}
+  .acc-col{color:#9CA3AF;font-size:11.5px;}
+  .total-row td{font-weight:700;border-top:1.5px solid #E5E7EB!important;background:#F9FAFB;padding-top:10px;}
+  .foot{margin-top:36px;padding-top:14px;border-top:1px solid #F3F4F6;display:flex;justify-content:space-between;font-size:10.5px;color:#9CA3AF;}
+  .print-btn{position:fixed;top:16px;right:16px;padding:10px 18px;background:#5B6EE8;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(91,110,232,.35);}
 </style></head>
 <body>
-<button class="print-btn" onclick="window.print()">Imprimir / PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Guardar como PDF ↓</button>
 <div class="header">
-  <div>
-    <div class="brand">zafi<span>.</span></div>
-    <div style="font-size:12px;color:#9CA3AF;margin-top:4px">Reporte de finanzas personales</div>
-  </div>
-  <div class="header-right">
-    <div class="title">Periodo</div>
-    <div class="value">${escapeHtml(rangeName)}</div>
-    <div class="title" style="margin-top:10px">Cuenta</div>
-    <div class="value">${escapeHtml(accountLabel)}</div>
+  <div><div class="brand">zafi<b>.</b></div><div style="font-size:11px;color:#9CA3AF;margin-top:4px">Reporte de finanzas personales</div></div>
+  <div class="meta">
+    <div class="meta-row">Periodo</div><div class="meta-val">${escapeHtml(rangeName)}</div>
+    <div class="meta-row">Cuenta</div><div class="meta-val" style="margin-bottom:0">${escapeHtml(accountLabel)}</div>
   </div>
 </div>
-<div class="totals">
-  <div class="total-cell"><div class="lbl">Ingresos</div><div class="val income">${fmtMxn(totalIn)}</div></div>
-  <div class="total-cell"><div class="lbl">Gastos</div><div class="val expense">${fmtMxn(totalOut)}</div></div>
-  <div class="total-cell"><div class="lbl">Flujo neto</div><div class="val net">${fmtMxn(totalIn - totalOut)}</div></div>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-lbl">Ingresos</div><div class="kpi-val income">${fmtMxn(totalIn)}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val expense">${fmtMxn(totalOut)}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Flujo neto</div><div class="kpi-val" style="color:${net>=0?"#059669":"#DC2626"}">${net>=0?"+":"−"}${fmtMxn(Math.abs(net))}</div></div>
 </div>
-${incRows.length ? `<h2>Ingresos por categoría</h2><table><thead><tr><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead><tbody>${incHtml}</tbody></table>` : ""}
-${expRows.length ? `<h2>Gastos por categoría</h2><table><thead><tr><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead><tbody>${expHtml}</tbody></table>` : ""}
-${txHtml}
+${incRows.length?`<div class="section-title">💚 Ingresos por categoría</div><table><thead><tr><th></th><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th><th></th></tr></thead><tbody>${incHtml}</tbody><tfoot><tr class="total-row"><td></td><td>Total</td><td class="num income">${fmtMxn(totalIn)}</td><td></td><td></td></tr></tfoot></table>`:""}
+${expRows.length?`<div class="section-title">🔴 Gastos por categoría</div><table><thead><tr><th></th><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th><th></th></tr></thead><tbody>${expHtml}</tbody><tfoot><tr class="total-row"><td></td><td>Total</td><td class="num expense">${fmtMxn(totalOut)}</td><td></td><td></td></tr></tfoot></table>`:""}
+${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})</div><table><thead><tr><th>Fecha</th><th></th><th>Concepto</th><th>Categoría</th>${accColHdr}<th style="text-align:right">Monto</th></tr></thead><tbody>${txHtml}</tbody></table>`:""}
 <div class="foot"><span>Zafi · Finanzas personales con IA</span><span>Generado ${new Date().toLocaleString("es-MX")}</span></div>
 </body></html>`;
-    const blobPdf = new Blob([html], { type: "text/html;charset=utf-8" });
-    const urlPdf = URL.createObjectURL(blobPdf);
-    const aPdf = document.createElement("a");
-    const safeAccPdf = accountLabel.replace(/[\\/:*?"<>|]/g, "");
-    aPdf.href = urlPdf;
-    aPdf.download = `Zafi - ${rangeName} - ${safeAccPdf}.html`;
-    document.body.appendChild(aPdf);
-    aPdf.click();
-    setTimeout(() => { document.body.removeChild(aPdf); URL.revokeObjectURL(urlPdf); }, 1500);
+    const safeAccPdf = accountLabel.replace(/[\/:*?"<>|]/g, "");
+    await shareFile(`Zafi - ${rangeName} - ${safeAccPdf}.html`, "text/html", html, false);
   };
 
   const hiddenCount = reportsIncHidden.length + reportsExpHidden.length;
@@ -10438,45 +11280,113 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
     return 0.25;
   };
 
-  // ===== Descargar PNG =====
+  // ===== Descargar PNG — mismo contenido que el PDF, renderizado en canvas =====
   const downloadPng = () => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const clone = svg.cloneNode(true);
-    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    bg.setAttribute("x", "0"); bg.setAttribute("y", "0");
-    bg.setAttribute("width", String(W)); bg.setAttribute("height", String(H));
-    bg.setAttribute("fill", bgColor);
-    clone.insertBefore(bg, clone.firstChild);
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    const svgStr = new XMLSerializer().serializeToString(clone);
-    const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(svgBlob);
+    // Reusar exactamente la misma lógica de layout del PDF
+    const PDF_W = 720, PDF_H = Math.max(360, (incRows.length + rightNodes.length) * 30 + 60);
+    const PDF_LEFT_X = 40, PDF_COL_W = 14;
+    const PDF_RIGHT_X = PDF_W - 40 - PDF_COL_W;
+    const PDF_PAD_Y = 24, PDF_GAP = 3;
+    const pdfUsable = PDF_H - PDF_PAD_Y * 2;
+
+    function pdfLyt(rows, totalAmt) {
+      const totalGap = (rows.length - 1) * PDF_GAP;
+      const avail = pdfUsable - totalGap;
+      let cursor = PDF_PAD_Y;
+      return rows.map((r) => {
+        const h = totalAmt ? (r.amt / totalAmt) * avail : avail / rows.length;
+        const y = cursor; cursor += h + PDF_GAP;
+        return { ...r, y, h };
+      });
+    }
+    const pLeft2 = pdfLyt(leftLayout.map((n) => ({ ...n })), Math.max(totalIn, totalOut));
+    const pRight2 = pdfLyt(rightLayout.map((n) => ({ ...n })), Math.max(totalIn, totalOut));
+    const pFlows2 = [];
+    if (total > 0) {
+      pLeft2.forEach((src) => {
+        let cursor = src.y;
+        pRight2.forEach((dst) => {
+          const flowH = src.h * (dst.amt / Math.max(total, 1));
+          pFlows2.push({ src, dst, srcY: cursor, srcH: flowH, color: src.color });
+          cursor += flowH;
+        });
+      });
+      const dstC2 = new Map(pRight2.map((d) => [d.name, d.y]));
+      pFlows2.forEach((f) => {
+        const c = dstC2.get(f.dst.name);
+        const dh = f.dst.h * (f.srcH / Math.max(f.src.h, 1));
+        f.dstY = c; f.dstH = dh;
+        dstC2.set(f.dst.name, c + dh);
+      });
+    }
+
+    // Generar SVG idéntico al del PDF (con labels de texto además de emojis)
+    let svgPaths2 = pFlows2.map((f) => {
+      const x1 = PDF_LEFT_X + PDF_COL_W, x2 = PDF_RIGHT_X;
+      const cx = (x1 + x2) / 2;
+      return `<path d="M ${x1} ${f.srcY} C ${cx} ${f.srcY}, ${cx} ${f.dstY}, ${x2} ${f.dstY} L ${x2} ${f.dstY + f.dstH} C ${cx} ${f.dstY + f.dstH}, ${cx} ${f.srcY + f.srcH}, ${x1} ${f.srcY + f.srcH} Z" fill="${f.color}" opacity="0.32" />`;
+    }).join("");
+
+    let svgNodes2 = "";
+    pLeft2.forEach((n) => {
+      const midY = n.y + n.h / 2;
+      const label = n.name.length > 18 ? n.name.slice(0, 17) + "…" : n.name;
+      svgNodes2 += `<rect x="${PDF_LEFT_X}" y="${n.y}" width="${PDF_COL_W}" height="${Math.max(n.h, 1)}" fill="${n.color}" rx="2" />`;
+      if (n.h >= 14) {
+        svgNodes2 += `<text x="${PDF_LEFT_X - 8}" y="${midY - 4}" text-anchor="end" font-size="11" font-weight="600" font-family="-apple-system,sans-serif" fill="#1B2230">${n.emoji} ${escapeHtml(label)}</text>`;
+        svgNodes2 += `<text x="${PDF_LEFT_X - 8}" y="${midY + 9}" text-anchor="end" font-size="10" font-family="-apple-system,sans-serif" fill="#6B7585">${fmtMxn(n.amt)}</text>`;
+      } else {
+        svgNodes2 += `<text x="${PDF_LEFT_X - 6}" y="${midY + 4}" text-anchor="end" font-size="12">${n.emoji}</text>`;
+      }
+    });
+    pRight2.forEach((n) => {
+      const midY = n.y + n.h / 2;
+      const label = n.name.length > 18 ? n.name.slice(0, 17) + "…" : n.name;
+      svgNodes2 += `<rect x="${PDF_RIGHT_X}" y="${n.y}" width="${PDF_COL_W}" height="${Math.max(n.h, 1)}" fill="${n.color}" rx="2" />`;
+      if (n.h >= 14) {
+        svgNodes2 += `<text x="${PDF_RIGHT_X + PDF_COL_W + 8}" y="${midY - 4}" text-anchor="start" font-size="11" font-weight="600" font-family="-apple-system,sans-serif" fill="#1B2230">${n.emoji} ${escapeHtml(label)}</text>`;
+        svgNodes2 += `<text x="${PDF_RIGHT_X + PDF_COL_W + 8}" y="${midY + 9}" text-anchor="start" font-size="10" font-family="-apple-system,sans-serif" fill="#6B7585">${fmtMxn(n.amt)}</text>`;
+      } else {
+        svgNodes2 += `<text x="${PDF_RIGHT_X + PDF_COL_W + 6}" y="${midY + 4}" text-anchor="start" font-size="12">${n.emoji}</text>`;
+      }
+    });
+
+    // Encabezado dentro del SVG
+    const headerH = 50;
+    const totalH = PDF_H + headerH + 20;
+    const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PDF_W} ${totalH}" width="${PDF_W}" height="${totalH}">
+      <rect width="${PDF_W}" height="${totalH}" fill="#F8F9FB" />
+      <text x="18" y="22" font-size="20" font-weight="300" font-family="Georgia,serif" fill="#1B2230">zafi<tspan fill="#5B6EE8">.</tspan></text>
+      <text x="18" y="38" font-size="11" font-family="-apple-system,sans-serif" fill="#9CA3AF">Flujo de dinero · ${escapeHtml(rangeName)} · ${escapeHtml(accountLabel || "Todas las cuentas")}</text>
+      <line x1="18" y1="46" x2="${PDF_W - 18}" y2="46" stroke="#E5E7EB" stroke-width="1" />
+      <g transform="translate(0,${headerH})">${svgPaths2}${svgNodes2}</g>
+      <text x="${PDF_W / 2}" y="${totalH - 6}" text-anchor="middle" font-size="9" font-family="-apple-system,sans-serif" fill="#D1D5DB">Generado con Zafi · zafi.vercel.app</text>
+    </svg>`;
+
+    // Renderizar SVG en canvas y exportar PNG
+    const SCALE = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = PDF_W * SCALE;
+    canvas.height = totalH * SCALE;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#F8F9FB";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const svgBlob = new Blob([fullSvg], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
     const img = new Image();
     img.onload = () => {
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = W * scale;
-      canvas.height = H * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        const a = document.createElement("a");
-        a.download = `Zafi - Flujo ${rangeName}.png`;
-        a.href = URL.createObjectURL(blob);
-        a.click();
-        URL.revokeObjectURL(a.href);
-        URL.revokeObjectURL(url);
-      }, "image/png");
+      ctx.drawImage(img, 0, 0, PDF_W * SCALE, totalH * SCALE);
+      URL.revokeObjectURL(svgUrl);
+      const base64Png = canvas.toDataURL("image/png").split(",")[1];
+      shareFile(`Zafi - Flujo ${rangeName}.png`, "image/png", base64Png, true);
     };
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.src = url;
+    img.onerror = () => URL.revokeObjectURL(svgUrl);
+    img.src = svgUrl;
   };
 
   // ===== Descargar PDF (chart con emojis + tabla) =====
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     // Generar SVG sin texto descriptivo, solo emojis pequeños en cada barra
     const PDF_W = 720, PDF_H = Math.max(360, (incRows.length + rightNodes.length) * 30 + 60);
     const PDF_LEFT_X = 40, PDF_COL_W = 14;
@@ -10626,15 +11536,7 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
 
 <div style="margin-top:40px;color:#9CA3AF;font-size:11px;text-align:center">Generado con Zafi · finanzas personales con IA</div>
 </body></html>`;
-    const blob2 = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url2 = URL.createObjectURL(blob2);
-    const a2 = document.createElement("a");
-    const safeAccPdf = accountLabel.replace(/[\\/:*?"<>|]/g, "");
-    a2.href = url2;
-    a2.download = `Zafi - ${rangeName} - ${safeAccPdf}.html`;
-    document.body.appendChild(a2);
-    a2.click();
-    setTimeout(() => { document.body.removeChild(a2); URL.revokeObjectURL(url2); }, 1500);
+    await shareFile(`Zafi - Sankey ${rangeName}.html`, "text/html", html, false);
   };
 
   // Cerrar tooltip al tocar fondo del modal
@@ -12148,9 +13050,8 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
                     <option value="expense">Gasto</option>
                     <option value="income">Ingreso</option>
                   </select>
-                  <input className="cc-input" type="date" value={d.date}
-                    onChange={(e) => updateDraft(d.tempId, { date: e.target.value })}
-                    style={{ flex: "0 0 130px", fontSize: 13, padding: "6px 9px" }} />
+                  <DateButton value={d.date}
+                    onChange={(v) => updateDraft(d.tempId, { date: v })} />
                   <select className="cc-select" value={d.categoryId}
                     onChange={(e) => updateDraft(d.tempId, { categoryId: e.target.value })}
                     style={{ flex: 1, fontSize: 13, padding: "6px 9px",
@@ -12266,7 +13167,6 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
 
         {/* lista con checkboxes */}
         <div style={{ display: "flex", flexDirection: "column", gap: 0,
-          maxHeight: selected.size > 0 ? "40vh" : "55vh", overflowY: "auto",
           border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", padding: "4px 14px" }}>
           {list.length === 0 ? (
             <div style={{ padding: "26px 4px", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
@@ -12361,63 +13261,62 @@ function LinkPickRow({ t, config, selected, onPick }) {
 }
 
 /* ============= TARJETA RESUMEN del periodo (pestaña Movimientos) ========= */
-function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, locked, onUpgrade }) {
+function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, locked, onUpgrade, embedded }) {
   const showIn = filter === "all" || filter === "income";
   const showOut = filter === "all" || filter === "expense";
   const net = totalIn - totalOut;
   if (locked) return (
     <LockedSection label="Resumen mensual detallado" icon="📊" plan="pro" onUpgrade={onUpgrade || (() => {})} />
   );
-  return (
-    <div className="cc-card" style={{ padding: "10px 14px", marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
-        {showIn && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-            <div style={{ fontSize: 9.5, fontWeight: 600, color: "var(--ink-faint)",
-              textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500, color: "var(--ink)" }}>{fmt(totalIn)}</div>
+  const inner = <>
+    <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
+      {showIn && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--ink)" }}>{fmt(totalIn)}</div>
+        </div>
+      )}
+      {showOut && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
+          paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--coral)" }}>{fmt(totalOut)}</div>
+        </div>
+      )}
+      {filter === "all" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
+          paddingLeft: 12, borderLeft: "1px solid var(--line-soft)" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500,
+            color: net >= 0 ? "var(--ink)" : "var(--coral)" }}>
+            {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
           </div>
-        )}
-        {showOut && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1,
-            paddingLeft: showIn ? 10 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
-            <div style={{ fontSize: 9.5, fontWeight: 600, color: "var(--ink-faint)",
-              textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500, color: "var(--coral)" }}>{fmt(totalOut)}</div>
-          </div>
-        )}
-        {filter === "all" && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1,
-            paddingLeft: 10, borderLeft: "1px solid var(--line-soft)" }}>
-            <div style={{ fontSize: 9.5, fontWeight: 600, color: "var(--ink-faint)",
-              textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500,
-              color: net >= 0 ? "var(--ink)" : "var(--coral)" }}>
-              {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {topCatRows.length > 0 && (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--line)",
-          display: "flex", flexWrap: "wrap", gap: 6, fontSize: 11 }}>
-          {topCatRows.map(([id, amt]) => {
-            const c = config.categories.find((x) => x.id === id);
-            const pct = topTotal ? Math.round((amt / topTotal) * 100) : 0;
-            return (
-              <div key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4,
-                background: "var(--surface-2)", padding: "3px 8px", borderRadius: 99 }}>
-                <span style={{ fontSize: 12 }}>{c ? c.emoji : "❔"}</span>
-                <span style={{ fontWeight: 600 }}>{c ? c.name : "Sin cat"}</span>
-                <span style={{ color: "var(--ink-soft)" }}>{pct}%</span>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>
-  );
+    {topCatRows.length > 0 && (
+      <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--line)",
+        display: "flex", flexWrap: "wrap", gap: 6, fontSize: 11 }}>
+        {topCatRows.map(([id, amt]) => {
+          const c = config.categories.find((x) => x.id === id);
+          const pct = topTotal ? Math.round((amt / topTotal) * 100) : 0;
+          return (
+            <div key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4,
+              background: "var(--surface-2)", padding: "3px 8px", borderRadius: 99 }}>
+              <span style={{ fontSize: 12 }}>{c ? c.emoji : "❔"}</span>
+              <span style={{ fontWeight: 600 }}>{c ? c.name : "Sin cat"}</span>
+              <span style={{ color: "var(--ink-soft)" }}>{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </>;
+  if (embedded) return inner;
+  return <div className="cc-card" style={{ padding: "14px 16px", marginBottom: 12 }}>{inner}</div>;
 }
 
 /* ============= MODAL DETALLE: drill-down de ingresos/gastos/categoría ==== */
@@ -12453,8 +13352,9 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
         </div>
 
         {/* lista de movimientos */}
-        <div style={{ maxHeight: "55vh", overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12,
-          background: "var(--surface)", padding: "4px 14px" }}>
+        <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "4px 14px",
+          maxHeight: "55vh", overflowY: "auto",
+          background: dark ? "#2c2e32" : "#f6f7f9" }}>
           {list.length === 0 ? (
             <div style={{ padding: "26px 4px", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
               Sin movimientos en este filtro.

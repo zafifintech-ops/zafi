@@ -35,6 +35,16 @@ function Logo() {
   );
 }
 
+// Helper: wraps a Firebase promise with a timeout
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject({ code: "auth/timeout" }), ms)
+    ),
+  ]);
+}
+
 export default function Auth() {
   const [screen, setScreen] = useState("welcome"); // welcome | login | register | forgot
   const [email, setEmail] = useState("");
@@ -61,6 +71,7 @@ export default function Auth() {
       "auth/invalid-credential": "Correo o contraseña incorrectos.",
       "auth/too-many-requests": "Demasiados intentos. Espera un momento.",
       "auth/network-request-failed": "Sin conexión a internet.",
+      "auth/timeout": "No se pudo conectar. Verifica tu conexión e intenta de nuevo.",
     };
     return map[code] || "Algo salió mal. Intenta de nuevo.";
   }
@@ -71,7 +82,7 @@ export default function Auth() {
     if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
     setLoading(true); setError("");
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      await withTimeout(createUserWithEmailAndPassword(auth, email, password));
     } catch (e) {
       setError(friendlyError(e.code));
     } finally {
@@ -83,7 +94,7 @@ export default function Auth() {
     if (!email || !password) { setError("Llena todos los campos."); return; }
     setLoading(true); setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await withTimeout(signInWithEmailAndPassword(auth, email, password));
     } catch (e) {
       setError(friendlyError(e.code));
     } finally {
@@ -95,7 +106,7 @@ export default function Auth() {
     if (!email) { setError("Escribe tu correo primero."); return; }
     setLoading(true); setError(""); setSuccess("");
     try {
-      await sendPasswordResetEmail(auth, email);
+      await withTimeout(sendPasswordResetEmail(auth, email));
       setSuccess("Te enviamos un correo para restablecer tu contraseña.");
     } catch (e) {
       setError(friendlyError(e.code));

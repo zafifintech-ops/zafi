@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zafi</string>
+    <string name="title_activity_main">Zafi</string>
+    <string name="package_name">com.zafifintech.app</string>
+    <string name="custom_url_scheme">com.zafifintech.app</string>
+</resources>

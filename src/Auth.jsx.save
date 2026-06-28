@@ -1,0 +1,275 @@
+import { useState } from "react";
+import { auth } from "./lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+
+const GREEN = "#2D6F4E";
+const GOLD = "#B0863A";
+const INK = "#1A1815";
+const INK_SOFT = "#6E6658";
+const LINE = "#EAE7DC";
+const CORAL = "#B8482A";
+
+function Logo() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{
+          width: 12, height: 12, borderRadius: "50%", background: GREEN,
+          boxShadow: `0 0 0 4px rgba(45,111,78,.15), 0 0 20px rgba(45,111,78,.25)`,
+          display: "inline-block", flexShrink: 0
+        }} />
+        <span style={{
+          fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 36,
+          letterSpacing: "-.045em", color: INK, fontFeatureSettings: '"ss01"',
+          lineHeight: 1
+        }}>zafi</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: INK_SOFT, letterSpacing: "-.005em" }}>
+        Finanzas personales con IA
+      </div>
+    </div>
+  );
+}
+
+export default function Auth() {
+  const [screen, setScreen] = useState("welcome"); // welcome | login | register | forgot
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  function resetFields() {
+    setEmail(""); setPassword(""); setConfirmPassword("");
+    setError(""); setSuccess("");
+  }
+
+  function goTo(s) { resetFields(); setScreen(s); }
+
+  function friendlyError(code) {
+    const map = {
+      "auth/email-already-in-use": "Ya existe una cuenta con ese correo.",
+      "auth/invalid-email": "El correo no es válido.",
+      "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
+      "auth/user-not-found": "No encontramos una cuenta con ese correo.",
+      "auth/wrong-password": "Contraseña incorrecta.",
+      "auth/invalid-credential": "Correo o contraseña incorrectos.",
+      "auth/too-many-requests": "Demasiados intentos. Espera un momento.",
+      "auth/network-request-failed": "Sin conexión a internet.",
+    };
+    return map[code] || "Algo salió mal. Intenta de nuevo.";
+  }
+
+  async function handleRegister() {
+    if (!email || !password || !confirmPassword) { setError("Llena todos los campos."); return; }
+    if (password !== confirmPassword) { setError("Las contraseñas no coinciden."); return; }
+    if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    setLoading(true); setError("");
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      setError(friendlyError(e.code));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogin() {
+    if (!email || !password) { setError("Llena todos los campos."); return; }
+    setLoading(true); setError("");
+    try {
+      await Promise.race([
+        signInWithEmailAndPassword(auth, email, password),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000))
+      ]);
+
+await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      setError(friendlyError(e.code));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgot() {
+    if (!email) { setError("Escribe tu correo primero."); return; }
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("Te enviamos un correo para restablecer tu contraseña.");
+    } catch (e) {
+      setError(friendlyError(e.code));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputStyle = {
+    width: "100%", padding: "13px 16px", borderRadius: 12,
+    border: `1px solid ${LINE}`, fontSize: 15, fontFamily: "inherit",
+    background: "#fff", color: INK, outline: "none",
+    transition: "border-color .2s",
+  };
+
+  const btnPrimary = {
+    width: "100%", padding: "14px", borderRadius: 12, border: "none",
+    background: INK, color: "#fff", fontSize: 15, fontWeight: 600,
+    fontFamily: "inherit", cursor: loading ? "not-allowed" : "pointer",
+    opacity: loading ? .6 : 1, transition: "opacity .2s, transform .15s",
+    letterSpacing: "-.01em",
+  };
+
+  const btnSecondary = {
+    width: "100%", padding: "13px", borderRadius: 12,
+    border: `1px solid ${LINE}`, background: "#fff",
+    color: INK, fontSize: 15, fontWeight: 500,
+    fontFamily: "inherit", cursor: "pointer",
+    letterSpacing: "-.01em",
+  };
+
+  const linkBtn = {
+    background: "none", border: "none", color: GREEN,
+    fontSize: 14, fontFamily: "inherit", cursor: "pointer",
+    fontWeight: 600, padding: 0, textDecoration: "underline",
+    textUnderlineOffset: 3,
+  };
+
+  // WELCOME
+  if (screen === "welcome") return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: "40px 24px",
+      background: "#fff", gap: 48 }}>
+      <Logo />
+      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 12 }}>
+        <button style={btnPrimary} onClick={() => goTo("register")}>
+          Crear cuenta gratis
+        </button>
+        <button style={btnSecondary} onClick={() => goTo("login")}>
+          Ya tengo cuenta
+        </button>
+      </div>
+      <div style={{ fontSize: 12, color: INK_SOFT, textAlign: "center", maxWidth: 300, lineHeight: 1.5 }}>
+        Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
+      </div>
+    </div>
+  );
+
+  // REGISTER
+  if (screen === "register") return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: "40px 24px",
+      background: "#fff" }}>
+      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 24 }}>
+        <Logo />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: INK, letterSpacing: "-.02em" }}>
+            Crear cuenta
+          </div>
+          <div style={{ fontSize: 14, color: INK_SOFT }}>
+            Empieza gratis, sin tarjeta de crédito.
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input style={inputStyle} type="email" placeholder="Correo electrónico"
+            value={email} onChange={e => setEmail(e.target.value)} />
+          <input style={inputStyle} type="password" placeholder="Contraseña (mínimo 6 caracteres)"
+            value={password} onChange={e => setPassword(e.target.value)} />
+          <input style={inputStyle} type="password" placeholder="Confirmar contraseña"
+            value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+        </div>
+        {error && <div style={{ fontSize: 13.5, color: CORAL, fontWeight: 500 }}>{error}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button style={btnPrimary} onClick={handleRegister} disabled={loading}>
+            {loading ? "Creando cuenta…" : "Crear cuenta"}
+          </button>
+          <button style={btnSecondary} onClick={() => goTo("welcome")}>
+            ← Regresar
+          </button>
+        </div>
+        <div style={{ textAlign: "center", fontSize: 14, color: INK_SOFT }}>
+          ¿Ya tienes cuenta?{" "}
+          <button style={linkBtn} onClick={() => goTo("login")}>Inicia sesión</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // LOGIN
+  if (screen === "login") return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: "40px 24px",
+      background: "#fff" }}>
+      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 24 }}>
+        <Logo />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: INK, letterSpacing: "-.02em" }}>
+            Bienvenido de vuelta
+          </div>
+          <div style={{ fontSize: 14, color: INK_SOFT }}>
+            Inicia sesión para continuar.
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input style={inputStyle} type="email" placeholder="Correo electrónico"
+            value={email} onChange={e => setEmail(e.target.value)} />
+          <input style={inputStyle} type="password" placeholder="Contraseña"
+            value={password} onChange={e => setPassword(e.target.value)} />
+        </div>
+        {error && <div style={{ fontSize: 13.5, color: CORAL, fontWeight: 500 }}>{error}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button style={btnPrimary} onClick={handleLogin} disabled={loading}>
+            {loading ? "Entrando…" : "Iniciar sesión"}
+          </button>
+          <button style={btnSecondary} onClick={() => goTo("welcome")}>
+            ← Regresar
+          </button>
+        </div>
+        <div style={{ textAlign: "center", fontSize: 14, color: INK_SOFT }}>
+          <button style={linkBtn} onClick={() => goTo("forgot")}>
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
+        <div style={{ textAlign: "center", fontSize: 14, color: INK_SOFT }}>
+          ¿No tienes cuenta?{" "}
+          <button style={linkBtn} onClick={() => goTo("register")}>Crear cuenta</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // FORGOT PASSWORD
+  if (screen === "forgot") return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: "40px 24px",
+      background: "#fff" }}>
+      <div style={{ width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 24 }}>
+        <Logo />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: INK, letterSpacing: "-.02em" }}>
+            Restablecer contraseña
+          </div>
+          <div style={{ fontSize: 14, color: INK_SOFT, lineHeight: 1.5 }}>
+            Escribe tu correo y te mandamos un enlace para crear una nueva contraseña.
+          </div>
+        </div>
+        <input style={inputStyle} type="email" placeholder="Correo electrónico"
+          value={email} onChange={e => setEmail(e.target.value)} />
+        {error && <div style={{ fontSize: 13.5, color: CORAL, fontWeight: 500 }}>{error}</div>}
+        {success && <div style={{ fontSize: 13.5, color: GREEN, fontWeight: 500 }}>{success}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button style={btnPrimary} onClick={handleForgot} disabled={loading}>
+            {loading ? "Enviando…" : "Enviar correo"}
+          </button>
+          <button style={btnSecondary} onClick={() => goTo("login")}>
+            ← Regresar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
