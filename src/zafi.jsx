@@ -206,9 +206,8 @@ body{
 .cc-top{position:sticky;top:0;z-index:30;
   background:linear-gradient(to bottom, var(--bg) 0%, rgba(220,225,235,.7) 50%, transparent 100%);
   padding:calc(14px + env(safe-area-inset-top)) 20px 30px;
-  will-change:transform;
-  transition:background .25s ease;}
-.cc-top.scrolled{padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:24px;
+  contain:layout style;}
+.cc-top.scrolled{
   background:linear-gradient(to bottom, var(--bg) 0%, rgba(220,225,235,.6) 40%, transparent 100%);
   border-bottom:none;}
 .cc-dark .cc-top{background:linear-gradient(to bottom, rgba(10,12,18,1) 0%, rgba(10,12,18,.7) 55%, transparent 100%);}
@@ -3942,20 +3941,23 @@ function SplashScreen({ onDone }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
+  // Detectar tema: primero localStorage (preferencia del usuario), luego SO
+  const savedTheme = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
   const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark = savedTheme === "dark" || (savedTheme !== "light" && sysDark);
 
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 99999,
       display: "flex", alignItems: "center", justifyContent: "center",
-      background: sysDark ? "#1c1e22" : "#ffffff",
+      background: isDark ? "#1c1e22" : "#ffffff",
       animation: "ccSplashOut .4s ease 0.9s forwards",
     }}>
       <style>{STYLE}</style>
       <div style={{
         fontFamily: "'Fraunces', serif", fontWeight: 400,
         fontSize: 52, letterSpacing: "-.05em",
-        color: sysDark ? "#F5F5F7" : "#1A1815",
+        color: isDark ? "#F5F5F7" : "#1A1815",
         opacity: 0, transform: "translateY(6px)",
         animation: "ccSplashFade .7s cubic-bezier(.2,.8,.3,1) .15s forwards",
       }}>zafi</div>
@@ -4118,6 +4120,12 @@ export default function App() {
 
   const themeMode = config?.theme || "auto";
   const isDarkTheme = themeMode === "dark" || (themeMode === "auto" && systemDark);
+  // Sincronizar tema con localStorage para que esté disponible al inicio
+  useEffect(() => {
+    if (config?.theme) {
+      try { localStorage.setItem("zafi_theme", config.theme); } catch (_) {}
+    }
+  }, [config?.theme]);
   // El "?v=" obliga al navegador a tratar el video como un recurso nuevo
   // cuando lo actualices. Sube el número cuando reemplaces el archivo .mp4
   // En Capacitor las rutas absolutas no funcionan, usar relativas
@@ -4141,10 +4149,12 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
 
-  // Pantalla de carga — detecta tema del SO (no del config que aún no cargó)
-  const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // Pantalla de carga — primero localStorage, luego SO
+  const savedThemeLoad = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
+  const sysDarkLoad = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad !== "light" && sysDarkLoad);
   if (user === undefined) return (
-    <div className={`cc-loading ${sysDark ? "cc-dark" : ""}`}>
+    <div className={`cc-loading ${isLoadDark ? "cc-dark" : "cc-light"}`}>
       <style>{STYLE}</style>
       <div className="cc-loading-halo" />
       <div className="cc-loading-wordmark">
@@ -5225,6 +5235,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const curTheme = config.theme || "auto";
   const setTheme = (t) => {
     saveConfig({ ...config, theme: t });
+    try { localStorage.setItem("zafi_theme", t); } catch (_) {}
     const labels = { light: "Tema claro", dark: "Tema oscuro", auto: "Tema automático" };
     showToast(labels[t]);
   };
