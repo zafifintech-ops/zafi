@@ -617,7 +617,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.7);
-  box-shadow:0 -4px 24px rgba(0,0,0,.06);}
+  box-shadow:0 -4px 24px rgba(0,0,0,.06);
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+/* Cuando hay un modal abierto, bloquear scroll del body */
+body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
 @keyframes ccChartDraw{from{stroke-dashoffset:1;}to{stroke-dashoffset:0;}}
 @keyframes ccChartFadeIn{from{opacity:0;}to{opacity:1;}}
@@ -1582,6 +1585,18 @@ function resolveRange(range) {
    luego llama al onClose real cuando termina la animación (~250ms). */
 function useSheetClose(onClose) {
   const [closing, setClosing] = useState(false);
+  // Bloquear el scroll del body mientras el modal esté abierto.
+  // Guardamos el scrollY actual para restaurarlo al cerrar (iOS pierde la posición).
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.classList.add("cc-modal-open");
+    document.body.style.top = `-${scrollY}px`;
+    return () => {
+      document.body.classList.remove("cc-modal-open");
+      document.body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
   const close = () => {
     if (closing) return;
     setClosing(true);
@@ -1843,13 +1858,17 @@ function UpgradeModal({ config, onClose, feature }) {
         {/* Botón cerrar absoluto */}
         <button onClick={close} aria-label="Cerrar"
           style={{
-            position: "absolute", top: 14, right: 14, zIndex: 10,
-            width: 32, height: 32, borderRadius: "50%",
-            background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)",
-            border: "none", color: "var(--ink-soft)",
-            fontSize: 18, cursor: "pointer",
+            position: "absolute", top: 14, right: 14, zIndex: 100,
+            width: 36, height: 36, borderRadius: "50%",
+            background: dark ? "rgba(0,0,0,.5)" : "rgba(255,255,255,.85)",
+            border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)"}`,
+            color: dark ? "#fff" : "#1a1a1f",
+            fontSize: 20, fontWeight: 400, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(8px)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 4px 12px rgba(0,0,0,.15)",
+            lineHeight: 1,
           }}>×</button>
 
         {/* Hero con gradiente */}
@@ -6949,6 +6968,8 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       id: "welcome",
       title: "¡Bienvenido a Zafi!",
       body: "Te voy a mostrar lo esencial en 5 pasos para que arranques rápido. Toca el botón ＋ para agregar tu primer movimiento.",
+      bodyWhenModal: "¡Perfecto! Ahora elige cómo agregar tu movimiento. Lo más rápido es \"Manual\" — completa el formulario y guárdalo.",
+      titleWhenModal: "Casi listo…",
       targetSelector: '[data-tour="add-btn"]',
       placement: "bottom",
       waitForAction: true, // espera que abra el menú de agregar
@@ -7062,11 +7083,15 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   // Calcular posición del tooltip
   const tooltipWidth = Math.min(320, window.innerWidth - 32);
-  let tooltipTop = window.innerHeight / 2 - 100;
+  // Default: si hay modal abierto, anclar al top (no estorbar el modal de abajo).
+  // Si no hay modal y tampoco target, centrar.
+  let tooltipTop = hasOpenModal
+    ? Math.max(20, window.innerHeight * 0.06)
+    : window.innerHeight / 2 - 100;
   let tooltipLeft = (window.innerWidth - tooltipWidth) / 2;
   let arrowSide = null; // top | bottom | none
 
-  // Si hay un modal abierto, no apuntar al target (queda tapado) — centrar tooltip
+  // Si hay un modal abierto, no apuntar al target (queda tapado) — anclar arriba
   const showHalo = targetRect && !hasOpenModal;
 
   if (showHalo) {
@@ -7227,7 +7252,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
             color: dark ? "#f5f5f7" : "#1a1a1f",
             letterSpacing: "-.015em", marginBottom: 8, lineHeight: 1.2,
           }}>
-            {current.title}
+            {hasOpenModal && current.titleWhenModal ? current.titleWhenModal : current.title}
           </div>
 
           {/* Body */}
@@ -7236,7 +7261,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
             color: dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)",
             lineHeight: 1.55, marginBottom: 16,
           }}>
-            {current.body}
+            {hasOpenModal && current.bodyWhenModal ? current.bodyWhenModal : current.body}
           </div>
 
           {/* CTA o indicador de acción esperada */}
