@@ -4777,12 +4777,64 @@ REGLAS DE RESPUESTA:
 - Cada categoría necesita un emoji apropiado.
 - Si el usuario pide usar lo recomendado, ve directo a done:true con el set recomendado y pregunta el modo de cuentas si aún no lo sabes.`;
 
+  // Genera respuesta hardcoded basada en lo que dijo el usuario
+  function getFallbackResponse(userText) {
+    const t = userText.toLowerCase();
+    // Sobre Lite/Pro/planes
+    if (t.includes("lite") || t.includes("plan") || t.includes("pro ") || t.includes("upgrade") || t.includes("actualizar") || t.includes("saber más") || t.includes("saber mas")) {
+      return {
+        msg: "✨ Zafi Lite te da:\n\n• Hasta 3 cuentas\n• Movimientos recurrentes (renta, sueldo, suscripciones)\n• Exportar a Excel\n• Categorización automática\n• Estadísticas completas\n• Sugerencias inteligentes\n\nY Zafi Pro suma cuentas ilimitadas, análisis con IA y reportes en PDF. Puedes activar el plan después desde Configuración. Por ahora arranquemos con Free, ¿te parece?",
+        suggs: ["Sí, arranquemos con Free", "Cuéntame de Pro"],
+        upgradeBtn: true,
+      };
+    }
+    // Cuentas
+    if (t.includes("cuenta") || /\b(2|3|4|5|dos|tres|cuatro|cinco|varias|múltiples|multiples)\b/.test(t)) {
+      return {
+        msg: "En el plan Free puedes tener 1 cuenta. Con Lite tienes hasta 3 cuentas y con Pro son ilimitadas. Por ahora arranquemos con una cuenta principal — siempre puedes activar Lite después. ¿Te parece?",
+        suggs: ["Sí, una cuenta", "Quiero saber más de Lite"],
+      };
+    }
+    // Categorías sugeridas
+    if (t.includes("sugier") || t.includes("sugir") || t.includes("ver categorías") || t.includes("ver categorias") || t.includes("recomienda")) {
+      return {
+        msg: "Te sugiero estas categorías comunes:\n\nIngresos: 💼 Sueldo, 💻 Freelance, 💰 Otros ingresos\n\nGastos: 🛒 Súper, 🍔 Restaurantes, ⛽ Transporte, 🏠 Casa, 💡 Servicios, 🏥 Salud, 🎬 Entretenimiento, 📱 Suscripciones, 📦 Otros gastos\n\n¿Las uso todas?",
+        suggs: ["Usar todas", "Solo las básicas", "Quitar algunas"],
+      };
+    }
+    // Quitar/Agregar
+    if (t.includes("quita") || t.includes("agrega") || t.includes("usar todas") || t.includes("usalas todas") || t.includes("solo las básicas") || t.includes("solo las basicas") || t.includes("sí, una") || t.includes("si, una") || t.includes("una está bien") || t.includes("una esta bien") || t.includes("arranquemos")) {
+      return {
+        msg: "¡Perfecto! Para personalizar tus categorías exactas o quitar las que no uses, te recomiendo usar la configuración recomendada con el botón de abajo y después editarlas desde la sección de Categorías. Es más rápido. 👇",
+        suggs: [],
+      };
+    }
+    // Default genérico
+    return {
+      msg: "Te recomiendo usar la configuración recomendada con el botón de abajo y después personalizar desde la app. Vas a tener todo listo en segundos. 👇",
+      suggs: [],
+    };
+  }
+
   async function send(text) {
     const userText = (text ?? input).trim();
     if (!userText || busy) return;
     setMsgs((m) => [...m, { role: "me", text: userText }]);
     setInput("");
     setSuggs([]);
+
+    // Si ya estamos en modo offline, no intentar la IA — ir directo al fallback
+    if (!apiOk) {
+      setBusy(true);
+      setTimeout(() => {
+        const fb = getFallbackResponse(userText);
+        setMsgs((m) => [...m, { role: "bot", text: fb.msg, upgradeBtn: fb.upgradeBtn }]);
+        if (fb.suggs && fb.suggs.length) setSuggs(fb.suggs);
+        setBusy(false);
+      }, 400);
+      return;
+    }
+
     setBusy(true);
     history.current.push({ role: "user", content: userText });
     try {
@@ -4796,31 +4848,9 @@ REGLAS DE RESPUESTA:
       }
     } catch (e) {
       setApiOk(false);
-      // Detectar el contexto basado en lo último que dijo el usuario
-      const userTextLower = userText.toLowerCase();
-      let fallbackMsg = "Tuve un problema para conectar con la IA, pero puedo seguir ayudándote con sugerencias preparadas.";
-      let fallbackSuggs = [];
-
-      // Si pidió ver sugerencias
-      if (userTextLower.includes("sugier") || userTextLower.includes("sugir") || userTextLower.includes("ver categorías") || userTextLower.includes("ver categorias")) {
-        fallbackMsg = "Te sugiero estas categorías comunes:\n\n💼 Sueldo, 💻 Freelance, 💰 Otros ingresos (ingresos)\n\n🛒 Súper, 🍔 Restaurantes, ⛽ Transporte, 🏠 Casa, 💡 Servicios, 🏥 Salud, 🎬 Entretenimiento, 📱 Suscripciones, 📦 Otros gastos\n\n¿Las uso todas? Toca \"Usar configuración recomendada\" abajo o escríbeme cuáles prefieres.";
-        fallbackSuggs = ["Usar todas estas", "Solo las básicas"];
-      }
-      // Si está respondiendo cuántas cuentas
-      else if (userTextLower.includes("cuenta") || /\b(2|3|4|5|dos|tres|cuatro|cinco|varias|múltiples|multiples)\b/.test(userTextLower)) {
-        fallbackMsg = "En el plan Free puedes tener 1 cuenta. Con Lite tienes hasta 3 cuentas y con Pro son ilimitadas. Por ahora arranquemos con una cuenta principal y después puedes activar Lite cuando lo necesites. ¿Te parece?";
-        fallbackSuggs = ["Sí, una cuenta", "Quiero saber más de Lite"];
-      }
-      // Default
-      else {
-        fallbackMsg = "Tuve un problema para conectar con la IA. No hay bronca: puedes usar la configuración recomendada con el botón de abajo. 👇";
-      }
-
-      setMsgs((m) => [
-        ...m,
-        { role: "bot", text: fallbackMsg },
-      ]);
-      if (fallbackSuggs.length) setSuggs(fallbackSuggs);
+      const fb = getFallbackResponse(userText);
+      setMsgs((m) => [...m, { role: "bot", text: fb.msg, upgradeBtn: fb.upgradeBtn }]);
+      if (fb.suggs && fb.suggs.length) setSuggs(fb.suggs);
     }
     setBusy(false);
   }
@@ -4841,8 +4871,31 @@ REGLAS DE RESPUESTA:
           style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 2px 14px", maxHeight: "58vh", overflowY: "auto" }}
         >
           {msgs.map((m, i) => (
-            <div key={i} className={`cc-bubble ${m.role} cc-fade`} style={{ whiteSpace: "pre-wrap" }}>
-              {m.text}
+            <div key={i}>
+              <div className={`cc-bubble ${m.role} cc-fade`} style={{ whiteSpace: "pre-wrap" }}>
+                {m.text}
+              </div>
+              {m.upgradeBtn && (
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-start" }}>
+                  <button
+                    onClick={() => {
+                      // Setear flag temporal en localStorage para abrir UpgradeModal después del onboarding
+                      try { localStorage.setItem("zafi_pending_upgrade", "lite"); } catch(_){}
+                      // Continuar con la configuración recomendada para entrar a la app
+                      onDone(buildConfig({ plan: "free" }));
+                    }}
+                    style={{
+                      padding: "10px 16px", borderRadius: 12, border: "none",
+                      background: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+                      color: "#fff", fontSize: 13, fontWeight: 600,
+                      fontFamily: "'Montserrat', sans-serif", cursor: "pointer",
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      boxShadow: "0 4px 12px rgba(91,110,232,.25)",
+                    }}>
+                    ✨ Ver detalles de Zafi Lite
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           {busy && (
@@ -4918,6 +4971,17 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
+  // Si veníamos de un click en "Ver detalles de Zafi Lite" en el onboarding, abrir UpgradeModal
+  useEffect(() => {
+    try {
+      const pending = localStorage.getItem("zafi_pending_upgrade");
+      if (pending) {
+        localStorage.removeItem("zafi_pending_upgrade");
+        // Pequeño delay para que la app cargue primero
+        setTimeout(() => setUpgradeFeature(pending), 500);
+      }
+    } catch (_) {}
+  }, []);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
   const [accView, setAccView] = useState("all");
   // Aplica la cuenta de inicio cuando config carga (defaultHomeView)
@@ -9975,7 +10039,33 @@ function CategoryTreemap({ data, total, accentColor, onPick }) {
     return cells;
   }
 
-  const sorted = [...data].sort((a, b) => b.amt - a.amt);
+  const sortedAll = [...data].sort((a, b) => b.amt - a.amt);
+  // Agrupar categorías pequeñas (< 4% del total) en "Otros" si hay muchas
+  // y si la suma de pequeñas vale al menos un 3% (para que sea visible)
+  let sorted = sortedAll;
+  if (sortedAll.length > 7 && total > 0) {
+    const threshold = total * 0.04;
+    const big = sortedAll.filter(d => d.amt >= threshold);
+    const small = sortedAll.filter(d => d.amt < threshold);
+    // Solo agrupar si hay 2+ pequeñas y suman algo visible
+    if (small.length >= 2) {
+      const smallSum = small.reduce((s, d) => s + d.amt, 0);
+      if (smallSum / total >= 0.02) {
+        sorted = [
+          ...big,
+          {
+            amt: smallSum,
+            cat: {
+              id: "__others_grouped__",
+              name: `Otros (${small.length})`,
+              emoji: "📦",
+            },
+            _grouped: small, // referencia a las categorías agrupadas
+          },
+        ].sort((a, b) => b.amt - a.amt);
+      }
+    }
+  }
   const cells = squarify(sorted, 0, 0, W, H);
   const GAP = 1.2;
 
