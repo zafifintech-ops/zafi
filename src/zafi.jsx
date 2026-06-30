@@ -3526,7 +3526,7 @@ function buildConfig(raw) {
     ];
   }
 
-  return { setupComplete: true, accountMode, accounts, categories,
+  return { setupComplete: true, tourEligible: true, accountMode, accounts, categories,
     personalize: { "all:homeSections": defaultSections } };
 }
 
@@ -4758,6 +4758,7 @@ function ManualOnboarding({ onDone }) {
 
     onDone({
       setupComplete: true,
+      tourEligible: true,
       accountMode: "multi",
       accounts: [mainAccount],
       categories: [...finalIncome, ...finalExpense],
@@ -5207,30 +5208,43 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   }, []);
 
   // ============= TOUR GUIADO PARA NUEVOS USUARIOS =============
-  // Si tourComplete no está marcado en config, se muestra el tour
+  // Solo se muestra a usuarios verdaderamente nuevos (no a los que ya tenían cuenta).
+  // Un "usuario nuevo" es aquel cuyo setup acaba de completarse, no uno con
+  // historial previo de movimientos o config sin tourComplete por ser anterior.
   const [tourStep, setTourStep] = useState(null);
-  // Snapshot del estado al inicio del tour (no del paso) para comparar contra
   const [tourSnapshot, setTourSnapshot] = useState(null);
 
   useEffect(() => {
-    if (config && config.tourComplete === undefined && config.setupComplete && tourStep === null && tourSnapshot === null) {
-      // Pequeño delay para que la UI cargue
-      const timer = setTimeout(() => {
-        // Capturar snapshot inicial
-        setTourSnapshot({ txCountAtStart: txs.length });
-        setTourStep(0);
-      }, 800);
-      return () => clearTimeout(timer);
+    if (!config || !config.setupComplete) return;
+    // Si ya completó el tour o lo saltó: nada.
+    if (config.tourComplete === true) return;
+    // Si es usuario existente (ya tiene movimientos guardados o setup viejo sin tourSeen):
+    // marcarlo como completado silenciosamente para NUNCA mostrarles el tour.
+    // Solo arranca el tour si el config tiene la marca "tourEligible: true" puesta
+    // por el OnboardingFlow al terminar el setup.
+    if (!config.tourEligible) {
+      // Usuario pre-existente: marcar como completado para no mostrar nunca más
+      saveConfig({ ...config, tourComplete: true });
+      return;
     }
-  }, [config?.setupComplete, config?.tourComplete]);
+    // Solo arrancamos una vez
+    if (tourStep !== null || tourSnapshot !== null) return;
+
+    const timer = setTimeout(() => {
+      setTourSnapshot({ txCountAtStart: txs.length });
+      setTourStep(0);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [config?.setupComplete, config?.tourComplete, config?.tourEligible]);
 
   const finishTour = () => {
     setTourStep(null);
     setTourSnapshot(null);
-    saveConfig({ ...config, tourComplete: true });
+    // Quitamos tourEligible y marcamos como completo
+    const { tourEligible, ...rest } = config;
+    saveConfig({ ...rest, tourComplete: true });
   };
 
-  // Refs para el cambio de tx count basados en snapshot del tour
   // Tracking del movimiento creado durante el tour
   const tourCreatedTxRef = useRef(null);
   useEffect(() => {
@@ -5238,7 +5252,6 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
     // Paso 0: avanzar si creó al menos una tx después de iniciar el tour
     if (tourStep === 0 && txs.length > tourSnapshot.txCountAtStart) {
-      // Guardar referencia al primer tx creado durante el tour (el más reciente)
       const sorted = [...txs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       tourCreatedTxRef.current = sorted[0]?.id;
       setTourStep(1);
@@ -5247,7 +5260,6 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
     // Paso 2: avanzar si borró la tx creada o si el count bajó
     if (tourStep === 2) {
       const stillExists = tourCreatedTxRef.current && txs.some(t => t.id === tourCreatedTxRef.current);
-      // Avanza si ya no existe la tx creada O si el count volvió al snapshot
       if (!stillExists || txs.length <= tourSnapshot.txCountAtStart) {
         setTourStep(3);
       }
@@ -6249,8 +6261,9 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                 () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
                 "Ver tour de bienvenida", "",
                 () => {
+                  // Quitar tourComplete y marcar como elegible para iniciarlo de nuevo
                   const { tourComplete, ...rest } = config;
-                  saveConfig(rest);
+                  saveConfig({ ...rest, tourEligible: true });
                   close();
                 }
               )}
@@ -7105,17 +7118,27 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
               {current.cta}
             </button>
           ) : (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              padding: "10px 14px", borderRadius: 12,
-              background: dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.06)",
-              fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
-            }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: 99, background: "#5B6EE8",
-                animation: "ccTourDotPulse 1.5s ease-in-out infinite",
-              }} />
-              Esperando que lo hagas…
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "10px 14px", borderRadius: 12,
+                background: dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.06)",
+                fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
+              }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: 99, background: "#5B6EE8",
+                  animation: "ccTourDotPulse 1.5s ease-in-out infinite",
+                }} />
+                Esperando que lo hagas…
+              </div>
+              <button onClick={onAdvance} style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600,
+                fontFamily: "inherit", textAlign: "center",
+                padding: "4px 8px",
+              }}>
+                Saltar este paso →
+              </button>
             </div>
           )}
         </div>
