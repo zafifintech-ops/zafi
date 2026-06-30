@@ -1622,6 +1622,56 @@ function LockedSection({ label, icon, plan, onUpgrade }) {
   );
 }
 
+/* ===== Wrapper de blur + chip para secciones bloqueadas ================== */
+/* Renderiza el contenido con datos reales blureado y overlay con chip clickeable */
+function LockedBlur({ plan, onUpgrade, children, blurAmount = 5 }) {
+  const planLabel = plan === "pro" ? "Pro" : "Lite";
+  const gradient = plan === "pro"
+    ? "linear-gradient(135deg, #B8860B 0%, #D4A017 50%, #E8C547 100%)"
+    : "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)";
+  const glowColor = plan === "pro" ? "rgba(212,160,23,.35)" : "rgba(91,110,232,.35)";
+
+  return (
+    <div style={{ position: "relative", cursor: "pointer" }} onClick={onUpgrade}>
+      {/* Contenido blureado con datos reales */}
+      <div style={{
+        filter: `blur(${blurAmount}px)`,
+        pointerEvents: "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}>
+        {children}
+      </div>
+
+      {/* Overlay con chip centrado */}
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2, pointerEvents: "none",
+      }}>
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "9px 18px", borderRadius: 99,
+          background: gradient,
+          color: "#fff", fontSize: 13, fontWeight: 700,
+          fontFamily: "'Montserrat', sans-serif",
+          letterSpacing: "-.005em",
+          boxShadow: `0 8px 24px ${glowColor}, 0 2px 6px rgba(0,0,0,.15)`,
+          pointerEvents: "auto",
+          transition: "transform .15s ease",
+          whiteSpace: "nowrap",
+        }}
+        onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+        onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+        >
+          ✦ Desbloquea con {planLabel} →
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ===== Badge de plan ===================================================== */
 function PlanBadge({ plan }) {
   const labels = { free: "Free", lite: "Lite", pro: "✦ Pro" };
@@ -1637,11 +1687,12 @@ function UpgradeModal({ config, onClose, feature }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
   const currentPlan = getUserPlan(config);
+  const [billingCycle, setBillingCycle] = useState("annual"); // monthly | annual
 
   const FEATURES = {
     income_vs_expense: { label: "Ingresos vs Gastos", plan: "pro", icon: "📊" },
     sankey: { label: "Diagrama Sankey", plan: "pro", icon: "🔀" },
-    reports: { label: "Reportes PDF/Excel", plan: "pro", icon: "📄" },
+    reports: { label: "Reportes con análisis IA", plan: "pro", icon: "📄" },
     unlimited_accounts: { label: "Cuentas ilimitadas", plan: "pro", icon: "🏦" },
     photo_capture: { label: "Captura por foto", plan: "pro", icon: "📷" },
     ai_unlimited: { label: "IA ilimitada", plan: "pro", icon: "✨" },
@@ -1650,107 +1701,265 @@ function UpgradeModal({ config, onClose, feature }) {
     auto_category: { label: "Detección automática", plan: "lite", icon: "🎯" },
     unlimited_txs: { label: "Transacciones ilimitadas", plan: "lite", icon: "♾️" },
     "3_accounts": { label: "Hasta 3 cuentas", plan: "lite", icon: "🏦" },
+    excel_export: { label: "Exportar a Excel", plan: "lite", icon: "📊" },
+    // Aliases para abrir directo a un plan sin un feature específico
+    lite: { label: "más", plan: "lite", icon: "✦" },
+    pro: { label: "más", plan: "pro", icon: "✦" },
   };
 
-  const info = FEATURES[feature] || { label: feature, plan: "pro", icon: "⭐" };
+  const info = FEATURES[feature] || { label: feature, plan: "pro", icon: "✦" };
   const targetPlan = info.plan;
 
   const LITE_FEATURES = [
-    "♾️ Transacciones ilimitadas",
-    "🔄 Movimientos recurrentes",
-    "💡 Sugerencias al capturar",
-    "🎯 Detección automática de categorías",
-    "🏦 Hasta 3 cuentas",
-    "📊 Estadísticas completas",
-    "📁 Exportación Excel",
-    "🚫 Sin anuncios",
+    { icon: "♾️", label: "Transacciones ilimitadas" },
+    { icon: "🔄", label: "Movimientos recurrentes" },
+    { icon: "💡", label: "Sugerencias inteligentes al capturar" },
+    { icon: "🎯", label: "Detección automática de categorías" },
+    { icon: "🏦", label: "Hasta 3 cuentas bancarias" },
+    { icon: "📊", label: "Estadísticas completas" },
+    { icon: "📁", label: "Exportar a Excel" },
+    { icon: "🚫", label: "Sin anuncios" },
   ];
   const PRO_FEATURES = [
-    "✦ Todo lo de Lite",
-    "🏦 Cuentas ilimitadas",
-    "📊 Ingresos vs Gastos avanzado",
-    "🔀 Diagrama Sankey",
-    "📄 Reportes PDF y Excel",
-    "📷 Captura por foto (OCR)",
-    "✨ Asistente IA ilimitado",
-    "⚡ Acceso anticipado a features",
+    { icon: "✦", label: "Todo lo de Lite incluido", highlight: true },
+    { icon: "🏦", label: "Cuentas ilimitadas" },
+    { icon: "📊", label: "Ingresos vs Gastos avanzado" },
+    { icon: "🔀", label: "Diagrama Sankey" },
+    { icon: "📄", label: "Reportes con análisis IA" },
+    { icon: "📷", label: "Captura por foto (OCR)" },
+    { icon: "✨", label: "Asistente IA ilimitado" },
+    { icon: "⚡", label: "Acceso anticipado a features" },
   ];
   const features = targetPlan === "pro" ? PRO_FEATURES : LITE_FEATURES;
 
+  // Precios
+  const PRICES = {
+    lite: { monthly: 59, annual: 499, monthlyEq: 41.6 },
+    pro:  { monthly: 129, annual: 999, monthlyEq: 83.3 },
+  };
+  const price = PRICES[targetPlan];
+  const currentPrice = billingCycle === "annual" ? price.annual : price.monthly;
+  const priceLabel = billingCycle === "annual" ? "MXN / año" : "MXN / mes";
+
+  // Colores del plan
+  const planColors = targetPlan === "pro"
+    ? {
+        gradient: "linear-gradient(135deg, #B8860B 0%, #D4A017 50%, #E8C547 100%)",
+        gradientSoft: "linear-gradient(135deg, rgba(184,134,11,.12) 0%, rgba(212,160,23,.08) 100%)",
+        glowColor: "rgba(212,160,23,.35)",
+        accent: "#D4A017",
+        checkBg: "rgba(212,160,23,.15)",
+      }
+    : {
+        gradient: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+        gradientSoft: "linear-gradient(135deg, rgba(91,110,232,.10) 0%, rgba(139,92,246,.08) 100%)",
+        glowColor: "rgba(91,110,232,.35)",
+        accent: "#5B6EE8",
+        checkBg: "rgba(91,110,232,.15)",
+      };
+
+  const planName = targetPlan === "pro" ? "Zafi Pro" : "Zafi Lite";
+  const planTagline = targetPlan === "pro"
+    ? "Todo el poder de tus finanzas, sin límites"
+    : "Tu siguiente paso para tomar el control";
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={e => e.stopPropagation()} style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}>
-        <div className="cc-grip" />
+      <div className="cc-sheet" onClick={e => e.stopPropagation()}
+        style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom))", padding: "0", overflow: "hidden",
+          maxHeight: "92vh" }}>
 
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>{info.icon}</div>
-          <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 6 }}>
-            Para usar <strong style={{ color: "var(--ink)" }}>{info.label}</strong> necesitas
-          </div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "6px 16px", borderRadius: 99,
-            background: targetPlan === "pro"
-              ? "linear-gradient(120deg,#b8860b,#d4a017,#c9a84c)"
-              : "rgba(91,110,232,.12)",
-            color: targetPlan === "pro" ? "#fff" : "#5B6EE8",
-            fontWeight: 700, fontSize: 15, letterSpacing: ".01em" }}>
-            {targetPlan === "pro" ? "✦ Zafi Pro" : "Zafi Lite"}
+        {/* Botón cerrar absoluto */}
+        <button onClick={close} aria-label="Cerrar"
+          style={{
+            position: "absolute", top: 14, right: 14, zIndex: 10,
+            width: 32, height: 32, borderRadius: "50%",
+            background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)",
+            border: "none", color: "var(--ink-soft)",
+            fontSize: 18, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(8px)",
+          }}>×</button>
+
+        {/* Hero con gradiente */}
+        <div style={{
+          padding: "44px 24px 28px",
+          background: planColors.gradientSoft,
+          position: "relative", overflow: "hidden",
+          borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+        }}>
+          {/* Glow decorativo */}
+          <div style={{
+            position: "absolute", top: "-40%", right: "-20%",
+            width: 280, height: 280, borderRadius: "50%",
+            background: `radial-gradient(circle, ${planColors.glowColor} 0%, transparent 70%)`,
+            filter: "blur(40px)", pointerEvents: "none",
+          }} />
+
+          <div style={{ position: "relative", textAlign: "center" }}>
+            {/* Badge de plan */}
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "7px 16px", borderRadius: 99,
+              background: planColors.gradient,
+              color: "#fff", fontSize: 12.5, fontWeight: 700,
+              letterSpacing: ".04em", textTransform: "uppercase",
+              marginBottom: 14,
+              boxShadow: `0 8px 24px ${planColors.glowColor}`,
+            }}>
+              ✦ {planName}
+            </div>
+
+            {/* Mensaje contextual si viene de un feature */}
+            {info.label !== "más" && (
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 8 }}>
+                Desbloquea <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{info.label}</strong>
+              </div>
+            )}
+
+            {/* Título */}
+            <div style={{
+              fontFamily: "'Fraunces', serif",
+              fontSize: 24, fontWeight: 600, color: "var(--ink)",
+              letterSpacing: "-.02em", lineHeight: 1.2, marginBottom: 8,
+            }}>
+              {planTagline}
+            </div>
           </div>
         </div>
 
-        {/* Features list */}
-        <div style={{ background: "var(--surface)", borderRadius: 14, padding: "4px 0", marginBottom: 20 }}>
-          {features.map((f, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10,
-              padding: "11px 16px", borderBottom: i < features.length - 1 ? "1px solid var(--line-soft)" : "none" }}>
-              <span style={{ fontSize: 13, color: "var(--ink)", flex: 1 }}>{f}</span>
-              <span style={{ color: targetPlan === "pro" ? "#C9A84C" : "#5B6EE8", fontSize: 14 }}>✓</span>
-            </div>
-          ))}
+        {/* Selector de ciclo */}
+        <div style={{ padding: "20px 22px 12px" }}>
+          <div style={{
+            display: "flex", gap: 6, padding: 4,
+            background: dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.04)",
+            borderRadius: 14,
+            fontFamily: "'Montserrat', sans-serif",
+          }}>
+            <button onClick={() => setBillingCycle("monthly")}
+              style={{
+                flex: 1, padding: "11px 8px", borderRadius: 10, border: "none",
+                background: billingCycle === "monthly" ? (dark ? "rgba(255,255,255,.1)" : "#fff") : "transparent",
+                color: billingCycle === "monthly" ? "var(--ink)" : "var(--ink-soft)",
+                fontWeight: billingCycle === "monthly" ? 600 : 500,
+                fontSize: 13.5, cursor: "pointer",
+                boxShadow: billingCycle === "monthly" ? "0 2px 6px rgba(0,0,0,.06)" : "none",
+                transition: "all .15s ease",
+                fontFamily: "inherit",
+              }}>
+              Mensual
+            </button>
+            <button onClick={() => setBillingCycle("annual")}
+              style={{
+                flex: 1, padding: "11px 8px", borderRadius: 10, border: "none",
+                background: billingCycle === "annual" ? (dark ? "rgba(255,255,255,.1)" : "#fff") : "transparent",
+                color: billingCycle === "annual" ? "var(--ink)" : "var(--ink-soft)",
+                fontWeight: billingCycle === "annual" ? 600 : 500,
+                fontSize: 13.5, cursor: "pointer",
+                boxShadow: billingCycle === "annual" ? "0 2px 6px rgba(0,0,0,.06)" : "none",
+                transition: "all .15s ease",
+                position: "relative",
+                fontFamily: "inherit",
+              }}>
+              Anual
+              <span style={{
+                position: "absolute", top: -6, right: 6,
+                background: "#10B981", color: "#fff",
+                fontSize: 9, fontWeight: 700, padding: "2px 6px",
+                borderRadius: 99, letterSpacing: ".04em",
+              }}>−35%</span>
+            </button>
+          </div>
         </div>
 
-        {/* Precios */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <button style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "1px solid var(--line)",
-            background: "var(--surface)", cursor: "pointer", fontFamily: "inherit" }}>
-            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 2 }}>MENSUAL</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--ink)", fontFamily: "'Fraunces', serif" }}>
-              {targetPlan === "pro" ? "$129" : "$59"}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>MXN / mes</div>
-          </button>
-          <button style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: "none",
-            background: targetPlan === "pro"
-              ? "linear-gradient(120deg,#b8860b,#d4a017,#c9a84c)"
-              : "#5B6EE8",
-            cursor: "pointer", fontFamily: "inherit", position: "relative" }}>
-            <div style={{ position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
-              background: "#E8484A", color: "#fff", fontSize: 9, fontWeight: 700,
-              padding: "2px 8px", borderRadius: 99, letterSpacing: ".05em", whiteSpace: "nowrap" }}>
-              AHORRA 35%
-            </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,.8)", marginBottom: 2 }}>ANUAL</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", fontFamily: "'Fraunces', serif" }}>
-              {targetPlan === "pro" ? "$999" : "$499"}
-            </div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,.7)" }}>MXN / año</div>
-          </button>
+        {/* Precio destacado */}
+        <div style={{ padding: "8px 22px 24px", textAlign: "center" }}>
+          <div style={{
+            fontFamily: "'Fraunces', serif",
+            fontSize: 56, fontWeight: 500, color: "var(--ink)",
+            letterSpacing: "-.04em", lineHeight: 1,
+            display: "inline-flex", alignItems: "baseline", gap: 4,
+          }}>
+            <span style={{ fontSize: 26, color: "var(--ink-soft)", fontWeight: 400 }}>$</span>
+            {currentPrice}
+          </div>
+          <div style={{
+            fontSize: 12, color: "var(--ink-soft)", marginTop: 6,
+            fontFamily: "'Montserrat', sans-serif",
+          }}>
+            {priceLabel}
+            {billingCycle === "annual" && (
+              <span style={{ marginLeft: 6, color: "#10B981", fontWeight: 600 }}>
+                · equivale a ${price.monthlyEq.toFixed(0)}/mes
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable de features */}
+        <div style={{
+          maxHeight: "calc(92vh - 530px)", overflowY: "auto",
+          padding: "0 22px 16px",
+        }}>
+          <div style={{
+            background: dark ? "rgba(255,255,255,.03)" : "rgba(0,0,0,.02)",
+            borderRadius: 16, padding: "8px 0",
+            border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+          }}>
+            {features.map((f, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 16px",
+                borderBottom: i < features.length - 1
+                  ? `1px solid ${dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.04)"}`
+                  : "none",
+                fontFamily: "'Montserrat', sans-serif",
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  background: planColors.checkBg,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 16, flexShrink: 0,
+                }}>{f.icon}</div>
+                <span style={{
+                  fontSize: 13.5, color: "var(--ink)", flex: 1,
+                  fontWeight: f.highlight ? 600 : 500,
+                  letterSpacing: "-.005em",
+                }}>{f.label}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke={planColors.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* CTA */}
-        <button style={{ width: "100%", padding: 15, borderRadius: 14, border: "none",
-          background: targetPlan === "pro"
-            ? "linear-gradient(120deg,#b8860b,#d4a017,#c9a84c)"
-            : "#5B6EE8",
-          color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: "inherit",
-          cursor: "pointer", letterSpacing: "-.01em",
-          boxShadow: targetPlan === "pro" ? "0 4px 16px rgba(180,130,0,.4)" : "0 4px 16px rgba(91,110,232,.4)" }}>
-          {targetPlan === "pro" ? "✦ Activar Zafi Pro" : "Activar Zafi Lite"}
-        </button>
+        <div style={{ padding: "8px 22px 0" }}>
+          <button style={{
+            width: "100%", padding: "16px 18px", borderRadius: 16, border: "none",
+            background: planColors.gradient,
+            color: "#fff", fontSize: 15, fontWeight: 600,
+            fontFamily: "'Montserrat', sans-serif",
+            cursor: "pointer", letterSpacing: "-.005em",
+            boxShadow: `0 8px 24px ${planColors.glowColor}`,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            transition: "transform .15s ease, box-shadow .15s ease",
+          }}
+          onMouseDown={(e) => e.currentTarget.style.transform = "scale(.98)"}
+          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+          onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+          >
+            <span>✦</span> Activar {planName}
+          </button>
 
-        <div style={{ textAlign: "center", fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
-          Cancela cuando quieras · Sin compromisos
+          <div style={{
+            textAlign: "center", fontSize: 11.5, color: "var(--ink-faint)",
+            marginTop: 14, fontFamily: "'Montserrat', sans-serif",
+          }}>
+            Cancela cuando quieras · Sin compromisos · 7 días gratis
+          </div>
         </div>
       </div>
     </div>,
@@ -1790,6 +1999,12 @@ function hasFeature(config, feature) {
   if (plan === "pro") return PRO.includes(feature);
   if (plan === "lite") return LITE.includes(feature);
   return FREE.includes(feature);
+}
+
+/* Devuelve true si el plan del usuario alcanza el plan requerido */
+function planMeets(userPlan, requiredPlan) {
+  const order = { free: 0, lite: 1, pro: 2 };
+  return (order[userPlan] ?? 0) >= (order[requiredPlan] ?? 0);
 }
 
 /* Hook reactivo — se actualiza cuando el tema cambia */
@@ -3270,35 +3485,40 @@ function buildConfig(raw) {
   let defaultSections;
   if (plan === "pro") {
     defaultSections = [
-      { id: "balance",    on: true  },
-      { id: "kpis",       on: true  },
-      { id: "byCategory", on: true  },
-      { id: "recent",     on: true  },
-      { id: "trend",      on: true  },
-      { id: "topExpenses",on: true  },
-      { id: "incVsExp",   on: true  },
+      { id: "balance",        on: true  },
+      { id: "recent",         on: true  },
+      { id: "byCategory",     on: true  },
+      { id: "trend",          on: true  },
+      { id: "incVsExp",       on: true  },
+      { id: "kpis",           on: true  },
+      { id: "topExpenses",    on: false },
+      { id: "financialScore", on: true  },
+      { id: "financialTips",  on: false },
     ];
   } else if (plan === "lite") {
-    // Todo lo de Lite activado + incVsExp (Pro) visible pero bloqueado
     defaultSections = [
-      { id: "balance",    on: true  },
-      { id: "byCategory", on: true  },
-      { id: "recent",     on: true  },
-      { id: "trend",      on: true  },
-      { id: "topExpenses",on: true  },
-      { id: "kpis",       on: false },
-      { id: "incVsExp",   on: false },
+      { id: "balance",        on: true  },
+      { id: "recent",         on: true  },
+      { id: "byCategory",     on: true  },
+      { id: "trend",          on: true  },
+      { id: "incVsExp",       on: true  },
+      { id: "topExpenses",    on: false },
+      { id: "kpis",           on: true  }, // bloqueado pro — muestra blur
+      { id: "financialScore", on: true  }, // bloqueado pro — muestra blur
+      { id: "financialTips",  on: false },
     ];
   } else {
-    // Free: solo lo suyo (balance + byCategory) + trend (Lite) como "muestra"
+    // Free
     defaultSections = [
-      { id: "balance",    on: true  },
-      { id: "byCategory", on: true  },
-      { id: "trend",      on: true  }, // visible pero bloqueado → muestra que existe
-      { id: "kpis",       on: false },
-      { id: "recent",     on: false },
-      { id: "incVsExp",   on: false },
-      { id: "topExpenses",on: false },
+      { id: "balance",        on: true  },
+      { id: "recent",         on: true  },
+      { id: "byCategory",     on: true  },
+      { id: "trend",          on: true  }, // bloqueado lite — muestra blur
+      { id: "incVsExp",       on: true  }, // bloqueado lite — muestra blur
+      { id: "kpis",           on: true  }, // bloqueado pro — muestra blur
+      { id: "topExpenses",    on: false },
+      { id: "financialScore", on: true  }, // bloqueado pro — muestra blur
+      { id: "financialTips",  on: false },
     ];
   }
 
@@ -4871,17 +5091,16 @@ REGLAS DE RESPUESTA:
           style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 2px 14px", maxHeight: "58vh", overflowY: "auto" }}
         >
           {msgs.map((m, i) => (
-            <div key={i}>
+            <div key={i} style={{ display: "flex", flexDirection: "column",
+              alignItems: m.role === "me" ? "flex-end" : "flex-start", width: "100%" }}>
               <div className={`cc-bubble ${m.role} cc-fade`} style={{ whiteSpace: "pre-wrap" }}>
                 {m.text}
               </div>
               {m.upgradeBtn && (
-                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-start" }}>
+                <div style={{ marginTop: 8 }}>
                   <button
                     onClick={() => {
-                      // Setear flag temporal en localStorage para abrir UpgradeModal después del onboarding
-                      try { localStorage.setItem("zafi_pending_upgrade", "lite"); } catch(_){}
-                      // Continuar con la configuración recomendada para entrar a la app
+                      try { localStorage.setItem("zafi_pending_upgrade", "recurring"); } catch(_){}
                       onDone(buildConfig({ plan: "free" }));
                     }}
                     style={{
@@ -6484,14 +6703,29 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
-  { id: "kpis", label: "Ingresos y gastos del mes", on: true },
-  { id: "byCategory", label: "Gastos por categoría", on: true },
-  { id: "incVsExp", label: "Ingresos vs gastos", on: false },
+  { id: "balance", label: "Saldo destacado", on: true },
   { id: "recent", label: "Movimientos recientes", on: true },
-  { id: "balance", label: "Saldo destacado", on: false },
-  { id: "trend", label: "Mini gráfica de saldo (30d)", on: false },
+  { id: "byCategory", label: "Gastos por categoría", on: true },
+  { id: "trend", label: "Mini gráfica de saldo (30d)", on: true },
+  { id: "incVsExp", label: "Ingresos vs gastos", on: true },
+  { id: "kpis", label: "Ingresos y gastos del mes", on: true },
   { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
+  { id: "financialScore", label: "Calificación financiera (IA)", on: true },
+  { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
+
+// Mapa de plan requerido por cada sección del dashboard
+const HOME_SECTION_PLANS = {
+  balance: "free",
+  recent: "free",
+  byCategory: "free",
+  trend: "lite",
+  incVsExp: "lite",
+  topExpenses: "lite",
+  kpis: "pro",
+  financialScore: "pro",
+  financialTips: "pro",
+};
 
 function loadSections(config, accView) {
   const saved = getPersonalize(config, "homeSections", accView);
@@ -6512,6 +6746,366 @@ function loadSections(config, accView) {
     cleaned.splice(insertAfter + 1, 0, { ...d });
   });
   return cleaned;
+}
+
+/* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
+function FinancialScoreCard({ config, txs, dateRange, accView, demoMode = false }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const baseData = (() => {
+    const filtered = txsInRange(txs, dateRange).filter(t =>
+      accView === "all" ? true : t.accountId === accView
+    );
+    const incTxs = filtered.filter(t => t.type === "income");
+    const expTxs = filtered.filter(t => t.type === "expense");
+    const totalIn = incTxs.reduce((s, t) => s + t.amount, 0);
+    const totalOut = expTxs.reduce((s, t) => s + t.amount, 0);
+    return { totalIn, totalOut, txCount: filtered.length, incCount: incTxs.length, expCount: expTxs.length };
+  })();
+
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}`;
+
+  useEffect(() => {
+    // Calcular score local
+    const ratio = baseData.totalIn > 0 ? baseData.totalIn / Math.max(baseData.totalOut, 1) : 0;
+    let score = 50;
+    if (ratio >= 2) score = 90;
+    else if (ratio >= 1.5) score = 80;
+    else if (ratio >= 1.2) score = 72;
+    else if (ratio >= 1.05) score = 65;
+    else if (ratio >= 0.95) score = 55;
+    else if (ratio >= 0.8) score = 42;
+    else score = 28;
+
+    // Si hay pocos datos, score demo basado en datos sintéticos
+    if (baseData.txCount < 3) {
+      if (demoMode) {
+        // Modo demo: mostrar algo bonito sin datos
+        const demoAnalyses = [
+          "Tu situación financiera se ve estable este periodo.",
+          "Tienes margen para aumentar tu ahorro mensual.",
+          "Tus gastos están dentro de tus ingresos.",
+          "Considera diversificar tus categorías de gasto.",
+          "Buena disciplina con el dinero este mes.",
+        ];
+        setData({ score: 72, status: "Bueno", color: "#5B6EE8", analyses: demoAnalyses });
+        return;
+      }
+      setData(null);
+      setError("Necesitas al menos 3 movimientos para tu calificación.");
+      return;
+    }
+
+    setError(false);
+
+    const finalScore = Math.min(100, Math.max(0, score));
+    let status, color;
+    if (finalScore >= 80) { status = "Excelente"; color = "#10B981"; }
+    else if (finalScore >= 65) { status = "Bueno"; color = "#5B6EE8"; }
+    else if (finalScore >= 45) { status = "Regular"; color = "#F59E0B"; }
+    else { status = "Atención"; color = "#EF4444"; }
+
+    // En demoMode, generamos análisis locales sin llamar a IA
+    if (demoMode) {
+      const diff = baseData.totalIn - baseData.totalOut;
+      const fallbackAnalyses = [
+        `Tu flujo neto es ${diff >= 0 ? "positivo" : "negativo"}: ${fmtMxn(diff)}.`,
+        `Llevas ${baseData.expCount} gastos y ${baseData.incCount} ingresos en este periodo.`,
+        baseData.totalIn > 0
+          ? `Tu ratio ingreso/gasto es ${(baseData.totalIn / Math.max(baseData.totalOut, 1)).toFixed(2)}x.`
+          : "Sin ingresos registrados todavía en este periodo.",
+        finalScore >= 65
+          ? "Tu manejo del dinero va por buen camino."
+          : "Hay espacio para optimizar tus gastos. Revisa categorías.",
+        "Calificación con datos reales de tu cuenta.",
+      ];
+      setData({ score: finalScore, status, color, analyses: fallbackAnalyses });
+      return;
+    }
+
+    setLoading(true);
+
+    const callAI = async () => {
+      try {
+        const systemPrompt = `Eres el asistente financiero de Zafi. Genera EXACTAMENTE 5 análisis cortos y específicos sobre la situación financiera del usuario. Cada análisis debe tener máximo 22 palabras, ser directo, casual y útil. Usa números concretos del usuario. NO uses markdown. Responde SOLO con un array JSON: ["análisis 1", "análisis 2", "análisis 3", "análisis 4", "análisis 5"]`;
+        const userMsg = `Datos del periodo:
+- Ingresos: ${fmtMxn(baseData.totalIn)}
+- Gastos: ${fmtMxn(baseData.totalOut)}
+- Flujo neto: ${fmtMxn(baseData.totalIn - baseData.totalOut)}
+- Total movimientos: ${baseData.txCount}
+- Score calculado: ${score}/100
+
+Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro potencial, ratio, hábitos, sugerencia).`;
+
+        const raw = await callClaude(systemPrompt, [{ role: "user", content: userMsg }]);
+        const clean = raw.replace(/```json|```/g, "").trim();
+        const start = clean.indexOf("[");
+        const end = clean.lastIndexOf("]");
+        const arr = JSON.parse(clean.slice(start, end + 1));
+
+        setData({ score: finalScore, status, color, analyses: arr.slice(0, 5) });
+        setLoading(false);
+      } catch (e) {
+        const diff = baseData.totalIn - baseData.totalOut;
+        const fallbackAnalyses = [
+          `Tu flujo neto es ${diff >= 0 ? "positivo" : "negativo"}: ${fmtMxn(diff)}.`,
+          `Llevas ${baseData.expCount} gastos y ${baseData.incCount} ingresos en este periodo.`,
+          baseData.totalIn > 0
+            ? `Tu ratio ingreso/gasto es ${(baseData.totalIn / Math.max(baseData.totalOut, 1)).toFixed(2)}x.`
+            : "Sin ingresos registrados todavía en este periodo.",
+          finalScore >= 65
+            ? "Tu manejo del dinero va por buen camino, sigue así."
+            : "Hay espacio para optimizar tus gastos. Revisa categorías.",
+          "Calificación calculada con datos disponibles localmente.",
+        ];
+        setData({ score: finalScore, status, color, analyses: fallbackAnalyses });
+        setLoading(false);
+      }
+    };
+
+    callAI();
+  }, [dataKey]);
+
+  // Rotación cada 5 segundos
+  useEffect(() => {
+    if (!data?.analyses || data.analyses.length < 2) return;
+    const id = setInterval(() => {
+      setCurrentIdx((i) => (i + 1) % data.analyses.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [data]);
+
+  const dark = useDarkMode();
+
+  // Estado: error
+  if (error) {
+    return (
+      <div className="cc-card" style={{ padding: 20 }}>
+        <div className="cc-label" style={{ marginBottom: 8 }}>⭐ Calificación financiera</div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{error}</div>
+      </div>
+    );
+  }
+
+  // Estado: cargando
+  if (loading || !data) {
+    return (
+      <div className="cc-card" style={{ padding: 20 }}>
+        <div className="cc-label" style={{ marginBottom: 12 }}>⭐ Calificación financiera</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="cc-dots"><span /><span /><span /></div>
+          <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Analizando tu situación…</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
+      {/* Header con gradiente */}
+      <div style={{
+        padding: "18px 20px",
+        background: `linear-gradient(135deg, ${data.color}18 0%, ${data.color}08 100%)`,
+        borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+          <div>
+            <div className="cc-label" style={{ marginBottom: 4 }}>Calificación financiera</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{
+                fontFamily: "'Fraunces', serif", fontSize: 38, fontWeight: 600,
+                color: data.color, letterSpacing: "-.02em", lineHeight: 1,
+              }}>{data.score}</span>
+              <span style={{ fontSize: 14, color: "var(--ink-soft)", fontWeight: 500 }}>/ 100</span>
+            </div>
+          </div>
+          <div style={{
+            padding: "8px 14px", borderRadius: 99,
+            background: `${data.color}20`,
+            color: data.color, fontSize: 13, fontWeight: 700,
+            fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em",
+          }}>
+            {data.status}
+          </div>
+        </div>
+      </div>
+
+      {/* Análisis rotativo */}
+      <div style={{ padding: "16px 20px", minHeight: 64 }}>
+        <div key={currentIdx} style={{
+          fontSize: 14, color: "var(--ink)", lineHeight: 1.5,
+          animation: "ccFadeIn .4s ease",
+        }}>
+          {data.analyses[currentIdx]}
+        </div>
+        {/* Indicadores de paginación */}
+        <div style={{ display: "flex", gap: 5, marginTop: 12, justifyContent: "center" }}>
+          {data.analyses.map((_, i) => (
+            <span key={i} style={{
+              width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
+              background: i === currentIdx ? data.color : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
+              transition: "all .3s ease",
+            }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===== Tarjeta de consejos financieros con IA (Pro) ===================== */
+function FinancialTipsCard({ config, txs, dateRange, accView, demoMode = false }) {
+  const [tips, setTips] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const baseData = (() => {
+    const filtered = txsInRange(txs, dateRange).filter(t =>
+      accView === "all" ? true : t.accountId === accView
+    );
+    const totalIn = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
+    const totalOut = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    const byCat = {};
+    filtered.filter(t => t.type === "expense" && t.categoryId).forEach(t => {
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    });
+    const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, amt]) => {
+      const c = config.categories.find(c => c.id === id);
+      return c ? `${c.name} (${fmtMxn(amt)})` : null;
+    }).filter(Boolean).join(", ");
+    return { totalIn, totalOut, txCount: filtered.length, topCats };
+  })();
+
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}`;
+
+  useEffect(() => {
+    const fallback = [
+      "Aparta 10% de cada ingreso para tu fondo de emergencia.",
+      "Revisa tus suscripciones mensuales y cancela las que no uses.",
+      "Lleva un objetivo de ahorro mensual concreto y específico.",
+      "Compara cuánto gastas en restaurantes vs súper. Cocinar más ahorra mucho.",
+      "Pregúntate si cada gasto vale la pena antes de registrarlo.",
+    ];
+
+    if (baseData.txCount < 3) {
+      if (demoMode) {
+        setTips(fallback);
+        return;
+      }
+      setTips(null);
+      setError("Necesitas al menos 3 movimientos para recibir consejos.");
+      return;
+    }
+
+    setError(false);
+
+    if (demoMode) {
+      setTips(fallback);
+      return;
+    }
+
+    setLoading(true);
+
+    const callAI = async () => {
+      try {
+        const systemPrompt = `Eres un asesor financiero amigable. Genera EXACTAMENTE 5 consejos cortos y prácticos para mejorar las finanzas del usuario basado en sus datos. Cada consejo debe tener máximo 25 palabras, ser específico, accionable y útil. Usa lenguaje casual en español mexicano. NO uses markdown. Responde SOLO con un array JSON: ["consejo 1", "consejo 2", "consejo 3", "consejo 4", "consejo 5"]`;
+        const userMsg = `Datos del usuario:
+- Ingresos: ${fmtMxn(baseData.totalIn)}
+- Gastos: ${fmtMxn(baseData.totalOut)}
+- Flujo: ${fmtMxn(baseData.totalIn - baseData.totalOut)}
+- Top categorías de gasto: ${baseData.topCats || "sin datos"}
+- Total movimientos: ${baseData.txCount}
+
+Genera 5 consejos prácticos personalizados.`;
+
+        const raw = await callClaude(systemPrompt, [{ role: "user", content: userMsg }]);
+        const clean = raw.replace(/```json|```/g, "").trim();
+        const start = clean.indexOf("[");
+        const end = clean.lastIndexOf("]");
+        const arr = JSON.parse(clean.slice(start, end + 1));
+
+        setTips(arr.slice(0, 5));
+        setLoading(false);
+      } catch (e) {
+        setTips(fallback);
+        setLoading(false);
+      }
+    };
+
+    callAI();
+  }, [dataKey]);
+
+  useEffect(() => {
+    if (!tips || tips.length < 2) return;
+    const id = setInterval(() => {
+      setCurrentIdx((i) => (i + 1) % tips.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [tips]);
+
+  const dark = useDarkMode();
+
+  if (error) {
+    return (
+      <div className="cc-card" style={{ padding: 20 }}>
+        <div className="cc-label" style={{ marginBottom: 8 }}>💡 Consejos financieros</div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{error}</div>
+      </div>
+    );
+  }
+
+  if (loading || !tips) {
+    return (
+      <div className="cc-card" style={{ padding: 20 }}>
+        <div className="cc-label" style={{ marginBottom: 12 }}>💡 Consejos financieros</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="cc-dots"><span /><span /><span /></div>
+          <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Generando consejos para ti…</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{
+        padding: "16px 20px 12px",
+        background: dark ? "rgba(245, 158, 11, .08)" : "rgba(245, 158, 11, .06)",
+        borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 18 }}>💡</span>
+          <span className="cc-label" style={{ marginBottom: 0 }}>Tip personalizado</span>
+        </div>
+      </div>
+
+      {/* Tip rotativo */}
+      <div style={{ padding: "18px 20px", minHeight: 80 }}>
+        <div key={currentIdx} style={{
+          fontSize: 14.5, color: "var(--ink)", lineHeight: 1.55,
+          animation: "ccFadeIn .4s ease",
+          fontWeight: 400,
+        }}>
+          {tips[currentIdx]}
+        </div>
+        {/* Indicadores */}
+        <div style={{ display: "flex", gap: 5, marginTop: 14, justifyContent: "center" }}>
+          {tips.map((_, i) => (
+            <span key={i} style={{
+              width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
+              background: i === currentIdx ? "#F59E0B" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
+              transition: "all .3s ease",
+            }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ============================= DASHBOARD ================================= */
@@ -6720,6 +7314,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       {/* === secciones según orden y on/off === */}
       {sections.filter((s) => s.on).map((s, idx) => {
         const delay = `${idx * 60}ms`;
+        const userPlan = getUserPlan(config);
+        const requiredPlan = HOME_SECTION_PLANS[s.id] || "free";
+        const isLocked = !planMeets(userPlan, requiredPlan);
+        const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
 
         if (s.id === "balance") return (
           <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
@@ -6731,19 +7329,24 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "kpis") {
-          if (!hasFeature(config, "income_vs_expense")) return null;
-          return (
-          <div key={s.id} style={{ display: "flex", gap: 10 }} className="cc-fade">
-            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
-              <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{fmt(inc)}</div>
+          const kpisNode = (
+            <div style={{ display: "flex", gap: 10 }} className="cc-fade">
+              <div className="cc-card" style={{ flex: 1, padding: 14 }}>
+                <div className="cc-label">Ingresos · {rangeLabel(dateRange)}</div>
+                <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--ink)" }}>{fmt(inc)}</div>
+              </div>
+              <div className="cc-card" style={{ flex: 1, padding: 14 }}>
+                <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
+                <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
+              </div>
             </div>
-            <div className="cc-card" style={{ flex: 1, padding: 14 }}>
-              <div className="cc-label">Gastos · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 21, fontWeight: 500, color: "var(--coral)" }}>{fmt(exp)}</div>
-            </div>
-          </div>
-        );
+          );
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              {kpisNode}
+            </LockedBlur>
+          );
+          return <div key={s.id}>{kpisNode}</div>;
         }
 
         if (s.id === "byCategory") return (
@@ -6812,38 +7415,44 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         );
 
         if (s.id === "trend") {
-          if (!hasFeature(config, "income_vs_expense")) return (
-            <LockedSection key={s.id} label="Mini gráfica de saldo" icon="📈" plan="lite"
-              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
+          const trendNode = (
+            <div className="cc-card" style={{ padding: 20 }}>
+              <div className="cc-label" style={{ marginBottom: 8 }}>Saldo · últimos 30 días</div>
+              {trendPoints.length < 2 ? (
+                <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Datos insuficientes.</div>
+              ) : (
+                <LineChart points={trendPoints} />
+              )}
+            </div>
           );
-          return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
-            <div className="cc-label" style={{ marginBottom: 8 }}>Saldo · últimos 30 días</div>
-            {trendPoints.length < 2 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Datos insuficientes.</div>
-            ) : (
-              <LineChart points={trendPoints} />
-            )}
-          </div>
-        );
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              {trendNode}
+            </LockedBlur>
+          );
+          return <div key={s.id}>{trendNode}</div>;
         }
 
         if (s.id === "topExpenses") {
-          if (!hasFeature(config, "dashboard_top_expenses")) return null;
-          return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
-            <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
-            {topExpenses.length === 0 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin gastos en el periodo.</div>
-            ) : (
-              topExpenses.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
-            )}
-          </div>
-        );
+          const topNode = (
+            <div className="cc-card" style={{ padding: 20 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>Gastos más grandes · {rangeLabel(dateRange)}</div>
+              {topExpenses.length === 0 ? (
+                <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin gastos en el periodo.</div>
+              ) : (
+                topExpenses.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
+              )}
+            </div>
+          );
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              {topNode}
+            </LockedBlur>
+          );
+          return <div key={s.id}>{topNode}</div>;
         }
 
         if (s.id === "incVsExp") {
-          if (!hasFeature(config, "income_vs_expense")) return null;
           const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
           const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
           const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
@@ -6859,8 +7468,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             });
           }
           const hiddenCount = view === "all" ? accHidden.length : (incCatsHidden.length + expCatsHidden.length);
-          return (
-            <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+          const incVsExpNode = (
+            <div className="cc-card" style={{ padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                 marginBottom: 6, gap: 8 }}>
                 <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
@@ -6896,25 +7505,71 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 onChangeKind={(k) => saveConfig(setPersonalize(config, "incVsExpChartKind", k, accView))} />
             </div>
           );
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              {incVsExpNode}
+            </LockedBlur>
+          );
+          return <div key={s.id}>{incVsExpNode}</div>;
         }
 
         if (s.id === "recent") {
-          if (!hasFeature(config, "dashboard_recent")) return (
-            <LockedSection key={s.id} label="Movimientos recientes" icon="🕐" plan="lite"
-              onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
+          // Free: muestra solo 5 + chip "Ver todos con Lite →"
+          // Lite/Pro: muestra hasta 10
+          const limit = userPlan === "free" ? 5 : 10;
+          const items = scopedTxs.slice(0, limit);
+          const hasMore = scopedTxs.length > limit;
+          return (
+            <div key={s.id} className="cc-card" style={{ padding: 20 }}>
+              <div className="cc-label" style={{ marginBottom: 10 }}>
+                Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
+              </div>
+              {scopedTxs.length === 0 ? (
+                <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin movimientos todavía.</div>
+              ) : (
+                items.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
+              )}
+              {userPlan === "free" && hasMore && (
+                <div onClick={() => setUpgradeFeature && setUpgradeFeature("lite")}
+                  style={{
+                    marginTop: 12, padding: "10px 14px", borderRadius: 10,
+                    background: "rgba(91,110,232,.08)",
+                    border: "1px dashed rgba(91,110,232,.25)",
+                    textAlign: "center", cursor: "pointer",
+                    transition: "background .15s ease",
+                  }}>
+                  <span style={{
+                    fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}>
+                    Ver todos los {scopedTxs.length} movimientos con Lite →
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (s.id === "financialScore") {
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              <FinancialScoreCard config={config} txs={txs} dateRange={dateRange} accView={view} demoMode />
+            </LockedBlur>
           );
           return (
-          <div key={s.id} className="cc-card" style={{ padding: 20 }}>
-            <div className="cc-label" style={{ marginBottom: 10 }}>
-              Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
-            </div>
-            {scopedTxs.length === 0 ? (
-              <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin movimientos todavía.</div>
-            ) : (
-              scopedTxs.slice(0, 5).map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
-            )}
-          </div>
-        );
+            <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view} />
+          );
+        }
+
+        if (s.id === "financialTips") {
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              <FinancialTipsCard config={config} txs={txs} dateRange={dateRange} accView={view} demoMode />
+            </LockedBlur>
+          );
+          return (
+            <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view} />
+          );
         }
 
         return null;
@@ -7113,7 +7768,36 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
     [next[i], next[j]] = [next[j], next[i]];
     apply(next);
   };
-  const reset = () => apply(DEFAULT_SECTIONS.map((s) => ({ ...s })));
+  const reset = () => {
+    // Reset al default según plan del usuario
+    const userPlan = config ? getUserPlan(config) : "free";
+    let defaults;
+    if (userPlan === "pro") {
+      defaults = [
+        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
+        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "kpis", on: true },
+        { id: "topExpenses", on: false }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
+      ];
+    } else if (userPlan === "lite") {
+      defaults = [
+        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
+        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "topExpenses", on: false },
+        { id: "kpis", on: true }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
+      ];
+    } else {
+      defaults = [
+        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
+        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "kpis", on: true },
+        { id: "topExpenses", on: false }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
+      ];
+    }
+    // Adjuntar labels
+    const withLabels = defaults.map((d) => {
+      const def = DEFAULT_SECTIONS.find((x) => x.id === d.id);
+      return { ...d, label: def?.label || d.id };
+    });
+    apply(withLabels);
+  };
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
@@ -7153,16 +7837,11 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
                   letterSpacing: "-.01em",
                   fontFamily: "'Montserrat', sans-serif" }}>{s.label}</span>
                 {(() => {
-                  const planMap = {
-                    kpis: "pro", incVsExp: "pro", trend: "lite", topExpenses: "lite",
-                    recent: "lite", balance: "lite",
-                  };
-                  const needed = planMap[s.id];
+                  const planMap = HOME_SECTION_PLANS;
+                  const needed = planMap[s.id] || "free";
                   const userPlan = config ? getUserPlan(config) : "free";
-                  const hasIt = !needed || needed === "free" ||
-                    (needed === "lite" && (userPlan === "lite" || userPlan === "pro")) ||
-                    (needed === "pro" && userPlan === "pro");
-                  if (needed && !hasIt) return (
+                  const hasIt = planMeets(userPlan, needed);
+                  if (needed !== "free" && !hasIt) return (
                     <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
                       padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
                       background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(91,110,232,.12)",
@@ -9885,9 +10564,10 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
 const CHART_PALETTE = ["#5B6EE8", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
 
-function CategoryChart({ rows, type, onPick }) {
+function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart }) {
   // rows: [{cat, amt}]
-  const [chartType, setChartType] = useState("donut");
+  // freeOnlyBars: si true, donut y treemap están bloqueados (mostrar chip upgrade)
+  const [chartType, setChartType] = useState(freeOnlyBars ? "bars" : "donut");
   const [activeIdx, setActiveIdx] = useState(null);
   const total = rows.reduce((s, r) => s + r.amt, 0);
   if (!rows.length) return <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>No hay datos en el periodo.</div>;
@@ -9897,20 +10577,40 @@ function CategoryChart({ rows, type, onPick }) {
 
   const TYPES = [["bars", "Barras"], ["donut", "Dona"], ["treemap", "Árbol"]];
 
+  const handleTypeClick = (k) => {
+    if (freeOnlyBars && k !== "bars") {
+      if (onLockedChart) onLockedChart();
+      return;
+    }
+    setChartType(k);
+    setActiveIdx(null);
+  };
+
   return (
     <div>
       {/* switch de tipo */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        {TYPES.map(([k, l]) => (
-          <button key={k} onClick={() => { setChartType(k); setActiveIdx(null); }}
-            style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-              fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
-              background: chartType === k ? "#5B6EE8" : "var(--surface)",
-              color: chartType === k ? "#fff" : "var(--ink-soft)",
-              border: `1px solid ${chartType === k ? "#5B6EE8" : "var(--line)"}` }}>
-            {l}
-          </button>
-        ))}
+        {TYPES.map(([k, l]) => {
+          const isLocked = freeOnlyBars && k !== "bars";
+          return (
+            <button key={k} onClick={() => handleTypeClick(k)}
+              style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
+                background: chartType === k ? "#5B6EE8" : "var(--surface)",
+                color: chartType === k ? "#fff" : (isLocked ? "var(--ink-faint)" : "var(--ink-soft)"),
+                border: `1px solid ${chartType === k ? "#5B6EE8" : "var(--line)"}`,
+                display: "inline-flex", alignItems: "center", gap: 4, opacity: isLocked ? 0.7 : 1 }}>
+              {isLocked && (
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              )}
+              {l}
+            </button>
+          );
+        })}
       </div>
 
       {chartType === "donut" && (
@@ -10352,16 +11052,32 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   // secciones configurables (orden + visibilidad)
   const STATS_DEFAULT = [
     { id: "summary", label: "Resumen ingresos/gastos", on: true },
-    { id: "incVsExp", label: "Ingresos vs gastos", on: true },
-    { id: "topCat", label: "En lo que más gastaste", on: true },
-    { id: "incCats", label: "Ingresos por categoría", on: true },
     { id: "expCats", label: "Gastos por categoría", on: true },
+    { id: "topCat", label: "En lo que más gastaste", on: true },
+    { id: "trend", label: "Mini gráfica de tendencia", on: true },
+    { id: "incVsExp", label: "Ingresos vs gastos", on: true },
+    { id: "incCats", label: "Ingresos por categoría", on: false },
+    { id: "kpis", label: "Indicadores (KPIs)", on: true },
+    { id: "areaFlow", label: "Acumulado: ingresos vs gastos", on: true },
     { id: "catTrend", label: "Tendencia por categoría", on: false },
-    { id: "kpis", label: "Indicadores (KPIs)", on: false },
-    { id: "areaFlow", label: "Acumulado: ingresos vs gastos", on: false },
-    { id: "trend", label: "Evolución de saldo", on: false },
+    { id: "balance", label: "Evolución de saldo", on: false },
     { id: "reports", label: "Reportes", on: true },
   ];
+
+  // Plan requerido por cada sección de estadísticas
+  const STATS_SECTION_PLANS = {
+    summary: "free",
+    expCats: "free",
+    topCat: "lite",
+    trend: "lite",
+    incVsExp: "pro",
+    incCats: "lite",
+    kpis: "pro",
+    areaFlow: "pro",
+    catTrend: "lite",
+    balance: "pro",
+    reports: "free",
+  };
   const statsSections = (() => {
     const saved = getPersonalize(config, "statsSections", accView) || [];
     if (!saved.length) return STATS_DEFAULT;
@@ -10536,23 +11252,30 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       ) : (
         <>
           {statsSections.filter((s) => s.on).map((s) => {
+            // Sistema de blur: cada sección sabe su plan requerido
+            const userPlan = getUserPlan(config);
+            const requiredPlan = STATS_SECTION_PLANS[s.id] || "free";
+            const isLocked = !planMeets(userPlan, requiredPlan);
+            const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
+
             if (s.id === "summary") return (
               <ResumenAnimCard key={s.id}
                 rangeIncome={rangeIncome} rangeExpense={rangeExpense} rangeFlow={rangeFlow}
                 dateRange={dateRange} openDetail={openDetail} />
             );
 
-            // Free solo puede ver resumen
-            if (!hasFeature(config, "stats_full") && s.id !== "summary") return (
-              <LockedSection key={s.id} label={s.label || s.id} icon="📊" plan="lite"
-                onUpgrade={() => setUpgradeFeature("recurring")} />
-            );
+            // Helper para wrappear cualquier nodo de stats con LockedBlur si está bloqueado
+            const renderWith = (node) => {
+              if (node === null) return null;
+              if (isLocked) return (
+                <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+                  {node}
+                </LockedBlur>
+              );
+              return <div key={s.id}>{node}</div>;
+            };
 
             if (s.id === "incVsExp") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="Ingresos vs gastos" icon="📊" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
-              );
               const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
               const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
               const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
@@ -10567,8 +11290,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                 });
               }
               const hiddenCount = view === "all" ? accHidden.length : (incCatsHidden.length + expCatsHidden.length);
-              return (
-                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 6, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
@@ -10607,23 +11330,19 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "kpis") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="Indicadores KPI" icon="📈" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
+              return renderWith(
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
+                  <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
+                </div>
               );
-              return (
-              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <KpiCard label="Gasto promedio diario" value={fmt(avgDaily)} color="var(--coral)" />
-                <KpiCard label="Movimientos en el periodo" value={String(txCount)} color="var(--ink)" />
-              </div>
-            );
             }
 
             if (s.id === "incCats" && incRows.length > 0) {
               const incCatsHidden = getPersonalize(config, "statsIncCatsHidden", accView) || [];
               const filteredIncRows = incRows.filter((r) => !incCatsHidden.includes(r.cat.id));
-              return (
-                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 12, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos por categoría</div>
@@ -10653,8 +11372,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             if (s.id === "expCats" && expRows.length > 0) {
               const expCatsHidden = getPersonalize(config, "statsExpCatsHidden", accView) || [];
               const filteredExpRows = expRows.filter((r) => !expCatsHidden.includes(r.cat.id));
-              return (
-                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 12, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Gastos por categoría</div>
@@ -10675,21 +11394,18 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                     </button>
                   </div>
                   {filteredExpRows.length > 0
-                    ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail} />
+                    ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail}
+                        freeOnlyBars={userPlan === "free"} onLockedChart={() => setUpgradeFeature && setUpgradeFeature("lite")} />
                     : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
                 </div>
               );
             }
 
             if (s.id === "catTrend") {
-              if (!hasFeature(config, "stats_full")) return (
-                <LockedSection key={s.id} label="Tendencia por categoría" icon="📈" plan="lite"
-                  onUpgrade={() => setUpgradeFeature("recurring")} />
-              );
               if (!expRows.length) return null;
               const catTrendShown = getPersonalize(config, "statsCatTrendShown", accView);
-              return (
-                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 10, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Tendencia por categoría</div>
@@ -10716,58 +11432,45 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "reports") {
-              if (!hasFeature(config, "reports")) return (
-                <LockedSection key={s.id} label="Reportes PDF y Excel" icon="📄" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("reports")} />
-              );
-              if (incRows.length > 0 || expRows.length > 0) return (
-                <ReportsCard key={s.id} config={config} txs={scopedTxs} dateRange={dateRange}
+              if (incRows.length > 0 || expRows.length > 0) return renderWith(
+                <ReportsCard config={config} txs={scopedTxs} dateRange={dateRange}
                   incRows={incRows} expRows={expRows} accView={view} saveConfig={saveConfig} />
               );
+              return null;
             }
 
             if (s.id === "areaFlow") {
-              if (!hasFeature(config, "income_vs_expense")) return (
-                <LockedSection key={s.id} label="Acumulado: ingresos vs gastos" icon="📊" plan="pro"
-                  onUpgrade={() => setUpgradeFeature("income_vs_expense")} />
-              );
               if (!(incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0))) return null;
-              return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 10 }}>Acumulado · {rangeLabel(dateRange)}</div>
-                <AreaChart incomePoints={incomeAccPoints} expensePoints={expenseAccPoints} />
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
-                  Lo que has ingresado y gastado acumulado, día a día
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
+                  <div className="cc-label" style={{ marginBottom: 10 }}>Acumulado · {rangeLabel(dateRange)}</div>
+                  <AreaChart incomePoints={incomeAccPoints} expensePoints={expenseAccPoints} />
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
+                    Lo que has ingresado y gastado acumulado, día a día
+                  </div>
                 </div>
-              </div>
-            );
+              );
             }
 
-            if (s.id === "trend") {
-              if (!hasFeature(config, "stats_trend")) return (
-                <LockedSection key={s.id} label="Evolución de saldo" icon="📈" plan="lite"
-                  onUpgrade={() => setUpgradeFeature("recurring")} />
-              );
+            if (s.id === "trend" || s.id === "balance") {
               if (!(balancePoints.length >= 2)) return null;
-              return (
-              <div key={s.id} className="cc-card" style={{ padding: 18 }}>
-                <div className="cc-label" style={{ marginBottom: 10 }}>Saldo · {rangeLabel(dateRange)}</div>
-                <LineChart points={balancePoints} />
-                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
-                  Desliza sobre la gráfica para ver cualquier día
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
+                  <div className="cc-label" style={{ marginBottom: 10 }}>
+                    {s.id === "balance" ? "Evolución de saldo" : "Mini gráfica de tendencia"} · {rangeLabel(dateRange)}
+                  </div>
+                  <LineChart points={balancePoints} />
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
+                    Desliza sobre la gráfica para ver cualquier día
+                  </div>
                 </div>
-              </div>
-            );
+              );
             }
 
             if (s.id === "topCat") {
-              if (!hasFeature(config, "stats_expCats")) return (
-                <LockedSection key={s.id} label="En lo que más gastaste" icon="💸" plan="lite"
-                  onUpgrade={() => setUpgradeFeature("recurring")} />
-              );
               if (!expRows.length) return null;
-              return (
-                <div key={s.id} className="cc-card" style={{ padding: 18 }}>
+              return renderWith(
+                <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 6, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>En lo que más gastaste</div>
@@ -10882,8 +11585,9 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
   const dark = useDarkMode();
 
   const statsPlanMap = {
-    incVsExp: "pro", kpis: "pro", areaFlow: "pro", catTrend: "lite",
-    trend: "lite", topCat: "lite", expCats: "lite", incCats: "lite",
+    summary: "free", expCats: "free", reports: "free",
+    topCat: "lite", trend: "lite", catTrend: "lite", incCats: "lite",
+    incVsExp: "pro", kpis: "pro", areaFlow: "pro", balance: "pro",
   };
   const userPlan = config ? getUserPlan(config) : "free";
 
