@@ -4741,9 +4741,6 @@ const SUGGESTED_INCOME = [
   { name:"Bonos / Comisiones", emoji:"🎁" },
   { name:"Aguinaldo / PTU", emoji:"💸" },
   { name:"Regalo / Apoyo familiar", emoji:"💝" },
-  { name:"Reembolso amigos", emoji:"🔁", passThrough:true },
-  { name:"Reembolso trabajo", emoji:"🧾" },
-  { name:"Devoluciones", emoji:"↩️" },
   { name:"Pensión", emoji:"👵" },
   { name:"Otros ingresos", emoji:"💰" },
 ];
@@ -4751,18 +4748,13 @@ const SUGGESTED_INCOME = [
 const SUGGESTED_EXPENSE = [
   { name:"Súper / Despensa", emoji:"🛒" },
   { name:"Restaurantes", emoji:"🍔" },
-  { name:"Café / Snacks", emoji:"☕" },
   { name:"Transporte / Gasolina", emoji:"⛽" },
-  { name:"Uber / Taxis", emoji:"🚕" },
   { name:"Casa / Renta", emoji:"🏠" },
   { name:"Servicios (luz, agua, internet)", emoji:"💡" },
   { name:"Salud / Médico", emoji:"🏥" },
   { name:"Suscripciones", emoji:"📱" },
   { name:"Entretenimiento", emoji:"🎬" },
   { name:"Ropa / Compras", emoji:"👕" },
-  { name:"Educación", emoji:"📚" },
-  { name:"Mascotas", emoji:"🐶" },
-  { name:"Viajes", emoji:"✈️" },
   { name:"Otros gastos", emoji:"📦" },
 ];
 
@@ -4784,9 +4776,15 @@ function ManualOnboarding({ onDone }) {
   const bgVideoSrc = isCapacitorPS ? (dark ? "./zafi-bg-dark.mp4" : "./zafi-bg.mp4") : (dark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4");
 
   const [step, setStep] = useState(1); // 1=ingresos, 2=gastos
-  // Estado: lista completa con on/off y custom flag
+  // Reducir defaults para gastos (4 esenciales)
   const [incomeCats, setIncomeCats] = useState(SUGGESTED_INCOME.map(c => ({ ...c, on: ["Sueldo","Otros ingresos"].includes(c.name), custom: false })));
-  const [expenseCats, setExpenseCats] = useState(SUGGESTED_EXPENSE.map(c => ({ ...c, on: ["Súper / Despensa","Restaurantes","Transporte / Gasolina","Casa / Renta","Servicios (luz, agua, internet)","Otros gastos"].includes(c.name), custom: false })));
+  const [expenseCats, setExpenseCats] = useState(SUGGESTED_EXPENSE.map(c => ({ ...c, on: ["Súper / Despensa","Casa / Renta","Servicios (luz, agua, internet)","Otros gastos"].includes(c.name), custom: false })));
+
+  // Ref para resetear scroll cuando cambia de step
+  const listScrollRef = useRef(null);
+  useEffect(() => {
+    if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
+  }, [step]);
 
   // Modal para agregar categoría custom
   const [showAddModal, setShowAddModal] = useState(false);
@@ -4903,7 +4901,7 @@ function ManualOnboarding({ onDone }) {
           </div>
 
           {/* Lista scrollable */}
-          <div style={{ overflowY:"auto", flex:1, marginBottom:14, paddingRight:4 }}>
+          <div ref={listScrollRef} style={{ overflowY:"auto", flex:1, marginBottom:14, paddingRight:4 }}>
             {cats.map(c => (
               <button key={c.name} onClick={() => toggleCat(step === 1 ? "income" : "expense", c.name)}
                 style={{
@@ -4948,18 +4946,6 @@ function ManualOnboarding({ onDone }) {
               }}>
               <span style={{ fontSize:18, fontWeight:300 }}>+</span> Agregar categoría
             </button>
-
-            {/* Info sobre "de paso" */}
-            {step === 1 && (
-              <div style={{ marginTop:14, padding:"12px 14px", borderRadius:12,
-                background: dark ? "rgba(91,110,232,.08)" : "rgba(91,110,232,.05)",
-                border:`1px solid ${dark ? "rgba(91,110,232,.18)" : "rgba(91,110,232,.15)"}`,
-                fontSize:12, color:inkSoft, lineHeight:1.55 }}>
-                <strong style={{ color:inkColor }}>¿Qué es "De paso"?</strong> Son ingresos que solo
-                pasan por tu cuenta pero no son tuyos. Ejemplo: pagaste la comida con amigos y luego
-                te transfieren su parte. Marcarlos como "de paso" evita que cuenten como ingresos reales.
-              </div>
-            )}
           </div>
 
           {/* Botones */}
@@ -5018,32 +5004,6 @@ function ManualOnboarding({ onDone }) {
                   }}>{e}</button>
               ))}
             </div>
-
-            {step === 1 && (
-              <button onClick={() => setNewIsPassthrough(!newIsPassthrough)}
-                style={{
-                  width:"100%", display:"flex", alignItems:"center", gap:10,
-                  padding:"12px 14px", borderRadius:12, marginBottom:18,
-                  border:`1.5px solid ${newIsPassthrough ? "#5B6EE8" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
-                  background: newIsPassthrough
-                    ? (dark ? "rgba(91,110,232,.15)" : "rgba(91,110,232,.08)")
-                    : "transparent",
-                  cursor:"pointer", fontFamily:FONT, textAlign:"left",
-                }}>
-                <span style={{
-                  width:20, height:20, borderRadius:5,
-                  border:`2px solid ${newIsPassthrough ? "#5B6EE8" : (dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.2)")}`,
-                  background: newIsPassthrough ? "#5B6EE8" : "transparent",
-                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-                }}>
-                  {newIsPassthrough && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                </span>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13.5, fontWeight:600, color:inkColor }}>Es un ingreso "de paso"</div>
-                  <div style={{ fontSize:11.5, color:inkSoft, marginTop:2 }}>Dinero que solo pasa por tu cuenta (reembolsos)</div>
-                </div>
-              </button>
-            )}
 
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowAddModal(false)}
@@ -5392,6 +5352,32 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       setTourStep(4);
     }
   }, [tab, tourStep]);
+
+  // Fallback: listener directo en el botón tab-stats por si el cambio de tab no
+  // dispara el efecto (por ejemplo si el bottom nav está oculto cuando el tour
+  // detecta el cambio). Avanza al detectar click en el tab.
+  useEffect(() => {
+    if (tourStep !== 3) return;
+    const handler = () => {
+      // Pequeño delay para que el setTab del bottom nav haga su trabajo primero
+      setTimeout(() => setTourStep(prev => prev === 3 ? 4 : prev), 200);
+    };
+    const observer = setInterval(() => {
+      const btn = document.querySelector('[data-tour="tab-stats"]');
+      if (btn && !btn._tourBound) {
+        btn._tourBound = true;
+        btn.addEventListener("click", handler);
+      }
+    }, 300);
+    return () => {
+      clearInterval(observer);
+      const btn = document.querySelector('[data-tour="tab-stats"]');
+      if (btn) {
+        btn._tourBound = false;
+        btn.removeEventListener("click", handler);
+      }
+    };
+  }, [tourStep]);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
   const [accView, setAccView] = useState("all");
   // Aplica la cuenta de inicio cuando config carga (defaultHomeView)
@@ -5533,7 +5519,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} saveTxs={saveTxs} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
           {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} accView={accView} setAccView={setAccView} />}
@@ -6998,11 +6984,11 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
     {
       id: "delete",
       title: "¿Era de prueba?",
-      body: "Desliza el movimiento hacia la izquierda para borrarlo. Puedes editar o eliminar cualquier movimiento cuando quieras.",
+      body: "Desliza el movimiento hacia la izquierda para borrarlo, o tócalo para editarlo. Puedes hacerlo con cualquier movimiento.",
       targetSelector: '[data-tour="recent-section"]',
       placement: "top",
       waitForAction: false,
-      cta: "Entendido",
+      cta: "Entendido, continuar",
     },
     {
       id: "stats",
@@ -7827,7 +7813,7 @@ Genera 5 consejos prácticos personalizados.`;
 }
 
 /* ============================= DASHBOARD ================================= */
-function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, onConfiguringChange, accView, setAccView }) {
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView }) {
   // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
   const view = accView;
   const setView = setAccView;
@@ -8247,7 +8233,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               {scopedTxs.length === 0 ? (
                 <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin movimientos todavía.</div>
               ) : (
-                items.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit} />)
+                items.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit}
+                  onDelete={saveTxs ? (id) => saveTxs(txs.filter(x => x.id !== id)) : undefined} />)
               )}
               {userPlan === "free" && hasMore && (
                 <div onClick={() => setUpgradeFeature && setUpgradeFeature("lite")}
@@ -8678,6 +8665,75 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   const acc = config.accounts.find((a) => a.id === t.accountId);
   const multi = config.accounts.length > 1;
 
+  // Swipe-to-delete state
+  const [swipeX, setSwipeX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipeLocked = useRef(false); // true cuando ya decidimos que es swipe horizontal
+  const swipeDirection = useRef(null); // "h" | "v" | null
+
+  const SWIPE_THRESHOLD = 70; // distancia para revelar el botón delete
+  const SWIPE_MAX = 90; // distancia máxima del swipe
+
+  const onTouchStart = (e) => {
+    if (!onDelete || selectable) return;
+    const touch = e.touches[0];
+    touchStartX.current = touch.clientX;
+    touchStartY.current = touch.clientY;
+    swipeLocked.current = false;
+    swipeDirection.current = null;
+    setSwiping(true);
+  };
+
+  const onTouchMove = (e) => {
+    if (!onDelete || selectable || !swiping) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartX.current;
+    const dy = touch.clientY - touchStartY.current;
+
+    // Determinar dirección (solo una vez)
+    if (!swipeLocked.current) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        swipeDirection.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+        swipeLocked.current = true;
+      }
+    }
+
+    // Solo procesamos swipe si es horizontal hacia la izquierda
+    if (swipeDirection.current === "h" && dx < 0) {
+      const clamped = Math.max(-SWIPE_MAX, dx);
+      setSwipeX(clamped);
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!onDelete || selectable) return;
+    setSwiping(false);
+    if (swipeX < -SWIPE_THRESHOLD) {
+      // Mantener abierto
+      setSwipeX(-SWIPE_MAX);
+    } else {
+      // Cerrar
+      setSwipeX(0);
+    }
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    setSwipeX(0);
+    onDelete && onDelete(t.id);
+  };
+
+  const handleRowClick = () => {
+    // Si el row está abierto por swipe, primero cerrar
+    if (swipeX !== 0) {
+      setSwipeX(0);
+      return;
+    }
+    onEdit && onEdit(t);
+  };
+
   // modo selección: toda la fila es checkbox
   if (selectable) {
     return (
@@ -8706,6 +8762,74 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
     );
   }
 
+  // Con onDelete: row con swipe support y botón delete revelable detrás
+  if (onDelete) {
+    return (
+      <div style={{ position: "relative", overflow: "hidden",
+        borderBottom: "1px solid var(--line-soft)" }}>
+        {/* Botón delete detrás de la fila */}
+        <div style={{
+          position: "absolute", top: 0, right: 0, bottom: 0,
+          width: SWIPE_MAX, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "var(--coral)",
+        }}>
+          <button onClick={handleDelete} style={{
+            width: "100%", height: "100%", border: "none", background: "transparent",
+            color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            cursor: "pointer", display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 2,
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+            <span>Borrar</span>
+          </button>
+        </div>
+
+        {/* Fila con transform */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onClick={handleRowClick}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+            background: "var(--paper)",
+            transform: `translateX(${swipeX}px)`,
+            transition: swiping ? "none" : "transform .25s cubic-bezier(.2,.8,.3,1)",
+            cursor: "pointer",
+          }}>
+          <div className="cc-emoji"
+            style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 17, flexShrink: 0 }}>
+            {c ? c.emoji : "❔"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              letterSpacing: "-.01em" }}>
+              {t.description || (c ? c.name : "Movimiento")}
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--ink-soft)", marginTop: 1.5, fontWeight: 500 }}>
+              {c ? c.name : "Sin categoría"}{multi && acc ? ` · ${acc.name}` : ""}
+            </div>
+          </div>
+          <div className="cc-num"
+            style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 15,
+              color: t.type === "income" ? "var(--green)" : "var(--coral)",
+              whiteSpace: "nowrap", letterSpacing: "-.01em" }}>
+            {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
+            <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Sin onDelete: row simple, solo edit por toque
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
       borderBottom: "1px solid var(--line-soft)" }}>
@@ -8742,12 +8866,6 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
         {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
         <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
       </div>
-      {/* delete × */}
-      {onDelete && (
-        <button className="cc-sheet-close"
-          style={{ width: 28, height: 28, fontSize: 16, flexShrink: 0 }}
-          onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}>×</button>
-      )}
     </div>
   );
 }
