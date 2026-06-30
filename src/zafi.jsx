@@ -8766,18 +8766,25 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   if (onDelete) {
     return (
       <div style={{ position: "relative", overflow: "hidden",
-        borderBottom: "1px solid var(--line-soft)" }}>
-        {/* Botón delete detrás de la fila */}
+        borderBottom: "1px solid var(--line-soft)",
+      }}>
+        {/* Botón delete: parte fuera de pantalla (translateX +SWIPE_MAX)
+            y se mueve hacia adentro junto con el swipe negativo del row.
+            Así nunca asoma cuando no hay swipe activo. */}
         <div style={{
           position: "absolute", top: 0, right: 0, bottom: 0,
-          width: SWIPE_MAX, display: "flex", alignItems: "center", justifyContent: "center",
+          width: SWIPE_MAX,
+          display: "flex", alignItems: "center", justifyContent: "center",
           background: "var(--coral)",
+          borderRadius: 10,
+          transform: `translateX(${SWIPE_MAX + swipeX}px)`,
+          transition: swiping ? "none" : "transform .25s cubic-bezier(.2,.8,.3,1)",
         }}>
           <button onClick={handleDelete} style={{
             width: "100%", height: "100%", border: "none", background: "transparent",
-            color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+            color: "#fff", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
             cursor: "pointer", display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 2,
+            alignItems: "center", justifyContent: "center", gap: 3,
           }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -8789,14 +8796,15 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
           </button>
         </div>
 
-        {/* Fila con transform */}
+        {/* Fila con transform — sin background para no romper la transparencia
+            de la card. Como el botón nunca asoma sin swipe, no hay overlap. */}
         <div
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           onClick={handleRowClick}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-            background: "var(--paper)",
+            position: "relative", zIndex: 1,
             transform: `translateX(${swipeX}px)`,
             transition: swiping ? "none" : "transform .25s cubic-bezier(.2,.8,.3,1)",
             cursor: "pointer",
