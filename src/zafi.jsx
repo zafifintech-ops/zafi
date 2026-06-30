@@ -609,6 +609,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6);}50%{box-shadow:0 0 0 4px rgba(91,110,232,1), 0 0 32px rgba(91,110,232,.8);}}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -5005,10 +5006,26 @@ REGLAS DE RESPUESTA:
   // Genera respuesta hardcoded basada en lo que dijo el usuario
   function getFallbackResponse(userText) {
     const t = userText.toLowerCase();
-    // Sobre Lite/Pro/planes
-    if (t.includes("lite") || t.includes("plan") || t.includes("pro ") || t.includes("upgrade") || t.includes("actualizar") || t.includes("saber más") || t.includes("saber mas")) {
+
+    // Respuestas afirmativas que indican "ya quiero terminar" → finalizar setup
+    const isAffirmative = /\b(s[ií]|si una|una está|una esta|listo|ok|okay|adelante|empez|arranq|d[aá]le|claro|por\s*supuesto|aceptar?)\b/.test(t)
+                       || t.includes("arranquemos con free")
+                       || t.includes("sí, una cuenta")
+                       || t.includes("si, una cuenta");
+
+    // Cuando el usuario confirma → terminamos directamente
+    if (isAffirmative) {
       return {
-        msg: "✨ Zafi Lite te da:\n\n• Hasta 3 cuentas\n• Movimientos recurrentes (renta, sueldo, suscripciones)\n• Exportar a Excel\n• Categorización automática\n• Estadísticas completas\n• Sugerencias inteligentes\n\nY Zafi Pro suma cuentas ilimitadas, análisis con IA y reportes en PDF. Puedes activar el plan después desde Configuración. Por ahora arranquemos con Free, ¿te parece?",
+        msg: "¡Perfecto! Voy a configurarte todo con los valores recomendados. Vas a entrar a Zafi en un momento. 🚀",
+        suggs: [],
+        finalize: true,
+      };
+    }
+
+    // Sobre Lite/Pro/planes
+    if (t.includes("lite") || t.includes("plan") || t.includes("pro ") || t.includes("upgrade") || t.includes("actualizar") || t.includes("saber más") || t.includes("saber mas") || t.includes("cuéntame de pro") || t.includes("cuentame de pro")) {
+      return {
+        msg: "✨ Zafi Lite te da:\n\n• Hasta 3 cuentas\n• Movimientos recurrentes (renta, sueldo, suscripciones)\n• Exportar a Excel y PDF\n• Categorización automática\n• Estadísticas completas\n• Sugerencias inteligentes\n\nY Zafi Pro suma cuentas ilimitadas, análisis con IA y reportes completos. Puedes activar el plan después desde Configuración. Por ahora arranquemos con Free, ¿te parece?",
         suggs: ["Sí, arranquemos con Free", "Cuéntame de Pro"],
         upgradeBtn: true,
       };
@@ -5027,17 +5044,17 @@ REGLAS DE RESPUESTA:
         suggs: ["Usar todas", "Solo las básicas", "Quitar algunas"],
       };
     }
-    // Quitar/Agregar
-    if (t.includes("quita") || t.includes("agrega") || t.includes("usar todas") || t.includes("usalas todas") || t.includes("solo las básicas") || t.includes("solo las basicas") || t.includes("sí, una") || t.includes("si, una") || t.includes("una está bien") || t.includes("una esta bien") || t.includes("arranquemos")) {
+    // Quitar/Agregar/Usar
+    if (t.includes("quita") || t.includes("agrega") || t.includes("usar todas") || t.includes("usalas todas") || t.includes("solo las básicas") || t.includes("solo las basicas")) {
       return {
-        msg: "¡Perfecto! Para personalizar tus categorías exactas o quitar las que no uses, te recomiendo usar la configuración recomendada con el botón de abajo y después editarlas desde la sección de Categorías. Es más rápido. 👇",
-        suggs: [],
+        msg: "¡Perfecto! Voy a configurarte las categorías recomendadas. Después puedes editarlas, agregar más o quitar las que no uses desde la sección de Categorías. ¿Listo para entrar a Zafi?",
+        suggs: ["¡Sí, vamos!", "Espera, quiero ver más opciones"],
       };
     }
-    // Default genérico
+    // Default genérico → terminar
     return {
-      msg: "Te recomiendo usar la configuración recomendada con el botón de abajo y después personalizar desde la app. Vas a tener todo listo en segundos. 👇",
-      suggs: [],
+      msg: "Voy a configurarte todo con los valores recomendados para que arranques rápido. Después puedes personalizar todo desde la app. ¿Listo?",
+      suggs: ["¡Sí, vamos!"],
     };
   }
 
@@ -5056,6 +5073,10 @@ REGLAS DE RESPUESTA:
         setMsgs((m) => [...m, { role: "bot", text: fb.msg, upgradeBtn: fb.upgradeBtn }]);
         if (fb.suggs && fb.suggs.length) setSuggs(fb.suggs);
         setBusy(false);
+        // Si el fallback indica finalizar, llamar a onDone con la config recomendada
+        if (fb.finalize) {
+          setTimeout(() => onDone(buildConfig({ plan: "free" })), 1400);
+        }
       }, 400);
       return;
     }
@@ -5076,6 +5097,9 @@ REGLAS DE RESPUESTA:
       const fb = getFallbackResponse(userText);
       setMsgs((m) => [...m, { role: "bot", text: fb.msg, upgradeBtn: fb.upgradeBtn }]);
       if (fb.suggs && fb.suggs.length) setSuggs(fb.suggs);
+      if (fb.finalize) {
+        setTimeout(() => onDone(buildConfig({ plan: "free" })), 1400);
+      }
     }
     setBusy(false);
   }
@@ -6849,6 +6873,8 @@ function loadSections(config, accView) {
 function TourGuide({ step, onAdvance, onSkip, onClose }) {
   const [targetRect, setTargetRect] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [tooltipHeight, setTooltipHeight] = useState(220);
+  const tooltipRef = useRef(null);
   const dark = useDarkMode();
 
   // Definición de los 5 pasos
@@ -6956,6 +6982,16 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
     }
   }, [targetRect, current.targetSelector]);
 
+  // Medir altura real del tooltip cuando cambia el paso
+  useEffect(() => {
+    if (tooltipRef.current) {
+      const h = tooltipRef.current.getBoundingClientRect().height;
+      if (h && Math.abs(h - tooltipHeight) > 8) {
+        setTooltipHeight(h);
+      }
+    }
+  }, [step, mounted]);
+
   if (!mounted) return null;
 
   // Calcular posición del tooltip
@@ -6969,7 +7005,6 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   if (showHalo) {
     const padding = 16;
-    const tooltipHeight = 200; // estimado
     if (current.placement === "bottom") {
       tooltipTop = targetRect.bottom + padding;
       tooltipLeft = Math.max(16, Math.min(
@@ -7007,31 +7042,66 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   return createPortal(
     <>
-      {/* Overlay sutil que NO bloquea interacción con el target */}
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 999990,
-        background: "rgba(0,0,0,.25)",
-        pointerEvents: "none",
-        animation: "ccFadeIn .3s ease",
-      }} />
+      {/* Overlay con "hole" en el target. Bloquea clicks fuera del target.
+          Si no hay halo (modal abierto o target no visible), cubre todo. */}
+      {showHalo ? (
+        <>
+          {/* Cuatro divs alrededor del target — bloquean clicks fuera */}
+          <div onClick={(e) => e.preventDefault()} style={{
+            position: "fixed", top: 0, left: 0, right: 0,
+            height: Math.max(0, targetRect.top - 6),
+            background: "rgba(0,0,0,.45)", zIndex: 999990,
+            animation: "ccFadeIn .3s ease",
+          }} />
+          <div onClick={(e) => e.preventDefault()} style={{
+            position: "fixed", top: targetRect.bottom + 6, left: 0, right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,.45)", zIndex: 999990,
+            animation: "ccFadeIn .3s ease",
+          }} />
+          <div onClick={(e) => e.preventDefault()} style={{
+            position: "fixed",
+            top: targetRect.top - 6, left: 0,
+            width: Math.max(0, targetRect.left - 6),
+            height: targetRect.height + 12,
+            background: "rgba(0,0,0,.45)", zIndex: 999990,
+            animation: "ccFadeIn .3s ease",
+          }} />
+          <div onClick={(e) => e.preventDefault()} style={{
+            position: "fixed",
+            top: targetRect.top - 6, left: targetRect.right + 6,
+            right: 0,
+            height: targetRect.height + 12,
+            background: "rgba(0,0,0,.45)", zIndex: 999990,
+            animation: "ccFadeIn .3s ease",
+          }} />
+        </>
+      ) : (
+        /* Sin target: overlay completo que bloquea todo */
+        <div onClick={(e) => e.preventDefault()} style={{
+          position: "fixed", inset: 0, zIndex: 999990,
+          background: "rgba(0,0,0,.45)",
+          animation: "ccFadeIn .3s ease",
+        }} />
+      )}
 
-      {/* Halo destacando el elemento target (solo si no hay modal cubriendo) */}
+      {/* Borde animado alrededor del target */}
       {showHalo && (
         <div style={{
           position: "fixed",
           top: targetRect.top - 6, left: targetRect.left - 6,
           width: targetRect.width + 12, height: targetRect.height + 12,
           borderRadius: 14,
-          boxShadow: `0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5)`,
+          boxShadow: `0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6)`,
           zIndex: 999991,
           pointerEvents: "none",
           transition: "all .25s cubic-bezier(.4,0,.2,1)",
-          animation: "ccTourPulse 2s ease-in-out infinite",
+          animation: "ccTourBorderPulse 2s ease-in-out infinite",
         }} />
       )}
 
       {/* Tooltip flotante */}
-      <div style={{
+      <div ref={tooltipRef} style={{
         position: "fixed",
         top: tooltipTop, left: tooltipLeft, width: tooltipWidth,
         background: dark ? "#1c1e22" : "#fff",
@@ -7087,7 +7157,8 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
           {/* Título */}
           <div style={{
             fontFamily: "'Fraunces', serif",
-            fontSize: 19, fontWeight: 600, color: "var(--ink)",
+            fontSize: 19, fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1a1a1f",
             letterSpacing: "-.015em", marginBottom: 8, lineHeight: 1.2,
           }}>
             {current.title}
@@ -7095,7 +7166,9 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
           {/* Body */}
           <div style={{
-            fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.55, marginBottom: 16,
+            fontSize: 13.5,
+            color: dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)",
+            lineHeight: 1.55, marginBottom: 16,
           }}>
             {current.body}
           </div>
@@ -7146,6 +7219,41 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
     </>,
     document.body
   );
+}
+
+/* ===== Cache de análisis financieros con IA ============================= */
+/* Guarda en localStorage los análisis/consejos generados, indexados por hash
+   del estado de los datos. Si los datos no cambiaron desde el último análisis,
+   evita llamar a la IA y reutiliza el resultado. TTL de 24 horas. */
+const FIN_CACHE_PREFIX = "zafi_fin_cache_";
+const FIN_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+// Hash simple del dataKey para usar como parte del storage key (más corto)
+function hashKey(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
+function getFinancialCache(kind, accView, dataKey) {
+  try {
+    const storageKey = `${FIN_CACHE_PREFIX}${kind}_${accView}`;
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.dataKey !== dataKey) return null;
+    if (Date.now() - parsed.timestamp > FIN_CACHE_TTL_MS) return null;
+    return parsed.payload;
+  } catch (_) { return null; }
+}
+
+function setFinancialCache(kind, accView, dataKey, payload) {
+  try {
+    const storageKey = `${FIN_CACHE_PREFIX}${kind}_${accView}`;
+    localStorage.setItem(storageKey, JSON.stringify({
+      dataKey, payload, timestamp: Date.now(),
+    }));
+  } catch (_) {}
 }
 
 /* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
@@ -7238,6 +7346,14 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
       return;
     }
 
+    // Revisar cache: si los datos no cambiaron desde el último análisis, reusar
+    const cached = getFinancialCache("score", accView, dataKey);
+    if (cached && cached.score === finalScore && Array.isArray(cached.analyses)) {
+      setData({ score: finalScore, status, color, analyses: cached.analyses });
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const callAI = async () => {
@@ -7258,7 +7374,9 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
         const end = clean.lastIndexOf("]");
         const arr = JSON.parse(clean.slice(start, end + 1));
 
-        setData({ score: finalScore, status, color, analyses: arr.slice(0, 5) });
+        const analysesArr = arr.slice(0, 5);
+        setData({ score: finalScore, status, color, analyses: analysesArr });
+        setFinancialCache("score", accView, dataKey, { score: finalScore, analyses: analysesArr });
         setLoading(false);
       } catch (e) {
         const diff = baseData.totalIn - baseData.totalOut;
@@ -7461,6 +7579,14 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
       return;
     }
 
+    // Revisar cache: si los datos no cambiaron, reusar consejos previos
+    const cached = getFinancialCache("tips", accView, dataKey);
+    if (cached && Array.isArray(cached.tips)) {
+      setTips(cached.tips);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const callAI = async () => {
@@ -7481,7 +7607,9 @@ Genera 5 consejos prácticos personalizados.`;
         const end = clean.lastIndexOf("]");
         const arr = JSON.parse(clean.slice(start, end + 1));
 
-        setTips(arr.slice(0, 5));
+        const tipsArr = arr.slice(0, 5);
+        setTips(tipsArr);
+        setFinancialCache("tips", accView, dataKey, { tips: tipsArr });
         setLoading(false);
       } catch (e) {
         setTips(fallback);
