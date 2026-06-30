@@ -4361,13 +4361,22 @@ function OnboardingChoice({ onPickAssistant, onPickManual }) {
           </div>
 
           <button style={cardOpt} onClick={onPickAssistant}>
-            <span style={{ fontSize:26, lineHeight:1 }}>🤖</span>
+            <div style={{
+              width:44, height:44, borderRadius:14, flexShrink:0,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              background:"linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+              color:"#fff",
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
+            </div>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:15, fontWeight:600, color:inkColor, marginBottom:4 }}>
-                Conmigo, tu asistente
+                Con el asistente
               </div>
               <div style={{ fontSize:12.5, color:inkSoft, lineHeight:1.5 }}>
-                Te ayudo a configurar todo platicando aquí mismo. Es la forma más rápida.
+                Configura todo platicando con el asistente. Es la forma más rápida.
               </div>
             </div>
           </button>
@@ -4375,10 +4384,19 @@ function OnboardingChoice({ onPickAssistant, onPickManual }) {
           <div style={{ height:12 }} />
 
           <button style={cardOpt} onClick={onPickManual}>
-            <span style={{ fontSize:26, lineHeight:1 }}>✍️</span>
+            <div style={{
+              width:44, height:44, borderRadius:14, flexShrink:0,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              background: dark ? "rgba(255,255,255,.08)" : "rgba(27,34,48,.06)",
+              color: inkColor,
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3h18v18H3zM3 9h18M9 21V9"/>
+              </svg>
+            </div>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:15, fontWeight:600, color:inkColor, marginBottom:4 }}>
-                Configurar yo mismo
+                Manualmente
               </div>
               <div style={{ fontSize:12.5, color:inkSoft, lineHeight:1.5 }}>
                 Eliges paso a paso tus fuentes de ingreso y categorías de gasto.
@@ -4477,12 +4495,18 @@ function ManualOnboarding({ onDone }) {
   };
 
   const finish = () => {
-    // Construir el array de categorías como espera la app
+    // Crear la cuenta principal primero para obtener su id
+    const mainAccountId = uid();
+    const mainAccount = { id: mainAccountId, name: "Principal", emoji: "🏦", balance: 0, currency: "MXN" };
+
+    // Construir las categorías asignándoles el accountId (cada cuenta tiene sus propias categorías)
     const finalIncome = incomeCats.filter(c => c.on).map(c => ({
       id: uid(),
       name: c.name,
       emoji: c.emoji,
       type: "income",
+      accountId: mainAccountId,
+      keywords: SEED_KW[norm(c.name).trim()] ? [...SEED_KW[norm(c.name).trim()]] : [],
       ...(c.passThrough ? { passThrough: true } : {}),
     }));
     const finalExpense = expenseCats.filter(c => c.on).map(c => ({
@@ -4490,16 +4514,30 @@ function ManualOnboarding({ onDone }) {
       name: c.name,
       emoji: c.emoji,
       type: "expense",
+      accountId: mainAccountId,
+      keywords: SEED_KW[norm(c.name).trim()] ? [...SEED_KW[norm(c.name).trim()]] : [],
     }));
     // Asegurar al menos una de cada
-    if (finalIncome.length === 0) finalIncome.push({ id: uid(), name: "Otros ingresos", emoji: "💰", type: "income" });
-    if (finalExpense.length === 0) finalExpense.push({ id: uid(), name: "Otros gastos", emoji: "📦", type: "expense" });
+    if (finalIncome.length === 0) finalIncome.push({ id: uid(), name: "Otros ingresos", emoji: "💰", type: "income", accountId: mainAccountId });
+    if (finalExpense.length === 0) finalExpense.push({ id: uid(), name: "Otros gastos", emoji: "📦", type: "expense", accountId: mainAccountId });
+
+    // Secciones del dashboard por default (Free)
+    const defaultSections = [
+      { id: "balance",    on: true  },
+      { id: "byCategory", on: true  },
+      { id: "trend",      on: true  },
+      { id: "kpis",       on: false },
+      { id: "recent",     on: false },
+      { id: "incVsExp",   on: false },
+      { id: "topExpenses",on: false },
+    ];
 
     onDone({
       setupComplete: true,
       accountMode: "multi",
-      accounts: [{ id: uid(), name: "Principal", emoji: "💳", balance: 0, currency: "MXN" }],
+      accounts: [mainAccount],
       categories: [...finalIncome, ...finalExpense],
+      personalize: { "all:homeSections": defaultSections },
     });
   };
 
@@ -6793,22 +6831,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         return null;
       })}
 
-      {/* Mini banner Free → invitación a Lite, solo si es Free */}
-      {getUserPlan(config) === "free" && (
-        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px",
-          borderRadius:14, border:"1px solid var(--line)", background:"var(--surface-2)",
-          fontFamily:"'Montserrat',sans-serif" }}>
-          <span style={{ fontSize:16 }}>✦</span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:"var(--ink)", letterSpacing:"-.01em" }}>
-              Mini gráfica de saldo · Movimientos recientes
-            </div>
-            <div style={{ fontSize:11, color:"var(--ink-faint)", marginTop:2 }}>Disponible en Zafi Lite</div>
-          </div>
-          <div style={{ fontSize:11, fontWeight:700, color:"var(--gold)", letterSpacing:".04em",
-            textTransform:"uppercase", flexShrink:0 }}>LITE</div>
-        </div>
-      )}
+      {/* Banner Free removido — las secciones bloqueadas en el dashboard ya muestran la opción de Lite */}
 
       {configuring && (
         <HomeConfigModal
