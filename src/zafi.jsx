@@ -4278,17 +4278,26 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
           <div>
             <label style={lbl}>Género</label>
             <div style={{ display:"flex", gap:9 }}>
-              {[["male","Masculino"],["female","Femenino"],["other","Otro"]].map(([k,l])=>(
+              {[["male","Masculino"],["female","Femenino"],["other","Otro"]].map(([k,l])=>{
+                const isOn = gender === k;
+                return (
                 <button key={k} type="button" onClick={()=>setGender(k)}
                   style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
-                    fontSize:14, fontWeight:gender===k?600:400,
-                    background: gender===k ? "#1B2230" : "rgba(255,255,255,.7)",
-                    color: gender===k ? "#fff" : "#1B2230",
-                    border:`1px solid ${gender===k ? "#1B2230" : "rgba(0,0,0,.08)"}`,
+                    fontSize:14, fontWeight:isOn?600:500,
+                    background: isOn
+                      ? (dark ? "#F5F5F7" : "#1B2230")
+                      : (dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.7)"),
+                    color: isOn
+                      ? (dark ? "#1B2230" : "#fff")
+                      : (dark ? "#F5F5F7" : "#1B2230"),
+                    border:`1px solid ${isOn
+                      ? (dark ? "#F5F5F7" : "#1B2230")
+                      : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)")}`,
                     transition:"background .15s, color .15s" }}>
                   {l}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
           <div>
@@ -4297,11 +4306,11 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
               <select value={country} onChange={e => setCountry(e.target.value)}
                 style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
                   fontFamily:FONT, color:"transparent", background:"transparent",
-                  border:"none", borderBottom:"1px solid rgba(27,34,48,.15)",
+                  border:"none", borderBottom:`1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(27,34,48,.15)"}`,
                   outline:"none", appearance:"none", cursor:"pointer", position:"relative", zIndex:1 }}>
                 {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>)}
               </select>
-              <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:"#1B2230", pointerEvents:"none" }}>
+              <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:inkColor, pointerEvents:"none" }}>
                 {selCountry.flag} {selCountry.name}
               </div>
             </div>
@@ -4309,7 +4318,9 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
         </div>
         {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:16 }}>{err}</div>}
         <button style={{ width:"100%", padding:15, borderRadius:12, border:"none", marginTop:24,
-          background:"rgba(26,24,21,.82)", color:"#fff", fontSize:14, fontWeight:400,
+          background: dark ? "#F5F5F7" : "rgba(26,24,21,.92)",
+          color: dark ? "#1B2230" : "#fff",
+          fontSize:14, fontWeight:600,
           fontFamily:FONT, cursor:busy?"not-allowed":"pointer", opacity:busy?.65:1,
           letterSpacing:".02em" }}
           onClick={save} disabled={busy}>
@@ -7133,8 +7144,10 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   return createPortal(
     <>
-      {/* Overlay con "hole" en el target. Bloquea clicks fuera del target.
-          Si no hay halo (modal abierto o target no visible), cubre todo. */}
+      {/* Overlay: tres casos
+          1) showHalo: 4 divs alrededor del target (bloquean clicks fuera del target)
+          2) Modal abierto: SIN overlay propio (el modal ya tiene el suyo y debe ser interactuable)
+          3) Sin target ni modal: overlay completo que bloquea todo */}
       {showHalo ? (
         <>
           {/* Cuatro divs alrededor del target — bloquean clicks fuera */}
@@ -7167,8 +7180,11 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
             animation: "ccFadeIn .3s ease",
           }} />
         </>
+      ) : hasOpenModal ? (
+        /* Modal abierto: sin overlay propio para no bloquear el modal */
+        null
       ) : (
-        /* Sin target: overlay completo que bloquea todo */
+        /* Sin target y sin modal: overlay completo que bloquea todo */
         <div onClick={(e) => e.preventDefault()} style={{
           position: "fixed", inset: 0, zIndex: 999990,
           background: "rgba(0,0,0,.45)",
