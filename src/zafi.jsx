@@ -1767,6 +1767,369 @@ function PlanBadge({ plan }) {
   );
 }
 
+/* ===== Modal de downgrade de plan (cuando excedes el límite de cuentas) === */
+/* Se muestra cuando el usuario tiene más cuentas activas de las que su plan
+   actual permite. Bloquea el uso de la app hasta que decide qué hacer con
+   cada cuenta sobrante: archivar (la cuenta + sus movimientos quedan ocultos)
+   o eliminar permanentemente. Las archivadas se restauran automáticamente al
+   subir de plan. */
+function PlanDowngradeModal({ config, txs, saveConfig, saveTxs }) {
+  const plan = getUserPlan(config);
+  const max = getMaxAccountsForPlan(plan);
+  const planLabel = plan === "free" ? "Free" : plan === "lite" ? "Lite" : "Pro";
+  const dark = useDarkMode();
+
+  // Acción seleccionada por cuenta: "keep" | "archive" | "delete"
+  // Las primeras `max` cuentas (más recientes) por default "keep"
+  // Las demás por default "archive"
+  const accountsByActivity = useMemo(() => {
+    // Ordenar cuentas por última actividad (más reciente primero)
+    const lastTxByAcc = new Map();
+    for (const t of txs) {
+      const existing = lastTxByAcc.get(t.accountId);
+      if (!existing || t.date > existing) {
+        lastTxByAcc.set(t.accountId, t.date);
+      }
+    }
+    const activeAccounts = getActiveAccounts(config);
+    return [...activeAccounts].sort((a, b) => {
+      const dateA = lastTxByAcc.get(a.id) || "";
+      const dateB = lastTxByAcc.get(b.id) || "";
+      return dateB.localeCompare(dateA);
+    });
+  }, [config, txs]);
+
+  const [actions, setActions] = useState(() => {
+    const m = {};
+    accountsByActivity.forEach((a, i) => {
+      m[a.id] = i < max ? "keep" : "archive";
+    });
+    return m;
+  });
+
+  const [confirmingDelete, setConfirmingDelete] = useState(null);
+
+  // Resumen por cuenta para mostrar al usuario
+  const accountSummaries = useMemo(() => {
+    return accountsByActivity.map((a) => {
+      const accTxs = txs.filter((t) => t.accountId === a.id);
+      const lastTx = accTxs.reduce((latest, t) => (!latest || t.date > latest) ? t.date : latest, null);
+      const balance = accountBalance(config, txs, a.id);
+      return {
+        account: a,
+        txCount: accTxs.length,
+        lastActivity: lastTx,
+        balance,
+      };
+    });
+  }, [accountsByActivity, txs, config]);
+
+  const keepCount = Object.values(actions).filter((v) => v === "keep").length;
+  const canContinue = keepCount === max || (keepCount <= max && keepCount > 0);
+
+  const apply = () => {
+    if (!canContinue) return;
+
+    const toArchive = [];
+    const toDelete = [];
+    Object.entries(actions).forEach(([id, action]) => {
+      if (action === "archive") toArchive.push(id);
+      if (action === "delete") toDelete.push(id);
+    });
+
+    // Eliminar cuentas + sus categorías + sus movimientos
+    if (toDelete.length > 0) {
+      const delSet = new Set(toDelete);
+      const newAccounts = config.accounts.filter((a) => !delSet.has(a.id));
+      const newCategories = config.categories.filter((c) => !delSet.has(c.accountId));
+      const newTxs = txs.filter((t) => !delSet.has(t.accountId));
+      // Limpiar también de archivedAccountIds por si estaba
+      const newArchived = (config.archivedAccountIds || []).filter((id) => !delSet.has(id));
+      saveTxs(newTxs);
+      saveConfig({
+        ...config,
+        accounts: newAccounts,
+        categories: newCategories,
+        archivedAccountIds: [...newArchived, ...toArchive],
+      });
+    } else {
+      // Solo archivar
+      const newArchived = [...(config.archivedAccountIds || []), ...toArchive];
+      saveConfig({ ...config, archivedAccountIds: newArchived });
+    }
+  };
+
+  const setAction = (id, action) => {
+    setActions((prev) => {
+      const next = { ...prev, [id]: action };
+      // Si está marcando "keep" pero ya hay max, convertir el más viejo en archive
+      if (action === "keep") {
+        const keeps = Object.entries(next).filter(([k, v]) => v === "keep" && k !== id);
+        if (keeps.length >= max) {
+          // Quitar el primero
+          next[keeps[0][0]] = "archive";
+        }
+      }
+      return next;
+    });
+  };
+
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 99999999,
+      background: "rgba(0,0,0,.85)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 16,
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)",
+      animation: "ccFadeIn .3s ease",
+    }}>
+      <div style={{
+        width: "100%", maxWidth: 480, maxHeight: "92vh",
+        background: dark ? "#1c1e22" : "#fff",
+        borderRadius: 24, overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        fontFamily: "'Montserrat', sans-serif",
+        boxShadow: "0 20px 60px rgba(0,0,0,.5)",
+      }}>
+        {/* Hero */}
+        <div style={{
+          padding: "28px 24px 22px",
+          background: "linear-gradient(135deg, rgba(245,158,11,.15) 0%, rgba(239,68,68,.12) 100%)",
+          borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, margin: "0 auto 12px",
+            background: "linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 8px 24px rgba(245,158,11,.4)",
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+              stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div style={{
+            fontFamily: "'Fraunces', serif",
+            fontSize: 22, fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1a1a1f",
+            letterSpacing: "-.02em", marginBottom: 6, lineHeight: 1.2,
+          }}>
+            Tienes demasiadas cuentas
+          </div>
+          <div style={{
+            fontSize: 13.5, lineHeight: 1.55,
+            color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
+          }}>
+            Tu plan <strong style={{ color: dark ? "#f5f5f7" : "#1a1a1f" }}>{planLabel}</strong> permite
+            {max === 1 ? " 1 cuenta" : ` ${max} cuentas`}. Tienes <strong style={{ color: dark ? "#f5f5f7" : "#1a1a1f" }}>{accountsByActivity.length}</strong>.
+            Elige cuál{max === 1 ? "" : "es"} mantener activa{max === 1 ? "" : "s"}.
+          </div>
+        </div>
+
+        {/* Lista de cuentas con acciones */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: dark ? "rgba(245,245,247,.5)" : "rgba(26,26,31,.5)",
+            letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>
+            Mantener activas ({keepCount}/{max})
+          </div>
+
+          {accountSummaries.map(({ account, txCount, lastActivity, balance }) => {
+            const action = actions[account.id];
+            return (
+              <div key={account.id} style={{
+                marginBottom: 12, borderRadius: 14,
+                border: `1.5px solid ${
+                  action === "keep" ? "#5B6EE8"
+                  : action === "delete" ? "rgba(239,68,68,.5)"
+                  : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.08)")
+                }`,
+                background: action === "keep"
+                  ? (dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.05)")
+                  : action === "delete"
+                  ? (dark ? "rgba(239,68,68,.08)" : "rgba(239,68,68,.04)")
+                  : "transparent",
+                transition: "all .2s ease",
+              }}>
+                <div style={{ padding: "14px 14px 10px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke={dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.6)"}
+                      strokeWidth="1.6" strokeLinecap="round">
+                      <rect x="2" y="4" width="20" height="16" rx="3"/>
+                      <path d="M2 10h20"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14.5, color: dark ? "#f5f5f7" : "#1a1a1f",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {account.name}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: dark ? "rgba(245,245,247,.55)" : "rgba(26,26,31,.55)",
+                      marginTop: 2 }}>
+                      {txCount} movimientos · {lastActivity ? `Últ. ${lastActivity}` : "Sin actividad"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{
+                      fontFamily: "'Montserrat', sans-serif", fontWeight: 600, fontSize: 14,
+                      color: balance < 0 ? "#EF4444" : (dark ? "#f5f5f7" : "#1a1a1f"),
+                    }}>
+                      {fmt(balance)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+                <div style={{ display: "flex", gap: 6, padding: "0 10px 10px" }}>
+                  <button onClick={() => setAction(account.id, "keep")}
+                    style={{
+                      flex: 1, padding: "8px 6px", borderRadius: 9,
+                      border: `1px solid ${action === "keep" ? "#5B6EE8" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
+                      background: action === "keep" ? "#5B6EE8" : "transparent",
+                      color: action === "keep" ? "#fff" : (dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)"),
+                      fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      letterSpacing: "-.005em",
+                    }}>
+                    ✓ Mantener
+                  </button>
+                  <button onClick={() => setAction(account.id, "archive")}
+                    style={{
+                      flex: 1, padding: "8px 6px", borderRadius: 9,
+                      border: `1px solid ${action === "archive" ? (dark ? "rgba(245,245,247,.3)" : "rgba(26,26,31,.3)") : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
+                      background: action === "archive" ? (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)") : "transparent",
+                      color: dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)",
+                      fontSize: 11.5, fontWeight: action === "archive" ? 600 : 500,
+                      cursor: "pointer", fontFamily: "inherit",
+                      letterSpacing: "-.005em",
+                    }}>
+                    📦 Archivar
+                  </button>
+                  <button onClick={() => {
+                      if (action === "delete") {
+                        setAction(account.id, "archive");
+                      } else {
+                        setConfirmingDelete(account.id);
+                      }
+                    }}
+                    style={{
+                      flex: 1, padding: "8px 6px", borderRadius: 9,
+                      border: `1px solid ${action === "delete" ? "rgba(239,68,68,.5)" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
+                      background: action === "delete" ? "rgba(239,68,68,.15)" : "transparent",
+                      color: action === "delete" ? "#EF4444" : (dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)"),
+                      fontSize: 11.5, fontWeight: action === "delete" ? 600 : 500,
+                      cursor: "pointer", fontFamily: "inherit",
+                      letterSpacing: "-.005em",
+                    }}>
+                    🗑 Eliminar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Helper text */}
+          <div style={{
+            marginTop: 16, padding: "12px 14px", borderRadius: 12,
+            background: dark ? "rgba(91,110,232,.08)" : "rgba(91,110,232,.05)",
+            border: `1px solid ${dark ? "rgba(91,110,232,.18)" : "rgba(91,110,232,.15)"}`,
+            fontSize: 12, lineHeight: 1.55,
+            color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
+          }}>
+            <strong style={{ color: "#5B6EE8" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan ocultos. Si subes a un plan superior se restauran automáticamente.<br/>
+            <strong style={{ color: "#EF4444" }}>🗑 Eliminar:</strong> borra la cuenta, sus movimientos y categorías para siempre. No se puede deshacer.
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "16px 20px 20px",
+          borderTop: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+          background: dark ? "rgba(0,0,0,.2)" : "rgba(0,0,0,.02)",
+        }}>
+          <button onClick={apply} disabled={!canContinue}
+            style={{
+              width: "100%", padding: "14px 20px", borderRadius: 12, border: "none",
+              background: canContinue
+                ? "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)"
+                : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
+              color: canContinue ? "#fff" : (dark ? "rgba(245,245,247,.4)" : "rgba(26,26,31,.4)"),
+              fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+              cursor: canContinue ? "pointer" : "not-allowed",
+              boxShadow: canContinue ? "0 4px 16px rgba(91,110,232,.35)" : "none",
+              letterSpacing: "-.005em",
+              transition: "all .15s ease",
+            }}>
+            {canContinue
+              ? `Aplicar y continuar (${keepCount} activa${keepCount === 1 ? "" : "s"})`
+              : `Selecciona ${max} cuenta${max === 1 ? "" : "s"} para mantener`}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirmación de eliminar */}
+      {confirmingDelete && (() => {
+        const summary = accountSummaries.find((s) => s.account.id === confirmingDelete);
+        if (!summary) return null;
+        return (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 999999999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,.6)",
+            backdropFilter: "blur(4px)",
+            padding: 20,
+            animation: "ccFadeIn .2s ease",
+          }} onClick={() => setConfirmingDelete(null)}>
+            <div onClick={(e) => e.stopPropagation()} style={{
+              maxWidth: 360, width: "100%",
+              background: dark ? "#1c1e22" : "#fff",
+              borderRadius: 18, padding: "22px 22px 18px",
+              boxShadow: "0 20px 60px rgba(0,0,0,.4)",
+            }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600,
+                color: dark ? "#f5f5f7" : "#1a1a1f", marginBottom: 8, letterSpacing: "-.015em" }}>
+                ¿Eliminar permanentemente?
+              </div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.55,
+                color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)", marginBottom: 16 }}>
+                Borrarás <strong style={{ color: dark ? "#f5f5f7" : "#1a1a1f" }}>{summary.account.name}</strong> junto con sus <strong>{summary.txCount} movimientos</strong> y categorías. Esta acción no se puede deshacer.
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setConfirmingDelete(null)}
+                  style={{ flex: 1, padding: "11px 14px", borderRadius: 10,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)"}`,
+                    background: "transparent",
+                    color: dark ? "#f5f5f7" : "#1a1a1f",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Cancelar
+                </button>
+                <button onClick={() => {
+                  setAction(confirmingDelete, "delete");
+                  setConfirmingDelete(null);
+                }}
+                  style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: "none",
+                    background: "#EF4444", color: "#fff",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: "0 4px 12px rgba(239,68,68,.35)" }}>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>,
+    document.body
+  );
+}
+
 /* ===== Modal de upgrade (paywall) ======================================== */
 function UpgradeModal({ config, onClose, feature }) {
   const [closing, close] = useSheetClose(onClose);
@@ -2066,6 +2429,29 @@ function isDarkMode() {
 /* Devuelve "free" | "lite" | "pro" */
 function getUserPlan(config) {
   return config?.plan || "free";
+}
+
+/* Devuelve el límite de cuentas activas (no archivadas) según el plan */
+function getMaxAccountsForPlan(plan) {
+  if (plan === "pro") return Infinity;
+  if (plan === "lite") return 3;
+  return 1; // free
+}
+
+/* Devuelve la lista de cuentas activas (no archivadas) */
+function getActiveAccounts(config) {
+  if (!config || !Array.isArray(config.accounts)) return [];
+  const archived = config.archivedAccountIds || [];
+  return config.accounts.filter((a) => !archived.includes(a.id));
+}
+
+/* Devuelve true si el usuario tiene exceso de cuentas activas para su plan */
+function needsAccountDowngrade(config) {
+  if (!config || !config.accounts) return false;
+  const plan = getUserPlan(config);
+  const max = getMaxAccountsForPlan(plan);
+  const active = getActiveAccounts(config);
+  return active.length > max;
 }
 
 /* Devuelve true si el plan tiene acceso al feature */
@@ -4775,7 +5161,10 @@ function ManualOnboarding({ onDone }) {
   const isCapacitorPS = typeof window !== "undefined" && window.location.protocol === "capacitor:";
   const bgVideoSrc = isCapacitorPS ? (dark ? "./zafi-bg-dark.mp4" : "./zafi-bg.mp4") : (dark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4");
 
-  const [step, setStep] = useState(1); // 1=ingresos, 2=gastos
+  const [step, setStep] = useState(0); // 0=cuenta, 1=ingresos, 2=gastos
+  // State de la primera cuenta
+  const [accountName, setAccountName] = useState("Principal");
+  const [accountBalance, setAccountBalance] = useState("");
   // Reducir defaults para gastos (4 esenciales)
   const [incomeCats, setIncomeCats] = useState(SUGGESTED_INCOME.map(c => ({ ...c, on: ["Sueldo","Otros ingresos"].includes(c.name), custom: false })));
   const [expenseCats, setExpenseCats] = useState(SUGGESTED_EXPENSE.map(c => ({ ...c, on: ["Súper / Despensa","Casa / Renta","Servicios (luz, agua, internet)","Otros gastos"].includes(c.name), custom: false })));
@@ -4814,9 +5203,11 @@ function ManualOnboarding({ onDone }) {
   };
 
   const finish = () => {
-    // Crear la cuenta principal primero para obtener su id
+    // Crear la cuenta principal con el nombre y balance del usuario
     const mainAccountId = uid();
-    const mainAccount = { id: mainAccountId, name: "Principal", emoji: "🏦", balance: 0, currency: "MXN" };
+    const parsedBalance = parseFloat((accountBalance || "0").toString().replace(/,/g, "")) || 0;
+    const finalName = accountName.trim() || "Principal";
+    const mainAccount = { id: mainAccountId, name: finalName, initialBalance: parsedBalance };
 
     // Construir las categorías asignándoles el accountId (cada cuenta tiene sus propias categorías)
     const finalIncome = incomeCats.filter(c => c.on).map(c => ({
@@ -4887,20 +5278,56 @@ function ManualOnboarding({ onDone }) {
 
           {/* Indicador de paso */}
           <div style={{ display:"flex", gap:6, marginBottom:18 }}>
+            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 0 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
             <div style={{ flex:1, height:3, borderRadius:99, background: step >= 1 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
             <div style={{ flex:1, height:3, borderRadius:99, background: step >= 2 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
           </div>
 
           <div style={{ fontSize:22, fontWeight:700, color:inkColor, letterSpacing:"-.02em", lineHeight:1.2, marginBottom:6 }}>
-            {step === 1 ? "Fuentes de ingreso" : "Categorías de gasto"}
+            {step === 0 ? "Tu primera cuenta" : step === 1 ? "Fuentes de ingreso" : "Categorías de gasto"}
           </div>
           <div style={{ fontSize:13, color:inkSoft, marginBottom:14, lineHeight:1.55 }}>
-            {step === 1
+            {step === 0
+              ? "Una cuenta es donde guardas tu dinero: efectivo, débito, ahorro, etc. Después puedes agregar más cuentas (con Lite hasta 3, con Pro ilimitadas)."
+              : step === 1
               ? "Selecciona las fuentes que aplican a ti. Puedes agregar más después."
               : "Selecciona las categorías de gasto que más uses. Puedes agregar más después."}
           </div>
 
-          {/* Lista scrollable */}
+          {/* Step 0: Cuenta */}
+          {step === 0 && (
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:18, marginBottom:14 }}>
+              <div>
+                <label style={lbl}>Nombre de la cuenta</label>
+                <input style={inp} type="text" placeholder='Ej: "Principal", "Banamex", "Efectivo"'
+                  value={accountName} onChange={e => setAccountName(e.target.value)} maxLength={30} />
+                <div style={{ fontSize:11.5, color:inkSoft, marginTop:6, lineHeight:1.5 }}>
+                  Dale un nombre que reconozcas fácil.
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Balance inicial (MXN)</label>
+                <div style={{ position:"relative" }}>
+                  <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)",
+                    fontSize:15, color:inkSoft, pointerEvents:"none" }}>$</span>
+                  <input style={{ ...inp, paddingLeft:28 }} type="text" inputMode="decimal"
+                    placeholder="0.00"
+                    value={accountBalance}
+                    onChange={e => {
+                      // Permite dígitos, punto y coma. Limpia formato.
+                      const v = e.target.value.replace(/[^\d.,-]/g, "");
+                      setAccountBalance(v);
+                    }} />
+                </div>
+                <div style={{ fontSize:11.5, color:inkSoft, marginTop:6, lineHeight:1.5 }}>
+                  Cuánto dinero tienes ahora mismo en esa cuenta. Puedes dejarlo en 0 si prefieres.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lista scrollable (solo step 1 y 2) */}
+          {step !== 0 && (
           <div ref={listScrollRef} style={{ overflowY:"auto", flex:1, marginBottom:14, paddingRight:4 }}>
             {cats.map(c => (
               <button key={c.name} onClick={() => toggleCat(step === 1 ? "income" : "expense", c.name)}
@@ -4947,21 +5374,38 @@ function ManualOnboarding({ onDone }) {
               <span style={{ fontSize:18, fontWeight:300 }}>+</span> Agregar categoría
             </button>
           </div>
+          )}
 
           {/* Botones */}
           <div style={{ display:"flex", gap:10, paddingTop:8, borderTop:`1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"}` }}>
-            {step === 2 && (
-              <button onClick={() => setStep(1)}
+            {step > 0 && (
+              <button onClick={() => setStep(step - 1)}
                 style={{ flex:1, padding:14, borderRadius:12, border:`1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"}`,
                   background:"transparent", color:inkColor, fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer" }}>
                 Atrás
               </button>
             )}
-            <button onClick={() => step === 1 ? setStep(2) : finish()}
+            <button
+              onClick={() => {
+                if (step === 0) {
+                  // Validar nombre de cuenta
+                  if (!accountName.trim()) return;
+                  setStep(1);
+                } else if (step === 1) {
+                  setStep(2);
+                } else {
+                  finish();
+                }
+              }}
+              disabled={step === 0 && !accountName.trim()}
               style={{ flex:2, padding:14, borderRadius:12, border:"none",
-                background:"rgba(26,24,21,.92)", color:"#fff", fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer",
+                background: dark ? "#F5F5F7" : "rgba(26,24,21,.92)",
+                color: dark ? "#1B2230" : "#fff",
+                fontSize:14, fontWeight:600, fontFamily:FONT,
+                cursor: (step === 0 && !accountName.trim()) ? "not-allowed" : "pointer",
+                opacity: (step === 0 && !accountName.trim()) ? .5 : 1,
                 letterSpacing:".02em" }}>
-              {step === 1 ? "Continuar" : "Comenzar a usar Zafi"}
+              {step === 2 ? "Comenzar a usar Zafi" : "Continuar"}
             </button>
           </div>
         </div>
@@ -5244,8 +5688,48 @@ REGLAS DE RESPUESTA:
 }
 
 /* =============================== MAIN ==================================== */
-function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
-  setAppLang(config.language || "es");
+function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, resetAll }) {
+  setAppLang(rawConfig.language || "es");
+
+  // ============= Filtrar cuentas archivadas del config visible =============
+  // Las cuentas archivadas (rawConfig.archivedAccountIds) no aparecen en la UI:
+  // ni en listas, ni en stats, ni en balances. Sus movimientos también se ocultan.
+  // El modal de downgrade recibe rawConfig por separado para poder gestionarlas.
+  const archivedIds = useMemo(() => new Set(rawConfig.archivedAccountIds || []), [rawConfig.archivedAccountIds]);
+  const config = useMemo(() => {
+    if (archivedIds.size === 0) return rawConfig;
+    return {
+      ...rawConfig,
+      accounts: rawConfig.accounts.filter((a) => !archivedIds.has(a.id)),
+      categories: (rawConfig.categories || []).filter((c) => !archivedIds.has(c.accountId)),
+    };
+  }, [rawConfig, archivedIds]);
+  const txs = useMemo(() => {
+    if (archivedIds.size === 0) return rawTxs;
+    return rawTxs.filter((t) => !archivedIds.has(t.accountId));
+  }, [rawTxs, archivedIds]);
+
+  // Wrapper de saveConfig que preserva archivedAccountIds del rawConfig
+  // (porque los componentes hijos no los ven)
+  const saveConfigWrapped = (next) => {
+    if (next.archivedAccountIds !== undefined) {
+      saveConfig(next);
+    } else {
+      saveConfig({ ...next, archivedAccountIds: rawConfig.archivedAccountIds });
+    }
+  };
+
+  // Wrapper de saveTxs que preserva movimientos de cuentas archivadas
+  // (los hijos ven txs filtrado; si guardan filtrado, perderían las archivadas)
+  const saveTxsWrapped = (nextTxs) => {
+    if (archivedIds.size === 0) {
+      saveTxs(nextTxs);
+      return;
+    }
+    // Mantener las txs de cuentas archivadas intactas
+    const archivedTxs = rawTxs.filter((t) => archivedIds.has(t.accountId));
+    saveTxs([...nextTxs, ...archivedTxs]);
+  };
 
   // Parallax del fondo de video (con límite para no mostrar el borde)
   useEffect(() => {
@@ -5286,6 +5770,42 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       }
     } catch (_) {}
   }, []);
+
+  // ============= DETECCIÓN DE DOWNGRADE DE PLAN =============
+  // Si el plan se reduce y hay exceso de cuentas → mostrar modal bloqueante.
+  // Si el plan sube y hay archivadas que vuelven a caber → restaurar automáticamente.
+  useEffect(() => {
+    if (!rawConfig || !rawConfig.setupComplete) return;
+    const plan = getUserPlan(rawConfig);
+    const max = getMaxAccountsForPlan(plan);
+    const archived = rawConfig.archivedAccountIds || [];
+    const activeCount = rawConfig.accounts.filter((a) => !archived.includes(a.id)).length;
+
+    // Si hay archivadas y caben en el plan actual, restaurarlas (más recientes primero)
+    if (archived.length > 0 && activeCount < max) {
+      const slots = max - activeCount;
+      // Ordenar archivadas por última actividad para restaurar las más activas
+      const lastTxByAcc = new Map();
+      for (const t of rawTxs) {
+        const existing = lastTxByAcc.get(t.accountId);
+        if (!existing || t.date > existing) lastTxByAcc.set(t.accountId, t.date);
+      }
+      const archivedSorted = [...archived].sort((a, b) => {
+        const da = lastTxByAcc.get(a) || "";
+        const db = lastTxByAcc.get(b) || "";
+        return db.localeCompare(da);
+      });
+      const toRestore = archivedSorted.slice(0, slots);
+      if (toRestore.length > 0) {
+        const restoreSet = new Set(toRestore);
+        const newArchived = archived.filter((id) => !restoreSet.has(id));
+        saveConfig({ ...rawConfig, archivedAccountIds: newArchived });
+        showToast && showToast(`${toRestore.length} cuenta${toRestore.length === 1 ? "" : "s"} restaurada${toRestore.length === 1 ? "" : "s"}`);
+      }
+    }
+  }, [rawConfig?.plan]);
+
+  const showDowngradeModal = needsAccountDowngrade(rawConfig);
 
   // ============= TOUR GUIADO PARA NUEVOS USUARIOS =============
   // Solo se muestra a usuarios verdaderamente nuevos (no a los que ya tenían cuenta).
@@ -5515,14 +6035,14 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
 
   return (
     <div>
-      <StickyHeader config={config} saveConfig={saveConfig} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
+      <StickyHeader config={config} saveConfig={saveConfigWrapped} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfig} saveTxs={saveTxs} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
-          {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxs} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
-          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfig} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
-          {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfig} accView={accView} setAccView={setAccView} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
+          {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
+          {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfigWrapped} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
+          {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfigWrapped} accView={accView} setAccView={setAccView} />}
         </div>
       </div>
 
@@ -5567,7 +6087,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           config={accView && accView !== "all" ? { ...config, _defaultAddAccount: accView } : config}
           tx={editingTx}
           txs={txs}
-          saveConfig={saveConfig}
+          saveConfig={saveConfigWrapped}
           onClose={() => { setAdding(false); setEditingTx(null); }}
           onSave={upsertTx}
           onConvertToRecurring={(prefill) => {
@@ -5591,8 +6111,8 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         <Assistant
           config={config}
           txs={txs}
-          saveConfig={saveConfig}
-          saveTxs={saveTxs}
+          saveConfig={saveConfigWrapped}
+          saveTxs={saveTxsWrapped}
           autoVoice={chatVoice}
           onClose={() => { setChatOpen(false); setChatVoice(false); }}
           onOpenImport={() => setImportOpen(true)}
@@ -5603,7 +6123,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         <AccountsModal
           config={config}
           txs={txs}
-          saveConfig={saveConfig}
+          saveConfig={saveConfigWrapped}
           showToast={showToast}
           resetAll={resetAll}
           onClose={() => setAccountsOpen(false)}
@@ -5634,7 +6154,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       {settingsOpen && (
         <SettingsModal
           config={config}
-          saveConfig={saveConfig}
+          saveConfig={saveConfigWrapped}
           onClose={() => setSettingsOpen(false)}
           showToast={showToast}
           resetAll={resetAll}
@@ -5650,7 +6170,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
         />
       )}
 
-      {tourStep !== null && (
+      {tourStep !== null && !showDowngradeModal && (
         <TourGuide
           step={tourStep}
           onAdvance={() => {
@@ -5659,6 +6179,16 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           }}
           onSkip={finishTour}
           onClose={finishTour}
+        />
+      )}
+
+      {/* Modal bloqueante cuando hay exceso de cuentas por downgrade de plan */}
+      {showDowngradeModal && (
+        <PlanDowngradeModal
+          config={rawConfig}
+          txs={rawTxs}
+          saveConfig={saveConfig}
+          saveTxs={saveTxs}
         />
       )}
     </div>
@@ -8033,12 +8563,28 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 </button>
               );
             })}
-            {/* tarjeta agregar — Free no puede, Lite hasta 3, Pro ilimitado */}
+            {/* tarjeta agregar / gestionar — Free: editar; Lite hasta 3; Pro ilimitado */}
             {(() => {
               const plan = getUserPlan(config);
               const numAccounts = config.accounts.length;
               const canAdd = plan === "pro" || (plan === "lite" && numAccounts < 3);
-              if (plan === "free") return null;
+              // En Free: mostrar botón "Editar cuenta" para que el usuario pueda gestionar la suya
+              if (plan === "free") return (
+                <button className="cc-acc-card" onClick={onAddAccount}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                    minWidth:130, borderStyle:"dashed", color:"var(--ink-soft)" }}>
+                  <div style={{ width:32, height:32, marginBottom:6, color:"var(--ink-soft)",
+                    display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9"/>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                    </svg>
+                  </div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>Editar cuenta</div>
+                  <div style={{ fontSize:10.5, color:"var(--ink-faint)", marginTop:2 }}>+ con Lite</div>
+                </button>
+              );
               if (!canAdd) return (
                 <div className="cc-acc-card" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:130, borderStyle:"dashed", color:"var(--ink-faint)", opacity:.5, cursor:"default" }}>
                   <div style={{ fontSize:24, marginBottom:4 }}>🔒</div>
