@@ -608,6 +608,9 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   color:var(--ink);
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
+@keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
@@ -1691,8 +1694,8 @@ function UpgradeModal({ config, onClose, feature }) {
 
   const FEATURES = {
     income_vs_expense: { label: "Ingresos vs Gastos", plan: "pro", icon: "📊" },
-    sankey: { label: "Diagrama Sankey", plan: "pro", icon: "🔀" },
-    reports: { label: "Reportes con análisis IA", plan: "pro", icon: "📄" },
+    sankey: { label: "Diagrama Sankey", plan: "free", icon: "🔀" },
+    reports: { label: "Reportes Excel y PDF", plan: "lite", icon: "📄" },
     unlimited_accounts: { label: "Cuentas ilimitadas", plan: "pro", icon: "🏦" },
     photo_capture: { label: "Captura por foto", plan: "pro", icon: "📷" },
     ai_unlimited: { label: "IA ilimitada", plan: "pro", icon: "✨" },
@@ -1717,15 +1720,16 @@ function UpgradeModal({ config, onClose, feature }) {
     { icon: "🎯", label: "Detección automática de categorías" },
     { icon: "🏦", label: "Hasta 3 cuentas bancarias" },
     { icon: "📊", label: "Estadísticas completas" },
-    { icon: "📁", label: "Exportar a Excel" },
+    { icon: "📄", label: "Reportes Excel y PDF" },
     { icon: "🚫", label: "Sin anuncios" },
   ];
   const PRO_FEATURES = [
     { icon: "✦", label: "Todo lo de Lite incluido", highlight: true },
     { icon: "🏦", label: "Cuentas ilimitadas" },
     { icon: "📊", label: "Ingresos vs Gastos avanzado" },
-    { icon: "🔀", label: "Diagrama Sankey" },
-    { icon: "📄", label: "Reportes con análisis IA" },
+    { icon: "📈", label: "Acumulado de ingresos vs gastos" },
+    { icon: "⭐", label: "Calificación financiera con IA" },
+    { icon: "💡", label: "Consejos financieros con IA" },
     { icon: "📷", label: "Captura por foto (OCR)" },
     { icon: "✨", label: "Asistente IA ilimitado" },
     { icon: "⚡", label: "Acceso anticipado a features" },
@@ -1983,15 +1987,15 @@ function hasFeature(config, feature) {
   const plan = getUserPlan(config);
   const FREE = ["basic_stats", "manual_capture", "custom_categories", "ai_5",
                 "dashboard_kpis", "dashboard_by_category", "customize_sections",
-                "stats_summary"];
+                "stats_summary", "sankey"];
   const LITE = [...FREE, "recurring", "ai_suggestions", "auto_category", "all_charts",
                 "unlimited_txs", "3_accounts", "excel_export", "full_stats",
                 "dashboard_recent", "dashboard_balance",
                 "date_week", "date_year",
                 "stats_full", "account_toggle",
-                "stats_expCats", "stats_trend"];
+                "stats_expCats", "stats_trend", "reports"];
   const PRO = [...LITE, "unlimited_accounts", "photo_capture", "ai_unlimited",
-               "income_vs_expense", "sankey", "reports",
+               "income_vs_expense",
                "dashboard_top_expenses", "dashboard_trend", "dashboard_incvsexp",
                "dashboard_kpis", "dashboard_topcats", "account_toggle",
                "date_all", "date_custom",
@@ -5201,6 +5205,43 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
       }
     } catch (_) {}
   }, []);
+
+  // ============= TOUR GUIADO PARA NUEVOS USUARIOS =============
+  // Si tourComplete no está marcado en config, se muestra el tour
+  const [tourStep, setTourStep] = useState(null);
+  useEffect(() => {
+    if (config && config.tourComplete === undefined && config.setupComplete) {
+      // Pequeño delay para que la UI cargue
+      const timer = setTimeout(() => setTourStep(0), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [config?.setupComplete, config?.tourComplete]);
+
+  const finishTour = () => {
+    setTourStep(null);
+    saveConfig({ ...config, tourComplete: true });
+  };
+
+  // Avance automático: paso 0 → 1 cuando el usuario crea su primer movimiento
+  const txCountRef = useRef(txs.length);
+  useEffect(() => {
+    if (tourStep === 0 && txs.length > txCountRef.current) {
+      // Creó una transacción
+      setTourStep(1);
+    }
+    // Paso 2: si borró la transacción que creó
+    if (tourStep === 2 && txs.length < txCountRef.current) {
+      setTourStep(3);
+    }
+    txCountRef.current = txs.length;
+  }, [txs.length, tourStep]);
+
+  // Avance automático paso 3 → 4 cuando cambia a tab stats
+  useEffect(() => {
+    if (tourStep === 3 && tab === "stats") {
+      setTourStep(4);
+    }
+  }, [tab, tourStep]);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
   const [accView, setAccView] = useState("all");
   // Aplica la cuenta de inicio cuando config carga (defaultHomeView)
@@ -5472,6 +5513,18 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           onSave={(r) => { setDateRange(r); setRangeOpen(false); }}
         />
       )}
+
+      {tourStep !== null && (
+        <TourGuide
+          step={tourStep}
+          onAdvance={() => {
+            if (tourStep < 4) setTourStep(tourStep + 1);
+            else finishTour();
+          }}
+          onSkip={finishTour}
+          onClose={finishTour}
+        />
+      )}
     </div>
   );
 }
@@ -5612,7 +5665,8 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
         </div>
 
         {NAV_ITEMS_2.map(([k, label, Icon]) => (
-          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
+          <button key={k} className={`cc-nav-item ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}
+            data-tour={k === "stats" ? "tab-stats" : undefined}>
             <span className="cc-nav-icon"><Icon /></span>
             <span className="cc-nav-label">{t(label)}</span>
           </button>
@@ -5815,7 +5869,7 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
             <span className="cc-range-arrow">▼</span>
           </button>
           {onOpenAdd && (
-            <button className="cc-header-add" onClick={onOpenAdd} aria-label="Nueva transacción">
+            <button className="cc-header-add" onClick={onOpenAdd} aria-label="Nueva transacción" data-tour="add-btn">
               ＋
             </button>
           )}
@@ -6173,6 +6227,15 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
               {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
               {ROW(IconShield, "Face ID / Biometría", "", () => setSection("faceid"))}
+              {ROW(
+                () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+                "Ver tour de bienvenida", "",
+                () => {
+                  const { tourComplete, ...rest } = config;
+                  saveConfig(rest);
+                  close();
+                }
+              )}
             </div>
 
             {/* Sign out */}
@@ -6239,9 +6302,9 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                 const labels = { free: "Free", lite: "Lite", pro: "✦ Pro" };
                 const prices = { free: "Gratis", lite: "$59/mes · $499/año", pro: "$129/mes · $999/año" };
                 const feats = {
-                  free: ["1 cuenta", "50 transacciones/mes", "Categorías personalizables", "Estadísticas básicas", "Con anuncios"],
-                  lite: ["3 cuentas", "Transacciones ilimitadas", "Movimientos recurrentes", "Sugerencias IA", "Sin anuncios", "Exportar Excel"],
-                  pro: ["Cuentas ilimitadas", "Captura por foto", "IA ilimitada", "Ingresos vs Gastos", "Sankey", "Reportes PDF"],
+                  free: ["1 cuenta", "50 transacciones/mes", "Categorías personalizables", "Estadísticas básicas", "Diagrama Sankey", "Con anuncios"],
+                  lite: ["3 cuentas", "Transacciones ilimitadas", "Movimientos recurrentes", "Sugerencias IA", "Reportes Excel y PDF", "Sin anuncios"],
+                  pro: ["Cuentas ilimitadas", "Captura por foto", "IA ilimitada", "Ingresos vs Gastos", "Calificación financiera", "Consejos con IA"],
                 };
                 return (
                   <div key={p} style={{ borderRadius: 16, border: `1.5px solid ${isCurrent ? "#5B6EE8" : "var(--line)"}`,
@@ -6746,6 +6809,287 @@ function loadSections(config, accView) {
     cleaned.splice(insertAfter + 1, 0, { ...d });
   });
   return cleaned;
+}
+
+/* ===== Tour guiado para nuevos usuarios ================================== */
+/* Tooltips flotantes con flecha apuntando al elemento target.
+   Sistema reactivo: cada paso espera una acción del usuario (crear movimiento,
+   borrarlo, cambiar tab) o un avance manual con el botón "Siguiente". */
+function TourGuide({ step, onAdvance, onSkip, onClose }) {
+  const [targetRect, setTargetRect] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const dark = useDarkMode();
+
+  // Definición de los 5 pasos
+  const STEPS = [
+    {
+      id: "welcome",
+      title: "¡Bienvenido a Zafi!",
+      body: "Te voy a mostrar lo esencial en 5 pasos para que arranques rápido. Toca el botón ＋ para agregar tu primer movimiento.",
+      targetSelector: '[data-tour="add-btn"]',
+      placement: "bottom",
+      waitForAction: true, // espera que abra el menú de agregar
+      cta: null,
+    },
+    {
+      id: "created",
+      title: "¡Perfecto!",
+      body: "Acabas de registrar tu primer movimiento. Cada uno se guarda con su categoría, cuenta y fecha para que veas a fondo en qué se va tu dinero.",
+      targetSelector: '[data-tour="recent-section"]',
+      placement: "top",
+      waitForAction: false,
+      cta: "Siguiente",
+    },
+    {
+      id: "delete",
+      title: "¿Era de prueba?",
+      body: "Desliza el movimiento hacia la izquierda para borrarlo. Puedes editar o eliminar cualquier movimiento cuando quieras.",
+      targetSelector: '[data-tour="recent-section"]',
+      placement: "top",
+      waitForAction: false,
+      cta: "Entendido",
+    },
+    {
+      id: "stats",
+      title: "Estadísticas a fondo",
+      body: "En esta pestaña ves gráficas, tendencias y análisis con IA de tus finanzas. Toca \"Estadísticas\" abajo para verlas.",
+      targetSelector: '[data-tour="tab-stats"]',
+      placement: "top",
+      waitForAction: true, // espera cambio de tab a stats
+      cta: null,
+    },
+    {
+      id: "plans",
+      title: "Personaliza y desbloquea más",
+      body: "Puedes prender, apagar y reordenar cada sección a tu gusto. Y con Zafi Lite o Pro desbloqueas calificación financiera con IA, recurrentes, reportes y más.",
+      targetSelector: '[data-tour="personalize-btn"]',
+      placement: "bottom",
+      waitForAction: false,
+      cta: "¡Empezar a usar Zafi!",
+    },
+  ];
+
+  const current = STEPS[step] || STEPS[0];
+  const totalSteps = STEPS.length;
+
+  // Reposicionar tooltip cuando cambia el paso o la ventana
+  useEffect(() => {
+    const updatePosition = () => {
+      if (!current.targetSelector) {
+        setTargetRect(null);
+        return;
+      }
+      const el = document.querySelector(current.targetSelector);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setTargetRect({
+          top: rect.top, left: rect.left,
+          width: rect.width, height: rect.height,
+          bottom: rect.bottom, right: rect.right,
+        });
+      } else {
+        setTargetRect(null);
+      }
+    };
+    updatePosition();
+    setMounted(true);
+    const id = setInterval(updatePosition, 200); // refresh ligero por si el layout cambia
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [step, current.targetSelector]);
+
+  // Scroll automático al target si está fuera de vista
+  useEffect(() => {
+    if (targetRect && current.targetSelector) {
+      const el = document.querySelector(current.targetSelector);
+      if (el && (targetRect.top < 80 || targetRect.bottom > window.innerHeight - 200)) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [targetRect, current.targetSelector]);
+
+  if (!mounted) return null;
+
+  // Calcular posición del tooltip
+  const tooltipWidth = Math.min(320, window.innerWidth - 32);
+  let tooltipTop = window.innerHeight / 2 - 100;
+  let tooltipLeft = (window.innerWidth - tooltipWidth) / 2;
+  let arrowSide = null; // top | bottom | none
+
+  if (targetRect) {
+    const padding = 16;
+    const tooltipHeight = 200; // estimado
+    if (current.placement === "bottom") {
+      tooltipTop = targetRect.bottom + padding;
+      tooltipLeft = Math.max(16, Math.min(
+        window.innerWidth - tooltipWidth - 16,
+        targetRect.left + targetRect.width / 2 - tooltipWidth / 2
+      ));
+      arrowSide = "top";
+      // Si no cabe abajo, mostrar arriba
+      if (tooltipTop + tooltipHeight > window.innerHeight - 16) {
+        tooltipTop = targetRect.top - tooltipHeight - padding;
+        arrowSide = "bottom";
+      }
+    } else if (current.placement === "top") {
+      tooltipTop = targetRect.top - tooltipHeight - padding;
+      tooltipLeft = Math.max(16, Math.min(
+        window.innerWidth - tooltipWidth - 16,
+        targetRect.left + targetRect.width / 2 - tooltipWidth / 2
+      ));
+      arrowSide = "bottom";
+      if (tooltipTop < 16) {
+        tooltipTop = targetRect.bottom + padding;
+        arrowSide = "top";
+      }
+    }
+  }
+
+  // Calcular posición del arrow (apuntando al centro del target)
+  let arrowLeft = tooltipWidth / 2 - 6;
+  if (targetRect) {
+    arrowLeft = Math.max(16, Math.min(
+      tooltipWidth - 28,
+      targetRect.left + targetRect.width / 2 - tooltipLeft - 6
+    ));
+  }
+
+  return createPortal(
+    <>
+      {/* Overlay sutil que NO bloquea interacción con el target */}
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 999990,
+        background: "rgba(0,0,0,.25)",
+        pointerEvents: "none",
+        animation: "ccFadeIn .3s ease",
+      }} />
+
+      {/* Halo destacando el elemento target */}
+      {targetRect && (
+        <div style={{
+          position: "fixed",
+          top: targetRect.top - 6, left: targetRect.left - 6,
+          width: targetRect.width + 12, height: targetRect.height + 12,
+          borderRadius: 14,
+          boxShadow: `0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5)`,
+          zIndex: 999991,
+          pointerEvents: "none",
+          transition: "all .25s cubic-bezier(.4,0,.2,1)",
+          animation: "ccTourPulse 2s ease-in-out infinite",
+        }} />
+      )}
+
+      {/* Tooltip flotante */}
+      <div style={{
+        position: "fixed",
+        top: tooltipTop, left: tooltipLeft, width: tooltipWidth,
+        background: dark ? "#1c1e22" : "#fff",
+        borderRadius: 18,
+        boxShadow: "0 20px 60px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.15)",
+        zIndex: 999992,
+        fontFamily: "'Montserrat', sans-serif",
+        animation: "ccTourPop .35s cubic-bezier(.2,.8,.3,1.2)",
+        transition: "top .3s cubic-bezier(.4,0,.2,1), left .3s cubic-bezier(.4,0,.2,1)",
+      }}>
+        {/* Flecha */}
+        {arrowSide === "top" && (
+          <div style={{
+            position: "absolute", top: -8, left: arrowLeft,
+            width: 16, height: 16,
+            background: dark ? "#1c1e22" : "#fff",
+            transform: "rotate(45deg)",
+            borderRadius: 3,
+          }} />
+        )}
+        {arrowSide === "bottom" && (
+          <div style={{
+            position: "absolute", bottom: -8, left: arrowLeft,
+            width: 16, height: 16,
+            background: dark ? "#1c1e22" : "#fff",
+            transform: "rotate(45deg)",
+            borderRadius: 3,
+          }} />
+        )}
+
+        <div style={{ padding: "20px 22px 18px", position: "relative" }}>
+          {/* Indicador de paso */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {STEPS.map((_, i) => (
+                <span key={i} style={{
+                  width: i === step ? 18 : 6, height: 6, borderRadius: 99,
+                  background: i === step ? "#5B6EE8" : (i < step ? "rgba(91,110,232,.4)" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)")),
+                  transition: "all .25s ease",
+                }} />
+              ))}
+            </div>
+            <button onClick={onSkip} style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600,
+              fontFamily: "inherit", letterSpacing: ".01em",
+              padding: "4px 8px", borderRadius: 6,
+            }}>
+              Saltar tour
+            </button>
+          </div>
+
+          {/* Título */}
+          <div style={{
+            fontFamily: "'Fraunces', serif",
+            fontSize: 19, fontWeight: 600, color: "var(--ink)",
+            letterSpacing: "-.015em", marginBottom: 8, lineHeight: 1.2,
+          }}>
+            {current.title}
+          </div>
+
+          {/* Body */}
+          <div style={{
+            fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.55, marginBottom: 16,
+          }}>
+            {current.body}
+          </div>
+
+          {/* CTA o indicador de acción esperada */}
+          {current.cta ? (
+            <button onClick={onAdvance} style={{
+              width: "100%", padding: "12px 18px", borderRadius: 12, border: "none",
+              background: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+              color: "#fff", fontSize: 13.5, fontWeight: 600,
+              fontFamily: "inherit", cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(91,110,232,.35)",
+              letterSpacing: "-.005em",
+              transition: "transform .15s ease",
+            }}
+            onMouseDown={(e) => e.currentTarget.style.transform = "scale(.98)"}
+            onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+              {current.cta}
+            </button>
+          ) : (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "10px 14px", borderRadius: 12,
+              background: dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.06)",
+              fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
+            }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: 99, background: "#5B6EE8",
+                animation: "ccTourDotPulse 1.5s ease-in-out infinite",
+              }} />
+              Esperando que lo hagas…
+            </div>
+          )}
+        </div>
+      </div>
+    </>,
+    document.body
+  );
 }
 
 /* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
@@ -7332,7 +7676,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 )}
               </button>
             </div>
-            <button className="cc-gear" onClick={() => setConfiguring(true)}><IconGear /> Personalizar</button>
+            <button className="cc-gear" onClick={() => setConfiguring(true)} data-tour="personalize-btn"><IconGear /> Personalizar</button>
           </div>
           {!config.hideAccountCards && <div className="cc-scroll-x">
             {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
@@ -7605,7 +7949,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           const items = scopedTxs.slice(0, limit);
           const hasMore = scopedTxs.length > limit;
           return (
-            <div key={s.id} className="cc-card" style={{ padding: 20 }}>
+            <div key={s.id} className="cc-card" style={{ padding: 20 }} data-tour="recent-section">
               <div className="cc-label" style={{ marginBottom: 10 }}>
                 Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
               </div>
@@ -11162,6 +11506,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const [catFilter, setCatFilter] = useState(null); // null | "expCats" | "catTrend"
   const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
   const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
+  const [areaFlowAccountsOpen, setAreaFlowAccountsOpen] = useState(false);
+  const [areaFlowCatsOpen, setAreaFlowCatsOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
 
   // secciones configurables (orden + visibilidad)
@@ -11191,7 +11537,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     areaFlow: "pro",
     catTrend: "lite",
     balance: "pro",
-    reports: "free",
+    reports: "lite",
   };
   const statsSections = (() => {
     const saved = getPersonalize(config, "statsSections", accView) || [];
@@ -11277,11 +11623,21 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   }
 
   // ============== Acumulado ingresos / gastos por día ==============
+  // Respeta los filtros del usuario (cuentas o categorías ocultas)
+  const areaFlowAccHidden = getPersonalize(config, "areaFlowAccountsHidden", accView) || [];
+  const areaFlowIncCatsHidden = getPersonalize(config, "areaFlowIncCatsHidden", accView) || [];
+  const areaFlowExpCatsHidden = getPersonalize(config, "areaFlowExpCatsHidden", accView) || [];
   const incAccByDay = new Map();
   const expAccByDay = new Map();
   let accInc = 0, accExp = 0;
   for (const t of sorted) {
     if (t.date < rfrom || t.date > rto) continue;
+    // Aplicar filtros del usuario
+    if (view === "all" && areaFlowAccHidden.includes(t.accountId)) continue;
+    if (view !== "all") {
+      if (t.type === "income" && areaFlowIncCatsHidden.includes(t.categoryId)) continue;
+      if (t.type === "expense" && areaFlowExpCatsHidden.includes(t.categoryId)) continue;
+    }
     if (t.type === "income") accInc += t.amount;
     else accExp += t.amount;
     incAccByDay.set(t.date, accInc);
@@ -11556,9 +11912,41 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 
             if (s.id === "areaFlow") {
               if (!(incomeAccPoints.length >= 2 && (accInc > 0 || accExp > 0))) return null;
+              const hiddenCount = view === "all"
+                ? areaFlowAccHidden.length
+                : (areaFlowIncCatsHidden.length + areaFlowExpCatsHidden.length);
               return renderWith(
                 <div className="cc-card" style={{ padding: 18 }}>
-                  <div className="cc-label" style={{ marginBottom: 10 }}>Acumulado · {rangeLabel(dateRange)}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 10, gap: 8 }}>
+                    <div className="cc-label" style={{ marginBottom: 0 }}>Acumulado · {rangeLabel(dateRange)}</div>
+                    {view === "all" && config.accounts.length > 1 && (
+                      <button onClick={() => setAreaFlowAccountsOpen(true)} className="cc-personalize-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="17" y1="16" x2="23" y2="16" />
+                        </svg>
+                        Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
+                      </button>
+                    )}
+                    {view !== "all" && (
+                      <button onClick={() => setAreaFlowCatsOpen(true)} className="cc-personalize-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                          <line x1="17" y1="16" x2="23" y2="16" />
+                        </svg>
+                        Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
+                      </button>
+                    )}
+                  </div>
                   <AreaChart incomePoints={incomeAccPoints} expensePoints={expenseAccPoints} />
                   <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
                     Lo que has ingresado y gastado acumulado, día a día
@@ -11683,6 +12071,30 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
         />
       )}
 
+      {areaFlowAccountsOpen && (
+        <ChartAccountsModal
+          config={config}
+          hiddenIds={getPersonalize(config, "areaFlowAccountsHidden", accView) || []}
+          accView={accView}
+          title="Cuentas en el acumulado"
+          desc="Elige qué cuentas sumar en la gráfica de acumulado."
+          onClose={() => setAreaFlowAccountsOpen(false)}
+          onSave={(hidden) => saveConfig(setPersonalize(config, "areaFlowAccountsHidden", hidden, accView))}
+        />
+      )}
+      {areaFlowCatsOpen && (
+        <IncVsExpCatsModal
+          config={config}
+          accView={accView}
+          incHidden={getPersonalize(config, "areaFlowIncCatsHidden", accView) || []}
+          expHidden={getPersonalize(config, "areaFlowExpCatsHidden", accView) || []}
+          onClose={() => setAreaFlowCatsOpen(false)}
+          onSave={(incH, expH) => saveConfig(
+            setPersonalize(setPersonalize(config, "areaFlowIncCatsHidden", incH, accView), "areaFlowExpCatsHidden", expH, accView)
+          )}
+        />
+      )}
+
       {detail && (
         <DetailModal config={config} detail={detail} dateRange={dateRange}
           onClose={() => setDetail(null)}
@@ -11700,8 +12112,8 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
   const dark = useDarkMode();
 
   const statsPlanMap = {
-    summary: "free", expCats: "free", reports: "free",
-    topCat: "lite", trend: "lite", catTrend: "lite", incCats: "lite",
+    summary: "free", expCats: "free",
+    topCat: "lite", trend: "lite", catTrend: "lite", incCats: "lite", reports: "lite",
     incVsExp: "pro", kpis: "pro", areaFlow: "pro", balance: "pro",
   };
   const userPlan = config ? getUserPlan(config) : "free";
