@@ -1633,7 +1633,14 @@ function LockedBlur({ plan, onUpgrade, children, blurAmount = 10 }) {
   const gradient = plan === "pro"
     ? "linear-gradient(135deg, #B8860B 0%, #D4A017 50%, #E8C547 100%)"
     : "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)";
-  const glowColor = plan === "pro" ? "rgba(212,160,23,.35)" : "rgba(91,110,232,.35)";
+  const accentColor = plan === "pro" ? "#D4A017" : "#5B6EE8";
+  const glowColor = plan === "pro" ? "rgba(212,160,23,.4)" : "rgba(91,110,232,.4)";
+  const dark = useDarkMode();
+
+  // Mensaje contextual según plan
+  const tagline = plan === "pro"
+    ? "Análisis completo con IA"
+    : "Tu siguiente paso";
 
   return (
     <div style={{ position: "relative", cursor: "pointer" }} onClick={onUpgrade}>
@@ -1647,29 +1654,88 @@ function LockedBlur({ plan, onUpgrade, children, blurAmount = 10 }) {
         {children}
       </div>
 
-      {/* Overlay con chip centrado */}
+      {/* Overlay con tarjeta centrada */}
       <div style={{
         position: "absolute", inset: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
         zIndex: 2, pointerEvents: "none",
+        padding: 16,
       }}>
         <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "9px 18px", borderRadius: 99,
-          background: gradient,
-          color: "#fff", fontSize: 13, fontWeight: 700,
-          fontFamily: "'Montserrat', sans-serif",
-          letterSpacing: "-.005em",
-          boxShadow: `0 8px 24px ${glowColor}, 0 2px 6px rgba(0,0,0,.15)`,
+          position: "relative",
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "10px 14px 10px 10px", borderRadius: 16,
+          background: dark ? "rgba(28,30,34,.92)" : "rgba(255,255,255,.92)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}`,
+          boxShadow: `0 12px 32px rgba(0,0,0,.18), 0 0 0 1px ${plan === "pro" ? "rgba(212,160,23,.15)" : "rgba(91,110,232,.15)"}`,
           pointerEvents: "auto",
-          transition: "transform .15s ease",
-          whiteSpace: "nowrap",
+          transition: "transform .18s cubic-bezier(.2,.8,.3,1)",
+          fontFamily: "'Montserrat', sans-serif",
+          maxWidth: 340,
         }}
         onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
         onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
         onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
         >
-          ✦ Desbloquea con {planLabel} →
+          {/* Icono candado con gradiente */}
+          <div style={{
+            flexShrink: 0,
+            width: 40, height: 40, borderRadius: 12,
+            background: gradient,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: `0 6px 16px ${glowColor}`,
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+
+          {/* Contenido textual */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 10.5, fontWeight: 700, color: accentColor,
+              letterSpacing: ".08em", textTransform: "uppercase",
+              marginBottom: 1, lineHeight: 1,
+            }}>
+              {tagline}
+            </div>
+            <div style={{
+              display: "flex", alignItems: "baseline", gap: 5,
+              fontFamily: "'Fraunces', serif",
+              color: dark ? "#f5f5f7" : "#1a1a1f",
+              letterSpacing: "-.015em", lineHeight: 1.15,
+            }}>
+              <span style={{ fontSize: 14.5, fontWeight: 500 }}>Desbloquear con</span>
+              <span style={{
+                fontSize: 17, fontWeight: 600,
+                background: gradient,
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
+              }}>
+                {plan === "pro" ? "✦ Pro" : "Lite"}
+              </span>
+            </div>
+          </div>
+
+          {/* Flecha indicadora */}
+          <div style={{
+            flexShrink: 0,
+            width: 28, height: 28, borderRadius: "50%",
+            background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: accentColor,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
