@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
+import { CapacitorHttp } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { NativeBiometric } from "capacitor-native-biometric";
 import { initializeApp } from "firebase/app";
@@ -3087,6 +3088,22 @@ async function callClaudeVision(system, userText, imagesB64) {
   ];
   const body = { model: "claude-sonnet-4-6", max_tokens: 4000, system, messages: [{ role: "user", content }] };
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+  const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+
+  // En Capacitor usar CapacitorHttp
+  if (isCapacitor) {
+    const response = await CapacitorHttp.post({
+      url: "https://zafi.vercel.app/api/claude",
+      headers: { "Content-Type": "application/json" },
+      data: body,
+    });
+    if (response.status >= 400) {
+      throw new Error("vision " + response.status);
+    }
+    const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+    return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  }
+
   let res;
   if (isLocal) {
     const key = import.meta.env.VITE_ANTHROPIC_KEY;
@@ -3123,6 +3140,27 @@ async function callClaude(system, messages) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
   const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+
+  // En Capacitor usar CapacitorHttp (red nativa) — el fetch del WebView falla con CORS
+  if (isCapacitor) {
+    try {
+      const response = await CapacitorHttp.post({
+        url: "https://zafi.vercel.app/api/claude",
+        headers: { "Content-Type": "application/json" },
+        data: body,
+      });
+      if (response.status >= 400) {
+        const errStr = typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+        throw new Error(`api ${response.status}: ${errStr.slice(0, 150)}`);
+      }
+      const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    } catch (e) {
+      throw new Error("CapacitorHttp: " + (e?.message || String(e)));
+    }
+  }
+
+  // En web/local usa fetch normal
   let res;
   try {
     if (isLocal) {
@@ -3133,25 +3171,19 @@ async function callClaude(system, messages) {
         body: JSON.stringify(body),
       });
     } else {
-      // En Capacitor la URL relativa no funciona — usar URL absoluta de Vercel
-      const apiUrl = isCapacitor ? "https://zafi.vercel.app/api/claude" : "/api/claude";
-      console.log("[callClaude] Fetching:", apiUrl, "isCapacitor:", isCapacitor);
-      res = await fetch(apiUrl, {
+      res = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      console.log("[callClaude] Response status:", res.status);
     }
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      console.error("[callClaude] Not OK:", res.status, errText);
       throw new Error(`api ${res.status}${errText ? ": " + errText.slice(0, 100) : ""}`);
     }
     const data = await res.json();
     return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
   } catch (e) {
-    console.error("[callClaude] Fetch error:", e?.message, e);
     throw e;
   }
 }
@@ -6825,14 +6857,17 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
 
   // Búsqueda: matchea concepto, payee, tags, categoría y monto
   const q = norm(search).trim();
+  const numericQ = q.replace(/[^\d.]/g, "");
   const filtered = !q ? byType : byType.filter((t) => {
     if (norm(t.description || "").includes(q)) return true;
     if (t.payee && norm(t.payee).includes(q)) return true;
     if (t.tags && t.tags.some((tg) => norm(tg).includes(q))) return true;
     const cat = config.categories.find((c) => c.id === t.categoryId);
     if (cat && norm(cat.name).includes(q)) return true;
-    // Monto: comparar como string sin formato
-    if (String(t.amount).includes(q.replace(/[^\d.]/g, ""))) return true;
+    const acc = config.accounts.find((a) => a.id === t.accountId);
+    if (acc && norm(acc.name).includes(q)) return true;
+    // Monto: solo si la query tiene dígitos (evita matchear "" en todo)
+    if (numericQ && String(t.amount).includes(numericQ)) return true;
     return false;
   });
   const list = [...filtered].sort((a, b) => {
@@ -10804,12 +10839,13 @@ Genera el análisis financiero ahora.`;
 </div>`;
     } catch (e) {
       console.error("Analysis error:", e);
+      const errDetail = e?.message || String(e);
       const errMsg = allTxs.length < 3
         ? "Se necesitan al menos 3 movimientos para generar un análisis."
         : totalIn === 0 && totalOut === 0
           ? "No hay movimientos en el periodo seleccionado."
-          : `Servicio de IA no disponible temporalmente. El reporte sin análisis ya está listo. Intenta exportar de nuevo en unos minutos.`;
-      analysisHtml = `<div class="analysis-section"><div class="analysis-header"><span class="analysis-icon">🤖</span><div><div class="analysis-title">Análisis de IA</div><div class="analysis-sub">No disponible</div></div></div><div class="analysis-body"><p style="color:#9CA3AF">${errMsg}</p></div></div>`;
+          : `Servicio de IA no disponible temporalmente.`;
+      analysisHtml = `<div class="analysis-section"><div class="analysis-header"><span class="analysis-icon">🤖</span><div><div class="analysis-title">Análisis de IA</div><div class="analysis-sub">No disponible</div></div></div><div class="analysis-body"><p style="color:#9CA3AF">${errMsg}</p><p style="color:#9CA3AF;font-size:10px;margin-top:8px;font-family:monospace;background:#F3F4F6;padding:8px;border-radius:6px;word-break:break-all">DEBUG: ${errDetail.replace(/[<>]/g, "")}</p></div></div>`;
     }
 
     const incHtml = incRows.map((r) => `
