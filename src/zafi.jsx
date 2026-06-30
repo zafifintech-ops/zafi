@@ -3958,17 +3958,17 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
             <label style={lbl}>Tu nombre</label>
-            <input style={inp} type="text" placeholder={t("howToCallYou")} value={name} onChange={e=>setName(e.target.value)} />
+            <input style={inp} type="text" placeholder="¿Cómo te llamamos?" value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>{t("age")}</label>
+            <label style={lbl}>Edad</label>
             <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
               onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
           </div>
           <div>
-            <label style={lbl}>{t("gender")}</label>
+            <label style={lbl}>Género</label>
             <div style={{ display:"flex", gap:9 }}>
-              {[["male",t("male")],["female",t("female")],["other",t("other")]].map(([k,l])=>(
+              {[["male","Masculino"],["female","Femenino"],["other","Otro"]].map(([k,l])=>(
                 <button key={k} type="button" onClick={()=>setGender(k)}
                   style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
                     fontSize:14, fontWeight:gender===k?600:400,
@@ -3982,7 +3982,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             </div>
           </div>
           <div>
-            <label style={lbl}>{t("country")}</label>
+            <label style={lbl}>País</label>
             <div style={{ position:"relative" }}>
               <select value={country} onChange={e => setCountry(e.target.value)}
                 style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
@@ -4304,11 +4304,403 @@ export default function App() {
       {!showVideo && <div className="cc-solid-bg" />}
       <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
-        <Onboarding onDone={(built) => saveConfig({ ...config, ...built })} />
+        <OnboardingFlow onDone={(built) => saveConfig({ ...config, ...built })} />
       ) : (
         <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
       )}
       {toast && <div className={`cc-toast ${isDarkTheme ? "cc-toast-dark" : "cc-toast-light"}`}>{toast}</div>}
+    </div>
+  );
+}
+
+/* ============================= ONBOARDING FLOW ========================== */
+/* Decide entre: usar asistente o configurar manualmente */
+function OnboardingFlow({ onDone }) {
+  const [mode, setMode] = useState(null); // null | "assistant" | "manual"
+
+  if (mode === "assistant") return <Onboarding onDone={onDone} />;
+  if (mode === "manual") return <ManualOnboarding onDone={onDone} />;
+  return <OnboardingChoice onPickAssistant={() => setMode("assistant")} onPickManual={() => setMode("manual")} />;
+}
+
+/* ─── Pantalla 1: Elegir asistente o manual ─── */
+function OnboardingChoice({ onPickAssistant, onPickManual }) {
+  const FONT = "'Montserrat', sans-serif";
+  const dark = useDarkMode();
+  const inkColor = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const cardBg = dark ? "rgba(28,30,34,.55)" : "rgba(255,255,255,.55)";
+  const isCapacitorPS = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  const bgVideoSrc = isCapacitorPS ? (dark ? "./zafi-bg-dark.mp4" : "./zafi-bg.mp4") : (dark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4");
+
+  const cardOpt = {
+    width:"100%", padding:"18px 18px", borderRadius:18,
+    border:`1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)"}`,
+    background: dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.7)",
+    cursor:"pointer", textAlign:"left", display:"flex", alignItems:"flex-start", gap:14,
+    fontFamily:FONT, transition:"transform .15s ease, border-color .15s ease",
+  };
+
+  return (
+    <div className={`cc-root ${dark ? "cc-dark" : ""}`}
+      style={{ minHeight:"100vh", display:"flex", flexDirection:"column", fontFamily:FONT, position:"relative" }}>
+      <style>{STYLE}</style>
+      <div className="cc-video-bg">
+        <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
+          ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }} />
+      </div>
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+        <div style={{ width:"100%", maxWidth:420, background:cardBg,
+          backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+          borderRadius:28, padding:"36px 28px", border:"1px solid rgba(255,255,255,.15)" }}>
+          <div style={{ fontSize:26, fontWeight:700, color:inkColor, letterSpacing:"-.02em", lineHeight:1.2, marginBottom:8 }}>
+            ¿Cómo prefieres empezar?
+          </div>
+          <div style={{ fontSize:13.5, color:inkSoft, marginBottom:24, lineHeight:1.6 }}>
+            Configura tu cuenta del modo que más te acomode.
+          </div>
+
+          <button style={cardOpt} onClick={onPickAssistant}>
+            <span style={{ fontSize:26, lineHeight:1 }}>🤖</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, fontWeight:600, color:inkColor, marginBottom:4 }}>
+                Conmigo, tu asistente
+              </div>
+              <div style={{ fontSize:12.5, color:inkSoft, lineHeight:1.5 }}>
+                Te ayudo a configurar todo platicando aquí mismo. Es la forma más rápida.
+              </div>
+            </div>
+          </button>
+
+          <div style={{ height:12 }} />
+
+          <button style={cardOpt} onClick={onPickManual}>
+            <span style={{ fontSize:26, lineHeight:1 }}>✍️</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, fontWeight:600, color:inkColor, marginBottom:4 }}>
+                Configurar yo mismo
+              </div>
+              <div style={{ fontSize:12.5, color:inkSoft, lineHeight:1.5 }}>
+                Eliges paso a paso tus fuentes de ingreso y categorías de gasto.
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Categorías sugeridas (12-15 cada tipo) ─── */
+const SUGGESTED_INCOME = [
+  { name:"Sueldo", emoji:"💼" },
+  { name:"Freelance", emoji:"💻" },
+  { name:"Negocio propio", emoji:"🏢" },
+  { name:"Ventas", emoji:"🛍️" },
+  { name:"Rentas", emoji:"🏘️" },
+  { name:"Inversiones", emoji:"📈" },
+  { name:"Bonos / Comisiones", emoji:"🎁" },
+  { name:"Aguinaldo / PTU", emoji:"💸" },
+  { name:"Regalo / Apoyo familiar", emoji:"💝" },
+  { name:"Reembolso amigos", emoji:"🔁", passThrough:true },
+  { name:"Reembolso trabajo", emoji:"🧾" },
+  { name:"Devoluciones", emoji:"↩️" },
+  { name:"Pensión", emoji:"👵" },
+  { name:"Otros ingresos", emoji:"💰" },
+];
+
+const SUGGESTED_EXPENSE = [
+  { name:"Súper / Despensa", emoji:"🛒" },
+  { name:"Restaurantes", emoji:"🍔" },
+  { name:"Café / Snacks", emoji:"☕" },
+  { name:"Transporte / Gasolina", emoji:"⛽" },
+  { name:"Uber / Taxis", emoji:"🚕" },
+  { name:"Casa / Renta", emoji:"🏠" },
+  { name:"Servicios (luz, agua, internet)", emoji:"💡" },
+  { name:"Salud / Médico", emoji:"🏥" },
+  { name:"Suscripciones", emoji:"📱" },
+  { name:"Entretenimiento", emoji:"🎬" },
+  { name:"Ropa / Compras", emoji:"👕" },
+  { name:"Educación", emoji:"📚" },
+  { name:"Mascotas", emoji:"🐶" },
+  { name:"Viajes", emoji:"✈️" },
+  { name:"Otros gastos", emoji:"📦" },
+];
+
+/* Lista de emojis comunes para el picker */
+const EMOJI_PICKER = [
+  "💼","💻","🏢","🛍️","🏘️","📈","🎁","💸","💝","🔁","🧾","↩️","👵","💰","🪙","💵","💳",
+  "🛒","🍔","☕","⛽","🚕","🏠","💡","🏥","📱","🎬","👕","📚","🐶","✈️","📦","🍕","🎨",
+  "🎵","⚽","🎮","🛏️","🧴","💊","🚗","🏍️","✂️","💄","🍷","🎂","🌳","⚡","💻","📷",
+];
+
+/* ─── Pantalla manual: ingresos → gastos → fin ─── */
+function ManualOnboarding({ onDone }) {
+  const FONT = "'Montserrat', sans-serif";
+  const dark = useDarkMode();
+  const inkColor = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const cardBg = dark ? "rgba(28,30,34,.55)" : "rgba(255,255,255,.55)";
+  const isCapacitorPS = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  const bgVideoSrc = isCapacitorPS ? (dark ? "./zafi-bg-dark.mp4" : "./zafi-bg.mp4") : (dark ? "/zafi-bg-dark.mp4" : "/zafi-bg.mp4");
+
+  const [step, setStep] = useState(1); // 1=ingresos, 2=gastos
+  // Estado: lista completa con on/off y custom flag
+  const [incomeCats, setIncomeCats] = useState(SUGGESTED_INCOME.map(c => ({ ...c, on: ["Sueldo","Otros ingresos"].includes(c.name), custom: false })));
+  const [expenseCats, setExpenseCats] = useState(SUGGESTED_EXPENSE.map(c => ({ ...c, on: ["Súper / Despensa","Restaurantes","Transporte / Gasolina","Casa / Renta","Servicios (luz, agua, internet)","Otros gastos"].includes(c.name), custom: false })));
+
+  // Modal para agregar categoría custom
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState("💰");
+  const [newIsPassthrough, setNewIsPassthrough] = useState(false);
+
+  const toggleCat = (type, name) => {
+    if (type === "income") setIncomeCats(prev => prev.map(c => c.name === name ? { ...c, on: !c.on } : c));
+    else setExpenseCats(prev => prev.map(c => c.name === name ? { ...c, on: !c.on } : c));
+  };
+
+  const openAdd = () => {
+    setNewName("");
+    setNewEmoji(step === 1 ? "💰" : "🛒");
+    setNewIsPassthrough(false);
+    setShowAddModal(true);
+  };
+
+  const addCustom = () => {
+    const name = newName.trim();
+    if (!name) return;
+    const newCat = { name, emoji: newEmoji, on: true, custom: true, ...(step === 1 && newIsPassthrough ? { passThrough: true } : {}) };
+    if (step === 1) setIncomeCats(prev => [...prev, newCat]);
+    else setExpenseCats(prev => [...prev, newCat]);
+    setShowAddModal(false);
+  };
+
+  const finish = () => {
+    // Construir el array de categorías como espera la app
+    const finalIncome = incomeCats.filter(c => c.on).map(c => ({
+      id: uid(),
+      name: c.name,
+      emoji: c.emoji,
+      type: "income",
+      ...(c.passThrough ? { passThrough: true } : {}),
+    }));
+    const finalExpense = expenseCats.filter(c => c.on).map(c => ({
+      id: uid(),
+      name: c.name,
+      emoji: c.emoji,
+      type: "expense",
+    }));
+    // Asegurar al menos una de cada
+    if (finalIncome.length === 0) finalIncome.push({ id: uid(), name: "Otros ingresos", emoji: "💰", type: "income" });
+    if (finalExpense.length === 0) finalExpense.push({ id: uid(), name: "Otros gastos", emoji: "📦", type: "expense" });
+
+    onDone({
+      setupComplete: true,
+      accountMode: "multi",
+      accounts: [{ id: uid(), name: "Principal", emoji: "💳", balance: 0, currency: "MXN" }],
+      categories: [...finalIncome, ...finalExpense],
+    });
+  };
+
+  const cats = step === 1 ? incomeCats : expenseCats;
+  const setCats = step === 1 ? setIncomeCats : setExpenseCats;
+
+  const lbl = { fontFamily:FONT, fontSize:11.5, fontWeight:600, color:inkSoft, letterSpacing:".02em", marginBottom:6, display:"block", textTransform:"uppercase" };
+  const inp = { width:"100%", padding:"12px 14px", borderRadius:14,
+    border:`1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"}`,
+    fontSize:15, fontFamily:FONT, fontWeight:400,
+    background: dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.9)",
+    color: dark ? "#F5F5F7" : "#1B2230", outline:"none" };
+
+  return (
+    <div className={`cc-root ${dark ? "cc-dark" : ""}`}
+      style={{ minHeight:"100vh", display:"flex", flexDirection:"column", fontFamily:FONT, position:"relative" }}>
+      <style>{STYLE}</style>
+      <div className="cc-video-bg">
+        <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
+          ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }} />
+      </div>
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 20px" }}>
+        <div style={{ width:"100%", maxWidth:440, background:cardBg,
+          backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+          borderRadius:28, padding:"32px 24px", border:"1px solid rgba(255,255,255,.15)",
+          maxHeight:"calc(100vh - 80px)", display:"flex", flexDirection:"column" }}>
+
+          {/* Indicador de paso */}
+          <div style={{ display:"flex", gap:6, marginBottom:18 }}>
+            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 1 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
+            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 2 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
+          </div>
+
+          <div style={{ fontSize:22, fontWeight:700, color:inkColor, letterSpacing:"-.02em", lineHeight:1.2, marginBottom:6 }}>
+            {step === 1 ? "Fuentes de ingreso" : "Categorías de gasto"}
+          </div>
+          <div style={{ fontSize:13, color:inkSoft, marginBottom:14, lineHeight:1.55 }}>
+            {step === 1
+              ? "Selecciona las fuentes que aplican a ti. Puedes agregar más después."
+              : "Selecciona las categorías de gasto que más uses. Puedes agregar más después."}
+          </div>
+
+          {/* Lista scrollable */}
+          <div style={{ overflowY:"auto", flex:1, marginBottom:14, paddingRight:4 }}>
+            {cats.map(c => (
+              <button key={c.name} onClick={() => toggleCat(step === 1 ? "income" : "expense", c.name)}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center", gap:12,
+                  padding:"12px 14px", marginBottom:8, borderRadius:14,
+                  border:`1.5px solid ${c.on ? "#5B6EE8" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
+                  background: c.on
+                    ? (dark ? "rgba(91,110,232,.15)" : "rgba(91,110,232,.08)")
+                    : (dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)"),
+                  cursor:"pointer", textAlign:"left", fontFamily:FONT,
+                  transition:"all .12s ease",
+                }}>
+                <span style={{ fontSize:20, lineHeight:1 }}>{c.emoji}</span>
+                <span style={{ flex:1, fontSize:14, fontWeight:c.on?600:500, color:inkColor }}>
+                  {c.name}
+                </span>
+                {c.passThrough && (
+                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:".05em",
+                    padding:"3px 7px", borderRadius:99,
+                    background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)",
+                    color: inkSoft, textTransform:"uppercase" }}>De paso</span>
+                )}
+                <span style={{
+                  width:22, height:22, borderRadius:"50%",
+                  border:`2px solid ${c.on ? "#5B6EE8" : (dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.2)")}`,
+                  background: c.on ? "#5B6EE8" : "transparent",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                }}>
+                  {c.on && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </span>
+              </button>
+            ))}
+
+            {/* Botón + agregar */}
+            <button onClick={openAdd}
+              style={{
+                width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                padding:"12px 14px", marginBottom:8, borderRadius:14,
+                border:`1.5px dashed ${dark ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.15)"}`,
+                background: "transparent",
+                cursor:"pointer", fontFamily:FONT, fontSize:14, fontWeight:500, color:inkSoft,
+              }}>
+              <span style={{ fontSize:18, fontWeight:300 }}>+</span> Agregar categoría
+            </button>
+
+            {/* Info sobre "de paso" */}
+            {step === 1 && (
+              <div style={{ marginTop:14, padding:"12px 14px", borderRadius:12,
+                background: dark ? "rgba(91,110,232,.08)" : "rgba(91,110,232,.05)",
+                border:`1px solid ${dark ? "rgba(91,110,232,.18)" : "rgba(91,110,232,.15)"}`,
+                fontSize:12, color:inkSoft, lineHeight:1.55 }}>
+                <strong style={{ color:inkColor }}>¿Qué es "De paso"?</strong> Son ingresos que solo
+                pasan por tu cuenta pero no son tuyos. Ejemplo: pagaste la comida con amigos y luego
+                te transfieren su parte. Marcarlos como "de paso" evita que cuenten como ingresos reales.
+              </div>
+            )}
+          </div>
+
+          {/* Botones */}
+          <div style={{ display:"flex", gap:10, paddingTop:8, borderTop:`1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"}` }}>
+            {step === 2 && (
+              <button onClick={() => setStep(1)}
+                style={{ flex:1, padding:14, borderRadius:12, border:`1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"}`,
+                  background:"transparent", color:inkColor, fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer" }}>
+                Atrás
+              </button>
+            )}
+            <button onClick={() => step === 1 ? setStep(2) : finish()}
+              style={{ flex:2, padding:14, borderRadius:12, border:"none",
+                background:"rgba(26,24,21,.92)", color:"#fff", fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer",
+                letterSpacing:".02em" }}>
+              {step === 1 ? "Continuar" : "Comenzar a usar Zafi"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal agregar categoría */}
+      {showAddModal && (
+        <div style={{ position:"fixed", inset:0, zIndex:99999,
+          display:"flex", alignItems:"flex-end", justifyContent:"center",
+          background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)" }}
+          onClick={() => setShowAddModal(false)}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width:"100%", maxWidth:440, background: dark ? "#1c1e22" : "#fff",
+              borderRadius:"24px 24px 0 0", padding:"24px 22px 32px",
+              maxHeight:"85vh", overflowY:"auto" }}>
+            <div style={{ width:40, height:4, borderRadius:99, background:dark?"rgba(255,255,255,.2)":"rgba(0,0,0,.15)", margin:"0 auto 20px" }} />
+            <div style={{ fontSize:18, fontWeight:700, color:inkColor, marginBottom:18, letterSpacing:"-.01em" }}>
+              Nueva categoría {step === 1 ? "de ingreso" : "de gasto"}
+            </div>
+
+            <label style={lbl}>Nombre</label>
+            <input style={{ ...inp, marginBottom:18 }} type="text" placeholder="Ej: Mascotas"
+              value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+
+            <label style={lbl}>Emoji</label>
+            <div style={{
+              display:"grid", gridTemplateColumns:"repeat(8, 1fr)", gap:6,
+              marginBottom:18, maxHeight:180, overflowY:"auto",
+              padding:8, borderRadius:12,
+              background: dark ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.03)",
+            }}>
+              {EMOJI_PICKER.map((e, i) => (
+                <button key={`${e}-${i}`} onClick={() => setNewEmoji(e)} type="button"
+                  style={{
+                    aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:22, lineHeight:1, padding:0,
+                    background: newEmoji === e ? "rgba(91,110,232,.2)" : "transparent",
+                    border:`2px solid ${newEmoji === e ? "#5B6EE8" : "transparent"}`,
+                    borderRadius:10, cursor:"pointer",
+                  }}>{e}</button>
+              ))}
+            </div>
+
+            {step === 1 && (
+              <button onClick={() => setNewIsPassthrough(!newIsPassthrough)}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center", gap:10,
+                  padding:"12px 14px", borderRadius:12, marginBottom:18,
+                  border:`1.5px solid ${newIsPassthrough ? "#5B6EE8" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
+                  background: newIsPassthrough
+                    ? (dark ? "rgba(91,110,232,.15)" : "rgba(91,110,232,.08)")
+                    : "transparent",
+                  cursor:"pointer", fontFamily:FONT, textAlign:"left",
+                }}>
+                <span style={{
+                  width:20, height:20, borderRadius:5,
+                  border:`2px solid ${newIsPassthrough ? "#5B6EE8" : (dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.2)")}`,
+                  background: newIsPassthrough ? "#5B6EE8" : "transparent",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                }}>
+                  {newIsPassthrough && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13.5, fontWeight:600, color:inkColor }}>Es un ingreso "de paso"</div>
+                  <div style={{ fontSize:11.5, color:inkSoft, marginTop:2 }}>Dinero que solo pasa por tu cuenta (reembolsos)</div>
+                </div>
+              </button>
+            )}
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowAddModal(false)}
+                style={{ flex:1, padding:13, borderRadius:12, border:`1px solid ${dark?"rgba(255,255,255,.15)":"rgba(0,0,0,.1)"}`,
+                  background:"transparent", color:inkColor, fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer" }}>
+                Cancelar
+              </button>
+              <button onClick={addCustom} disabled={!newName.trim()}
+                style={{ flex:1, padding:13, borderRadius:12, border:"none",
+                  background:"rgba(26,24,21,.92)", color:"#fff", fontSize:14, fontWeight:500, fontFamily:FONT,
+                  cursor:newName.trim()?"pointer":"not-allowed", opacity:newName.trim()?1:.5 }}>
+                Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
