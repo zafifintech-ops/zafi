@@ -5209,32 +5209,50 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   // ============= TOUR GUIADO PARA NUEVOS USUARIOS =============
   // Si tourComplete no está marcado en config, se muestra el tour
   const [tourStep, setTourStep] = useState(null);
+  // Snapshot del estado al inicio del tour (no del paso) para comparar contra
+  const [tourSnapshot, setTourSnapshot] = useState(null);
+
   useEffect(() => {
-    if (config && config.tourComplete === undefined && config.setupComplete) {
+    if (config && config.tourComplete === undefined && config.setupComplete && tourStep === null && tourSnapshot === null) {
       // Pequeño delay para que la UI cargue
-      const timer = setTimeout(() => setTourStep(0), 800);
+      const timer = setTimeout(() => {
+        // Capturar snapshot inicial
+        setTourSnapshot({ txCountAtStart: txs.length });
+        setTourStep(0);
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, [config?.setupComplete, config?.tourComplete]);
 
   const finishTour = () => {
     setTourStep(null);
+    setTourSnapshot(null);
     saveConfig({ ...config, tourComplete: true });
   };
 
-  // Avance automático: paso 0 → 1 cuando el usuario crea su primer movimiento
-  const txCountRef = useRef(txs.length);
+  // Refs para el cambio de tx count basados en snapshot del tour
+  // Tracking del movimiento creado durante el tour
+  const tourCreatedTxRef = useRef(null);
   useEffect(() => {
-    if (tourStep === 0 && txs.length > txCountRef.current) {
-      // Creó una transacción
+    if (tourSnapshot === null) return;
+
+    // Paso 0: avanzar si creó al menos una tx después de iniciar el tour
+    if (tourStep === 0 && txs.length > tourSnapshot.txCountAtStart) {
+      // Guardar referencia al primer tx creado durante el tour (el más reciente)
+      const sorted = [...txs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      tourCreatedTxRef.current = sorted[0]?.id;
       setTourStep(1);
     }
-    // Paso 2: si borró la transacción que creó
-    if (tourStep === 2 && txs.length < txCountRef.current) {
-      setTourStep(3);
+
+    // Paso 2: avanzar si borró la tx creada o si el count bajó
+    if (tourStep === 2) {
+      const stillExists = tourCreatedTxRef.current && txs.some(t => t.id === tourCreatedTxRef.current);
+      // Avanza si ya no existe la tx creada O si el count volvió al snapshot
+      if (!stillExists || txs.length <= tourSnapshot.txCountAtStart) {
+        setTourStep(3);
+      }
     }
-    txCountRef.current = txs.length;
-  }, [txs.length, tourStep]);
+  }, [txs, tourStep, tourSnapshot]);
 
   // Avance automático paso 3 → 4 cuando cambia a tab stats
   useEffect(() => {
@@ -6873,8 +6891,14 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
   const totalSteps = STEPS.length;
 
   // Reposicionar tooltip cuando cambia el paso o la ventana
+  // También detecta si hay modales abiertos
+  const [hasOpenModal, setHasOpenModal] = useState(false);
   useEffect(() => {
     const updatePosition = () => {
+      // Detectar si hay un modal abierto (cc-overlay visible y no es el del tour)
+      const overlays = document.querySelectorAll(".cc-overlay:not(.is-closing)");
+      setHasOpenModal(overlays.length > 0);
+
       if (!current.targetSelector) {
         setTargetRect(null);
         return;
@@ -6882,11 +6906,17 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       const el = document.querySelector(current.targetSelector);
       if (el) {
         const rect = el.getBoundingClientRect();
-        setTargetRect({
-          top: rect.top, left: rect.left,
-          width: rect.width, height: rect.height,
-          bottom: rect.bottom, right: rect.right,
-        });
+        // Verificar que el elemento esté realmente visible (no completamente cubierto)
+        const visible = rect.width > 0 && rect.height > 0;
+        if (visible) {
+          setTargetRect({
+            top: rect.top, left: rect.left,
+            width: rect.width, height: rect.height,
+            bottom: rect.bottom, right: rect.right,
+          });
+        } else {
+          setTargetRect(null);
+        }
       } else {
         setTargetRect(null);
       }
@@ -6921,7 +6951,10 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
   let tooltipLeft = (window.innerWidth - tooltipWidth) / 2;
   let arrowSide = null; // top | bottom | none
 
-  if (targetRect) {
+  // Si hay un modal abierto, no apuntar al target (queda tapado) — centrar tooltip
+  const showHalo = targetRect && !hasOpenModal;
+
+  if (showHalo) {
     const padding = 16;
     const tooltipHeight = 200; // estimado
     if (current.placement === "bottom") {
@@ -6952,7 +6985,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   // Calcular posición del arrow (apuntando al centro del target)
   let arrowLeft = tooltipWidth / 2 - 6;
-  if (targetRect) {
+  if (showHalo) {
     arrowLeft = Math.max(16, Math.min(
       tooltipWidth - 28,
       targetRect.left + targetRect.width / 2 - tooltipLeft - 6
@@ -6969,8 +7002,8 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
         animation: "ccFadeIn .3s ease",
       }} />
 
-      {/* Halo destacando el elemento target */}
-      {targetRect && (
+      {/* Halo destacando el elemento target (solo si no hay modal cubriendo) */}
+      {showHalo && (
         <div style={{
           position: "fixed",
           top: targetRect.top - 6, left: targetRect.left - 6,
