@@ -4796,10 +4796,31 @@ REGLAS DE RESPUESTA:
       }
     } catch (e) {
       setApiOk(false);
+      // Detectar el contexto basado en lo último que dijo el usuario
+      const userTextLower = userText.toLowerCase();
+      let fallbackMsg = "Tuve un problema para conectar con la IA, pero puedo seguir ayudándote con sugerencias preparadas.";
+      let fallbackSuggs = [];
+
+      // Si pidió ver sugerencias
+      if (userTextLower.includes("sugier") || userTextLower.includes("sugir") || userTextLower.includes("ver categorías") || userTextLower.includes("ver categorias")) {
+        fallbackMsg = "Te sugiero estas categorías comunes:\n\n💼 Sueldo, 💻 Freelance, 💰 Otros ingresos (ingresos)\n\n🛒 Súper, 🍔 Restaurantes, ⛽ Transporte, 🏠 Casa, 💡 Servicios, 🏥 Salud, 🎬 Entretenimiento, 📱 Suscripciones, 📦 Otros gastos\n\n¿Las uso todas? Toca \"Usar configuración recomendada\" abajo o escríbeme cuáles prefieres.";
+        fallbackSuggs = ["Usar todas estas", "Solo las básicas"];
+      }
+      // Si está respondiendo cuántas cuentas
+      else if (userTextLower.includes("cuenta") || /\b(2|3|4|5|dos|tres|cuatro|cinco|varias|múltiples|multiples)\b/.test(userTextLower)) {
+        fallbackMsg = "En el plan Free puedes tener 1 cuenta. Con Lite tienes hasta 3 cuentas y con Pro son ilimitadas. Por ahora arranquemos con una cuenta principal y después puedes activar Lite cuando lo necesites. ¿Te parece?";
+        fallbackSuggs = ["Sí, una cuenta", "Quiero saber más de Lite"];
+      }
+      // Default
+      else {
+        fallbackMsg = "Tuve un problema para conectar con la IA. No hay bronca: puedes usar la configuración recomendada con el botón de abajo. 👇";
+      }
+
       setMsgs((m) => [
         ...m,
-        { role: "bot", text: "Tuve un problema para conectar con la IA. No hay bronca: puedes usar la configuración recomendada con el botón de abajo. 👇" },
+        { role: "bot", text: fallbackMsg },
       ]);
+      if (fallbackSuggs.length) setSuggs(fallbackSuggs);
     }
     setBusy(false);
   }
@@ -4896,6 +4917,7 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [recurringPrefill, setRecurringPrefill] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState(null);
   // Cuenta seleccionada compartida entre Home / Historial / Categorías / Estadísticas
   const [accView, setAccView] = useState("all");
   // Aplica la cuenta de inicio cuando config carga (defaultHomeView)
@@ -5143,8 +5165,11 @@ function Main({ config, txs, saveConfig, saveTxs, showToast, resetAll }) {
           prefill={recurringPrefill}
           onClose={() => { setRecurringOpen(false); setRecurringPrefill(null); }}
           onSave={saveRecurring}
+          onUpgrade={() => setUpgradeFeature("recurring")}
         />
       )}
+
+      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
 
       {settingsOpen && (
         <SettingsModal
@@ -7784,7 +7809,8 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
           onEditTx={(t) => { setCatDetail(null); if (onEdit) onEdit(t); }} />
       )}
       {recurringOpen && (
-        <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring} />
+        <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring}
+          onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
       )}
       {confirmDel && (
         <ConfirmDialog
@@ -9151,12 +9177,14 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
 }
 
 /* ===================== MODAL: MOVIMIENTOS RECURRENTES =================== */
-function RecurringModal({ config, prefill, onClose, onSave }) {
+function RecurringModal({ config, prefill, onClose, onSave, onUpgrade }) {
   const rules = config.recurring || [];
   const [view, setView] = useState(rules.length && !prefill ? "list" : "form"); // list | form
   const [editingId, setEditingId] = useState(null);
   const [closing, close] = useSheetClose(onClose);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const dark = useDarkMode();
+  const isFree = !hasFeature(config, "recurring");
 
   // form state
   const [type, setType] = useState(prefill?.type || "expense");
@@ -9191,6 +9219,11 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
 
   const save = async () => {
     if (!canSave) return;
+    // Si es Free, mostrar mensaje de upgrade en lugar de guardar
+    if (isFree) {
+      setShowUpgrade(true);
+      return;
+    }
     // detección automática de categoría si está en "auto"
     let finalCat = catId === "auto" ? null : (catId || null);
     if (catId === "auto") {
@@ -9371,6 +9404,52 @@ function RecurringModal({ config, prefill, onClose, onSave }) {
           disabled={!canSave || detecting} onClick={save}>
           {detecting ? "Detectando categoría…" : (editingId ? "Guardar cambios" : "Crear recurrente")}
         </button>
+
+        {/* Mensaje de upgrade para Free */}
+        {showUpgrade && (
+          <div onClick={(e) => e.stopPropagation()}
+            style={{
+              position:"fixed", inset:0, zIndex:99999,
+              background:"rgba(0,0,0,.55)", backdropFilter:"blur(6px)",
+              display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+            }}>
+            <div style={{
+              maxWidth:380, width:"100%",
+              background: dark ? "#1c1e22" : "#fff",
+              borderRadius:24, padding:"28px 24px",
+              boxShadow:"0 20px 60px rgba(0,0,0,.3)",
+              fontFamily:"'Montserrat', sans-serif",
+            }}>
+              <div style={{ fontSize:40, textAlign:"center", marginBottom:14 }}>✨</div>
+              <div style={{ fontSize:20, fontWeight:700, color:"var(--ink)", textAlign:"center", marginBottom:10, letterSpacing:"-.01em" }}>
+                Los recurrentes están en Lite
+              </div>
+              <div style={{ fontSize:13.5, color:"var(--ink-soft)", textAlign:"center", lineHeight:1.6, marginBottom:22 }}>
+                Tu movimiento se va a generar solo cada {FREQ_LABELS_FN()[freq].toLowerCase()} en cuanto actives el plan. Mientras tanto lo guardamos como borrador.
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <button onClick={() => { setShowUpgrade(false); if (onUpgrade) onUpgrade(); onClose(); }}
+                  style={{
+                    padding:"14px 18px", borderRadius:14, border:"none",
+                    background:"linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+                    color:"#fff", fontSize:14, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+                    letterSpacing:".01em",
+                  }}>
+                  Activar Zafi Lite
+                </button>
+                <button onClick={() => setShowUpgrade(false)}
+                  style={{
+                    padding:"12px 18px", borderRadius:14,
+                    border:`1px solid ${dark?"rgba(255,255,255,.12)":"rgba(0,0,0,.08)"}`,
+                    background:"transparent", color:"var(--ink-soft)",
+                    fontSize:13, fontWeight:500, fontFamily:"inherit", cursor:"pointer",
+                  }}>
+                  Ahora no
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body
