@@ -7016,43 +7016,83 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
   // Reposicionar tooltip cuando cambia el paso o la ventana
   // También detecta si hay modales abiertos
   const [hasOpenModal, setHasOpenModal] = useState(false);
+  // Refs para comparar y evitar re-renders innecesarios
+  const lastRectRef = useRef(null);
+  const lastModalStateRef = useRef(false);
+
   useEffect(() => {
+    // Helper: compara dos rects con tolerancia de 1px (sub-pixel rendering)
+    const rectsEqual = (a, b) => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      return Math.abs(a.top - b.top) < 1 && Math.abs(a.left - b.left) < 1
+          && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
+    };
+
     const updatePosition = () => {
       // Detectar si hay un modal abierto (cc-overlay visible y no es el del tour)
       const overlays = document.querySelectorAll(".cc-overlay:not(.is-closing)");
-      setHasOpenModal(overlays.length > 0);
+      const modalOpen = overlays.length > 0;
+      if (modalOpen !== lastModalStateRef.current) {
+        lastModalStateRef.current = modalOpen;
+        setHasOpenModal(modalOpen);
+      }
 
       if (!current.targetSelector) {
-        setTargetRect(null);
+        if (lastRectRef.current !== null) {
+          lastRectRef.current = null;
+          setTargetRect(null);
+        }
         return;
       }
       const el = document.querySelector(current.targetSelector);
+      let newRect = null;
       if (el) {
         const rect = el.getBoundingClientRect();
-        // Verificar que el elemento esté realmente visible (no completamente cubierto)
-        const visible = rect.width > 0 && rect.height > 0;
-        if (visible) {
-          setTargetRect({
+        if (rect.width > 0 && rect.height > 0) {
+          newRect = {
             top: rect.top, left: rect.left,
             width: rect.width, height: rect.height,
             bottom: rect.bottom, right: rect.right,
-          });
-        } else {
-          setTargetRect(null);
+          };
         }
-      } else {
-        setTargetRect(null);
+      }
+      // Solo actualizar si cambió realmente
+      if (!rectsEqual(newRect, lastRectRef.current)) {
+        lastRectRef.current = newRect;
+        setTargetRect(newRect);
       }
     };
     updatePosition();
     setMounted(true);
-    const id = setInterval(updatePosition, 200); // refresh ligero por si el layout cambia
+    // Polling con requestAnimationFrame: solo dispara cuando el navegador puede,
+    // y comparamos contra el último rect para no causar re-renders sin cambios.
+    let rafId;
+    let lastTick = 0;
+    const tick = (now) => {
+      if (now - lastTick >= 400) {
+        lastTick = now;
+        updatePosition();
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    // Throttle de scroll: solo actualiza cada 50ms para evitar lag
+    let scrollPending = false;
+    const onScroll = () => {
+      if (scrollPending) return;
+      scrollPending = true;
+      requestAnimationFrame(() => {
+        updatePosition();
+        scrollPending = false;
+      });
+    };
     window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
-      clearInterval(id);
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [step, current.targetSelector]);
 
@@ -7188,8 +7228,9 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
           boxShadow: `0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6)`,
           zIndex: 999991,
           pointerEvents: "none",
-          transition: "all .25s cubic-bezier(.4,0,.2,1)",
+          transition: "top .18s cubic-bezier(.2,.8,.3,1), left .18s cubic-bezier(.2,.8,.3,1), width .18s cubic-bezier(.2,.8,.3,1), height .18s cubic-bezier(.2,.8,.3,1)",
           animation: "ccTourBorderPulse 2s ease-in-out infinite",
+          willChange: "transform",
         }} />
       )}
 
@@ -7203,7 +7244,8 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
         zIndex: 999992,
         fontFamily: "'Montserrat', sans-serif",
         animation: "ccTourPop .35s cubic-bezier(.2,.8,.3,1.2)",
-        transition: "top .3s cubic-bezier(.4,0,.2,1), left .3s cubic-bezier(.4,0,.2,1)",
+        transition: "top .18s cubic-bezier(.2,.8,.3,1), left .18s cubic-bezier(.2,.8,.3,1)",
+        willChange: "transform",
       }}>
         {/* Flecha */}
         {arrowSide === "top" && (
@@ -8672,9 +8714,44 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   const touchStartY = useRef(0);
   const swipeLocked = useRef(false); // true cuando ya decidimos que es swipe horizontal
   const swipeDirection = useRef(null); // "h" | "v" | null
+  const rowRef = useRef(null);
+  const rowId = useRef(`txr_${Math.random().toString(36).slice(2)}`);
 
-  const SWIPE_THRESHOLD = 70; // distancia para revelar el botón delete
+  const SWIPE_THRESHOLD = 60; // distancia para revelar el botón delete
   const SWIPE_MAX = 90; // distancia máxima del swipe
+  const SWIPE_CLOSE_THRESHOLD = 30; // umbral para cerrar (más fácil que abrir)
+
+  // Cuando otra fila se abre, cerrar esta
+  useEffect(() => {
+    if (!onDelete) return;
+    const onAnyOpen = (e) => {
+      if (e.detail !== rowId.current && swipeX !== 0) {
+        setSwipeX(0);
+      }
+    };
+    window.addEventListener("tx-row-swipe-open", onAnyOpen);
+    return () => window.removeEventListener("tx-row-swipe-open", onAnyOpen);
+  }, [swipeX, onDelete]);
+
+  // Cerrar cuando tocas fuera del row
+  useEffect(() => {
+    if (!onDelete || swipeX === 0) return;
+    const onOutsideTouch = (e) => {
+      if (rowRef.current && !rowRef.current.contains(e.target)) {
+        setSwipeX(0);
+      }
+    };
+    // Pequeño delay para no cerrar inmediatamente al abrir
+    const timer = setTimeout(() => {
+      document.addEventListener("touchstart", onOutsideTouch);
+      document.addEventListener("mousedown", onOutsideTouch);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("touchstart", onOutsideTouch);
+      document.removeEventListener("mousedown", onOutsideTouch);
+    };
+  }, [swipeX, onDelete]);
 
   const onTouchStart = (e) => {
     if (!onDelete || selectable) return;
@@ -8700,19 +8777,29 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
       }
     }
 
-    // Solo procesamos swipe si es horizontal hacia la izquierda
-    if (swipeDirection.current === "h" && dx < 0) {
-      const clamped = Math.max(-SWIPE_MAX, dx);
-      setSwipeX(clamped);
+    // Si está abierto y el usuario hace swipe hacia la derecha, permitir cerrar
+    if (swipeDirection.current === "h") {
+      if (swipeX !== 0) {
+        // Está abierto: posición inicial es -SWIPE_MAX + dx (cualquier dirección)
+        const newX = Math.max(-SWIPE_MAX, Math.min(0, -SWIPE_MAX + dx));
+        setSwipeX(newX);
+      } else if (dx < 0) {
+        // Estaba cerrado, abrir hacia la izquierda
+        const clamped = Math.max(-SWIPE_MAX, dx);
+        setSwipeX(clamped);
+      }
     }
   };
 
   const onTouchEnd = () => {
     if (!onDelete || selectable) return;
     setSwiping(false);
+    // Si estaba cerrado y abrió pasando el threshold, mantener abierto
+    // Si estaba abierto y cerró pasando el threshold de cierre, cerrar
     if (swipeX < -SWIPE_THRESHOLD) {
-      // Mantener abierto
+      // Mantener abierto y notificar a otras filas
       setSwipeX(-SWIPE_MAX);
+      try { window.dispatchEvent(new CustomEvent("tx-row-swipe-open", { detail: rowId.current })); } catch(_){}
     } else {
       // Cerrar
       setSwipeX(0);
@@ -8725,9 +8812,10 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
     onDelete && onDelete(t.id);
   };
 
-  const handleRowClick = () => {
-    // Si el row está abierto por swipe, primero cerrar
+  const handleRowClick = (e) => {
+    // Si el row está abierto por swipe, primero cerrar (no editar)
     if (swipeX !== 0) {
+      e.stopPropagation();
       setSwipeX(0);
       return;
     }
@@ -8765,7 +8853,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   // Con onDelete: row con swipe support y botón delete revelable detrás
   if (onDelete) {
     return (
-      <div style={{ position: "relative", overflow: "hidden",
+      <div ref={rowRef} style={{ position: "relative", overflow: "hidden",
         borderBottom: "1px solid var(--line-soft)",
       }}>
         {/* Botón delete: parte fuera de pantalla (translateX +SWIPE_MAX)
