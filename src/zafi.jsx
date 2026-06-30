@@ -1624,7 +1624,7 @@ function LockedSection({ label, icon, plan, onUpgrade }) {
 
 /* ===== Wrapper de blur + chip para secciones bloqueadas ================== */
 /* Renderiza el contenido con datos reales blureado y overlay con chip clickeable */
-function LockedBlur({ plan, onUpgrade, children, blurAmount = 5 }) {
+function LockedBlur({ plan, onUpgrade, children, blurAmount = 10 }) {
   const planLabel = plan === "pro" ? "Pro" : "Lite";
   const gradient = plan === "pro"
     ? "linear-gradient(135deg, #B8860B 0%, #D4A017 50%, #E8C547 100%)"
@@ -6749,16 +6749,28 @@ function loadSections(config, accView) {
 }
 
 /* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
-function FinancialScoreCard({ config, txs, dateRange, accView, demoMode = false }) {
+function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
 
+  // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
+  const accHidden = getPersonalize(config, "financialAccountsHidden", accView) || [];
+  const incCatsHidden = getPersonalize(config, "financialIncCatsHidden", accView) || [];
+  const expCatsHidden = getPersonalize(config, "financialExpCatsHidden", accView) || [];
+
   const baseData = (() => {
-    const filtered = txsInRange(txs, dateRange).filter(t =>
+    let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
+    // Aplicar filtros del usuario
+    if (accView === "all" && accHidden.length > 0) {
+      filtered = filtered.filter(t => !accHidden.includes(t.accountId));
+    } else if (accView !== "all") {
+      if (incCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "income" && incCatsHidden.includes(t.categoryId)));
+      if (expCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "expense" && expCatsHidden.includes(t.categoryId)));
+    }
     const incTxs = filtered.filter(t => t.type === "income");
     const expTxs = filtered.filter(t => t.type === "expense");
     const totalIn = incTxs.reduce((s, t) => s + t.amount, 0);
@@ -6766,7 +6778,7 @@ function FinancialScoreCard({ config, txs, dateRange, accView, demoMode = false 
     return { totalIn, totalOut, txCount: filtered.length, incCount: incTxs.length, expCount: expTxs.length };
   })();
 
-  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}`;
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}`;
 
   useEffect(() => {
     // Calcular score local
@@ -6913,7 +6925,37 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
           <div>
-            <div className="cc-label" style={{ marginBottom: 4 }}>Calificación financiera</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
+              {!demoMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
+                    else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
+                  }}
+                  style={{
+                    background: "transparent", border: "none", padding: "2px 6px",
+                    borderRadius: 6, cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                    fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
+                  }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                  {accView === "all"
+                    ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
+                    : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
+                  }
+                </button>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span style={{
                 fontFamily: "'Fraunces', serif", fontSize: 38, fontWeight: 600,
@@ -6957,16 +6999,27 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
 }
 
 /* ===== Tarjeta de consejos financieros con IA (Pro) ===================== */
-function FinancialTipsCard({ config, txs, dateRange, accView, demoMode = false }) {
+function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [tips, setTips] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
 
+  // Filtros igual que score
+  const accHidden = getPersonalize(config, "financialAccountsHidden", accView) || [];
+  const incCatsHidden = getPersonalize(config, "financialIncCatsHidden", accView) || [];
+  const expCatsHidden = getPersonalize(config, "financialExpCatsHidden", accView) || [];
+
   const baseData = (() => {
-    const filtered = txsInRange(txs, dateRange).filter(t =>
+    let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
+    if (accView === "all" && accHidden.length > 0) {
+      filtered = filtered.filter(t => !accHidden.includes(t.accountId));
+    } else if (accView !== "all") {
+      if (incCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "income" && incCatsHidden.includes(t.categoryId)));
+      if (expCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "expense" && expCatsHidden.includes(t.categoryId)));
+    }
     const totalIn = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const totalOut = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
     const byCat = {};
@@ -6980,7 +7033,7 @@ function FinancialTipsCard({ config, txs, dateRange, accView, demoMode = false }
     return { totalIn, totalOut, txCount: filtered.length, topCats };
   })();
 
-  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}`;
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}`;
 
   useEffect(() => {
     const fallback = [
@@ -7078,9 +7131,39 @@ Genera 5 consejos prácticos personalizados.`;
         background: dark ? "rgba(245, 158, 11, .08)" : "rgba(245, 158, 11, .06)",
         borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>💡</span>
-          <span className="cc-label" style={{ marginBottom: 0 }}>Tip personalizado</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>💡</span>
+            <span className="cc-label" style={{ marginBottom: 0 }}>Tip personalizado</span>
+          </div>
+          {!demoMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
+                else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
+              }}
+              style={{
+                background: "transparent", border: "none", padding: "2px 6px",
+                borderRadius: 6, cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 4,
+                fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+                fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
+              }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
+              {accView === "all"
+                ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
+                : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
+              }
+            </button>
+          )}
         </div>
       </div>
 
@@ -7117,6 +7200,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
   const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
+  const [financialAccountsOpen, setFinancialAccountsOpen] = useState(false);
+  const [financialCatsOpen, setFinancialCatsOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config, accView);
@@ -7557,7 +7642,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             </LockedBlur>
           );
           return (
-            <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view} />
+            <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
+              saveConfig={saveConfig}
+              onOpenAccountsModal={() => setFinancialAccountsOpen(true)}
+              onOpenCatsModal={() => setFinancialCatsOpen(true)} />
           );
         }
 
@@ -7568,7 +7656,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             </LockedBlur>
           );
           return (
-            <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view} />
+            <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
+              saveConfig={saveConfig}
+              onOpenAccountsModal={() => setFinancialAccountsOpen(true)}
+              onOpenCatsModal={() => setFinancialCatsOpen(true)} />
           );
         }
 
@@ -7633,6 +7724,30 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           onClose={() => setIncVsExpCatsOpen(false)}
           onSave={(incH, expH) => saveConfig(
             setPersonalize(setPersonalize(config, "incVsExpIncCatsHidden", incH, accView), "incVsExpExpCatsHidden", expH, accView)
+          )}
+        />
+      )}
+
+      {financialAccountsOpen && (
+        <ChartAccountsModal
+          config={config}
+          hiddenIds={getPersonalize(config, "financialAccountsHidden", accView) || []}
+          accView={accView}
+          title="Cuentas en tu calificación"
+          desc="Elige qué cuentas usar para calcular tu calificación financiera y consejos."
+          onClose={() => setFinancialAccountsOpen(false)}
+          onSave={(hidden) => saveConfig(setPersonalize(config, "financialAccountsHidden", hidden, accView))}
+        />
+      )}
+      {financialCatsOpen && (
+        <IncVsExpCatsModal
+          config={config}
+          accView={accView}
+          incHidden={getPersonalize(config, "financialIncCatsHidden", accView) || []}
+          expHidden={getPersonalize(config, "financialExpCatsHidden", accView) || []}
+          onClose={() => setFinancialCatsOpen(false)}
+          onSave={(incH, expH) => saveConfig(
+            setPersonalize(setPersonalize(config, "financialIncCatsHidden", incH, accView), "financialExpCatsHidden", expH, accView)
           )}
         />
       )}
