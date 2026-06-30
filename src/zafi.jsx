@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
@@ -13572,6 +13572,8 @@ function CategoryTrendChart({ txs, dateRange, config, selectedCatIds }) {
 function LineChart({ points, area: showArea = true, color: forcedColor }) {
   const [hover, setHover] = useState(null); // index hovered
   const [lineRef, , animKey] = useInView(0.2);
+  // ID único por instancia para que el gradient no se confunda con otras gráficas
+  const gradientId = useMemo(() => `ccLine_${Math.random().toString(36).slice(2, 9)}`, []);
   if (!points || points.length < 2) {
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0" }}>Datos insuficientes.</div>;
   }
@@ -13622,7 +13624,7 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         onMouseMove={handleMove} onMouseLeave={() => setHover(null)}
         onTouchStart={handleMove} onTouchMove={handleMove} onTouchEnd={() => setHover(null)}>
         <defs>
-          <linearGradient id="ccLine" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
@@ -13630,7 +13632,7 @@ function LineChart({ points, area: showArea = true, color: forcedColor }) {
         {/* promedio */}
         <line x1={P} y1={avgY} x2={W - P} y2={avgY} stroke="var(--ink-faint)" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
         <text x={W - P} y={avgY - 4} textAnchor="end" fontSize="12" fill="var(--ink-faint)" className="cc-chart-label" key={`lbl-${animKey}`}>prom {fmtBare(avg)}</text>
-        {showArea && <path d={areaPath} fill="url(#ccLine)" className="cc-chart-area" key={`area-${animKey}`} />}
+        {showArea && <path d={areaPath} fill={`url(#${gradientId})`} className="cc-chart-area" key={`area-${animKey}`} />}
         <path key={`line-${animKey}`} d={path} fill="none" stroke={stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
           style={{ animation: `ccLineReveal 1.4s cubic-bezier(.4,0,.2,1) forwards` }} />
         {/* máximo y mínimo — aparecen después de que la línea llegue */}
@@ -13973,13 +13975,13 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
     return <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "20px 0", textAlign: "center" }}>Sin datos en el periodo.</div>;
   }
 
-  const W = 600, H = 220, P = 24, PB = 36;
-  const innerW = W - P * 2;
+  const W = 600, H = 220, P = 24, PB = 36, PL = 34; // PL: padding izquierdo extra para labels del eje
+  const innerW = W - PL - P;
   const innerH = H - P - PB;
   const groupW = innerW / buckets.length;
   const barW = Math.max(4, Math.min(20, (groupW - 6) / 2));
   const yOf = (v) => H - PB - (v / maxVal) * innerH;
-  const xOfCenter = (i) => P + groupW * i + groupW / 2;
+  const xOfCenter = (i) => PL + groupW * i + groupW / 2;
 
   const labelEvery = buckets.length > 12 ? Math.ceil(buckets.length / 8) : 1;
   const totalInc = buckets.reduce((s, b) => s + b.income, 0);
@@ -14050,12 +14052,18 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
 
         {/* líneas guía horizontales */}
         {(() => {
+          // formato compacto para el eje Y (15k, 1.5M, etc)
+          const fmtAxis = (v) => {
+            if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}M`;
+            if (v >= 1_000) return `${(v / 1_000).toFixed(v % 1_000 === 0 ? 0 : 1)}k`;
+            return `${v}`;
+          };
           const { ticks } = niceTicks(0, maxVal, 4);
           return ticks.filter((t) => t > 0 && t <= maxVal).map((t, i) => (
             <g key={i}>
-              <line x1={P} y1={yOf(t)} x2={W - P} y2={yOf(t)} stroke="var(--ink-faint)" strokeWidth="0.5" opacity="0.25" />
-              <text x={P - 4} y={yOf(t) + 3} fontSize="9" textAnchor="end" fill="var(--ink-faint)" className="cc-num">
-                {fmtBare(t)}
+              <line x1={PL} y1={yOf(t)} x2={W - P} y2={yOf(t)} stroke="var(--ink-faint)" strokeWidth="0.5" opacity="0.25" />
+              <text x={PL - 4} y={yOf(t) + 3} fontSize="9" textAnchor="end" fill="var(--ink-faint)" className="cc-num">
+                {fmtAxis(t)}
               </text>
             </g>
           ));
@@ -14063,20 +14071,20 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
 
         {chartKind === "lines" ? (
           <>
-            <path d={expenseAreaPath} fill="url(#expGradLines)" />
-            <path d={incomeAreaPath} fill="url(#incGradLines)" />
-            <path key={`exp-line-${animKey}`} d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+            <path d={expenseAreaPath} fill="url(#expGradLines)" opacity="0.7" />
+            <path d={incomeAreaPath} fill="url(#incGradLines)" opacity="0.7" />
+            <path key={`exp-line-${animKey}`} d={expensePath} fill="none" stroke="var(--coral)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"
               style={inView ? { animation: `ccLineReveal 1.6s cubic-bezier(.4,0,.2,1) both 100ms` } : { clipPath: "inset(0 100% 0 0)" }} />
-            <path key={`inc-line-${animKey}`} d={incomePath} fill="none" stroke="var(--green)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"
+            <path key={`inc-line-${animKey}`} d={incomePath} fill="none" stroke="var(--green)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"
               style={inView ? { animation: `ccLineReveal 1.6s cubic-bezier(.4,0,.2,1) both` } : { clipPath: "inset(0 100% 0 0)" }} />
             {buckets.map((b, i) => (
               <g key={b.key} style={{ cursor: "pointer" }} onMouseEnter={() => setHover(i)}>
-                <rect x={P + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
-                <circle cx={xOfCenter(i)} cy={yOf(b.income)} r={hover === i ? 5 : 3}
-                  fill={hover === i ? "#fff" : "var(--green)"} stroke="var(--green)" strokeWidth="2"
+                <rect x={PL + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
+                <circle cx={xOfCenter(i)} cy={yOf(b.income)} r={hover === i ? 4.5 : 2.5}
+                  fill={hover === i ? "#fff" : "var(--green)"} stroke="var(--green)" strokeWidth="1.6"
                   style={{ transition: "r .15s" }} />
-                <circle cx={xOfCenter(i)} cy={yOf(b.expense)} r={hover === i ? 5 : 3}
-                  fill={hover === i ? "#fff" : "var(--coral)"} stroke="var(--coral)" strokeWidth="2"
+                <circle cx={xOfCenter(i)} cy={yOf(b.expense)} r={hover === i ? 4.5 : 2.5}
+                  fill={hover === i ? "#fff" : "var(--coral)"} stroke="var(--coral)" strokeWidth="1.6"
                   style={{ transition: "r .15s" }} />
                 {(i % labelEvery === 0 || hover === i) && (
                   <text x={xOfCenter(i)} y={H - PB + 14} textAnchor="middle"
@@ -14103,7 +14111,7 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
             const isHovered = hover === i;
             return (
               <g key={b.key} style={{ cursor: "pointer" }} onMouseEnter={() => setHover(i)}>
-                <rect x={P + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
+                <rect x={PL + groupW * i} y={P} width={groupW} height={innerH} fill="transparent" />
                 {b.income > 0 && (
                   <g key={`gi-${animKey}-${i}`}
                     style={{ transformOrigin: `${(incX + barW / 2).toFixed(1)}px ${H - PB}px`,
@@ -14139,7 +14147,7 @@ function IncomeVsExpenseChart({ txs, dateRange, chartKind = "bars", onChangeKind
           })
         )}
 
-        <line x1={P} y1={H - PB} x2={W - P} y2={H - PB} stroke="var(--ink-faint)" strokeWidth="0.6" opacity="0.6" />
+        <line x1={PL} y1={H - PB} x2={W - P} y2={H - PB} stroke="var(--ink-faint)" strokeWidth="0.6" opacity="0.6" />
 
         {hb && (
           <g>
