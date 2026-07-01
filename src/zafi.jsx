@@ -5953,7 +5953,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
 
   const dateRange = config.dateRange || DEFAULT_RANGE;
   const setDateRange = (newRange) => {
-    saveConfig({ ...config, dateRange: newRange });
+    saveConfigWrapped({ ...config, dateRange: newRange });
   };
 
   const balance = grandTotal(config, txs);
@@ -8098,80 +8098,139 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     );
   }
 
+  // ============= GAUGE VISUAL =============
+  // Colores según score (verde/naranja/rojo)
+  const gaugeColors = (() => {
+    if (data.score >= 65) return { center: "#639922", light: "#C0DD97", dark: "#3B6D11" };
+    if (data.score >= 45) return { center: "#BA7517", light: "#FAC775", dark: "#854F0B" };
+    return { center: "#A32D2D", light: "#F7C1C1", dark: "#791F1F" };
+  })();
+
+  // Ángulo del tick (score 0 = -90°, score 100 = +90°)
+  const tickAngle = -90 + (data.score / 100) * 180;
+
+  // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
+  const gaugeId = `gauge_${data.score}_${data.status}`.replace(/\s/g, "_");
+
   return (
-    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
-      {/* Header con gradiente */}
+    <div className="cc-card" style={{
+      padding: 0, overflow: "hidden", position: "relative",
+      // Fondo con gradiente sutil que combina el color del score con el glass
+      background: dark
+        ? `radial-gradient(ellipse at top, ${gaugeColors.center}18 0%, transparent 60%), var(--glass)`
+        : `radial-gradient(ellipse at top, ${gaugeColors.center}14 0%, transparent 55%), var(--glass)`,
+    }}>
+      {/* Header con label y filtros */}
       <div style={{
-        padding: "18px 20px",
-        background: `linear-gradient(135deg, ${data.color}18 0%, ${data.color}08 100%)`,
-        borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+        padding: "16px 20px 6px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
-              {!demoMode && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
-                    else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
-                  }}
-                  style={{
-                    background: "transparent", border: "none", padding: "2px 6px",
-                    borderRadius: 6, cursor: "pointer",
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                    fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
-                  }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                    <line x1="17" y1="16" x2="23" y2="16" />
-                  </svg>
-                  {accView === "all"
-                    ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
-                    : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
-                  }
-                </button>
-              )}
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span style={{
-                fontFamily: "'Fraunces', serif", fontSize: 38, fontWeight: 600,
-                color: data.color, letterSpacing: "-.02em", lineHeight: 1,
-              }}>{data.score}</span>
-              <span style={{ fontSize: 14, color: "var(--ink-soft)", fontWeight: 500 }}>/ 100</span>
-            </div>
-          </div>
-          <div style={{
-            padding: "8px 14px", borderRadius: 99,
-            background: `${data.color}20`,
-            color: data.color, fontSize: 13, fontWeight: 700,
-            fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em",
-          }}>
+        <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
+        {!demoMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
+              else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
+            }}
+            style={{
+              background: "transparent", border: "none", padding: "2px 6px",
+              borderRadius: 6, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 4,
+              fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+              fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
+            }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            {accView === "all"
+              ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
+              : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
+            }
+          </button>
+        )}
+      </div>
+
+      {/* Gauge */}
+      <div style={{ display: "flex", justifyContent: "center", padding: "0 20px" }}>
+        <svg viewBox="0 0 320 200" width="100%" height="200" style={{ maxWidth: 340 }} role="img" aria-label="Calificación financiera">
+          <defs>
+            <linearGradient id={gaugeId} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor={gaugeColors.light} stopOpacity="0.35" />
+              <stop offset="0.5" stopColor={gaugeColors.center} stopOpacity="0.95" />
+              <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.35" />
+            </linearGradient>
+            <mask id={`${gaugeId}_dots`}>
+              <rect width="320" height="200" fill="white" />
+              <g fill="black">
+                {/* Rejilla de puntos que da la textura sobre el arco */}
+                {[
+                  [90,55],[105,45],[122,38],[140,33],[160,31],[180,33],[198,38],[215,45],[230,55],
+                  [85,75],[100,65],[118,58],[138,53],[160,51],[182,53],[202,58],[220,65],[235,75],
+                  [80,95],[95,85],[115,78],[137,73],[160,71],[183,73],[205,78],[225,85],[240,95],
+                  [75,115],[92,105],[112,98],[135,93],[160,91],[185,93],[208,98],[228,105],[245,115],
+                ].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="1.4" />)}
+              </g>
+            </mask>
+          </defs>
+
+          {/* Arco principal con gradiente y mask de puntos */}
+          <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
+            stroke={`url(#${gaugeId})`} strokeWidth="70" strokeLinecap="round"
+            mask={`url(#${gaugeId}_dots)`} />
+
+          {/* Marcas de referencia (extremos y tope) */}
+          <g stroke={dark ? "rgba(245,245,247,.35)" : "rgba(95,94,90,.55)"} strokeWidth="1.5">
+            <line x1="160" y1="35" x2="160" y2="42" />
+            <g transform="rotate(-60 160 155)"><line x1="160" y1="35" x2="160" y2="42" /></g>
+            <g transform="rotate(60 160 155)"><line x1="160" y1="35" x2="160" y2="42" /></g>
+          </g>
+
+          {/* Tick indicador (rotado según score) */}
+          <g transform={`rotate(${tickAngle} 160 155)`}>
+            <line x1="160" y1="35" x2="160" y2="60"
+              stroke={dark ? "#f5f5f7" : "#2C2C2A"} strokeWidth="3" strokeLinecap="round" />
+          </g>
+
+          {/* Círculo central que tapa el interior del arco */}
+          <circle cx="160" cy="155" r="72" fill={dark ? "#1c1e22" : "#fff"} opacity={dark ? 0 : 0} />
+
+          {/* Textos centrales */}
+          <text x="160" y="140" textAnchor="middle"
+            fontFamily="'Montserrat', sans-serif" fontSize="42" fontWeight="600"
+            fill={dark ? "#f5f5f7" : "#1a1a1f"}
+            style={{ letterSpacing: "-0.02em" }}>
+            {data.score}
+          </text>
+          <text x="160" y="165" textAnchor="middle"
+            fontFamily="'Montserrat', sans-serif" fontSize="16" fontWeight="500"
+            fill={dark ? "#f5f5f7" : "#1a1a1f"}
+            style={{ letterSpacing: "-0.005em" }}>
             {data.status}
-          </div>
-        </div>
+          </text>
+        </svg>
       </div>
 
       {/* Análisis rotativo */}
-      <div style={{ padding: "16px 20px", minHeight: 64 }}>
+      <div style={{ padding: "4px 20px 18px" }}>
         <div key={currentIdx} style={{
-          fontSize: 14, color: "var(--ink)", lineHeight: 1.5,
-          animation: "ccFadeIn .4s ease",
+          fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55,
+          textAlign: "center", animation: "ccFadeIn .4s ease",
+          minHeight: 38,
         }}>
           {data.analyses[currentIdx]}
         </div>
         {/* Indicadores de paginación */}
-        <div style={{ display: "flex", gap: 5, marginTop: 12, justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 5, marginTop: 10, justifyContent: "center" }}>
           {data.analyses.map((_, i) => (
             <span key={i} style={{
               width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
-              background: i === currentIdx ? data.color : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
+              background: i === currentIdx ? gaugeColors.center : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
               transition: "all .3s ease",
             }} />
           ))}
