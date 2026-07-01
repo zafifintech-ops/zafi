@@ -8200,21 +8200,12 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
               <stop offset="0.5" stopColor={gaugeColors.center} stopOpacity="0.95" />
               <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.4" />
             </linearGradient>
-            {/* Gradiente de brillo superior (efecto cristal) */}
-            <linearGradient id={`${gaugeId}_glass`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.35" : "0.7"} />
-              <stop offset="0.4" stopColor="#ffffff" stopOpacity="0" />
-            </linearGradient>
-            {/* Gradiente de sombra interior (efecto profundidad) */}
-            <linearGradient id={`${gaugeId}_shadow`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#000" stopOpacity="0" />
-              <stop offset="1" stopColor="#000" stopOpacity={dark ? "0.4" : "0.2"} />
-            </linearGradient>
-            {/* Reflejo especular sutil (highlight rotativo) */}
-            <radialGradient id={`${gaugeId}_shine`} cx="0.5" cy="0.1" r="0.5">
-              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.45" : "0.55"} />
+            {/* Highlight de vidrio — solo un brillo fino en la parte superior del stroke */}
+            <linearGradient id={`${gaugeId}_highlight`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.22" : "0.55"} />
+              <stop offset="0.35" stopColor="#ffffff" stopOpacity="0" />
               <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-            </radialGradient>
+            </linearGradient>
             {/* Máscara de puntos sobre el arco */}
             <mask id={`${gaugeId}_dots`}>
               <rect x="-20" y="-30" width="360" height="220" fill="white" />
@@ -8227,9 +8218,10 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
                 ].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="1.4" />)}
               </g>
             </mask>
-            {/* Clip path del arco (para aplicar los efectos cristal solo dentro) */}
-            <clipPath id={`${gaugeId}_clip`}>
-              <path d="M 40 155 A 120 120 0 0 1 280 155 L 280 190 L 40 190 Z" />
+            {/* Clip del arco para contener el highlight solo dentro */}
+            <clipPath id={`${gaugeId}_arcclip`}>
+              <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
+                stroke="black" strokeWidth="70" strokeLinecap="round" />
             </clipPath>
           </defs>
 
@@ -8238,23 +8230,14 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
             stroke={`url(#${gaugeId})`} strokeWidth="70" strokeLinecap="round"
             mask={`url(#${gaugeId}_dots)`} />
 
-          {/* CAPA 2: Brillo superior (efecto vidrio arriba) */}
-          <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
-            stroke={`url(#${gaugeId}_glass)`} strokeWidth="70" strokeLinecap="round"
-            style={{ mixBlendMode: "screen" }} />
+          {/* CAPA 2: Highlight superior fino — solo dentro del arco (clipped) */}
+          <g clipPath={`url(#${gaugeId}_arcclip)`}>
+            <rect x="-20" y="-30" width="360" height="220" fill={`url(#${gaugeId}_highlight)`} />
+          </g>
 
-          {/* CAPA 3: Sombra inferior (efecto profundidad) */}
-          <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
-            stroke={`url(#${gaugeId}_shadow)`} strokeWidth="70" strokeLinecap="round" />
-
-          {/* CAPA 4: Reflejo especular (highlight tipo lámpara arriba-centro) */}
-          <ellipse cx="160" cy="40" rx="90" ry="35"
-            fill={`url(#${gaugeId}_shine)`}
-            style={{ mixBlendMode: "screen" }} />
-
-          {/* Borde brillante superior del arco (línea de highlight fina) */}
+          {/* CAPA 3: Línea de brillo fino en el borde superior del arco (edge light) */}
           <path d="M 42 155 A 118 118 0 0 1 278 155" fill="none"
-            stroke="#ffffff" strokeOpacity={dark ? "0.15" : "0.4"} strokeWidth="1.5" />
+            stroke="#ffffff" strokeOpacity={dark ? "0.18" : "0.35"} strokeWidth="1" />
 
           {/* Marcas de referencia (extremos y tope) */}
           <g stroke={dark ? "rgba(245,245,247,.5)" : "rgba(95,94,90,.7)"} strokeWidth="1.8" strokeLinecap="round">
@@ -8267,19 +8250,12 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
           <g style={{ transition: hasAnimated ? "transform .3s cubic-bezier(.2,.8,.3,1)" : "none" }}
             transform={`rotate(${tickAngle} 160 155)`}>
             <line x1="160" y1="34" x2="160" y2="62"
-              stroke="rgba(0,0,0,0.25)" strokeWidth="4" strokeLinecap="round"
-              transform="translate(0.5, 0.5)" />
-            <line x1="160" y1="34" x2="160" y2="62"
               stroke={dark ? "#f5f5f7" : "#2C2C2A"} strokeWidth="3" strokeLinecap="round" />
           </g>
 
-          {/* Círculo blanco central (crea el "hueco" del interior del arco) */}
+          {/* Círculo central que crea el "hueco" del interior del arco */}
           <circle cx="160" cy="155" r="72"
             fill={dark ? "#1c1e22" : "#ffffff"} />
-
-          {/* Borde interno sutil del círculo central (le da definición) */}
-          <circle cx="160" cy="155" r="72" fill="none"
-            stroke={dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.04)"} strokeWidth="1" />
 
           {/* Textos centrales — el número usa animScore para animarse contando */}
           <text x="160" y="140" textAnchor="middle"
