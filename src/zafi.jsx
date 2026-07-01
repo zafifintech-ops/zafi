@@ -8075,6 +8075,29 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     return () => clearInterval(id);
   }, [data]);
 
+  // Animación del score: sube desde 0 hasta el valor real al montar
+  // (debe estar ANTES de los early returns para respetar el orden de hooks)
+  const [animScore, setAnimScore] = useState(0);
+  useEffect(() => {
+    if (!data?.score && data?.score !== 0) return;
+    setAnimScore(0);
+    const start = performance.now();
+    const duration = 1200; // 1.2s de animación
+    let rafId;
+    const animate = (now) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      // Ease-out cubic (arranca rápido y desacelera)
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimScore(Math.round(data.score * eased));
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [data?.score]);
+
   const dark = useDarkMode();
 
   // Estado: error
@@ -8110,27 +8133,6 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
 
   // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
   const gaugeId = `gauge_${data.score}_${data.status}`.replace(/\s/g, "_");
-
-  // Animación: el score y el tick suben desde 0 hasta el valor real al montar
-  const [animScore, setAnimScore] = useState(0);
-  useEffect(() => {
-    setAnimScore(0);
-    const start = performance.now();
-    const duration = 1200; // 1.2s de animación
-    let rafId;
-    const animate = (now) => {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      // Ease-out cubic (arranca rápido y desacelera)
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setAnimScore(Math.round(data.score * eased));
-      if (progress < 1) {
-        rafId = requestAnimationFrame(animate);
-      }
-    };
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
-  }, [data.score]);
 
   // Ángulo del tick basado en score animado (score 0 = -90°, score 100 = +90°)
   const tickAngle = -90 + (animScore / 100) * 180;
