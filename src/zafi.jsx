@@ -609,6 +609,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes ccTipIn{0%{opacity:0;transform:translateY(6px);}100%{opacity:1;transform:translateY(0);}}
+@keyframes ccTipProgress{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
 @keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6);}50%{box-shadow:0 0 0 4px rgba(91,110,232,1), 0 0 32px rgba(91,110,232,.8);}}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
@@ -8064,12 +8066,12 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     callAI();
   }, [dataKey]);
 
-  // Rotación cada 5 segundos
+  // Rotación cada 8 segundos (suficiente para leer sin sentir prisa)
   useEffect(() => {
     if (!data?.analyses || data.analyses.length < 2) return;
     const id = setInterval(() => {
       setCurrentIdx((i) => (i + 1) % data.analyses.length);
-    }, 5000);
+    }, 8000);
     return () => clearInterval(id);
   }, [data]);
 
@@ -8106,11 +8108,32 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     return { center: "#A32D2D", light: "#F7C1C1", dark: "#791F1F" };
   })();
 
-  // Ángulo del tick (score 0 = -90°, score 100 = +90°)
-  const tickAngle = -90 + (data.score / 100) * 180;
-
   // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
   const gaugeId = `gauge_${data.score}_${data.status}`.replace(/\s/g, "_");
+
+  // Animación: el score y el tick suben desde 0 hasta el valor real al montar
+  const [animScore, setAnimScore] = useState(0);
+  useEffect(() => {
+    setAnimScore(0);
+    const start = performance.now();
+    const duration = 1200; // 1.2s de animación
+    let rafId;
+    const animate = (now) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      // Ease-out cubic (arranca rápido y desacelera)
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimScore(Math.round(data.score * eased));
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [data.score]);
+
+  // Ángulo del tick basado en score animado (score 0 = -90°, score 100 = +90°)
+  const tickAngle = -90 + (animScore / 100) * 180;
 
   return (
     <div className="cc-card" style={{
@@ -8156,9 +8179,9 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
         )}
       </div>
 
-      {/* Gauge */}
-      <div style={{ display: "flex", justifyContent: "center", padding: "0 20px" }}>
-        <svg viewBox="0 0 320 200" width="100%" height="200" style={{ maxWidth: 340 }} role="img" aria-label="Calificación financiera">
+      {/* Gauge — viewBox extendido para que no se corte el arco */}
+      <div style={{ display: "flex", justifyContent: "center", padding: "8px 20px 0" }}>
+        <svg viewBox="-20 -20 360 220" width="100%" height="200" style={{ maxWidth: 360 }} role="img" aria-label="Calificación financiera">
           <defs>
             <linearGradient id={gaugeId} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor={gaugeColors.light} stopOpacity="0.35" />
@@ -8166,7 +8189,7 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
               <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.35" />
             </linearGradient>
             <mask id={`${gaugeId}_dots`}>
-              <rect width="320" height="200" fill="white" />
+              <rect x="-20" y="-20" width="360" height="220" fill="white" />
               <g fill="black">
                 {/* Rejilla de puntos que da la textura sobre el arco */}
                 {[
@@ -8191,21 +8214,19 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
             <g transform="rotate(60 160 155)"><line x1="160" y1="35" x2="160" y2="42" /></g>
           </g>
 
-          {/* Tick indicador (rotado según score) */}
-          <g transform={`rotate(${tickAngle} 160 155)`}>
+          {/* Tick indicador (rotado según score animado) — con transición suave */}
+          <g style={{ transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}
+            transform={`rotate(${tickAngle} 160 155)`}>
             <line x1="160" y1="35" x2="160" y2="60"
               stroke={dark ? "#f5f5f7" : "#2C2C2A"} strokeWidth="3" strokeLinecap="round" />
           </g>
 
-          {/* Círculo central que tapa el interior del arco */}
-          <circle cx="160" cy="155" r="72" fill={dark ? "#1c1e22" : "#fff"} opacity={dark ? 0 : 0} />
-
-          {/* Textos centrales */}
+          {/* Textos centrales — el número usa animScore para animarse contando */}
           <text x="160" y="140" textAnchor="middle"
             fontFamily="'Montserrat', sans-serif" fontSize="42" fontWeight="600"
             fill={dark ? "#f5f5f7" : "#1a1a1f"}
             style={{ letterSpacing: "-0.02em" }}>
-            {data.score}
+            {animScore}
           </text>
           <text x="160" y="165" textAnchor="middle"
             fontFamily="'Montserrat', sans-serif" fontSize="16" fontWeight="500"
@@ -8344,13 +8365,24 @@ Genera 5 consejos prácticos personalizados.`;
     callAI();
   }, [dataKey]);
 
+  // Rotación cada 10 segundos (los tips son más largos que los análisis del score)
+  // Se pausa cuando el usuario navega manualmente por 15 seg
+  const [pausedUntil, setPausedUntil] = useState(0);
   useEffect(() => {
     if (!tips || tips.length < 2) return;
     const id = setInterval(() => {
+      if (Date.now() < pausedUntil) return;
       setCurrentIdx((i) => (i + 1) % tips.length);
-    }, 5000);
+    }, 10000);
     return () => clearInterval(id);
-  }, [tips]);
+  }, [tips, pausedUntil]);
+
+  const goToTip = (idx) => {
+    setCurrentIdx(idx);
+    setPausedUntil(Date.now() + 15000); // pausa 15s al interactuar
+  };
+  const nextTip = () => tips && goToTip((currentIdx + 1) % tips.length);
+  const prevTip = () => tips && goToTip((currentIdx - 1 + tips.length) % tips.length);
 
   const dark = useDarkMode();
 
@@ -8375,68 +8407,160 @@ Genera 5 consejos prácticos personalizados.`;
     );
   }
 
+  // Color base amber para la card de tips (armoniza con la idea de "iluminación")
+  const tipAccent = "#BA7517";
+  const tipAccentLight = "#FAC775";
+
   return (
-    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
+    <div className="cc-card" style={{
+      padding: 0, overflow: "hidden", position: "relative",
+      // Fondo con gradiente radial ámbar sutil (a juego con el foco/iluminación de un tip)
+      background: dark
+        ? `radial-gradient(ellipse at top right, ${tipAccent}18 0%, transparent 60%), var(--glass)`
+        : `radial-gradient(ellipse at top right, ${tipAccent}14 0%, transparent 55%), var(--glass)`,
+    }}>
       {/* Header */}
       <div style={{
-        padding: "16px 20px 12px",
-        background: dark ? "rgba(245, 158, 11, .08)" : "rgba(245, 158, 11, .06)",
-        borderBottom: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}`,
+        padding: "16px 20px 8px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>💡</span>
-            <span className="cc-label" style={{ marginBottom: 0 }}>Tip personalizado</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Icono en círculo con gradiente sutil */}
+          <div style={{
+            width: 30, height: 30, borderRadius: 9,
+            background: `linear-gradient(135deg, ${tipAccentLight}, ${tipAccent})`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: `0 4px 12px ${tipAccent}30`,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.4.3.7.7.8 1.1L9 18h6l.2-2.2c.1-.4.4-.8.8-1.1A7 7 0 0 0 12 2z"/>
+            </svg>
           </div>
-          {!demoMode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
-                else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
-              }}
-              style={{
-                background: "transparent", border: "none", padding: "2px 6px",
-                borderRadius: 6, cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: 4,
-                fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-                fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
-              }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                <line x1="17" y1="16" x2="23" y2="16" />
-              </svg>
-              {accView === "all"
-                ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
-                : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
-              }
-            </button>
-          )}
+          <div>
+            <div style={{
+              fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em",
+              textTransform: "uppercase", color: tipAccent,
+              lineHeight: 1, marginBottom: 3,
+            }}>
+              Consejo del día
+            </div>
+            <div style={{
+              fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500,
+              letterSpacing: ".01em", lineHeight: 1,
+            }}>
+              {currentIdx + 1} de {tips.length}
+            </div>
+          </div>
         </div>
+        {!demoMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
+              else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
+            }}
+            style={{
+              background: "transparent", border: "none", padding: "2px 6px",
+              borderRadius: 6, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 4,
+              fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
+              fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
+            }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            {accView === "all"
+              ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
+              : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
+            }
+          </button>
+        )}
       </div>
 
-      {/* Tip rotativo */}
-      <div style={{ padding: "18px 20px", minHeight: 80 }}>
+      {/* Tip con quote grande y controles */}
+      <div style={{ padding: "8px 20px 16px", position: "relative" }}>
+        {/* Comilla decorativa */}
+        <div style={{
+          position: "absolute", top: 2, left: 20,
+          fontFamily: "'Fraunces', serif", fontSize: 48, lineHeight: 1,
+          color: tipAccent, opacity: 0.15, pointerEvents: "none",
+          userSelect: "none",
+        }}>“</div>
+
         <div key={currentIdx} style={{
-          fontSize: 14.5, color: "var(--ink)", lineHeight: 1.55,
-          animation: "ccFadeIn .4s ease",
-          fontWeight: 400,
+          fontSize: 14.5, color: "var(--ink)", lineHeight: 1.6,
+          fontWeight: 400, minHeight: 68,
+          padding: "8px 8px 0 24px", // deja espacio para la comilla
+          animation: "ccTipIn .45s cubic-bezier(.2,.8,.3,1)",
         }}>
           {tips[currentIdx]}
         </div>
-        {/* Indicadores */}
-        <div style={{ display: "flex", gap: 5, marginTop: 14, justifyContent: "center" }}>
-          {tips.map((_, i) => (
-            <span key={i} style={{
-              width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
-              background: i === currentIdx ? "#F59E0B" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
-              transition: "all .3s ease",
-            }} />
-          ))}
+
+        {/* Controles: prev/next + barra de progreso animada */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          marginTop: 14, paddingLeft: 24,
+        }}>
+          <button onClick={prevTip} style={{
+            width: 28, height: 28, borderRadius: "50%",
+            border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)"}`,
+            background: "transparent", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--ink-soft)",
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+
+          {/* Barra de progreso: dots que se convierten en barra activa con timer */}
+          <div style={{ flex: 1, display: "flex", gap: 4, alignItems: "center" }}>
+            {tips.map((_, i) => (
+              <button key={i} onClick={() => goToTip(i)} style={{
+                flex: 1, height: 4, borderRadius: 99,
+                background: i === currentIdx
+                  ? "transparent"
+                  : i < currentIdx
+                    ? tipAccent + "55"
+                    : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
+                border: "none", padding: 0, cursor: "pointer",
+                position: "relative", overflow: "hidden",
+                transition: "background .3s ease",
+              }}>
+                {i === currentIdx && (
+                  <div key={`prog-${currentIdx}-${pausedUntil}`} style={{
+                    position: "absolute", top: 0, left: 0, bottom: 0,
+                    background: tipAccent, borderRadius: 99,
+                    width: "100%",
+                    animation: Date.now() < pausedUntil
+                      ? "none"
+                      : "ccTipProgress 10s linear forwards",
+                    transformOrigin: "left",
+                  }} />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <button onClick={nextTip} style={{
+            width: 28, height: 28, borderRadius: "50%",
+            border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)"}`,
+            background: "transparent", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--ink-soft)",
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
