@@ -8078,24 +8078,33 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
   // Animación del score: sube desde 0 hasta el valor real al montar
   // (debe estar ANTES de los early returns para respetar el orden de hooks)
   const [animScore, setAnimScore] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
   useEffect(() => {
-    if (!data?.score && data?.score !== 0) return;
+    if (data?.score === undefined || data?.score === null) return;
+    // Reset a 0 y disparar animación
     setAnimScore(0);
-    const start = performance.now();
-    const duration = 1200; // 1.2s de animación
-    let rafId;
-    const animate = (now) => {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      // Ease-out cubic (arranca rápido y desacelera)
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setAnimScore(Math.round(data.score * eased));
-      if (progress < 1) {
-        rafId = requestAnimationFrame(animate);
-      }
-    };
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
+    setHasAnimated(false);
+    // Pequeño delay para que se vea el 0 antes de arrancar
+    const startTimer = setTimeout(() => {
+      const start = performance.now();
+      const duration = 1400; // 1.4s de animación
+      let rafId;
+      const animate = (now) => {
+        const elapsed = now - start;
+        const progress = Math.min(1, elapsed / duration);
+        // Ease-out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setAnimScore(Math.round(data.score * eased));
+        if (progress < 1) {
+          rafId = requestAnimationFrame(animate);
+        } else {
+          setHasAnimated(true);
+        }
+      };
+      rafId = requestAnimationFrame(animate);
+      return () => cancelAnimationFrame(rafId);
+    }, 200);
+    return () => clearTimeout(startTimer);
   }, [data?.score]);
 
   const dark = useDarkMode();
@@ -8183,17 +8192,33 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
 
       {/* Gauge — viewBox extendido para que no se corte el arco */}
       <div style={{ display: "flex", justifyContent: "center", padding: "8px 20px 0" }}>
-        <svg viewBox="-20 -20 360 220" width="100%" height="200" style={{ maxWidth: 360 }} role="img" aria-label="Calificación financiera">
+        <svg viewBox="-20 -30 360 220" width="100%" height="200" style={{ maxWidth: 360 }} role="img" aria-label="Calificación financiera">
           <defs>
+            {/* Gradiente principal del arco (colorido con puntos) */}
             <linearGradient id={gaugeId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor={gaugeColors.light} stopOpacity="0.35" />
+              <stop offset="0" stopColor={gaugeColors.light} stopOpacity="0.4" />
               <stop offset="0.5" stopColor={gaugeColors.center} stopOpacity="0.95" />
-              <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.35" />
+              <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.4" />
             </linearGradient>
+            {/* Gradiente de brillo superior (efecto cristal) */}
+            <linearGradient id={`${gaugeId}_glass`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.35" : "0.7"} />
+              <stop offset="0.4" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+            {/* Gradiente de sombra interior (efecto profundidad) */}
+            <linearGradient id={`${gaugeId}_shadow`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#000" stopOpacity="0" />
+              <stop offset="1" stopColor="#000" stopOpacity={dark ? "0.4" : "0.2"} />
+            </linearGradient>
+            {/* Reflejo especular sutil (highlight rotativo) */}
+            <radialGradient id={`${gaugeId}_shine`} cx="0.5" cy="0.1" r="0.5">
+              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.45" : "0.55"} />
+              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+            </radialGradient>
+            {/* Máscara de puntos sobre el arco */}
             <mask id={`${gaugeId}_dots`}>
-              <rect x="-20" y="-20" width="360" height="220" fill="white" />
+              <rect x="-20" y="-30" width="360" height="220" fill="white" />
               <g fill="black">
-                {/* Rejilla de puntos que da la textura sobre el arco */}
                 {[
                   [90,55],[105,45],[122,38],[140,33],[160,31],[180,33],[198,38],[215,45],[230,55],
                   [85,75],[100,65],[118,58],[138,53],[160,51],[182,53],[202,58],[220,65],[235,75],
@@ -8202,26 +8227,59 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
                 ].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="1.4" />)}
               </g>
             </mask>
+            {/* Clip path del arco (para aplicar los efectos cristal solo dentro) */}
+            <clipPath id={`${gaugeId}_clip`}>
+              <path d="M 40 155 A 120 120 0 0 1 280 155 L 280 190 L 40 190 Z" />
+            </clipPath>
           </defs>
 
-          {/* Arco principal con gradiente y mask de puntos */}
+          {/* CAPA 1: Arco base coloreado con puntos */}
           <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
             stroke={`url(#${gaugeId})`} strokeWidth="70" strokeLinecap="round"
             mask={`url(#${gaugeId}_dots)`} />
 
+          {/* CAPA 2: Brillo superior (efecto vidrio arriba) */}
+          <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
+            stroke={`url(#${gaugeId}_glass)`} strokeWidth="70" strokeLinecap="round"
+            style={{ mixBlendMode: "screen" }} />
+
+          {/* CAPA 3: Sombra inferior (efecto profundidad) */}
+          <path d="M 40 155 A 120 120 0 0 1 280 155" fill="none"
+            stroke={`url(#${gaugeId}_shadow)`} strokeWidth="70" strokeLinecap="round" />
+
+          {/* CAPA 4: Reflejo especular (highlight tipo lámpara arriba-centro) */}
+          <ellipse cx="160" cy="40" rx="90" ry="35"
+            fill={`url(#${gaugeId}_shine)`}
+            style={{ mixBlendMode: "screen" }} />
+
+          {/* Borde brillante superior del arco (línea de highlight fina) */}
+          <path d="M 42 155 A 118 118 0 0 1 278 155" fill="none"
+            stroke="#ffffff" strokeOpacity={dark ? "0.15" : "0.4"} strokeWidth="1.5" />
+
           {/* Marcas de referencia (extremos y tope) */}
-          <g stroke={dark ? "rgba(245,245,247,.35)" : "rgba(95,94,90,.55)"} strokeWidth="1.5">
-            <line x1="160" y1="35" x2="160" y2="42" />
-            <g transform="rotate(-60 160 155)"><line x1="160" y1="35" x2="160" y2="42" /></g>
-            <g transform="rotate(60 160 155)"><line x1="160" y1="35" x2="160" y2="42" /></g>
+          <g stroke={dark ? "rgba(245,245,247,.5)" : "rgba(95,94,90,.7)"} strokeWidth="1.8" strokeLinecap="round">
+            <line x1="160" y1="35" x2="160" y2="43" />
+            <g transform="rotate(-60 160 155)"><line x1="160" y1="35" x2="160" y2="43" /></g>
+            <g transform="rotate(60 160 155)"><line x1="160" y1="35" x2="160" y2="43" /></g>
           </g>
 
-          {/* Tick indicador (rotado según score animado) — con transición suave */}
-          <g style={{ transition: "transform .3s cubic-bezier(.2,.8,.3,1)" }}
+          {/* Tick indicador (rotado según score animado) con sombra sutil */}
+          <g style={{ transition: hasAnimated ? "transform .3s cubic-bezier(.2,.8,.3,1)" : "none" }}
             transform={`rotate(${tickAngle} 160 155)`}>
-            <line x1="160" y1="35" x2="160" y2="60"
+            <line x1="160" y1="34" x2="160" y2="62"
+              stroke="rgba(0,0,0,0.25)" strokeWidth="4" strokeLinecap="round"
+              transform="translate(0.5, 0.5)" />
+            <line x1="160" y1="34" x2="160" y2="62"
               stroke={dark ? "#f5f5f7" : "#2C2C2A"} strokeWidth="3" strokeLinecap="round" />
           </g>
+
+          {/* Círculo blanco central (crea el "hueco" del interior del arco) */}
+          <circle cx="160" cy="155" r="72"
+            fill={dark ? "#1c1e22" : "#ffffff"} />
+
+          {/* Borde interno sutil del círculo central (le da definición) */}
+          <circle cx="160" cy="155" r="72" fill="none"
+            stroke={dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.04)"} strokeWidth="1" />
 
           {/* Textos centrales — el número usa animScore para animarse contando */}
           <text x="160" y="140" textAnchor="middle"
