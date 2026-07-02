@@ -8097,29 +8097,47 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
           return true;
         }
 
-        // Ángulo de la píldora: sale de tail, recorre el hueco (CCW en el frame estático)
-        // hasta llegar a head-2π (equivalente a head).
+        // smoothstep 0→1 durante el primer 20% de vida: fase de "desprendimiento"
+        // (como jalar un chicle) antes de que la píldora viaje libremente.
+        const DETACH_END = 0.2;
+        const rawT = Math.min(1, p.t / DETACH_END);
+        const detach = rawT * rawT * (3 - 2 * rawT); // smoothstep
+
+        // Ángulo: en t=0 la píldora está pegada exactamente a la cola del arco
+        // (mismo punto), y se va alejando conforme avanza.
         const pillAngle = arcTail - p.t * gapSize;
 
-        // Radio efectivo con offset parabólico: R en los extremos, R+RADIUS_OUT en el medio
-        const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT;
+        // Radio: empieza EN el radio del arco (R, tocando la cola) y solo se
+        // despega hacia afuera conforme "detach" avanza — efecto de estirar.
+        const parabola = Math.sin(p.t * Math.PI) * RADIUS_OUT;
+        const rEff = R + parabola * detach;
+
+        // Span: empieza ancho (como una extensión chiclosa de la cola) y se
+        // contrae al span normal de píldora conforme se despega.
+        const spanWide = 0.24;
+        const pillSpanCur = spanWide + (pillSpan - spanWide) * detach;
+
+        // Color: empieza IGUAL al color de la cola del arco (45% brillo, mismo
+        // tono) y se aclara hasta el brillo completo conforme se despega.
+        const brightness = 0.45 + 0.55 * detach;
+        const pillColor = scaleC(color, brightness);
 
         // Extremos del arco de la píldora
         const pStart = pillAngle;
-        const pEnd = pillAngle + pillSpan;
+        const pEnd = pillAngle + pillSpanCur;
 
-        // Glow (posición en el centro de la píldora)
-        const midAngle = pillAngle + pillSpan / 2;
+        // Glow (posición en el centro de la píldora) — más tenue mientras está pegada
+        const midAngle = pillAngle + pillSpanCur / 2;
         const gx = CX + Math.cos(midAngle) * rEff;
         const gy = CY + Math.sin(midAngle) * rEff;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
-        pillGlow.addColorStop(0, rgba(color, 0.5));
-        pillGlow.addColorStop(1, rgba(color, 0));
+        pillGlow.addColorStop(0, rgba(pillColor, 0.5 * detach));
+        pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
         // Arco de la píldora (usa rEff para el "salto" hacia afuera)
-        ctx.strokeStyle = rgba(color, 1);
+        ctx.strokeStyle = rgba(pillColor, 1);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.arc(CX, CY, rEff, pStart, pEnd);
@@ -14125,10 +14143,14 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
   const globalHidden = config.hiddenAccountCards || [];
   const visibleAccounts = config.accounts.filter((a) => !globalHidden.includes(a.id));
 
-  // Categorías: usar los IDs (no nombres) — así es como los filtros originales trabajan
-  // Filtramos ingresos vs gastos desde config.categories (fuente única)
-  const incomeCats = (config.categories || []).filter((c) => c.type === "income" && !c.off);
-  const expenseCats = (config.categories || []).filter((c) => c.type === "expense" && !c.off);
+  // Categorías: SIEMPRE filtradas por cuenta (cada categoría pertenece a una cuenta).
+  // Si accView === "all" agrupamos por cuenta; si es una cuenta específica, solo
+  // mostramos las categorías de esa cuenta (comportamiento anterior).
+  const isAllView = accView === "all";
+  const allIncomeCats = (config.categories || []).filter((c) => c.type === "income" && !c.off);
+  const allExpenseCats = (config.categories || []).filter((c) => c.type === "expense" && !c.off);
+  const incomeCats = isAllView ? allIncomeCats : allIncomeCats.filter((c) => c.accountId === accView);
+  const expenseCats = isAllView ? allExpenseCats : allExpenseCats.filter((c) => c.accountId === accView);
 
   const [accSelected, setAccSelected] = useState(
     new Set(visibleAccounts.filter((a) => !accHiddenInit.includes(a.id)).map((a) => a.id))
@@ -14261,100 +14283,90 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
               </div>
             )}
 
-            {/* Categorías de ingreso */}
-            {incomeCats.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)",
-                    display: "inline-block" }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                    letterSpacing: ".06em", color: "var(--green)", fontFamily: "'Montserrat', sans-serif" }}>
-                    Ingresos
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
-                    {incSelected.size}/{incomeCats.length}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {incomeCats.map((c) => {
-                    const isOn = incSelected.has(c.id);
-                    return (
-                      <button key={c.id} onClick={() => toggleInc(c.id)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
-                          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
-                          width: "100%" }}>
-                        <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
-                        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
-                          fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
-                        <div style={{ width: 20, height: 20, borderRadius: 5,
-                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                          background: isOn ? "#5B6EE8" : "transparent",
-                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {isOn && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Categorías de gasto */}
-            {expenseCats.length > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--coral)",
-                    display: "inline-block" }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                    letterSpacing: ".06em", color: "var(--coral)", fontFamily: "'Montserrat', sans-serif" }}>
-                    Gastos
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
-                    {expSelected.size}/{expenseCats.length}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {expenseCats.map((c) => {
-                    const isOn = expSelected.has(c.id);
-                    return (
-                      <button key={c.id} onClick={() => toggleExp(c.id)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
-                          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
-                          width: "100%" }}>
-                        <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
-                        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
-                          fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
-                        <div style={{ width: 20, height: 20, borderRadius: 5,
-                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                          background: isOn ? "#5B6EE8" : "transparent",
-                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {isOn && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Categorías — agrupadas por cuenta cuando la vista es "Todas" */}
+            {isAllView ? (
+              visibleAccounts.map((a) => {
+                const accIncCats = allIncomeCats.filter((c) => c.accountId === a.id);
+                const accExpCats = allExpenseCats.filter((c) => c.accountId === a.id);
+                if (accIncCats.length === 0 && accExpCats.length === 0) return null;
+                return (
+                  <div key={a.id} style={{ marginBottom: 22 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
+                      paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
+                      <span style={{ fontSize: 14 }}>🏦</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
+                        fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
+                    </div>
+                    <CatListGroup label="Ingresos" color="var(--green)" cats={accIncCats}
+                      selected={incSelected} onToggle={toggleInc} />
+                    <CatListGroup label="Gastos" color="var(--coral)" cats={accExpCats}
+                      selected={expSelected} onToggle={toggleExp} last />
+                  </div>
+                );
+              })
+            ) : (
+              <>
+                <CatListGroup label="Ingresos" color="var(--green)" cats={incomeCats}
+                  selected={incSelected} onToggle={toggleInc} />
+                <CatListGroup label="Gastos" color="var(--coral)" cats={expenseCats}
+                  selected={expSelected} onToggle={toggleExp} last />
+              </>
             )}
           </div>
         </div>
       </div>
     </div>,
     document.body
+  );
+}
+
+/* Fila de sección: título + contador + lista de categorías con checkbox.
+   Reutilizado tanto en vista de cuenta única como agrupado por cuenta en "Todas". */
+function CatListGroup({ label, color, cats, selected, onToggle, last }) {
+  if (cats.length === 0) return null;
+  const selCount = cats.filter((c) => selected.has(c.id)).length;
+  return (
+    <div style={{ marginBottom: last ? 8 : 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 2, background: color,
+          display: "inline-block" }} />
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: ".06em", color, fontFamily: "'Montserrat', sans-serif" }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+          {selCount}/{cats.length}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {cats.map((c) => {
+          const isOn = selected.has(c.id);
+          return (
+            <button key={c.id} onClick={() => onToggle(c.id)}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
+                width: "100%" }}>
+              <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
+                fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+              <div style={{ width: 20, height: 20, borderRadius: 5,
+                border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                background: isOn ? "#5B6EE8" : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {isOn && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
