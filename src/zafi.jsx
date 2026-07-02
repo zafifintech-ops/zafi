@@ -8345,16 +8345,28 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
+    // Filtrado UNIFICADO — antes esta card tenía su PROPIA lógica distinta a
+    // Dashboard/Estadísticas: en la vista "Todas las cuentas" IGNORABA por
+    // completo el filtro de categorías (solo aplicaba el de cuentas), y en
+    // vista de cuenta específica nunca respetaba "Sin categoría". Esto hacía
+    // que el score pareciera "cambiar solo" al cambiar de vista, aunque el
+    // filtro seleccionado en Personalizar vista fuera el mismo. Ahora aplica
+    // SIEMPRE ambos filtros (cuentas + categorías, con soporte UNCAT_ID),
+    // exactamente igual que el resto de la app.
     let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
-    // Aplicar filtros del usuario
     if (accView === "all" && accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
-    } else if (accView !== "all") {
-      if (incCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "income" && incCatsHidden.includes(t.categoryId)));
-      if (expCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "expense" && expCatsHidden.includes(t.categoryId)));
     }
+    filtered = filtered.filter((t) => {
+      const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+      const isValidCat = cat && cat.type === t.type;
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (t.type === "income") return !incCatsHidden.includes(key);
+      if (t.type === "expense") return !expCatsHidden.includes(key);
+      return true;
+    });
     const incTxs = filtered.filter(t => t.type === "income");
     const expTxs = filtered.filter(t => t.type === "expense");
     const totalIn = incTxs.reduce((s, t) => s + t.amount, 0);
@@ -8618,15 +8630,22 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
+    // Mismo fix que FinancialScoreCard: antes ignoraba el filtro de categorías
+    // en vista "Todas" y el de "Sin categoría" en vista de cuenta específica.
     let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
     if (accView === "all" && accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
-    } else if (accView !== "all") {
-      if (incCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "income" && incCatsHidden.includes(t.categoryId)));
-      if (expCatsHidden.length > 0) filtered = filtered.filter(t => !(t.type === "expense" && expCatsHidden.includes(t.categoryId)));
     }
+    filtered = filtered.filter((t) => {
+      const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+      const isValidCat = cat && cat.type === t.type;
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (t.type === "income") return !incCatsHidden.includes(key);
+      if (t.type === "expense") return !expCatsHidden.includes(key);
+      return true;
+    });
     const totalIn = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const totalOut = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
     const byCat = {};
@@ -9189,14 +9208,46 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const isLocked = !planMeets(userPlan, requiredPlan);
         const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
 
-        if (s.id === "balance") return (
-          <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
-            <div className="cc-label">{headerLabel}</div>
-            <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
-              {fmt(headerBalance)}
+        if (s.id === "balance") {
+          const hasActiveFilter = globalAccHidden.length > 0 || globalIncCatsHidden.length > 0 || globalExpCatsHidden.length > 0;
+          // Desglose para que el saldo sea verificable a mano: saldo inicial + flujo
+          // de las cuentas/categorías seleccionadas (todo el historial, no solo el
+          // periodo). Si tus movimientos están TODOS dentro del rango visible, el
+          // "flujo" de aquí debe coincidir con sumar los montos marcados en el
+          // filtro "Personalizar vista".
+          const initialSum = view === "all"
+            ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
+                .reduce((s, a) => s + (a.initialBalance || 0), 0)
+            : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
+          const flowSum = headerBalance - initialSum;
+          return (
+            <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
+              <div className="cc-label">{headerLabel}</div>
+              <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
+                {fmt(headerBalance)}
+              </div>
+              {hasActiveFilter && (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)",
+                    display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                    Con filtro aplicado · suma todo el historial
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", paddingLeft: 15 }}>
+                    Saldo inicial {fmtBare(initialSum)} + movimientos filtrados {flowSum >= 0 ? "+" : "−"}{fmtBare(Math.abs(flowSum)).replace("-", "")}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        );
+          );
+        }
 
         if (s.id === "kpis") {
           const kpisNode = (
