@@ -9330,6 +9330,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         <GlobalCustomizeModal
           config={config}
           accView={accView}
+          txs={txs}
+          dateRange={dateRange}
           saveConfig={saveConfig}
           onClose={() => setGlobalCustomizeOpen(false)}
         />
@@ -13457,6 +13459,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
         <GlobalCustomizeModal
           config={config}
           accView={accView}
+          txs={txs}
+          dateRange={dateRange}
           saveConfig={saveConfig}
           onClose={() => setGlobalCustomizeOpen(false)}
         />
@@ -14264,7 +14268,7 @@ ${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})<
 /* Un solo lugar para elegir qué cuentas y qué categorías cuentan en todas las
    gráficas, KPIs, y análisis del Dashboard y Estadísticas. Reemplaza los botones
    individuales de cada card. */
-function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
+function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveConfig }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
 
@@ -14285,6 +14289,25 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
   const allExpenseCats = (config.categories || []).filter((c) => c.type === "expense" && !c.off);
   const incomeCats = isAllView ? allIncomeCats : allIncomeCats.filter((c) => c.accountId === accView);
   const expenseCats = isAllView ? allExpenseCats : allExpenseCats.filter((c) => c.accountId === accView);
+
+  // ============= MONTOS por categoría y por cuenta (del periodo actual) =============
+  // Se muestran junto a cada fila para que el usuario vea de un vistazo cuánto
+  // representa cada cuenta/categoría antes de decidir incluirla u ocultarla.
+  const rangeTxsAll = txsInRange(txs || [], dateRange);
+  const catAmounts = useMemo(() => {
+    const m = {};
+    rangeTxsAll.forEach((t) => {
+      if (!t.categoryId) return;
+      m[t.categoryId] = (m[t.categoryId] || 0) + t.amount;
+    });
+    return m;
+  }, [rangeTxsAll]);
+  // Saldo actual de cada cuenta (no depende del periodo — es el saldo real)
+  const accAmounts = useMemo(() => {
+    const m = {};
+    visibleAccounts.forEach((a) => { m[a.id] = accountBalance(config, txs || [], a.id); });
+    return m;
+  }, [visibleAccounts, config, txs]);
 
   const [accSelected, setAccSelected] = useState(
     new Set(visibleAccounts.filter((a) => !accHiddenInit.includes(a.id)).map((a) => a.id))
@@ -14362,7 +14385,7 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
                 Personalizar vista
               </div>
               <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
-                Elige qué cuentas y categorías quieres considerar en todas las gráficas y KPIs del Dashboard y Estadísticas para <b>{scopeLbl}</b>.
+                Elige qué cuentas y categorías quieres considerar en todas las gráficas y KPIs del Dashboard y Estadísticas para <b>{scopeLbl}</b>. Los montos de categorías son del periodo actual; el de cuentas es el saldo real.
               </div>
             </div>
             {anyHidden && (
@@ -14405,6 +14428,10 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
                         <span style={{ fontSize: 18 }}>🏦</span>
                         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
                           fontFamily: "'Montserrat', sans-serif" }}>{a.name}</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--ink-soft)",
+                          fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap" }}>
+                          {fmtBare(accAmounts[a.id] || 0)} <span style={{ fontSize: 9.5, color: "var(--ink-faint)" }}>mxn</span>
+                        </div>
                         <div style={{ width: 20, height: 20, borderRadius: 5,
                           border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
                           background: isOn ? "#5B6EE8" : "transparent",
@@ -14438,18 +14465,18 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
                         fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
                     </div>
                     <CatListGroup label="Ingresos" color="var(--green)" cats={accIncCats}
-                      selected={incSelected} onToggle={toggleInc} />
+                      selected={incSelected} onToggle={toggleInc} amounts={catAmounts} />
                     <CatListGroup label="Gastos" color="var(--coral)" cats={accExpCats}
-                      selected={expSelected} onToggle={toggleExp} last />
+                      selected={expSelected} onToggle={toggleExp} amounts={catAmounts} last />
                   </div>
                 );
               })
             ) : (
               <>
                 <CatListGroup label="Ingresos" color="var(--green)" cats={incomeCats}
-                  selected={incSelected} onToggle={toggleInc} />
+                  selected={incSelected} onToggle={toggleInc} amounts={catAmounts} />
                 <CatListGroup label="Gastos" color="var(--coral)" cats={expenseCats}
-                  selected={expSelected} onToggle={toggleExp} last />
+                  selected={expSelected} onToggle={toggleExp} amounts={catAmounts} last />
               </>
             )}
           </div>
@@ -14462,7 +14489,7 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
 
 /* Fila de sección: título + contador + lista de categorías con checkbox.
    Reutilizado tanto en vista de cuenta única como agrupado por cuenta en "Todas". */
-function CatListGroup({ label, color, cats, selected, onToggle, last }) {
+function CatListGroup({ label, color, cats, selected, onToggle, amounts, last }) {
   if (cats.length === 0) return null;
   const selCount = cats.filter((c) => selected.has(c.id)).length;
   return (
@@ -14481,6 +14508,7 @@ function CatListGroup({ label, color, cats, selected, onToggle, last }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {cats.map((c) => {
           const isOn = selected.has(c.id);
+          const amt = amounts ? (amounts[c.id] || 0) : null;
           return (
             <button key={c.id} onClick={() => onToggle(c.id)}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
@@ -14491,6 +14519,12 @@ function CatListGroup({ label, color, cats, selected, onToggle, last }) {
               <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
               <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
                 fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+              {amt !== null && (
+                <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--ink-soft)",
+                  fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap" }}>
+                  {amt > 0 ? fmtBare(amt) : "—"} {amt > 0 && <span style={{ fontSize: 9.5, color: "var(--ink-faint)" }}>mxn</span>}
+                </div>
+              )}
               <div style={{ width: 20, height: 20, borderRadius: 5,
                 border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
                 background: isOn ? "#5B6EE8" : "transparent",
