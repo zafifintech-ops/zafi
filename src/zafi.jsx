@@ -1473,6 +1473,48 @@ function grandTotal(config, txs) {
   return init + txs.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
 }
 
+/* Fecha a usar para el "saldo inicial" de una cuenta cuando se trata como
+   transacción sintética. Prioridad: createdAt de la cuenta (si existe) >
+   fecha de su transacción real más antigua menos 1 día > hoy. */
+function initialBalanceDate(account, allTxs) {
+  if (account.createdAt) return account.createdAt;
+  const accTxs = (allTxs || []).filter((t) => t.accountId === account.id && !t.synthetic);
+  if (accTxs.length > 0) {
+    const earliest = accTxs.reduce((min, t) => (t.date < min ? t.date : min), accTxs[0].date);
+    const d = new Date(earliest + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }
+  return today();
+}
+
+/* Devuelve una transacción SINTÉTICA (no se guarda en Firestore, se genera
+   en tiempo de cálculo) que representa el saldo inicial de la cuenta como si
+   fuera su primer movimiento. Así, cada gráfica/KPI que filtra por fecha
+   decide NATURALMENTE si debe incluir el saldo inicial según su ventana de
+   tiempo — sin tener que tratarlo como caso especial en cada lugar. Ejemplos:
+   - Rango "todo 2026" y la cuenta se creó en enero 2026 → SÍ se incluye.
+   - Rango "solo julio 2026" y la cuenta es de enero → NO se incluye (correcto,
+     el ajuste inicial de enero no debería contar como flujo de julio).
+   - Gráfica de "últimos 30 días": si la cuenta es más nueva que eso, el saldo
+     inicial aparece como un salto en su día de creación (correcto). Si la
+     cuenta es más vieja, queda fuera de la ventana y no aparece (correcto).
+   Devuelve null si el saldo inicial es 0 (nada que sintetizar). */
+function getInitialBalanceTx(account, allTxs) {
+  const amt = account.initialBalance || 0;
+  if (amt === 0) return null;
+  return {
+    id: `__initial_${account.id}`,
+    type: amt >= 0 ? "income" : "expense",
+    amount: Math.abs(amt),
+    date: initialBalanceDate(account, allTxs),
+    accountId: account.id,
+    categoryId: null,
+    description: "Saldo inicial",
+    synthetic: true,
+  };
+}
+
 /* Para estadísticas: separa entre movimientos reales (afectan ingresos/gastos)
    y pass-through (dinero de paso). Los pass-through con el mismo groupId
    forman un grupo: sumamos ingresos del grupo, restamos gastos del grupo,
@@ -3043,7 +3085,7 @@ function applyActions(config0, txs0, actions) {
         const nid = uid();
         config = {
           ...config,
-          accounts: [...config.accounts, { id: nid, name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0 }],
+          accounts: [...config.accounts, { id: nid, name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0, createdAt: today() }],
           categories: [...config.categories, ...defaultCatsForAccount(nid)],
           accountMode: "multiple",
         };
@@ -4006,9 +4048,9 @@ function defaultCatsForAccount(accId) {
 function buildConfig(raw) {
   const accountMode = raw.accountMode === "multiple" ? "multiple" : "single";
   let accounts = (raw.accounts || []).map((a) => ({
-    id: uid(), name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0,
+    id: uid(), name: a.name || "Cuenta", initialBalance: Number(a.initialBalance) || 0, createdAt: today(),
   }));
-  if (!accounts.length) accounts = [{ id: uid(), name: "Principal", initialBalance: 0 }];
+  if (!accounts.length) accounts = [{ id: uid(), name: "Principal", initialBalance: 0, createdAt: today() }];
 
   let templates = (raw.categories || []).map((c) => ({
     name: c.name || "Categoría", emoji: c.emoji || "📦",
@@ -5327,7 +5369,7 @@ function ManualOnboarding({ onDone }) {
     const mainAccountId = uid();
     const parsedBalance = parseFloat((accountBalance || "0").toString().replace(/,/g, "")) || 0;
     const finalName = accountName.trim() || "Principal";
-    const mainAccount = { id: mainAccountId, name: finalName, initialBalance: parsedBalance };
+    const mainAccount = { id: mainAccountId, name: finalName, initialBalance: parsedBalance, createdAt: today() };
 
     // Construir las categorías asignándoles el accountId (cada cuenta tiene sus propias categorías)
     const finalIncome = incomeCats.filter(c => c.on).map(c => ({
@@ -8927,10 +8969,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   // En vista Total respetamos las cuentas apagadas en config (toggle de tarjeta)
   // Y las cuentas ocultas por el filtro global — ambas se combinan.
   const hiddenAccs = config.hiddenAccountCards || [];
+  const visibleAccountsForTxs = view === "all"
+    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
+    : config.accounts.filter((a) => a.id === view);
+  // El saldo inicial de cada cuenta se trata como una transacción MÁS (con
+  // fecha real, no guardada en Firestore) — así cada gráfica/KPI que filtra
+  // por fecha decide naturalmente si debe incluirlo, en vez de sumarlo
+  // manualmente como constante fuera del flujo. Ver getInitialBalanceTx().
+  const syntheticInitialTxs = visibleAccountsForTxs
+    .map((a) => getInitialBalanceTx(a, txs))
+    .filter(Boolean);
   const scopedTxs = (view === "all"
     ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
     : txs.filter((t) => t.accountId === view)
-  ).filter((t) => {
+  ).concat(syntheticInitialTxs).filter((t) => {
     // Movimientos SIN categoría válida (o con categoría del tipo equivocado)
     // se agrupan bajo "Sin categoría" (UNCAT_ID) — filtrable igual que
     // cualquier otra categoría desde "Personalizar vista". Antes esto SIEMPRE
@@ -8992,26 +9044,29 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     .concat(uncategorizedExp > 0 ? [{ cat: catOf(UNCAT_ID), amt: uncategorizedExp }] : [])
     .sort((a, b) => b.amt - a.amt);
 
-  // gastos más grandes del rango (excluyendo pass-through)
-  const topExpenses = rangeTxs.filter((t) => t.type === "expense" && !t.passThrough)
+  // gastos más grandes del rango (excluyendo pass-through y saldo inicial sintético)
+  const topExpenses = rangeTxs.filter((t) => t.type === "expense" && !t.passThrough && !t.synthetic)
     .sort((a, b) => b.amount - a.amount).slice(0, 5);
 
   // mini-gráfica de saldo (30 días)
   const trendPoints = (() => {
-    const initial = view === "all"
-      ? config.accounts.reduce((s, a) => s + (a.initialBalance || 0), 0)
-      : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
+    // El saldo inicial de cada cuenta ahora viaja como transacción sintética
+    // dentro de scopedTxs (ver getInitialBalanceTx), con su propia fecha real.
+    // Si la cuenta es nueva (fecha dentro de los últimos 30 días), aparece
+    // como un salto visible en la gráfica, en el día correcto — ya no como
+    // un balance "invisible" sumado por fuera. Si la cuenta es más antigua
+    // que 30 días, su saldo inicial se sume naturalmente al punto de partida
+    // (correcto: la gráfica de 30 días parte del saldo real que ya existía).
     // Anclar a mediodía local (no medianoche) para evitar el bug clásico de
     // `new Date("YYYY-MM-DD")`, que JS interpreta como medianoche UTC — en husos
     // horarios negativos (ej. Tijuana UTC-7) esto cae en la TARDE DEL DÍA ANTERIOR,
-    // cortando el loop un día antes de tiempo y dejando fuera el saldo real de hoy
-    // (por eso el último punto de la gráfica no coincidía con el saldo mostrado arriba).
+    // cortando el loop un día antes de tiempo.
     const todayD = new Date(today() + "T12:00:00");
     const start = new Date(todayD);
     start.setDate(start.getDate() - 29);
     const startK = start.toISOString().slice(0, 10);
     const sorted = [...scopedTxs].sort((a, b) => a.date.localeCompare(b.date));
-    let running = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+    let running = sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
     const map = new Map(); map.set(startK, running);
     sorted.forEach((t) => {
       if (t.date < startK) return;
@@ -9019,7 +9074,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       map.set(t.date, running);
     });
     const pts = [];
-    let last = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+    let last = sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
     for (let d = new Date(start); d <= todayD; d.setDate(d.getDate() + 1)) {
       const k = d.toISOString().slice(0, 10);
       if (map.has(k)) last = map.get(k);
@@ -9361,15 +9416,17 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         if (s.id === "recent") {
           // Free: muestra solo 5 + chip "Ver todos con Lite →"
           // Lite/Pro: muestra hasta 10
+          // Excluye el saldo inicial sintético — no es un movimiento real editable.
+          const realScopedTxs = scopedTxs.filter((t) => !t.synthetic);
           const limit = userPlan === "free" ? 5 : 10;
-          const items = scopedTxs.slice(0, limit);
-          const hasMore = scopedTxs.length > limit;
+          const items = realScopedTxs.slice(0, limit);
+          const hasMore = realScopedTxs.length > limit;
           return (
             <div key={s.id} className="cc-card" style={{ padding: 20 }} data-tour="recent-section">
               <div className="cc-label" style={{ marginBottom: 10 }}>
                 Movimientos recientes{view !== "all" ? ` · ${accName}` : ""}
               </div>
-              {scopedTxs.length === 0 ? (
+              {realScopedTxs.length === 0 ? (
                 <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>Sin movimientos todavía.</div>
               ) : (
                 items.map((t) => <TxRow key={t.id} t={t} config={config} onEdit={onEdit}
@@ -10921,7 +10978,7 @@ function AccountModal({ acc, onClose, onSave }) {
         </div>
         <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13 }}
           disabled={!name.trim()}
-          onClick={() => onSave({ ...acc, name: name.trim(), initialBalance: parseFloat(bal) || 0 })}>
+          onClick={() => onSave({ ...acc, name: name.trim(), initialBalance: parseFloat(bal) || 0, createdAt: acc.createdAt || today() })}>
           Guardar
         </button>
       </div>
@@ -13233,10 +13290,18 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const globalExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const hiddenAccs = config.hiddenAccountCards || [];
+  const visibleAccountsForTxs = view === "all"
+    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
+    : config.accounts.filter((a) => a.id === view);
+  // El saldo inicial de cada cuenta viaja como transacción sintética (con
+  // fecha real) — mismo mecanismo que en Dashboard. Ver getInitialBalanceTx().
+  const syntheticInitialTxs = visibleAccountsForTxs
+    .map((a) => getInitialBalanceTx(a, txs))
+    .filter(Boolean);
   const scopedTxs = (view === "all"
     ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
     : txs.filter((t) => t.accountId === view)
-  ).filter((t) => {
+  ).concat(syntheticInitialTxs).filter((t) => {
     const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
     const isValidCat = cat && cat.type === t.type;
     if (t.type === "income") {
@@ -13248,9 +13313,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     }
     return true;
   });
-  const scopedInitial = view === "all"
-    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id)).reduce((s, a) => s + (a.initialBalance || 0), 0)
-    : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
 
   // ============== datos del rango ==============
   const rangeTxs = txsInRange(scopedTxs, dateRange);
@@ -13294,10 +13356,12 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const pieTotal = rangeExpense;
 
   // ============== evolución de saldo (90 días o todo el rango) ==============
+  // El saldo inicial ya viaja dentro de scopedTxs como transacción sintética
+  // con fecha real (ver getInitialBalanceTx) — no se suma aparte.
   const { from: rfrom, to: rto } = resolveRange(dateRange);
   const sorted = [...scopedTxs].sort((a, b) => a.date.localeCompare(b.date));
   const balancePoints = [];
-  let running = scopedInitial;
+  let running = 0;
   for (const t of sorted) {
     if (t.date < rfrom) running += t.type === "income" ? t.amount : -t.amount;
   }
@@ -13308,7 +13372,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     running += t.type === "income" ? t.amount : -t.amount;
     dayMap.set(t.date, running);
   }
-  let lastVal = scopedInitial + sorted.filter((t) => t.date < rfrom).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  let lastVal = sorted.filter((t) => t.date < rfrom).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
   const startD = new Date(rfrom + "T12:00:00");
   const endD = new Date(rto + "T12:00:00");
   for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
@@ -14526,7 +14590,13 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
   // ============= MONTOS por categoría y por cuenta (del periodo actual) =============
   // Se muestran junto a cada fila para que el usuario vea de un vistazo cuánto
   // representa cada cuenta/categoría antes de decidir incluirla u ocultarla.
-  const rangeTxsAll = txsInRange(txs || [], dateRange);
+  // Incluye las transacciones sintéticas de saldo inicial (ver getInitialBalanceTx)
+  // para que el monto de "Sin categoría" coincida con lo que ve en Dashboard/Estadísticas.
+  const txsWithSynthetic = useMemo(() => {
+    const synthetic = visibleAccounts.map((a) => getInitialBalanceTx(a, txs)).filter(Boolean);
+    return [...(txs || []), ...synthetic];
+  }, [txs, visibleAccounts]);
+  const rangeTxsAll = txsInRange(txsWithSynthetic, dateRange);
   // Filtrar por accView cuando es una cuenta específica (igual que scopedTxs)
   const scopedRangeTxs = isAllView ? rangeTxsAll : rangeTxsAll.filter((t) => t.accountId === accView);
   const catAmounts = useMemo(() => {
