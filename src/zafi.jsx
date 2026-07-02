@@ -7972,9 +7972,22 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
     const ARC_SPEED = 0.006;
 
     const getColor = (pct) => {
-      if (pct < 35) return { r: 226, g: 55, b: 55, name: "Crítico" };
-      if (pct < 65) return { r: 230, g: 140, b: 20, name: "Regular" };
-      return { r: 60, g: 190, b: 60, name: "Excelente" };
+      // Colores por semáforo (rojo/naranja/verde), pero el label refleja
+      // la misma escala estricta que el resto de la app (5 niveles).
+      let r, g, b;
+      if (pct < 35) { r = 226; g = 55; b = 55; }
+      else if (pct < 65) { r = 230; g = 140; b = 20; }
+      else { r = 60; g = 190; b = 60; }
+
+      let name;
+      if (pct >= 95) name = "Perfecto";
+      else if (pct >= 90) name = "Excelente";
+      else if (pct >= 80) name = "Muy bien";
+      else if (pct >= 65) name = "Bueno";
+      else if (pct >= 45) name = "Regular";
+      else name = "Atención";
+
+      return { r, g, b, name };
     };
     const rgba = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
     const scaleC = (c, f) => ({ r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) });
@@ -8049,15 +8062,22 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       }
 
       // Píldoras
-      // Salen de la cola del arco, viajan por el HUECO del círculo (no sobre el arco)
-      // hacia la cabeza, describiendo un arco parabólico hacia afuera del radio del arco.
+      // Salen en GRUPOS de 3, una detrás de otra con separación corta (como un
+      // trencito), viajan por el HUECO del círculo hacia la cabeza, y se
+      // fusionan una por una al llegar (no se fusionan entre sí).
       const now = performance.now();
       const pillSpan = 0.11;
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
-      const spawnInterval = 700 + (st.currentPct / 100) * 2500;
-      if (canSpawn && (now - st.lastPillTime) > spawnInterval) {
-        // Nueva píldora con progreso t=0 (en la cola del arco)
+      // Pausa ENTRE grupos (más larga con score alto = menos frecuente)
+      const groupInterval = 1400 + (st.currentPct / 100) * 3000;
+
+      if (canSpawn && (now - st.lastPillTime) > groupInterval) {
+        // Lanzar 3 píldoras con delay escalonado. T_SPEED=0.013/frame @ ~60fps,
+        // así que 180ms ≈ 0.14 de "t" — cada píldora arranca 0.14 más atrás que la anterior.
+        const STAGGER_T = 0.14;
         st.pills.push({ t: 0 });
+        st.pills.push({ t: -STAGGER_T });
+        st.pills.push({ t: -STAGGER_T * 2 });
         st.lastPillTime = now;
       }
 
@@ -8071,6 +8091,10 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
         if (p.t >= 1) return false; // fusionó con la cabeza
+        if (p.t < 0) {
+          // Todavía en "delay" — no se dibuja, solo avanza el reloj interno
+          return true;
+        }
 
         // Ángulo de la píldora: sale de tail, recorre el hueco (CCW en el frame estático)
         // hasta llegar a head-2π (equivalente a head).
@@ -8199,7 +8223,10 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
 
     const finalScore = Math.min(100, Math.max(0, score));
     let status, color;
-    if (finalScore >= 80) { status = "Excelente"; color = "#10B981"; }
+    // Escala más estricta: 80 ya no es "Excelente", hay que ganárselo
+    if (finalScore >= 95) { status = "Perfecto"; color = "#10B981"; }
+    else if (finalScore >= 90) { status = "Excelente"; color = "#10B981"; }
+    else if (finalScore >= 80) { status = "Muy bien"; color = "#5B6EE8"; }
     else if (finalScore >= 65) { status = "Bueno"; color = "#5B6EE8"; }
     else if (finalScore >= 45) { status = "Regular"; color = "#F59E0B"; }
     else { status = "Atención"; color = "#EF4444"; }
