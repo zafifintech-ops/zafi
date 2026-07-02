@@ -611,6 +611,23 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
 @keyframes ccTipIn{0%{opacity:0;transform:translateY(6px);}100%{opacity:1;transform:translateY(0);}}
 @keyframes ccTipProgress{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
+/* Animaciones blob-face: los círculos respiran/oscilan constantemente para dar sensación de liquid */
+@keyframes zfBlobBreathe1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(2px,-2px) scale(1.06);}}
+@keyframes zfBlobBreathe2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-2px,-1px) scale(1.05);}}
+@keyframes zfBlobMouthBreathe{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(0,1px) scale(1.03);}}
+/* Blobs que orbitan cuando el estado es negativo (sad/worried) */
+@keyframes zfBlobOrbit1{0%,100%{transform:translate(0,0);}25%{transform:translate(-8px,-6px);}50%{transform:translate(-12px,4px);}75%{transform:translate(-6px,10px);}}
+@keyframes zfBlobOrbit2{0%,100%{transform:translate(0,0);}25%{transform:translate(6px,-8px);}50%{transform:translate(10px,4px);}75%{transform:translate(4px,12px);}}
+@keyframes zfBlobOrbit3{0%,100%{transform:translate(0,0);}33%{transform:translate(-5px,8px);}66%{transform:translate(8px,-6px);}}
+.zf-blob-eye-l{transform-origin:90px 80px;animation:zfBlobBreathe1 3.5s ease-in-out infinite;}
+.zf-blob-eye-r{transform-origin:150px 80px;animation:zfBlobBreathe2 3.5s ease-in-out infinite 0.4s;}
+.zf-blob-mouth{transform-origin:120px 140px;animation:zfBlobMouthBreathe 3.5s ease-in-out infinite 0.2s;transition:d 0.6s cubic-bezier(.4,0,.2,1);}
+.zf-blob-orbit-1{transform-origin:50px 60px;animation:zfBlobOrbit1 4.5s ease-in-out infinite;}
+.zf-blob-orbit-2{transform-origin:190px 140px;animation:zfBlobOrbit2 5s ease-in-out infinite 0.5s;}
+.zf-blob-orbit-3{transform-origin:60px 150px;animation:zfBlobOrbit3 4s ease-in-out infinite 0.3s;}
+/* Estados específicos que modifican posiciones o comportamiento */
+.zf-blob-eye-l-sad, .zf-blob-eye-r-sad{animation-duration:2.8s;}
+.zf-blob-eye-l-worried, .zf-blob-eye-r-worried{animation-duration:3s;}
 @keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6);}50%{box-shadow:0 0 0 4px rgba(91,110,232,1), 0 0 32px rgba(91,110,232,.8);}}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
@@ -8157,13 +8174,50 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     );
   }
 
-  // ============= GAUGE VISUAL =============
-  // Colores según score (verde/naranja/rojo)
-  const gaugeColors = (() => {
-    if (data.score >= 65) return { center: "#639922", light: "#C0DD97", dark: "#3B6D11" };
-    if (data.score >= 45) return { center: "#BA7517", light: "#FAC775", dark: "#854F0B" };
-    return { center: "#A32D2D", light: "#F7C1C1", dark: "#791F1F" };
+  // ============= BLOB-FACE VISUAL =============
+  // Estado emocional y colores según score (4 estados discretos)
+  // happy (80-100): verde | neutral (65-79): amarillo-verde | worried (45-64): naranja | sad (0-44): rojo
+  const { expression, gaugeColors } = (() => {
+    if (data.score >= 80) return {
+      expression: "happy",
+      gaugeColors: { center: "#639922", light: "#C0DD97", dark: "#3B6D11" },
+    };
+    if (data.score >= 65) return {
+      expression: "neutral",
+      gaugeColors: { center: "#97C459", light: "#C0DD97", dark: "#639922" },
+    };
+    if (data.score >= 45) return {
+      expression: "worried",
+      gaugeColors: { center: "#BA7517", light: "#FAC775", dark: "#854F0B" },
+    };
+    return {
+      expression: "sad",
+      gaugeColors: { center: "#A32D2D", light: "#F7C1C1", dark: "#791F1F" },
+    };
   })();
+
+  // Inyectar la expresión en data para el render
+  data.expression = expression;
+
+  // Path de la boca según expresión (arco sonrisa/línea/frown)
+  // Todas las bocas centradas en x=120, y varía. viewBox: 240x200
+  const mouthPath = (expr) => {
+    switch (expr) {
+      case "happy":
+        // Sonrisa amplia hacia arriba
+        return "M 88 130 Q 120 165 152 130 L 152 132 Q 120 168 88 132 Z";
+      case "neutral":
+        // Línea recta ligeramente curva
+        return "M 90 140 Q 120 145 150 140 L 150 145 Q 120 150 90 145 Z";
+      case "worried":
+        // Frown suave
+        return "M 92 150 Q 120 130 148 150 L 148 148 Q 120 128 92 148 Z";
+      case "sad":
+      default:
+        // Frown pronunciado
+        return "M 90 155 Q 120 125 150 155 L 150 152 Q 120 122 90 152 Z";
+    }
+  };
 
   // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
   const gaugeId = `gauge_${data.score}_${data.status}`.replace(/\s/g, "_");
@@ -8208,78 +8262,77 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
         )}
       </div>
 
-      {/* Gauge con arco completo visible */}
-      <div style={{ display: "flex", justifyContent: "center", padding: "12px 20px 4px" }}>
-        <svg viewBox="0 0 340 210" width="100%" height="200" style={{ maxWidth: 360, overflow: "visible" }} role="img" aria-label="Calificación financiera">
+      {/* Blob-face animado */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
+        {/* Número grande arriba */}
+        <div style={{
+          fontFamily: "'Montserrat', sans-serif",
+          fontSize: 56, fontWeight: 700,
+          color: dark ? "#f5f5f7" : "#1a1a1f",
+          letterSpacing: "-0.03em", lineHeight: 1,
+          marginBottom: 2,
+        }}>
+          {animScore}
+        </div>
+        <div style={{
+          fontFamily: "'Montserrat', sans-serif",
+          fontSize: 14, fontWeight: 500,
+          color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
+          letterSpacing: "-0.005em",
+          marginBottom: 6,
+        }}>
+          {data.status}
+        </div>
+
+        {/* SVG del blob-face */}
+        <svg viewBox="0 0 240 200" width="240" height="200" style={{ overflow: "visible" }} role="img" aria-label="Estado emocional financiero">
           <defs>
-            {/* Gradiente principal del arco */}
-            <linearGradient id={gaugeId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor={gaugeColors.light} stopOpacity="0.4" />
-              <stop offset="0.5" stopColor={gaugeColors.center} stopOpacity="0.95" />
-              <stop offset="1" stopColor={gaugeColors.light} stopOpacity="0.4" />
+            {/* Filtro goo: combina blobs cercanos en formas orgánicas */}
+            <filter id={`${gaugeId}_goo`}>
+              <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+              <feColorMatrix in="blur" mode="matrix"
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10"
+                result="goo" />
+              <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+            </filter>
+
+            {/* Gradiente del blob según score (verde/amarillo/naranja/rojo) */}
+            <linearGradient id={`${gaugeId}_blob`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor={gaugeColors.light} />
+              <stop offset="0.5" stopColor={gaugeColors.center} />
+              <stop offset="1" stopColor={gaugeColors.dark} />
             </linearGradient>
-            {/* Highlight de vidrio: brillo fino arriba */}
-            <linearGradient id={`${gaugeId}_highlight`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#ffffff" stopOpacity={dark ? "0.28" : "0.6"} />
-              <stop offset="0.5" stopColor="#ffffff" stopOpacity="0" />
-            </linearGradient>
-            {/* Máscara de puntos sobre el arco */}
-            <mask id={`${gaugeId}_dots`}>
-              <rect x="0" y="0" width="340" height="210" fill="white" />
-              <g fill="black">
-                {[
-                  [100,65],[115,55],[132,48],[150,43],[170,41],[190,43],[208,48],[225,55],[240,65],
-                  [95,85],[110,75],[128,68],[148,63],[170,61],[192,63],[212,68],[230,75],[245,85],
-                  [90,105],[105,95],[125,88],[147,83],[170,81],[193,83],[215,88],[235,95],[250,105],
-                  [85,125],[102,115],[122,108],[145,103],[170,101],[195,103],[218,108],[238,115],[255,125],
-                ].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="1.4" />)}
-              </g>
-            </mask>
-            {/* Clip del arco para contener el highlight solo dentro */}
-            <clipPath id={`${gaugeId}_arcclip`}>
-              <path d="M 50 165 A 120 120 0 0 1 290 165"
-                fill="none" stroke="black" strokeWidth="70" strokeLinecap="round" />
-            </clipPath>
           </defs>
 
-          {/* CAPA 1: Arco base coloreado con puntos */}
-          <path d="M 50 165 A 120 120 0 0 1 290 165"
-            fill="none" stroke={`url(#${gaugeId})`} strokeWidth="70" strokeLinecap="round"
-            mask={`url(#${gaugeId}_dots)`} />
+          {/* Grupo con filtro goo aplicado + gradiente compartido */}
+          <g filter={`url(#${gaugeId}_goo)`} fill={`url(#${gaugeId}_blob)`}>
+            {/* Ojo izquierdo — cambia posición y tamaño según expresión */}
+            <circle className={`zf-blob-eye-l zf-blob-eye-l-${data.expression}`}
+              cx="90" cy="80" r="14" />
 
-          {/* CAPA 2: Highlight de vidrio superior (clippeado dentro del arco) */}
-          <g clipPath={`url(#${gaugeId}_arcclip)`}>
-            <rect x="0" y="0" width="340" height="210" fill={`url(#${gaugeId}_highlight)`} />
+            {/* Ojo derecho */}
+            <circle className={`zf-blob-eye-r zf-blob-eye-r-${data.expression}`}
+              cx="150" cy="80" r="14" />
+
+            {/* Boca — path que cambia forma según expresión */}
+            <path className={`zf-blob-mouth zf-blob-mouth-${data.expression}`}
+              d={mouthPath(data.expression)} />
+
+            {/* Blobs adicionales que orbitan cuando el estado es negativo (dan sensación de dispersión) */}
+            {data.expression === "sad" && (
+              <>
+                <circle className="zf-blob-orbit-1" cx="50" cy="60" r="8" />
+                <circle className="zf-blob-orbit-2" cx="190" cy="140" r="7" />
+                <circle className="zf-blob-orbit-3" cx="60" cy="150" r="6" />
+              </>
+            )}
+            {data.expression === "worried" && (
+              <>
+                <circle className="zf-blob-orbit-1" cx="45" cy="70" r="7" />
+                <circle className="zf-blob-orbit-2" cx="195" cy="130" r="6" />
+              </>
+            )}
           </g>
-
-          {/* CAPA 3: Edge light (borde superior brillante fino) */}
-          <path d="M 52 165 A 118 118 0 0 1 288 165"
-            fill="none" stroke="#ffffff" strokeOpacity={dark ? "0.2" : "0.4"} strokeWidth="1" />
-
-          {/* Marcas de referencia (extremos y tope) */}
-          <g stroke={dark ? "rgba(245,245,247,.5)" : "rgba(95,94,90,.7)"} strokeWidth="1.8" strokeLinecap="round">
-            <line x1="170" y1="45" x2="170" y2="53" />
-            <g transform="rotate(-60 170 165)"><line x1="170" y1="45" x2="170" y2="53" /></g>
-            <g transform="rotate(60 170 165)"><line x1="170" y1="45" x2="170" y2="53" /></g>
-          </g>
-
-          {/* Círculo central que crea el "hueco" */}
-          <circle cx="170" cy="165" r="72"
-            fill={dark ? "#1c1e22" : "#ffffff"} />
-
-          {/* Textos centrales */}
-          <text x="170" y="150" textAnchor="middle"
-            fontFamily="'Montserrat', sans-serif" fontSize="42" fontWeight="600"
-            fill={dark ? "#f5f5f7" : "#1a1a1f"}
-            style={{ letterSpacing: "-0.02em" }}>
-            {animScore}
-          </text>
-          <text x="170" y="175" textAnchor="middle"
-            fontFamily="'Montserrat', sans-serif" fontSize="16" fontWeight="500"
-            fill={dark ? "#f5f5f7" : "#1a1a1f"}
-            style={{ letterSpacing: "-0.005em" }}>
-            {data.status}
-          </text>
         </svg>
       </div>
 
