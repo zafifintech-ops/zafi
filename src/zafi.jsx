@@ -8049,37 +8049,55 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       }
 
       // Píldoras
+      // Salen de la cola del arco, viajan por el HUECO del círculo (no sobre el arco)
+      // hacia la cabeza, describiendo un arco parabólico hacia afuera del radio del arco.
       const now = performance.now();
       const pillSpan = 0.11;
-      const pillSpeed = ARC_SPEED * 3;
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
-      const spawnInterval = 500 + (st.currentPct / 100) * 2200;
+      const spawnInterval = 700 + (st.currentPct / 100) * 2500;
       if (canSpawn && (now - st.lastPillTime) > spawnInterval) {
-        st.pills.push({ angle: arcTail - 0.22 });
+        // Nueva píldora con progreso t=0 (en la cola del arco)
+        st.pills.push({ t: 0 });
         st.lastPillTime = now;
       }
 
+      // Tamaño del hueco del círculo (la parte NO cubierta por el arco)
+      const gapSize = Math.PI * 2 - arcSpan;
+      // Velocidad de avance de t: recorrido completo en ~1.3s (78 frames @ 60fps)
+      const T_SPEED = 0.013;
+      // Cuánto se aleja hacia AFUERA en el punto más lejano (parábola)
+      const RADIUS_OUT = 14;
+
       st.pills = st.pills.filter((p) => {
-        p.angle += pillSpeed;
-        const distToHead = arcHead - p.angle;
-        if (distToHead < 0.12) return false;
-        if (distToHead > Math.PI * 3) return false;
+        p.t += T_SPEED;
+        if (p.t >= 1) return false; // fusionó con la cabeza
 
-        const pHead = p.angle;
-        const pTail = p.angle - pillSpan;
+        // Ángulo de la píldora: sale de tail, recorre el hueco (CCW en el frame estático)
+        // hasta llegar a head-2π (equivalente a head).
+        const pillAngle = arcTail - p.t * gapSize;
 
-        const px = CX + Math.cos(pHead) * R;
-        const py = CY + Math.sin(pHead) * R;
-        const pillGlow = ctx.createRadialGradient(px, py, 0, px, py, 26);
+        // Radio efectivo con offset parabólico: R en los extremos, R+RADIUS_OUT en el medio
+        const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT;
+
+        // Extremos del arco de la píldora
+        const pStart = pillAngle;
+        const pEnd = pillAngle + pillSpan;
+
+        // Glow (posición en el centro de la píldora)
+        const midAngle = pillAngle + pillSpan / 2;
+        const gx = CX + Math.cos(midAngle) * rEff;
+        const gy = CY + Math.sin(midAngle) * rEff;
+        const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
         pillGlow.addColorStop(0, rgba(color, 0.5));
         pillGlow.addColorStop(1, rgba(color, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
+        // Arco de la píldora (usa rEff para el "salto" hacia afuera)
         ctx.strokeStyle = rgba(color, 1);
         ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.arc(CX, CY, R, pTail, pHead);
+        ctx.arc(CX, CY, rEff, pStart, pEnd);
         ctx.stroke();
 
         return true;
@@ -8122,9 +8140,9 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const [currentIdx, setCurrentIdx] = useState(0);
 
   // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
-  const accHidden = getPersonalize(config, "financialAccountsHidden", accView) || [];
-  const incCatsHidden = getPersonalize(config, "financialIncCatsHidden", accView) || [];
-  const expCatsHidden = getPersonalize(config, "financialExpCatsHidden", accView) || [];
+  const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
     let filtered = txsInRange(txs, dateRange).filter(t =>
@@ -8338,40 +8356,12 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     <div ref={cardRef} className="cc-card" style={{
       padding: 0, overflow: "hidden", position: "relative",
     }}>
-      {/* Header con label y filtros */}
+      {/* Header con label */}
       <div style={{
         padding: "16px 20px 6px",
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
       }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
-        {!demoMode && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
-              else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
-            }}
-            style={{
-              background: "transparent", border: "none", padding: "2px 6px",
-              borderRadius: 6, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-              fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
-            }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-              <line x1="17" y1="16" x2="23" y2="16" />
-            </svg>
-            {accView === "all"
-              ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
-              : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
-            }
-          </button>
-        )}
       </div>
 
       {/* Blob-face animado */}
@@ -8416,9 +8406,9 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const [currentIdx, setCurrentIdx] = useState(0);
 
   // Filtros igual que score
-  const accHidden = getPersonalize(config, "financialAccountsHidden", accView) || [];
-  const incCatsHidden = getPersonalize(config, "financialIncCatsHidden", accView) || [];
-  const expCatsHidden = getPersonalize(config, "financialExpCatsHidden", accView) || [];
+  const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
     let filtered = txsInRange(txs, dateRange).filter(t =>
@@ -8600,34 +8590,6 @@ Genera 5 consejos prácticos personalizados.`;
             </div>
           </div>
         </div>
-        {!demoMode && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (accView === "all" && onOpenAccountsModal) onOpenAccountsModal();
-              else if (accView !== "all" && onOpenCatsModal) onOpenCatsModal();
-            }}
-            style={{
-              background: "transparent", border: "none", padding: "2px 6px",
-              borderRadius: 6, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-              fontFamily: "'Montserrat', sans-serif", letterSpacing: ".02em",
-            }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-              <line x1="17" y1="16" x2="23" y2="16" />
-            </svg>
-            {accView === "all"
-              ? `Cuentas${accHidden.length > 0 ? ` (${accHidden.length} ocultas)` : ""}`
-              : `Categorías${(incCatsHidden.length + expCatsHidden.length) > 0 ? ` (${incCatsHidden.length + expCatsHidden.length} ocultas)` : ""}`
-            }
-          </button>
-        )}
       </div>
 
       {/* Tip con quote grande y controles */}
@@ -8721,10 +8683,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const setView = setAccView;
   const [configuring, setConfiguring] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
-  const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
-  const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
-  const [financialAccountsOpen, setFinancialAccountsOpen] = useState(false);
-  const [financialCatsOpen, setFinancialCatsOpen] = useState(false);
+  const [globalCustomizeOpen, setGlobalCustomizeOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config, accView);
@@ -8756,7 +8715,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     if (!cat || cat.type !== "expense") return;
     byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
   });
-  const dashExpCatsHidden = getPersonalize(config, "dashExpCatsHidden", accView) || [];
+  const dashExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
   const rows = Object.entries(byCat)
     .filter(([id]) => !dashExpCatsHidden.includes(id))
     .sort((a, b) => b[1] - a[1])
@@ -8855,7 +8814,29 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 )}
               </button>
             </div>
-            <button className="cc-gear" onClick={() => setConfiguring(true)} data-tour="personalize-btn"><IconGear /> Personalizar</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {(() => {
+                const globalAccH = getPersonalize(config, "globalAccountsHidden", accView) || [];
+                const globalIncH = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+                const globalExpH = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+                const totalHidden = globalAccH.length + globalIncH.length + globalExpH.length;
+                return (
+                  <button className="cc-gear" onClick={() => setGlobalCustomizeOpen(true)}
+                    title="Elegir qué cuentas y categorías se toman en cuenta en todas las gráficas">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                    Filtrar{totalHidden > 0 ? ` (${totalHidden})` : ""}
+                  </button>
+                );
+              })()}
+              <button className="cc-gear" onClick={() => setConfiguring(true)} data-tour="personalize-btn"><IconGear /> Personalizar</button>
+            </div>
           </div>
           {!config.hideAccountCards && <div className="cc-scroll-x">
             {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
@@ -8978,23 +8959,6 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
               marginTop: 12, marginBottom: 6, gap: 8 }}>
               <div className="cc-label" style={{ marginTop: 0, marginBottom: 0 }}>Gastos por categoría · {rangeLabel(dateRange)}</div>
-              {dashExpRows.length > 0 && (
-                <button onClick={() => setCatFilter("dashExpCats")} className="cc-personalize-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="21" x2="4" y2="14" />
-                    <line x1="4" y1="10" x2="4" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12" y2="3" />
-                    <line x1="20" y1="21" x2="20" y2="16" />
-                    <line x1="20" y1="12" x2="20" y2="3" />
-                    <line x1="1" y1="14" x2="7" y2="14" />
-                    <line x1="9" y1="8" x2="15" y2="8" />
-                    <line x1="17" y1="16" x2="23" y2="16" />
-                  </svg>
-                  Personalizar
-                </button>
-              )}
             </div>
             {rows.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>
@@ -9077,9 +9041,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "incVsExp") {
-          const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
-          const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
-          const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
+          const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+          const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+          const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
           const baseTxs = statTxs(rangeTxs).all;
           let chartTxs;
           if (view === "all") {
@@ -9097,32 +9061,6 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                 marginBottom: 6, gap: 8 }}>
                 <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
-                {view === "all" && config.accounts.length > 1 && (
-                  <button onClick={() => setIncVsExpAccountsOpen(true)} className="cc-personalize-btn">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                      <line x1="17" y1="16" x2="23" y2="16" />
-                    </svg>
-                    Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                  </button>
-                )}
-                {view !== "all" && (
-                  <button onClick={() => setIncVsExpCatsOpen(true)} className="cc-personalize-btn">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                      <line x1="17" y1="16" x2="23" y2="16" />
-                    </svg>
-                    Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                  </button>
-                )}
               </div>
               <IncomeVsExpenseChart txs={chartTxs} dateRange={dateRange}
                 chartKind={getPersonalize(config, "incVsExpChartKind", accView) || "bars"}
@@ -9183,9 +9121,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           );
           return (
             <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
-              saveConfig={saveConfig}
-              onOpenAccountsModal={() => setFinancialAccountsOpen(true)}
-              onOpenCatsModal={() => setFinancialCatsOpen(true)} />
+              saveConfig={saveConfig} />
           );
         }
 
@@ -9197,9 +9133,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           );
           return (
             <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
-              saveConfig={saveConfig}
-              onOpenAccountsModal={() => setFinancialAccountsOpen(true)}
-              onOpenCatsModal={() => setFinancialCatsOpen(true)} />
+              saveConfig={saveConfig} />
           );
         }
 
@@ -9238,60 +9172,21 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           accView={accView}
           onClose={() => setCatFilter(null)}
           onSave={(next) => {
-            saveConfig(setPersonalize(config, "dashExpCatsHidden", next, accView));
+            saveConfig(setPersonalize(config, "globalExpCatsHidden", next, accView));
             setCatFilter(null);
           }}
         />
       )}
 
-      {incVsExpAccountsOpen && (
-        <ChartAccountsModal
-          config={config}
-          hiddenIds={getPersonalize(config, "incVsExpAccountsHidden", accView) || []}
-          accView={accView}
-          title="Cuentas en la gráfica"
-          desc="Elige qué cuentas sumar en Ingresos vs gastos."
-          onClose={() => setIncVsExpAccountsOpen(false)}
-          onSave={(hidden) => saveConfig(setPersonalize(config, "incVsExpAccountsHidden", hidden, accView))}
-        />
-      )}
-      {incVsExpCatsOpen && (
-        <IncVsExpCatsModal
-          config={config}
-          accView={accView}
-          incHidden={getPersonalize(config, "incVsExpIncCatsHidden", accView) || []}
-          expHidden={getPersonalize(config, "incVsExpExpCatsHidden", accView) || []}
-          onClose={() => setIncVsExpCatsOpen(false)}
-          onSave={(incH, expH) => saveConfig(
-            setPersonalize(setPersonalize(config, "incVsExpIncCatsHidden", incH, accView), "incVsExpExpCatsHidden", expH, accView)
-          )}
-        />
-      )}
-
-      {financialAccountsOpen && (
-        <ChartAccountsModal
-          config={config}
-          hiddenIds={getPersonalize(config, "financialAccountsHidden", accView) || []}
-          accView={accView}
-          title="Cuentas en tu calificación"
-          desc="Elige qué cuentas usar para calcular tu calificación financiera y consejos."
-          onClose={() => setFinancialAccountsOpen(false)}
-          onSave={(hidden) => saveConfig(setPersonalize(config, "financialAccountsHidden", hidden, accView))}
-        />
-      )}
-      {financialCatsOpen && (
-        <IncVsExpCatsModal
-          config={config}
-          accView={accView}
-          incHidden={getPersonalize(config, "financialIncCatsHidden", accView) || []}
-          expHidden={getPersonalize(config, "financialExpCatsHidden", accView) || []}
-          onClose={() => setFinancialCatsOpen(false)}
-          onSave={(incH, expH) => saveConfig(
-            setPersonalize(setPersonalize(config, "financialIncCatsHidden", incH, accView), "financialExpCatsHidden", expH, accView)
-          )}
-        />
-      )}
       {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+      {globalCustomizeOpen && (
+        <GlobalCustomizeModal
+          config={config}
+          accView={accView}
+          saveConfig={saveConfig}
+          onClose={() => setGlobalCustomizeOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -12884,11 +12779,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const setView = setAccView;
   const [detail, setDetail] = useState(null); // {kind, label, color, txs, total}
   const [configOpen, setConfigOpen] = useState(false);
-  const [catFilter, setCatFilter] = useState(null); // null | "expCats" | "catTrend"
-  const [incVsExpAccountsOpen, setIncVsExpAccountsOpen] = useState(false);
-  const [incVsExpCatsOpen, setIncVsExpCatsOpen] = useState(false);
-  const [areaFlowAccountsOpen, setAreaFlowAccountsOpen] = useState(false);
-  const [areaFlowCatsOpen, setAreaFlowCatsOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState(null); // null | "catTrend" | "topCat"
+  const [globalCustomizeOpen, setGlobalCustomizeOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
 
   // secciones configurables (orden + visibilidad)
@@ -13005,9 +12897,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 
   // ============== Acumulado ingresos / gastos por día ==============
   // Respeta los filtros del usuario (cuentas o categorías ocultas)
-  const areaFlowAccHidden = getPersonalize(config, "areaFlowAccountsHidden", accView) || [];
-  const areaFlowIncCatsHidden = getPersonalize(config, "areaFlowIncCatsHidden", accView) || [];
-  const areaFlowExpCatsHidden = getPersonalize(config, "areaFlowExpCatsHidden", accView) || [];
+  const areaFlowAccHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const areaFlowIncCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const areaFlowExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
   const incAccByDay = new Map();
   const expAccByDay = new Map();
   let accInc = 0, accExp = 0;
@@ -13072,10 +12964,33 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       <div className="cc-fade">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div className="cc-label" style={{ marginBottom: 0 }}>Ver estadísticas de</div>
-          <button className="cc-gear" onClick={() => setConfigOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", width: "auto" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Personalizar
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {(() => {
+              const globalAccH = getPersonalize(config, "globalAccountsHidden", accView) || [];
+              const globalIncH = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+              const globalExpH = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+              const totalHidden = globalAccH.length + globalIncH.length + globalExpH.length;
+              return (
+                <button className="cc-gear" onClick={() => setGlobalCustomizeOpen(true)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", width: "auto" }}
+                  title="Elegir qué cuentas y categorías se toman en cuenta en todas las gráficas">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                  Filtrar{totalHidden > 0 ? ` (${totalHidden})` : ""}
+                </button>
+              );
+            })()}
+            <button className="cc-gear" onClick={() => setConfigOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", width: "auto" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Personalizar
+            </button>
+          </div>
         </div>
         <div className="cc-scroll-x">
           <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}
@@ -13128,9 +13043,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             };
 
             if (s.id === "incVsExp") {
-              const accHidden = getPersonalize(config, "incVsExpAccountsHidden", accView) || [];
-              const incCatsHidden = getPersonalize(config, "incVsExpIncCatsHidden", accView) || [];
-              const expCatsHidden = getPersonalize(config, "incVsExpExpCatsHidden", accView) || [];
+              const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+              const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+              const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
               let chartTxs;
               if (view === "all") {
                 chartTxs = rangeStat.filter((t) => !accHidden.includes(t.accountId));
@@ -13147,32 +13062,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 6, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos vs gastos · {rangeLabel(dateRange)}</div>
-                    {view === "all" && config.accounts.length > 1 && (
-                      <button onClick={() => setIncVsExpAccountsOpen(true)} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                      </button>
-                    )}
-                    {view !== "all" && (
-                      <button onClick={() => setIncVsExpCatsOpen(true)} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                      </button>
-                    )}
                   </div>
                   <IncomeVsExpenseChart txs={chartTxs} dateRange={dateRange}
                     chartKind={getPersonalize(config, "incVsExpChartKind", accView) || "bars"}
@@ -13191,64 +13080,34 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
             }
 
             if (s.id === "incCats" && incRows.length > 0) {
-              const incCatsHidden = getPersonalize(config, "statsIncCatsHidden", accView) || [];
+              const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
               const filteredIncRows = incRows.filter((r) => !incCatsHidden.includes(r.cat.id));
               return renderWith(
                 <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 12, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Ingresos por categoría</div>
-                    <button onClick={() => setCatFilter("incCats")} className="cc-personalize-btn">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="4" y1="21" x2="4" y2="14" />
-                        <line x1="4" y1="10" x2="4" y2="3" />
-                        <line x1="12" y1="21" x2="12" y2="12" />
-                        <line x1="12" y1="8" x2="12" y2="3" />
-                        <line x1="20" y1="21" x2="20" y2="16" />
-                        <line x1="20" y1="12" x2="20" y2="3" />
-                        <line x1="1" y1="14" x2="7" y2="14" />
-                        <line x1="9" y1="8" x2="15" y2="8" />
-                        <line x1="17" y1="16" x2="23" y2="16" />
-                      </svg>
-                      Personalizar
-                    </button>
                   </div>
                   {filteredIncRows.length > 0
                     ? <CategoryChart rows={filteredIncRows} type="income" onPick={openCategoryDetail} />
-                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
+                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Usa el botón "Filtrar" para mostrar alguna.</div>}
                 </div>
               );
             }
 
             if (s.id === "expCats" && expRows.length > 0) {
-              const expCatsHidden = getPersonalize(config, "statsExpCatsHidden", accView) || [];
+              const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
               const filteredExpRows = expRows.filter((r) => !expCatsHidden.includes(r.cat.id));
               return renderWith(
                 <div className="cc-card" style={{ padding: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 12, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Gastos por categoría</div>
-                    <button onClick={() => setCatFilter("expCats")} className="cc-personalize-btn">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="4" y1="21" x2="4" y2="14" />
-                        <line x1="4" y1="10" x2="4" y2="3" />
-                        <line x1="12" y1="21" x2="12" y2="12" />
-                        <line x1="12" y1="8" x2="12" y2="3" />
-                        <line x1="20" y1="21" x2="20" y2="16" />
-                        <line x1="20" y1="12" x2="20" y2="3" />
-                        <line x1="1" y1="14" x2="7" y2="14" />
-                        <line x1="9" y1="8" x2="15" y2="8" />
-                        <line x1="17" y1="16" x2="23" y2="16" />
-                      </svg>
-                      Personalizar
-                    </button>
                   </div>
                   {filteredExpRows.length > 0
                     ? <CategoryChart rows={filteredExpRows} type="expense" onPick={openCategoryDetail}
                         freeOnlyBars={userPlan === "free"} onLockedChart={() => setUpgradeFeature && setUpgradeFeature("lite")} />
-                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Toca "Personalizar" para mostrar alguna.</div>}
+                    : <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas las categorías están ocultas. Usa el botón "Filtrar" para mostrar alguna.</div>}
                 </div>
               );
             }
@@ -13301,32 +13160,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                     marginBottom: 10, gap: 8 }}>
                     <div className="cc-label" style={{ marginBottom: 0 }}>Acumulado · {rangeLabel(dateRange)}</div>
-                    {view === "all" && config.accounts.length > 1 && (
-                      <button onClick={() => setAreaFlowAccountsOpen(true)} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Cuentas{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                      </button>
-                    )}
-                    {view !== "all" && (
-                      <button onClick={() => setAreaFlowCatsOpen(true)} className="cc-personalize-btn">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                          <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                          <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                          <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                          <line x1="17" y1="16" x2="23" y2="16" />
-                        </svg>
-                        Categorías{hiddenCount > 0 ? ` (${hiddenCount} ocultas)` : ""}
-                      </button>
-                    )}
                   </div>
                   <AreaChart incomePoints={incomeAccPoints} expensePoints={expenseAccPoints} />
                   <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, textAlign: "center" }}>
@@ -13417,62 +13250,13 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           accView={accView}
           onClose={() => setCatFilter(null)}
           onSave={(next) => {
-            const key = catFilter === "expCats" ? "statsExpCatsHidden"
-              : catFilter === "incCats" ? "statsIncCatsHidden"
+            const key = catFilter === "expCats" ? "globalExpCatsHidden"
+              : catFilter === "incCats" ? "globalIncCatsHidden"
               : catFilter === "topCat" ? "statsTopCatHidden"
               : "statsCatTrendShown";
             saveConfig(setPersonalize(config, key, next, accView));
             setCatFilter(null);
           }}
-        />
-      )}
-
-      {incVsExpAccountsOpen && (
-        <ChartAccountsModal
-          config={config}
-          hiddenIds={getPersonalize(config, "incVsExpAccountsHidden", accView) || []}
-          accView={accView}
-          title="Cuentas en la gráfica"
-          desc="Elige qué cuentas sumar en Ingresos vs gastos."
-          onClose={() => setIncVsExpAccountsOpen(false)}
-          onSave={(hidden) => saveConfig(setPersonalize(config, "incVsExpAccountsHidden", hidden, accView))}
-        />
-      )}
-
-      {incVsExpCatsOpen && (
-        <IncVsExpCatsModal
-          config={config}
-          accView={accView}
-          incHidden={getPersonalize(config, "incVsExpIncCatsHidden", accView) || []}
-          expHidden={getPersonalize(config, "incVsExpExpCatsHidden", accView) || []}
-          onClose={() => setIncVsExpCatsOpen(false)}
-          onSave={(incH, expH) => saveConfig(
-            setPersonalize(setPersonalize(config, "incVsExpIncCatsHidden", incH, accView), "incVsExpExpCatsHidden", expH, accView)
-          )}
-        />
-      )}
-
-      {areaFlowAccountsOpen && (
-        <ChartAccountsModal
-          config={config}
-          hiddenIds={getPersonalize(config, "areaFlowAccountsHidden", accView) || []}
-          accView={accView}
-          title="Cuentas en el acumulado"
-          desc="Elige qué cuentas sumar en la gráfica de acumulado."
-          onClose={() => setAreaFlowAccountsOpen(false)}
-          onSave={(hidden) => saveConfig(setPersonalize(config, "areaFlowAccountsHidden", hidden, accView))}
-        />
-      )}
-      {areaFlowCatsOpen && (
-        <IncVsExpCatsModal
-          config={config}
-          accView={accView}
-          incHidden={getPersonalize(config, "areaFlowIncCatsHidden", accView) || []}
-          expHidden={getPersonalize(config, "areaFlowExpCatsHidden", accView) || []}
-          onClose={() => setAreaFlowCatsOpen(false)}
-          onSave={(incH, expH) => saveConfig(
-            setPersonalize(setPersonalize(config, "areaFlowIncCatsHidden", incH, accView), "areaFlowExpCatsHidden", expH, accView)
-          )}
         />
       )}
 
@@ -13482,6 +13266,14 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           onEditTx={(t) => { setDetail(null); onEdit(t); }} />
       )}
       {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+      {globalCustomizeOpen && (
+        <GlobalCustomizeModal
+          config={config}
+          accView={accView}
+          saveConfig={saveConfig}
+          onClose={() => setGlobalCustomizeOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -13607,15 +13399,15 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
   // Estado inicial: qué categorías están seleccionadas (per-account aware)
   const initialSelected = (() => {
     if (mode === "expCats") {
-      const hidden = getPersonalize(config, "statsExpCatsHidden", accView) || [];
+      const hidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "incCats") {
-      const hidden = getPersonalize(config, "statsIncCatsHidden", accView) || [];
+      const hidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "dashExpCats") {
-      const hidden = getPersonalize(config, "dashExpCatsHidden", accView) || [];
+      const hidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
       return new Set(allCats.filter((c) => !hidden.includes(c.id)).map((c) => c.id));
     }
     if (mode === "topCat") {
@@ -14281,6 +14073,211 @@ ${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})<
 /* Modal: filtro de categorías para reportes (cubre ingresos y gastos a la vez) */
 /* Modal: elige qué cuentas incluir en una gráfica específica
    (independiente del setting global de cuentas apagadas). */
+/* ===== Modal de personalización GLOBAL (afecta todo Dashboard/Estadísticas) */
+/* Un solo lugar para elegir qué cuentas y qué categorías cuentan en todas las
+   gráficas, KPIs, y análisis del Dashboard y Estadísticas. Reemplaza los botones
+   individuales de cada card. */
+function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = useDarkMode();
+
+  // Estado inicial: leer las 3 keys globales
+  const accHiddenInit = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const incHiddenInit = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const expHiddenInit = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+
+  // Cuentas visibles globalmente (excluye las archivadas / apagadas en settings)
+  const globalHidden = config.hiddenAccountCards || [];
+  const visibleAccounts = config.accounts.filter((a) => !globalHidden.includes(a.id));
+
+  // Categorías: usar los IDs (no nombres) — así es como los filtros originales trabajan
+  // Filtramos ingresos vs gastos desde config.categories (fuente única)
+  const incomeCats = (config.categories || []).filter((c) => c.type === "income" && !c.off);
+  const expenseCats = (config.categories || []).filter((c) => c.type === "expense" && !c.off);
+
+  const [accSelected, setAccSelected] = useState(
+    new Set(visibleAccounts.filter((a) => !accHiddenInit.includes(a.id)).map((a) => a.id))
+  );
+  const [incSelected, setIncSelected] = useState(
+    new Set(incomeCats.filter((c) => !incHiddenInit.includes(c.id)).map((c) => c.id))
+  );
+  const [expSelected, setExpSelected] = useState(
+    new Set(expenseCats.filter((c) => !expHiddenInit.includes(c.id)).map((c) => c.id))
+  );
+
+  const applyAll = (accSet, incSet, expSet) => {
+    const accHidden = visibleAccounts.filter((a) => !accSet.has(a.id)).map((a) => a.id);
+    const incHidden = incomeCats.filter((c) => !incSet.has(c.id)).map((c) => c.id);
+    const expHidden = expenseCats.filter((c) => !expSet.has(c.id)).map((c) => c.id);
+
+    let next = config;
+    next = setPersonalize(next, "globalAccountsHidden", accHidden, accView);
+    next = setPersonalize(next, "globalIncCatsHidden", incHidden, accView);
+    next = setPersonalize(next, "globalExpCatsHidden", expHidden, accView);
+    saveConfig(next);
+  };
+
+  const toggleAcc = (id) => {
+    const next = new Set(accSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setAccSelected(next);
+    applyAll(next, incSelected, expSelected);
+  };
+  const toggleInc = (id) => {
+    const next = new Set(incSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setIncSelected(next);
+    applyAll(accSelected, next, expSelected);
+  };
+  const toggleExp = (id) => {
+    const next = new Set(expSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpSelected(next);
+    applyAll(accSelected, incSelected, next);
+  };
+
+  const resetAll = () => {
+    const accSet = new Set(visibleAccounts.map((a) => a.id));
+    const incSet = new Set(incomeCats.map((c) => c.id));
+    const expSet = new Set(expenseCats.map((c) => c.id));
+    setAccSelected(accSet);
+    setIncSelected(incSet);
+    setExpSelected(expSet);
+    applyAll(accSet, incSet, expSet);
+  };
+
+  const acc = accView && accView !== "all" ? config.accounts.find((a) => a.id === accView) : null;
+  const scopeLbl = acc ? acc.name : "todas las cuentas";
+
+  const anyHidden = accHiddenInit.length + incHiddenInit.length + expHiddenInit.length > 0;
+
+  const chipBase = (isActive) => ({
+    padding: "8px 12px", borderRadius: 99,
+    border: `1px solid ${isActive
+      ? "#5B6EE8"
+      : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)")}`,
+    background: isActive
+      ? "#5B6EE8"
+      : (dark ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.02)"),
+    color: isActive
+      ? "#fff"
+      : (dark ? "rgba(245,245,247,.6)" : "rgba(26,26,31,.5)"),
+    fontSize: 12.5, fontWeight: 500,
+    cursor: "pointer", fontFamily: "'Montserrat', sans-serif",
+    letterSpacing: ".005em",
+    display: "inline-flex", alignItems: "center", gap: 6,
+    whiteSpace: "nowrap",
+    transition: "all .15s ease",
+  });
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-sheet-handle" />
+        <div style={{ padding: "8px 22px 20px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600,
+                color: "var(--ink)", letterSpacing: "-.02em", lineHeight: 1.2, marginBottom: 4,
+              }}>
+                Personalizar vista
+              </div>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+                Elige qué cuentas y categorías quieres considerar en todas las gráficas y KPIs del Dashboard y Estadísticas para <b>{scopeLbl}</b>.
+              </div>
+            </div>
+            {anyHidden && (
+              <button onClick={resetAll} style={{
+                background: "transparent", border: "none", padding: "4px 8px",
+                borderRadius: 6, cursor: "pointer",
+                fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
+                fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap",
+              }}>
+                Restablecer
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: "68vh", overflowY: "auto", marginTop: 16 }}>
+            {/* Cuentas (solo si accView === "all") */}
+            {accView === "all" && visibleAccounts.length > 1 && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
+                  textTransform: "uppercase", color: "var(--ink-faint)",
+                  marginBottom: 10,
+                }}>
+                  Cuentas ({accSelected.size} de {visibleAccounts.length})
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {visibleAccounts.map((a) => {
+                    const active = accSelected.has(a.id);
+                    return (
+                      <button key={a.id} onClick={() => toggleAcc(a.id)} style={chipBase(active)}>
+                        {active && <span style={{ fontSize: 10 }}>✓</span>}
+                        {a.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Categorías de ingreso */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
+                textTransform: "uppercase", color: "var(--ink-faint)",
+                marginBottom: 10,
+              }}>
+                Categorías de ingreso ({incSelected.size} de {incomeCats.length})
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {incomeCats.map((c) => {
+                  const active = incSelected.has(c.id);
+                  return (
+                    <button key={c.id} onClick={() => toggleInc(c.id)} style={chipBase(active)}>
+                      {active && <span style={{ fontSize: 10 }}>✓</span>}
+                      {c.emoji && <span>{c.emoji}</span>}
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Categorías de gasto */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
+                textTransform: "uppercase", color: "var(--ink-faint)",
+                marginBottom: 10,
+              }}>
+                Categorías de gasto ({expSelected.size} de {expenseCats.length})
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {expenseCats.map((c) => {
+                  const active = expSelected.has(c.id);
+                  return (
+                    <button key={c.id} onClick={() => toggleExp(c.id)} style={chipBase(active)}>
+                      {active && <span style={{ fontSize: 10 }}>✓</span>}
+                      {c.emoji && <span>{c.emoji}</span>}
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+
 function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, onSave }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
