@@ -3793,15 +3793,46 @@ if (typeof window !== "undefined") {
   });
 }
 
+window.__zafiOnPersistError = null; // callback opcional que setea App para mostrar el error real al usuario
+
 async function persist(key, val) {
   const u = auth.currentUser;
   if (!u) return;
   const field = key === "cc:config" ? "config" : "txs";
   bumpPending(1);
+  // Sanitizar: Firestore RECHAZA la escritura COMPLETA del documento si CUALQUIER
+  // campo anidado es `undefined` (a diferencia de `null`, que sí es válido). Con un
+  // objeto de config tan grande y con tantas rutas de código que lo construyen, es
+  // fácil que se cuele un `undefined` en algún campo opcional sin que se note —
+  // y cuando eso pasa, el guardado entero falla SILENCIOSAMENTE (el catch de abajo
+  // solo loguea a consola, el usuario nunca se entera, y al recargar Firestore
+  // devuelve la versión anterior sin el cambio — exactamente el síntoma reportado).
+  // JSON.stringify elimina automáticamente cualquier `undefined` anidado, dejando
+  // el objeto siempre válido para Firestore.
+  let clean;
   try {
-    await setDoc(doc(db, "users", u.uid, "data", field), { value: val });
-  } catch (e) { console.error("persist", e); }
-  finally { bumpPending(-1); }
+    clean = JSON.parse(JSON.stringify(val));
+  } catch (e) {
+    console.error("persist sanitize", e);
+    clean = val;
+  }
+  const MAX_RETRIES = 2;
+  let lastErr = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await setDoc(doc(db, "users", u.uid, "data", field), { value: clean });
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      console.error(`persist attempt ${attempt + 1}/${MAX_RETRIES + 1}`, e);
+      if (attempt < MAX_RETRIES) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  if (lastErr && window.__zafiOnPersistError) {
+    window.__zafiOnPersistError(lastErr);
+  }
+  bumpPending(-1);
 }
 
 /* llamada a Claude con imágenes (visión) */
@@ -4801,6 +4832,19 @@ export default function App() {
   useEffect(() => {
     window.__zafiOnPendingChange = (n) => setPendingWrites(n);
     return () => { window.__zafiOnPendingChange = null; };
+  }, []);
+
+  // Si una escritura a Firestore falla incluso después de reintentar, mostrar
+  // el error real al usuario en vez de que se pierda silenciosamente en consola.
+  useEffect(() => {
+    window.__zafiOnPersistError = (err) => {
+      const msg = err?.code === "permission-denied"
+        ? "No se pudo guardar: sin permisos. Vuelve a iniciar sesión."
+        : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo de nuevo.";
+      setToast(msg);
+      setTimeout(() => setToast(null), 4000);
+    };
+    return () => { window.__zafiOnPersistError = null; };
   }, []);
 
   useEffect(() => {
