@@ -1527,6 +1527,11 @@ function statTxs(txs) {
    Si preset !== "custom", from/to se calculan dinámicamente con resolveRange().
 */
 const DEFAULT_RANGE = { preset: "month" };
+// ID sintético para el bucket "Sin categoría" — usado en desgloses por categoría
+// (Dashboard/Estadísticas) y ahora también en el filtro "Personalizar vista",
+// para que los movimientos sin categoría asignada sean filtrables como
+// cualquier otra categoría, y así los totales SIEMPRE coincidan con lo elegido.
+const UNCAT_ID = "__uncategorized__";
 
 function resolveRange(range) {
   const r = range || DEFAULT_RANGE;
@@ -8907,8 +8912,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
     : txs.filter((t) => t.accountId === view)
   ).filter((t) => {
-    if (t.type === "income" && globalIncCatsHidden.includes(t.categoryId)) return false;
-    if (t.type === "expense" && globalExpCatsHidden.includes(t.categoryId)) return false;
+    // Movimientos SIN categoría válida (o con categoría del tipo equivocado)
+    // se agrupan bajo "Sin categoría" (UNCAT_ID) — filtrable igual que
+    // cualquier otra categoría desde "Personalizar vista". Antes esto SIEMPRE
+    // se contaba sin importar el filtro, haciendo que los totales no
+    // coincidieran con lo seleccionado en el modal.
+    const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    const isValidCat = cat && cat.type === t.type;
+    if (t.type === "income") {
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (globalIncCatsHidden.includes(key)) return false;
+    } else if (t.type === "expense") {
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (globalExpCatsHidden.includes(key)) return false;
+    }
     return true;
   });
   // movimientos del rango global (en lugar de "mes actual")
@@ -8948,7 +8965,6 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       uncategorizedExp += t.amount;
     }
   });
-  const UNCAT_ID = "__uncategorized__";
   const rows = Object.entries(byCat)
     .filter(([id]) => !globalExpCatsHidden.includes(id))
     .concat(uncategorizedExp > 0 && !globalExpCatsHidden.includes(UNCAT_ID) ? [[UNCAT_ID, uncategorizedExp]] : [])
@@ -13133,8 +13149,15 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
     : txs.filter((t) => t.accountId === view)
   ).filter((t) => {
-    if (t.type === "income" && globalIncCatsHidden.includes(t.categoryId)) return false;
-    if (t.type === "expense" && globalExpCatsHidden.includes(t.categoryId)) return false;
+    const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    const isValidCat = cat && cat.type === t.type;
+    if (t.type === "income") {
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (globalIncCatsHidden.includes(key)) return false;
+    } else if (t.type === "expense") {
+      const key = isValidCat ? t.categoryId : UNCAT_ID;
+      if (globalExpCatsHidden.includes(key)) return false;
+    }
     return true;
   });
   const scopedInitial = view === "all"
@@ -13152,7 +13175,6 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   // (o con categoría inválida) se acumulan aparte en "Sin categoría", así la
   // suma de filas siempre coincide con los totales de Ingresos/Gastos del
   // periodo (antes se perdían silenciosamente del desglose por categoría).
-  const UNCAT_ID = "__uncategorized__";
   const expByCat = {};
   const incByCat = {};
   let uncategorizedExp = 0, uncategorizedInc = 0;
@@ -14417,14 +14439,30 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
   // Se muestran junto a cada fila para que el usuario vea de un vistazo cuánto
   // representa cada cuenta/categoría antes de decidir incluirla u ocultarla.
   const rangeTxsAll = txsInRange(txs || [], dateRange);
+  // Filtrar por accView cuando es una cuenta específica (igual que scopedTxs)
+  const scopedRangeTxs = isAllView ? rangeTxsAll : rangeTxsAll.filter((t) => t.accountId === accView);
   const catAmounts = useMemo(() => {
     const m = {};
-    rangeTxsAll.forEach((t) => {
+    scopedRangeTxs.forEach((t) => {
       if (!t.categoryId) return;
+      const cat = config.categories.find((c) => c.id === t.categoryId);
+      if (!cat || cat.type !== t.type) return; // categoría inválida cuenta como "Sin categoría"
       m[t.categoryId] = (m[t.categoryId] || 0) + t.amount;
     });
     return m;
-  }, [rangeTxsAll]);
+  }, [scopedRangeTxs, config.categories]);
+  // Montos SIN categoría (o con categoría del tipo equivocado), por tipo —
+  // corresponden a la fila "Sin categoría" filtrable como cualquier otra.
+  const uncatAmounts = useMemo(() => {
+    let inc = 0, exp = 0;
+    scopedRangeTxs.forEach((t) => {
+      const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+      const isValid = cat && cat.type === t.type;
+      if (isValid) return;
+      if (t.type === "income") inc += t.amount; else exp += t.amount;
+    });
+    return { income: inc, expense: exp };
+  }, [scopedRangeTxs, config.categories]);
   // Saldo actual de cada cuenta (no depende del periodo — es el saldo real)
   const accAmounts = useMemo(() => {
     const m = {};
@@ -14436,16 +14474,24 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
     new Set(visibleAccounts.filter((a) => !accHiddenInit.includes(a.id)).map((a) => a.id))
   );
   const [incSelected, setIncSelected] = useState(
-    new Set(incomeCats.filter((c) => !incHiddenInit.includes(c.id)).map((c) => c.id))
+    new Set([
+      ...incomeCats.filter((c) => !incHiddenInit.includes(c.id)).map((c) => c.id),
+      ...(incHiddenInit.includes(UNCAT_ID) ? [] : [UNCAT_ID]),
+    ])
   );
   const [expSelected, setExpSelected] = useState(
-    new Set(expenseCats.filter((c) => !expHiddenInit.includes(c.id)).map((c) => c.id))
+    new Set([
+      ...expenseCats.filter((c) => !expHiddenInit.includes(c.id)).map((c) => c.id),
+      ...(expHiddenInit.includes(UNCAT_ID) ? [] : [UNCAT_ID]),
+    ])
   );
 
   const applyAll = (accSet, incSet, expSet) => {
     const accHidden = visibleAccounts.filter((a) => !accSet.has(a.id)).map((a) => a.id);
-    const incHidden = incomeCats.filter((c) => !incSet.has(c.id)).map((c) => c.id);
-    const expHidden = expenseCats.filter((c) => !expSet.has(c.id)).map((c) => c.id);
+    const incHidden = incomeCats.filter((c) => !incSet.has(c.id)).map((c) => c.id)
+      .concat(incSet.has(UNCAT_ID) ? [] : [UNCAT_ID]);
+    const expHidden = expenseCats.filter((c) => !expSet.has(c.id)).map((c) => c.id)
+      .concat(expSet.has(UNCAT_ID) ? [] : [UNCAT_ID]);
 
     // Patrón funcional: construye sobre el ÚLTIMO config real al momento de
     // guardar, no sobre el `config` prop capturado cuando se abrió el modal —
@@ -14458,6 +14504,19 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
       next = setPersonalize(next, "globalExpCatsHidden", expHidden, accView);
       return next;
     });
+  };
+
+  const toggleUncatInc = () => {
+    const next = new Set(incSelected);
+    if (next.has(UNCAT_ID)) next.delete(UNCAT_ID); else next.add(UNCAT_ID);
+    setIncSelected(next);
+    applyAll(accSelected, next, expSelected);
+  };
+  const toggleUncatExp = () => {
+    const next = new Set(expSelected);
+    if (next.has(UNCAT_ID)) next.delete(UNCAT_ID); else next.add(UNCAT_ID);
+    setExpSelected(next);
+    applyAll(accSelected, incSelected, next);
   };
 
   const toggleAcc = (id) => {
@@ -14481,8 +14540,8 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
 
   const resetAll = () => {
     const accSet = new Set(visibleAccounts.map((a) => a.id));
-    const incSet = new Set(incomeCats.map((c) => c.id));
-    const expSet = new Set(expenseCats.map((c) => c.id));
+    const incSet = new Set([...incomeCats.map((c) => c.id), UNCAT_ID]);
+    const expSet = new Set([...expenseCats.map((c) => c.id), UNCAT_ID]);
     setAccSelected(accSet);
     setIncSelected(incSet);
     setExpSelected(expSet);
@@ -14575,31 +14634,55 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
 
             {/* Categorías — agrupadas por cuenta cuando la vista es "Todas" */}
             {isAllView ? (
-              visibleAccounts.map((a) => {
-                const accIncCats = allIncomeCats.filter((c) => c.accountId === a.id);
-                const accExpCats = allExpenseCats.filter((c) => c.accountId === a.id);
-                if (accIncCats.length === 0 && accExpCats.length === 0) return null;
-                return (
-                  <div key={a.id} style={{ marginBottom: 22 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
-                      paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
-                      <span style={{ fontSize: 14 }}>🏦</span>
-                      <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
-                        fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
+              <>
+                {visibleAccounts.map((a) => {
+                  const accIncCats = allIncomeCats.filter((c) => c.accountId === a.id);
+                  const accExpCats = allExpenseCats.filter((c) => c.accountId === a.id);
+                  if (accIncCats.length === 0 && accExpCats.length === 0) return null;
+                  return (
+                    <div key={a.id} style={{ marginBottom: 22 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
+                        paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
+                        <span style={{ fontSize: 14 }}>🏦</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
+                          fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
+                      </div>
+                      <CatListGroup label="Ingresos" color="var(--green)" cats={accIncCats}
+                        selected={incSelected} onToggle={toggleInc} amounts={catAmounts} />
+                      <CatListGroup label="Gastos" color="var(--coral)" cats={accExpCats}
+                        selected={expSelected} onToggle={toggleExp} amounts={catAmounts} last />
                     </div>
-                    <CatListGroup label="Ingresos" color="var(--green)" cats={accIncCats}
-                      selected={incSelected} onToggle={toggleInc} amounts={catAmounts} />
-                    <CatListGroup label="Gastos" color="var(--coral)" cats={accExpCats}
-                      selected={expSelected} onToggle={toggleExp} amounts={catAmounts} last />
+                  );
+                })}
+                {/* "Sin categoría" es global (no pertenece a una cuenta específica) —
+                    se muestra aparte, al final, cubriendo todas las cuentas juntas. */}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
+                    paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
+                    <span style={{ fontSize: 14 }}>❔</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
+                      fontFamily: "'Montserrat', sans-serif" }}>Sin categoría (todas las cuentas)</span>
                   </div>
-                );
-              })
+                  <CatListGroup label="Ingresos" color="var(--green)"
+                    cats={[{ id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
+                    selected={incSelected} onToggle={toggleUncatInc}
+                    amounts={{ [UNCAT_ID]: uncatAmounts.income }} />
+                  <CatListGroup label="Gastos" color="var(--coral)"
+                    cats={[{ id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
+                    selected={expSelected} onToggle={toggleUncatExp}
+                    amounts={{ [UNCAT_ID]: uncatAmounts.expense }} last />
+                </div>
+              </>
             ) : (
               <>
-                <CatListGroup label="Ingresos" color="var(--green)" cats={incomeCats}
-                  selected={incSelected} onToggle={toggleInc} amounts={catAmounts} />
-                <CatListGroup label="Gastos" color="var(--coral)" cats={expenseCats}
-                  selected={expSelected} onToggle={toggleExp} amounts={catAmounts} last />
+                <CatListGroup label="Ingresos" color="var(--green)"
+                  cats={[...incomeCats, { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
+                  selected={incSelected} onToggle={(id) => id === UNCAT_ID ? toggleUncatInc() : toggleInc(id)}
+                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.income }} />
+                <CatListGroup label="Gastos" color="var(--coral)"
+                  cats={[...expenseCats, { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
+                  selected={expSelected} onToggle={(id) => id === UNCAT_ID ? toggleUncatExp() : toggleExp(id)}
+                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.expense }} last />
               </>
             )}
           </div>
