@@ -611,23 +611,6 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
 @keyframes ccTipIn{0%{opacity:0;transform:translateY(6px);}100%{opacity:1;transform:translateY(0);}}
 @keyframes ccTipProgress{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
-/* Animaciones blob-face: los círculos respiran/oscilan constantemente para dar sensación de liquid */
-@keyframes zfBlobBreathe1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(2px,-2px) scale(1.06);}}
-@keyframes zfBlobBreathe2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-2px,-1px) scale(1.05);}}
-@keyframes zfBlobMouthBreathe{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(0,1px) scale(1.03);}}
-/* Blobs que orbitan cuando el estado es negativo (sad/worried) */
-@keyframes zfBlobOrbit1{0%,100%{transform:translate(0,0);}25%{transform:translate(-8px,-6px);}50%{transform:translate(-12px,4px);}75%{transform:translate(-6px,10px);}}
-@keyframes zfBlobOrbit2{0%,100%{transform:translate(0,0);}25%{transform:translate(6px,-8px);}50%{transform:translate(10px,4px);}75%{transform:translate(4px,12px);}}
-@keyframes zfBlobOrbit3{0%,100%{transform:translate(0,0);}33%{transform:translate(-5px,8px);}66%{transform:translate(8px,-6px);}}
-.zf-blob-eye-l{transform-origin:90px 80px;animation:zfBlobBreathe1 3.5s ease-in-out infinite;}
-.zf-blob-eye-r{transform-origin:150px 80px;animation:zfBlobBreathe2 3.5s ease-in-out infinite 0.4s;}
-.zf-blob-mouth{transform-origin:120px 140px;animation:zfBlobMouthBreathe 3.5s ease-in-out infinite 0.2s;transition:d 0.6s cubic-bezier(.4,0,.2,1);}
-.zf-blob-orbit-1{transform-origin:50px 60px;animation:zfBlobOrbit1 4.5s ease-in-out infinite;}
-.zf-blob-orbit-2{transform-origin:190px 140px;animation:zfBlobOrbit2 5s ease-in-out infinite 0.5s;}
-.zf-blob-orbit-3{transform-origin:60px 150px;animation:zfBlobOrbit3 4s ease-in-out infinite 0.3s;}
-/* Estados específicos que modifican posiciones o comportamiento */
-.zf-blob-eye-l-sad, .zf-blob-eye-r-sad{animation-duration:2.8s;}
-.zf-blob-eye-l-worried, .zf-blob-eye-r-worried{animation-duration:3s;}
 @keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6);}50%{box-shadow:0 0 0 4px rgba(91,110,232,1), 0 0 32px rgba(91,110,232,.8);}}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
@@ -7940,6 +7923,197 @@ function setFinancialCache(kind, accView, dataKey, payload) {
   } catch (_) {}
 }
 
+/* ===== Indicador circular animado en Canvas (arco + píldoras) =========== */
+/* Arco grueso que rota constantemente, con gradiente cola→cabeza y glow en la
+   cabeza. Píldoras se desprenden detrás de la cola, viajan más rápido y se
+   fusionan al alcanzar la cabeza. Color semáforo: rojo/naranja/verde según score.
+   El score animado sube desde 0 al valor real con lerp cuando entra al viewport. */
+function ScoreCanvasIndicator({ targetScore, inView, dark }) {
+  const canvasRef = useRef(null);
+  const stateRef = useRef({
+    currentPct: 0,
+    angle: -Math.PI / 2,
+    pills: [],
+    lastPillTime: 0,
+    animatingIn: true,
+    hasStarted: false,
+  });
+  const rafRef = useRef(null);
+
+  // Cuando cambia inView de false → true, resetear la animación de entrada
+  useEffect(() => {
+    if (inView) {
+      stateRef.current.currentPct = 0;
+      stateRef.current.animatingIn = true;
+      stateRef.current.pills = [];
+      stateRef.current.lastPillTime = 0;
+    }
+  }, [inView, targetScore]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    // Manejo de DPR para pantallas retina
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const displaySize = 260;
+    canvas.width = displaySize * dpr;
+    canvas.height = displaySize * dpr;
+    canvas.style.width = displaySize + "px";
+    canvas.style.height = displaySize + "px";
+    ctx.scale(dpr, dpr);
+
+    const W = displaySize, H = displaySize;
+    const CX = W / 2, CY = H / 2;
+    const R = 100;
+    const LW = 16;
+    const NUM_SEG = 80;
+    const ARC_SPEED = 0.006;
+
+    const getColor = (pct) => {
+      if (pct < 35) return { r: 226, g: 55, b: 55, name: "Crítico" };
+      if (pct < 65) return { r: 230, g: 140, b: 20, name: "Regular" };
+      return { r: 60, g: 190, b: 60, name: "Excelente" };
+    };
+    const rgba = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+    const scaleC = (c, f) => ({ r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) });
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    const render = () => {
+      const st = stateRef.current;
+      const T = targetScore || 0;
+
+      // Lerp del score hacia el target
+      st.currentPct = lerp(st.currentPct, T, 0.04);
+      if (Math.abs(st.currentPct - T) < 0.5) {
+        st.currentPct = T;
+        st.animatingIn = false;
+      }
+      const displayPct = Math.round(st.currentPct);
+
+      const color = getColor(st.currentPct);
+      st.angle += ARC_SPEED;
+
+      const arcSpan = (0.12 + (st.currentPct / 100) * 0.66) * Math.PI * 2;
+      const arcHead = st.angle;
+      const arcTail = st.angle - arcSpan;
+
+      // Clear
+      ctx.clearRect(0, 0, W, H);
+
+      // Glow ambiente al centro
+      const ambient = ctx.createRadialGradient(CX, CY, 30, CX, CY, 130);
+      ambient.addColorStop(0, rgba(color, dark ? 0.12 : 0.08));
+      ambient.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = ambient;
+      ctx.fillRect(0, 0, W, H);
+
+      // Glow en la cabeza del arco
+      const headX = CX + Math.cos(arcHead) * R;
+      const headY = CY + Math.sin(arcHead) * R;
+      const headGlow = ctx.createRadialGradient(headX, headY, 0, headX, headY, 42);
+      headGlow.addColorStop(0, rgba(color, 0.55));
+      headGlow.addColorStop(0.5, rgba(color, 0.15));
+      headGlow.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = headGlow;
+      ctx.fillRect(0, 0, W, H);
+
+      // Dibujar arco en 80 segmentos con gradiente cola→cabeza
+      ctx.lineWidth = LW;
+      for (let i = 0; i < NUM_SEG; i++) {
+        const t0 = i / NUM_SEG;
+        const t1 = (i + 1) / NUM_SEG;
+        const a0 = arcTail + t0 * arcSpan;
+        const a1 = arcTail + t1 * arcSpan;
+
+        const b0 = 0.45 + t0 * 0.55;
+        const b1 = 0.45 + t1 * 0.55;
+        const c0 = scaleC(color, b0);
+        const c1 = scaleC(color, b1);
+
+        const x0 = CX + Math.cos(a0) * R;
+        const y0 = CY + Math.sin(a0) * R;
+        const x1 = CX + Math.cos(a1) * R;
+        const y1 = CY + Math.sin(a1) * R;
+
+        const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, rgba(c0, 1));
+        grad.addColorStop(1, rgba(c1, 1));
+
+        ctx.strokeStyle = grad;
+        ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
+        ctx.beginPath();
+        ctx.arc(CX, CY, R, a0, a1 + 0.002);
+        ctx.stroke();
+      }
+
+      // Píldoras
+      const now = performance.now();
+      const pillSpan = 0.11;
+      const pillSpeed = ARC_SPEED * 3;
+      const canSpawn = st.currentPct < 98 && !st.animatingIn;
+      const spawnInterval = 500 + (st.currentPct / 100) * 2200;
+      if (canSpawn && (now - st.lastPillTime) > spawnInterval) {
+        st.pills.push({ angle: arcTail - 0.22 });
+        st.lastPillTime = now;
+      }
+
+      st.pills = st.pills.filter((p) => {
+        p.angle += pillSpeed;
+        const distToHead = arcHead - p.angle;
+        if (distToHead < 0.12) return false;
+        if (distToHead > Math.PI * 3) return false;
+
+        const pHead = p.angle;
+        const pTail = p.angle - pillSpan;
+
+        const px = CX + Math.cos(pHead) * R;
+        const py = CY + Math.sin(pHead) * R;
+        const pillGlow = ctx.createRadialGradient(px, py, 0, px, py, 26);
+        pillGlow.addColorStop(0, rgba(color, 0.5));
+        pillGlow.addColorStop(1, rgba(color, 0));
+        ctx.fillStyle = pillGlow;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = rgba(color, 1);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(CX, CY, R, pTail, pHead);
+        ctx.stroke();
+
+        return true;
+      });
+
+      // Texto central
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = rgba(color, 1);
+      ctx.font = "600 34px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(displayPct, CX, CY - 6);
+
+      ctx.fillStyle = rgba(color, 0.65);
+      ctx.font = "500 13px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(color.name, CX, CY + 20);
+
+      rafRef.current = requestAnimationFrame(render);
+    };
+
+    rafRef.current = requestAnimationFrame(render);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [targetScore, dark]);
+
+  return (
+    <canvas ref={canvasRef}
+      style={{ display: "block", width: 260, height: 260 }}
+      role="img"
+      aria-label="Indicador de calificación financiera" />
+  );
+}
+
 /* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
 function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [data, setData] = useState(null);
@@ -8092,10 +8266,9 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     return () => clearInterval(id);
   }, [data]);
 
-  // Animación del score: sube desde 0 hasta el valor real cuando entra al viewport
-  // (debe estar ANTES de los early returns para respetar el orden de hooks)
-  const [animScore, setAnimScore] = useState(0);
-  const [hasAnimated, setHasAnimated] = useState(false);
+  // IntersectionObserver + score animado del Canvas
+  // El ScoreCanvasIndicator maneja internamente la animación 0→score con lerp.
+  // Aquí solo detectamos cuándo la card está en viewport para (re)disparar la animación.
   const cardRef = useRef(null);
   const [inView, setInView] = useState(false);
 
@@ -8118,36 +8291,6 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, [data]);
-
-  // Correr la animación cuando: (a) hay data y (b) está en viewport
-  useEffect(() => {
-    if (data?.score === undefined || data?.score === null) return;
-    if (!inView) return;
-
-    setAnimScore(0);
-    setHasAnimated(false);
-
-    const startTimer = setTimeout(() => {
-      const start = performance.now();
-      const duration = 1400; // 1.4s de animación
-      let rafId;
-      const animate = (now) => {
-        const elapsed = now - start;
-        const progress = Math.min(1, elapsed / duration);
-        // Ease-out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setAnimScore(Math.round(data.score * eased));
-        if (progress < 1) {
-          rafId = requestAnimationFrame(animate);
-        } else {
-          setHasAnimated(true);
-        }
-      };
-      rafId = requestAnimationFrame(animate);
-      return () => cancelAnimationFrame(rafId);
-    }, 150);
-    return () => clearTimeout(startTimer);
-  }, [data?.score, inView]);
 
   const dark = useDarkMode();
 
@@ -8174,49 +8317,18 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     );
   }
 
-  // ============= BLOB-FACE VISUAL =============
-  // Estado emocional y colores según score (4 estados discretos)
-  // happy (80-100): verde | neutral (65-79): amarillo-verde | worried (45-64): naranja | sad (0-44): rojo
-  const { expression, gaugeColors } = (() => {
-    if (data.score >= 80) return {
-      expression: "happy",
-      gaugeColors: { center: "#639922", light: "#C0DD97", dark: "#3B6D11" },
-    };
-    if (data.score >= 65) return {
-      expression: "neutral",
-      gaugeColors: { center: "#97C459", light: "#C0DD97", dark: "#639922" },
-    };
-    if (data.score >= 45) return {
-      expression: "worried",
-      gaugeColors: { center: "#BA7517", light: "#FAC775", dark: "#854F0B" },
-    };
-    return {
-      expression: "sad",
-      gaugeColors: { center: "#A32D2D", light: "#F7C1C1", dark: "#791F1F" },
-    };
+  // ============= COLORES SEMÁFORO PARA EL INDICADOR =============
+  // Semáforo: rojo <35% | naranja 35-64% | verde 65-100%
+  const scoreColorRGB = (() => {
+    if (data.score < 35) return { r: 226, g: 55, b: 55, name: "Crítico" };
+    if (data.score < 65) return { r: 230, g: 140, b: 20, name: "Regular" };
+    return { r: 60, g: 190, b: 60, name: "Excelente" };
   })();
-
-  // Inyectar la expresión en data para el render
-  data.expression = expression;
-
-  // Path de la boca según expresión (arco sonrisa/línea/frown)
-  // Todas las bocas centradas en x=120, y varía. viewBox: 240x200
-  const mouthPath = (expr) => {
-    switch (expr) {
-      case "happy":
-        // Sonrisa amplia hacia arriba
-        return "M 88 130 Q 120 165 152 130 L 152 132 Q 120 168 88 132 Z";
-      case "neutral":
-        // Línea recta ligeramente curva
-        return "M 90 140 Q 120 145 150 140 L 150 145 Q 120 150 90 145 Z";
-      case "worried":
-        // Frown suave
-        return "M 92 150 Q 120 130 148 150 L 148 148 Q 120 128 92 148 Z";
-      case "sad":
-      default:
-        // Frown pronunciado
-        return "M 90 155 Q 120 125 150 155 L 150 152 Q 120 122 90 152 Z";
-    }
+  // gaugeColors sigue existiendo porque el resto del componente (dots de paginación) lo usa
+  const gaugeColors = {
+    center: `rgb(${scoreColorRGB.r}, ${scoreColorRGB.g}, ${scoreColorRGB.b})`,
+    light: `rgba(${scoreColorRGB.r}, ${scoreColorRGB.g}, ${scoreColorRGB.b}, 0.4)`,
+    dark: `rgb(${Math.round(scoreColorRGB.r * 0.6)}, ${Math.round(scoreColorRGB.g * 0.6)}, ${Math.round(scoreColorRGB.b * 0.6)})`,
   };
 
   // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
@@ -8264,76 +8376,12 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
 
       {/* Blob-face animado */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
-        {/* Número grande arriba */}
-        <div style={{
-          fontFamily: "'Montserrat', sans-serif",
-          fontSize: 56, fontWeight: 700,
-          color: dark ? "#f5f5f7" : "#1a1a1f",
-          letterSpacing: "-0.03em", lineHeight: 1,
-          marginBottom: 2,
-        }}>
-          {animScore}
-        </div>
-        <div style={{
-          fontFamily: "'Montserrat', sans-serif",
-          fontSize: 14, fontWeight: 500,
-          color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
-          letterSpacing: "-0.005em",
-          marginBottom: 6,
-        }}>
-          {data.status}
-        </div>
-
-        {/* SVG del blob-face */}
-        <svg viewBox="0 0 240 200" width="240" height="200" style={{ overflow: "visible" }} role="img" aria-label="Estado emocional financiero">
-          <defs>
-            {/* Filtro goo: combina blobs cercanos en formas orgánicas */}
-            <filter id={`${gaugeId}_goo`}>
-              <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
-              <feColorMatrix in="blur" mode="matrix"
-                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10"
-                result="goo" />
-              <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-            </filter>
-
-            {/* Gradiente del blob según score (verde/amarillo/naranja/rojo) */}
-            <linearGradient id={`${gaugeId}_blob`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor={gaugeColors.light} />
-              <stop offset="0.5" stopColor={gaugeColors.center} />
-              <stop offset="1" stopColor={gaugeColors.dark} />
-            </linearGradient>
-          </defs>
-
-          {/* Grupo con filtro goo aplicado + gradiente compartido */}
-          <g filter={`url(#${gaugeId}_goo)`} fill={`url(#${gaugeId}_blob)`}>
-            {/* Ojo izquierdo — cambia posición y tamaño según expresión */}
-            <circle className={`zf-blob-eye-l zf-blob-eye-l-${data.expression}`}
-              cx="90" cy="80" r="14" />
-
-            {/* Ojo derecho */}
-            <circle className={`zf-blob-eye-r zf-blob-eye-r-${data.expression}`}
-              cx="150" cy="80" r="14" />
-
-            {/* Boca — path que cambia forma según expresión */}
-            <path className={`zf-blob-mouth zf-blob-mouth-${data.expression}`}
-              d={mouthPath(data.expression)} />
-
-            {/* Blobs adicionales que orbitan cuando el estado es negativo (dan sensación de dispersión) */}
-            {data.expression === "sad" && (
-              <>
-                <circle className="zf-blob-orbit-1" cx="50" cy="60" r="8" />
-                <circle className="zf-blob-orbit-2" cx="190" cy="140" r="7" />
-                <circle className="zf-blob-orbit-3" cx="60" cy="150" r="6" />
-              </>
-            )}
-            {data.expression === "worried" && (
-              <>
-                <circle className="zf-blob-orbit-1" cx="45" cy="70" r="7" />
-                <circle className="zf-blob-orbit-2" cx="195" cy="130" r="6" />
-              </>
-            )}
-          </g>
-        </svg>
+        {/* Indicador Canvas con arco animado y píldoras */}
+        <ScoreCanvasIndicator
+          targetScore={data.score}
+          inView={inView}
+          dark={dark}
+        />
       </div>
 
       {/* Análisis rotativo */}
