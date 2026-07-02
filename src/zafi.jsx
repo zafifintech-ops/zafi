@@ -8074,7 +8074,8 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       if (canSpawn && (now - st.lastPillTime) > groupInterval) {
         // Lanzar 3 píldoras con delay escalonado. T_SPEED=0.013/frame @ ~60fps,
         // así que 180ms ≈ 0.14 de "t" — cada píldora arranca 0.14 más atrás que la anterior.
-        const STAGGER_T = 0.14;
+        // Separación más larga y uniforme entre píldoras del mismo grupo (~420ms cada una)
+        const STAGGER_T = 0.32;
         st.pills.push({ t: 0 });
         st.pills.push({ t: -STAGGER_T });
         st.pills.push({ t: -STAGGER_T * 2 });
@@ -8186,7 +8187,11 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     return { totalIn, totalOut, txCount: filtered.length, incCount: incTxs.length, expCount: expTxs.length };
   })();
 
-  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}`;
+  // catIds captura el catálogo completo de categorías activas (no solo cuáles están
+  // ocultas) — así, si el usuario elimina o agrega una categoría, el cache se invalida
+  // y el análisis se recalcula de inmediato, aunque esa categoría no estuviera oculta.
+  const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
   useEffect(() => {
     // Calcular score local
@@ -8460,7 +8465,10 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
     return { totalIn, totalOut, txCount: filtered.length, topCats };
   })();
 
-  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}`;
+  // catIds captura el catálogo completo de categorías activas — invalida el cache
+  // si el usuario elimina o agrega una categoría, aunque no estuviera oculta.
+  const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
+  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
   useEffect(() => {
     const fallback = [
@@ -14178,25 +14186,6 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
 
   const anyHidden = accHiddenInit.length + incHiddenInit.length + expHiddenInit.length > 0;
 
-  const chipBase = (isActive) => ({
-    padding: "8px 12px", borderRadius: 99,
-    border: `1px solid ${isActive
-      ? "#5B6EE8"
-      : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)")}`,
-    background: isActive
-      ? "#5B6EE8"
-      : (dark ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.02)"),
-    color: isActive
-      ? "#fff"
-      : (dark ? "rgba(245,245,247,.6)" : "rgba(26,26,31,.5)"),
-    fontSize: 12.5, fontWeight: 500,
-    cursor: "pointer", fontFamily: "'Montserrat', sans-serif",
-    letterSpacing: ".005em",
-    display: "inline-flex", alignItems: "center", gap: 6,
-    whiteSpace: "nowrap",
-    transition: "all .15s ease",
-  });
-
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
@@ -14229,21 +14218,42 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
           <div style={{ maxHeight: "68vh", overflowY: "auto", marginTop: 16 }}>
             {/* Cuentas (solo si accView === "all") */}
             {accView === "all" && visibleAccounts.length > 1 && (
-              <div style={{ marginBottom: 22 }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
-                  textTransform: "uppercase", color: "var(--ink-faint)",
-                  marginBottom: 10,
-                }}>
-                  Cuentas ({accSelected.size} de {visibleAccounts.length})
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#5B6EE8",
+                    display: "inline-block" }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: ".06em", color: "#5B6EE8", fontFamily: "'Montserrat', sans-serif" }}>
+                    Cuentas
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+                    {accSelected.size}/{visibleAccounts.length}
+                  </span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {visibleAccounts.map((a) => {
-                    const active = accSelected.has(a.id);
+                    const isOn = accSelected.has(a.id);
                     return (
-                      <button key={a.id} onClick={() => toggleAcc(a.id)} style={chipBase(active)}>
-                        {active && <span style={{ fontSize: 10 }}>✓</span>}
-                        {a.name}
+                      <button key={a.id} onClick={() => toggleAcc(a.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
+                          width: "100%" }}>
+                        <span style={{ fontSize: 18 }}>🏦</span>
+                        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
+                          fontFamily: "'Montserrat', sans-serif" }}>{a.name}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: 5,
+                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                          background: isOn ? "#5B6EE8" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {isOn && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
@@ -14252,50 +14262,94 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
             )}
 
             {/* Categorías de ingreso */}
-            <div style={{ marginBottom: 22 }}>
-              <div style={{
-                fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
-                textTransform: "uppercase", color: "var(--ink-faint)",
-                marginBottom: 10,
-              }}>
-                Categorías de ingreso ({incSelected.size} de {incomeCats.length})
+            {incomeCats.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)",
+                    display: "inline-block" }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: ".06em", color: "var(--green)", fontFamily: "'Montserrat', sans-serif" }}>
+                    Ingresos
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+                    {incSelected.size}/{incomeCats.length}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {incomeCats.map((c) => {
+                    const isOn = incSelected.has(c.id);
+                    return (
+                      <button key={c.id} onClick={() => toggleInc(c.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
+                          width: "100%" }}>
+                        <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
+                        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
+                          fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: 5,
+                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                          background: isOn ? "#5B6EE8" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {isOn && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {incomeCats.map((c) => {
-                  const active = incSelected.has(c.id);
-                  return (
-                    <button key={c.id} onClick={() => toggleInc(c.id)} style={chipBase(active)}>
-                      {active && <span style={{ fontSize: 10 }}>✓</span>}
-                      {c.emoji && <span>{c.emoji}</span>}
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            )}
 
             {/* Categorías de gasto */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{
-                fontSize: 11, fontWeight: 700, letterSpacing: ".08em",
-                textTransform: "uppercase", color: "var(--ink-faint)",
-                marginBottom: 10,
-              }}>
-                Categorías de gasto ({expSelected.size} de {expenseCats.length})
+            {expenseCats.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--coral)",
+                    display: "inline-block" }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: ".06em", color: "var(--coral)", fontFamily: "'Montserrat', sans-serif" }}>
+                    Gastos
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
+                    {expSelected.size}/{expenseCats.length}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {expenseCats.map((c) => {
+                    const isOn = expSelected.has(c.id);
+                    return (
+                      <button key={c.id} onClick={() => toggleExp(c.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                          cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
+                          width: "100%" }}>
+                        <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
+                        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
+                          fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: 5,
+                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                          background: isOn ? "#5B6EE8" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {isOn && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {expenseCats.map((c) => {
-                  const active = expSelected.has(c.id);
-                  return (
-                    <button key={c.id} onClick={() => toggleExp(c.id)} style={chipBase(active)}>
-                      {active && <span style={{ fontSize: 10 }}>✓</span>}
-                      {c.emoji && <span>{c.emoji}</span>}
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
