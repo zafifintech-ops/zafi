@@ -10449,6 +10449,33 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
   const catFor = (id) => config.categories.find((c) => c.id === id);
 
+  // ============= Movimientos SIN categoría (o con categoría inválida) =============
+  // Se muestran en su propia tarjeta al final, igual que "Sin categoría" en el
+  // filtro de "Personalizar vista" — así el usuario puede ver de un vistazo
+  // cuáles movimientos quedaron sin categorizar y asignarles una desde ahí.
+  const visibleAccIds = new Set(visibleAccounts.map((a) => a.id));
+  const uncatTxs = { expense: [], income: [] };
+  txsInRange(txs || [], dateRange).forEach((t) => {
+    if (!visibleAccIds.has(t.accountId)) return;
+    const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    const isValid = cat && cat.type === t.type;
+    if (isValid) return;
+    if (t.type === "expense") uncatTxs.expense.push(t);
+    else if (t.type === "income") uncatTxs.income.push(t);
+  });
+  const uncatTotal = (type) => uncatTxs[type].reduce((s, t) => s + t.amount, 0);
+  const openUncatDetail = (type) => {
+    setCatDetail({
+      kind: type,
+      label: "Sin categoría",
+      emoji: "❔",
+      color: type === "income" ? "var(--green)" : "var(--coral)",
+      txs: uncatTxs[type],
+      total: uncatTotal(type),
+    });
+  };
+  const hasUncat = uncatTxs.expense.length > 0 || uncatTxs.income.length > 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ fontSize: 13, color: "var(--ink-soft)", padding: "0 6px" }}>
@@ -10580,6 +10607,49 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
           </div>
         );
       })}
+
+      {/* Sin categoría — movimientos que quedaron sin categorizar (categoryId
+          vacío o apuntando a una categoría eliminada/inválida). Mismo patrón
+          visual que las tarjetas de cuenta, para encontrar y corregir rápido. */}
+      {hasUncat && (
+        <div className="cc-card" style={{ padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>❔</span>
+            <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>Sin categoría</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 4 }}>
+            Movimientos sin categoría asignada · {rangeLabel(dateRange)}
+          </div>
+          {[["expense", "Gastos"], ["income", "Ingresos"]].map(([type, label]) => {
+            if (uncatTxs[type].length === 0) return null;
+            const total = uncatTotal(type);
+            return (
+              <div key={type}>
+                <div className="cc-label" style={{ marginTop: 12, marginBottom: 4 }}>{label}</div>
+                <div
+                  onClick={() => openUncatDetail(type)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 4px",
+                    borderBottom: "1px solid var(--line)", cursor: "pointer",
+                    borderRadius: 8, transition: "background .15s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = ""}>
+                  <span className="cc-emoji" style={{ fontSize: 19 }}>❔</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {uncatTxs[type].length} movimiento{uncatTxs[type].length === 1 ? "" : "s"}
+                    </div>
+                    <div className="cc-num" style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                      {fmt(total)} en el periodo
+                    </div>
+                  </div>
+                  <span style={{ color: "var(--ink-faint)", fontSize: 13 }}>Ver ▸</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
       {catDetail && (
         <DetailModal config={config} detail={catDetail} dateRange={dateRange}
