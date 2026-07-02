@@ -1044,7 +1044,7 @@ const STRINGS = {
   deleteBtn: { es: "Eliminar", en: "Delete" },
   sortBy: { es: "Ordenar", en: "Sort by" },
   mov: { es: "mov.", en: "mov." },
-  touchToEdit: { es: "Toca un movimiento para editarlo · ✕ para eliminarlo", en: "Tap a movement to edit it · ✕ to delete it" },
+  touchToEdit: { es: "Toca un movimiento para editarlo · desliza o pasa el mouse para eliminarlo", en: "Tap a movement to edit it · swipe or hover to delete it" },
   noMovements: { es: "No hay movimientos en este periodo.", en: "No movements in this period." },
   // AddModal
   newTransaction: { es: "Nueva transacción", en: "New transaction" },
@@ -2923,6 +2923,17 @@ function processRecurring(config, txs) {
     if (!fires.length) return rule;
     let lastFiredDate = null;
     fires.forEach((date) => {
+      // Anti-duplicado ESTRICTO específico de recurrentes: si YA existe una tx
+      // generada por ESTA MISMA regla en ESTA MISMA fecha exacta, nunca se repite.
+      // Esto es más confiable que la heurística de abajo (que compara
+      // descripción/monto/fecha aproximada) y evita duplicados cuando la app se
+      // recarga rápido dos veces seguidas antes de que la primera escritura a
+      // Firestore termine de propagarse (condición de carrera).
+      const alreadyFiredThisRule = txs.concat(newTxs).some(
+        (t) => t.fromRecurring === rule.id && t.date === date
+      );
+      if (alreadyFiredThisRule) return;
+
       // Anti-duplicado: si ya existe una tx similar (manual o de antes) en esta cuenta,
       // mismo monto, mismo día (±3), no la generamos otra vez.
       const candidate = {
@@ -3761,13 +3772,36 @@ async function loadAll(userOverride) {
   return { config, txs };
 }
 
+// Contador global de escrituras a Firestore en curso. Se usa para (a) mostrar
+// un indicador "Guardando…" mientras hay escrituras pendientes y (b) advertir
+// al usuario si intenta cerrar/recargar la página ANTES de que terminen —
+// persist() es fire-and-forget, así que una recarga muy rápida tras un cambio
+// puede cancelar la escritura a medias y "perder" el cambio silenciosamente.
+window.__zafiPendingWrites = 0;
+window.__zafiOnPendingChange = null; // callback opcional que setea App para refrescar UI
+function bumpPending(delta) {
+  window.__zafiPendingWrites = Math.max(0, (window.__zafiPendingWrites || 0) + delta);
+  if (window.__zafiOnPendingChange) window.__zafiOnPendingChange(window.__zafiPendingWrites);
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", (e) => {
+    if (window.__zafiPendingWrites > 0) {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    }
+  });
+}
+
 async function persist(key, val) {
   const u = auth.currentUser;
   if (!u) return;
   const field = key === "cc:config" ? "config" : "txs";
+  bumpPending(1);
   try {
     await setDoc(doc(db, "users", u.uid, "data", field), { value: val });
   } catch (e) { console.error("persist", e); }
+  finally { bumpPending(-1); }
 }
 
 /* llamada a Claude con imágenes (visión) */
@@ -4759,6 +4793,15 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(undefined); // undefined=cargando, null=no logueado
   const [profileDone, setProfileDone] = useState(false); // did user complete profile?
+  const [pendingWrites, setPendingWrites] = useState(0);
+
+  // Conectar el contador global de escrituras (ver persist()) para mostrar un
+  // indicador breve "Guardando…" mientras hay cambios en camino a Firestore —
+  // así el usuario sabe que debe esperar un instante antes de recargar/cerrar.
+  useEffect(() => {
+    window.__zafiOnPendingChange = (n) => setPendingWrites(n);
+    return () => { window.__zafiOnPendingChange = null; };
+  }, []);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -5029,6 +5072,21 @@ export default function App() {
         <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
       )}
       {toast && <div className={`cc-toast ${isDarkTheme ? "cc-toast-dark" : "cc-toast-light"}`}>{toast}</div>}
+      {pendingWrites > 0 && (
+        <div style={{
+          position: "fixed", top: "max(12px, env(safe-area-inset-top))", left: "50%",
+          transform: "translateX(-50%)", zIndex: 999999,
+          background: isDarkTheme ? "rgba(28,30,34,.92)" : "rgba(26,24,21,.88)",
+          color: "#fff", padding: "6px 14px", borderRadius: 99,
+          fontSize: 11.5, fontWeight: 600, fontFamily: "'Montserrat', sans-serif",
+          display: "flex", alignItems: "center", gap: 6,
+          backdropFilter: "blur(8px)", boxShadow: "0 4px 16px rgba(0,0,0,.25)",
+          pointerEvents: "none",
+        }}>
+          <div className="cc-dots" style={{ transform: "scale(0.6)" }}><span /><span /><span /></div>
+          Guardando…
+        </div>
+      )}
     </div>
   );
 }
@@ -9636,6 +9694,9 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
   const swipeDirection = useRef(null); // "h" | "v" | null
   const rowRef = useRef(null);
   const rowId = useRef(`txr_${Math.random().toString(36).slice(2)}`);
+  // Hover state — el swipe solo funciona con touch; en desktop (mouse) no hay
+  // forma de arrastrar, así que mostramos un botón × visible al pasar el mouse.
+  const [hovered, setHovered] = useState(false);
 
   const SWIPE_THRESHOLD = 60; // distancia para revelar el botón delete
   const SWIPE_MAX = 90; // distancia máxima del swipe
@@ -9775,7 +9836,9 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
     return (
       <div ref={rowRef} style={{ position: "relative", overflow: "hidden",
         borderBottom: "1px solid var(--line-soft)",
-      }}>
+      }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}>
         {/* Botón delete: parte fuera de pantalla (translateX +SWIPE_MAX)
             y se mueve hacia adentro junto con el swipe negativo del row.
             Así nunca asoma cuando no hay swipe activo. */}
@@ -9840,6 +9903,22 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
             {t.type === "income" ? "+" : "−"}{fmtBare(t.amount).replace("-", "")}
             <span style={{ fontSize: 10.5, fontWeight: 300, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
           </div>
+          {/* Botón × visible en hover — fallback para desktop, donde el swipe táctil no aplica */}
+          <button onClick={handleDelete}
+            title="Eliminar"
+            style={{
+              width: 22, height: 22, borderRadius: "50%", border: "none",
+              background: hovered ? "var(--coral)" : "transparent",
+              color: hovered ? "#fff" : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: hovered ? "pointer" : "default", flexShrink: 0, marginLeft: 4,
+              transition: "all .15s ease", pointerEvents: hovered ? "auto" : "none",
+            }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </div>
     );
@@ -10199,7 +10278,7 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
 
       {list.length > 0 && !selectMode && (
         <div style={{ fontSize: 12, color: "var(--ink-soft)", textAlign: "center", marginTop: 10 }}>
-          Toca un movimiento para editarlo · ✕ para eliminarlo
+          Toca un movimiento para editarlo · desliza o pasa el mouse para eliminarlo
         </div>
       )}
 
