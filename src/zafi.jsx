@@ -7440,8 +7440,8 @@ const DEFAULT_SECTIONS = [
   { id: "byCategory", label: "Gastos por categoría", on: true },
   { id: "trend", label: "Mini gráfica de saldo (30d)", on: true },
   { id: "incVsExp", label: "Ingresos vs gastos", on: true },
-  { id: "kpis", label: "Ingresos y gastos del mes", on: true },
-  { id: "topExpenses", label: "Gastos más grandes del mes", on: false },
+  { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
+  { id: "topExpenses", label: "Gastos más grandes del periodo", on: false },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
@@ -8091,34 +8091,50 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
-        if (p.t >= 1) return false; // fusionó con la cabeza
+        if (p.t >= 1) return false; // ya completó la fusión, se retira del array
         if (p.t < 0) {
           // Todavía en "delay" — no se dibuja, solo avanza el reloj interno
           return true;
         }
 
-        // smoothstep 0→1 durante el primer 20% de vida: fase de "desprendimiento"
-        // (como jalar un chicle) antes de que la píldora viaje libremente.
-        const DETACH_END = 0.2;
-        const rawT = Math.min(1, p.t / DETACH_END);
-        const detach = rawT * rawT * (3 - 2 * rawT); // smoothstep
+        // Helper de easing suave (0→1)
+        const smoothstep = (x) => {
+          x = Math.max(0, Math.min(1, x));
+          return x * x * (3 - 2 * x);
+        };
 
-        // Ángulo: en t=0 la píldora está pegada exactamente a la cola del arco
-        // (mismo punto), y se va alejando conforme avanza.
+        // FASE 1 — nacimiento (0 → 20% de vida): la píldora se "estira" desde
+        // la cola del arco, como jalar un chicle, hasta despegarse del todo.
+        const DETACH_END = 0.2;
+        const detach = smoothstep(p.t / DETACH_END);
+
+        // FASE 2 — fusión (82% → 100% de vida): la píldora se vuelve a
+        // "ensanchar" como chicle, igual que al nacer pero en reversa, hasta
+        // fundirse visualmente con la cabeza del arco (mismo radio, mismo
+        // color, se sobrepone). No se desvanece — se transforma.
+        const MERGE_START = 0.82;
+        const merge = smoothstep((p.t - MERGE_START) / (1 - MERGE_START));
+
+        // Ángulo: en t=0 pegada a la cola; en t=1 coincide exactamente con
+        // la cabeza del arco (arcTail - gapSize == arcHead, módulo 2π).
         const pillAngle = arcTail - p.t * gapSize;
 
-        // Radio: empieza EN el radio del arco (R, tocando la cola) y solo se
-        // despega hacia afuera conforme "detach" avanza — efecto de estirar.
+        // Radio: sin(t·π) ya vale 0 en t=0 y en t=1 — la parábola regresa
+        // sola al radio del arco (R) en ambos extremos, tocando la cola al
+        // nacer y la cabeza al fusionarse, sin necesitar corrección extra.
         const parabola = Math.sin(p.t * Math.PI) * RADIUS_OUT;
         const rEff = R + parabola * detach;
 
-        // Span: empieza ancho (como una extensión chiclosa de la cola) y se
-        // contrae al span normal de píldora conforme se despega.
+        // Ancho: angosto en pleno vuelo; se ensancha (efecto chicloso) tanto
+        // al nacer como al fusionarse — como si se estirara al salir y se
+        // aplastara/fundiera al llegar, en vez de encogerse a la nada.
         const spanWide = 0.24;
-        const pillSpanCur = spanWide + (pillSpan - spanWide) * detach;
+        const stretch = Math.max(1 - detach, merge);
+        const pillSpanCur = pillSpan + (spanWide - pillSpan) * stretch;
 
-        // Color: empieza IGUAL al color de la cola del arco (45% brillo, mismo
-        // tono) y se aclara hasta el brillo completo conforme se despega.
+        // Color: se aclara al despegar; para cuando empieza la fusión ya
+        // está a brillo completo, igual que la cabeza del arco — mismo tono
+        // exacto, por eso al sobreponerse se ve como una sola pieza.
         const brightness = 0.45 + 0.55 * detach;
         const pillColor = scaleC(color, brightness);
 
@@ -8126,17 +8142,18 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         const pStart = pillAngle;
         const pEnd = pillAngle + pillSpanCur;
 
-        // Glow (posición en el centro de la píldora) — más tenue mientras está pegada
+        // Glow (posición en el centro de la píldora)
         const midAngle = pillAngle + pillSpanCur / 2;
         const gx = CX + Math.cos(midAngle) * rEff;
         const gy = CY + Math.sin(midAngle) * rEff;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
-        pillGlow.addColorStop(0, rgba(pillColor, 0.5 * detach));
+        pillGlow.addColorStop(0, rgba(pillColor, 0.5));
         pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
-        // Arco de la píldora (usa rEff para el "salto" hacia afuera)
+        // Arco de la píldora — sin fade, siempre 100% visible; se "funde"
+        // por coincidencia exacta de posición/radio/color, no por desaparecer.
         ctx.strokeStyle = rgba(pillColor, 1);
         ctx.lineCap = "round";
         ctx.beginPath();
@@ -8741,21 +8758,42 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
   const sections = loadSections(config, accView);
 
-  // En vista Total respetamos las cuentas apagadas en config: no aportan a gráficas ni a saldo
+  // Filtro GLOBAL (cuentas + categorías) — afecta TODO en Dashboard: saldo
+  // destacado, gráfica de saldo (30d), ingresos/gastos del periodo, gastos
+  // más grandes, gastos por categoría, etc. Un solo lugar de verdad.
+  const globalAccHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const globalIncCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const globalExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+
+  // En vista Total respetamos las cuentas apagadas en config (toggle de tarjeta)
+  // Y las cuentas ocultas por el filtro global — ambas se combinan.
   const hiddenAccs = config.hiddenAccountCards || [];
-  const scopedTxs = view === "all"
-    ? txs.filter((t) => !hiddenAccs.includes(t.accountId))
-    : txs.filter((t) => t.accountId === view);
+  const scopedTxs = (view === "all"
+    ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
+    : txs.filter((t) => t.accountId === view)
+  ).filter((t) => {
+    if (t.type === "income" && globalIncCatsHidden.includes(t.categoryId)) return false;
+    if (t.type === "expense" && globalExpCatsHidden.includes(t.categoryId)) return false;
+    return true;
+  });
   // movimientos del rango global (en lugar de "mes actual")
   const rangeTxs = txsInRange(scopedTxs, dateRange);
   const monthStat = statTxs(rangeTxs).all;
   const inc = monthStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const exp = monthStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
+  // Saldo destacado: ahora respeta el mismo filtro global de cuentas/categorías
+  // (antes usaba accountBalance() con TODAS las tx, sin filtrar por categoría).
   const headerBalance = view === "all"
-    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id))
-        .reduce((s, a) => s + accountBalance(config, txs, a.id), 0)
-    : accountBalance(config, txs, view);
+    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
+        .reduce((s, a) => {
+          const accInitial = a.initialBalance || 0;
+          const accFlow = scopedTxs.filter((t) => t.accountId === a.id)
+            .reduce((sum, t) => sum + (t.type === "income" ? t.amount : -t.amount), 0);
+          return s + accInitial + accFlow;
+        }, 0)
+    : (config.accounts.find((a) => a.id === view)?.initialBalance || 0) +
+        scopedTxs.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
   const accName = view === "all" ? "General" : (config.accounts.find((a) => a.id === view) || {}).name || "";
   const headerLabel = view === "all" ? "Balance total" : `Saldo · ${accName}`;
 
@@ -8768,9 +8806,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     if (!cat || cat.type !== "expense") return;
     byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
   });
-  const dashExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
   const rows = Object.entries(byCat)
-    .filter(([id]) => !dashExpCatsHidden.includes(id))
+    .filter(([id]) => !globalExpCatsHidden.includes(id))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
   const maxCat = rows.length ? rows[0][1] : 1;
@@ -8789,7 +8826,14 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     const initial = view === "all"
       ? config.accounts.reduce((s, a) => s + (a.initialBalance || 0), 0)
       : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
-    const start = new Date(); start.setDate(start.getDate() - 29);
+    // Anclar a mediodía local (no medianoche) para evitar el bug clásico de
+    // `new Date("YYYY-MM-DD")`, que JS interpreta como medianoche UTC — en husos
+    // horarios negativos (ej. Tijuana UTC-7) esto cae en la TARDE DEL DÍA ANTERIOR,
+    // cortando el loop un día antes de tiempo y dejando fuera el saldo real de hoy
+    // (por eso el último punto de la gráfica no coincidía con el saldo mostrado arriba).
+    const todayD = new Date(today() + "T12:00:00");
+    const start = new Date(todayD);
+    start.setDate(start.getDate() - 29);
     const startK = start.toISOString().slice(0, 10);
     const sorted = [...scopedTxs].sort((a, b) => a.date.localeCompare(b.date));
     let running = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
@@ -8799,7 +8843,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       running += t.type === "income" ? t.amount : -t.amount;
       map.set(t.date, running);
     });
-    const pts = [], todayD = new Date(today());
+    const pts = [];
     let last = initial + sorted.filter((t) => t.date < startK).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
     for (let d = new Date(start); d <= todayD; d.setDate(d.getDate() + 1)) {
       const k = d.toISOString().slice(0, 10);
@@ -8820,7 +8864,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       if (!t.categoryId) return false;
       const cat = config.categories.find((c) => c.id === t.categoryId);
       if (!cat || cat.type !== "expense") return false;
-      if (dashExpCatsHidden.includes(t.categoryId)) return false;
+      if (globalExpCatsHidden.includes(t.categoryId)) return false;
       return true;
     });
     if (expTxs.length < 2) return [];
@@ -9015,7 +9059,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             </div>
             {rows.length === 0 ? (
               <div style={{ color: "var(--ink-soft)", fontSize: 13, padding: "8px 0 14px" }}>
-                {dashExpCatsHidden.length > 0 ? "Todas las categorías están ocultas. Toca \"Personalizar\" para mostrar alguna." : "No hay gastos en el periodo."}
+                {globalExpCatsHidden.length > 0 ? "Todas las categorías están ocultas. Toca \"Personalizar\" para mostrar alguna." : "No hay gastos en el periodo."}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -12890,12 +12934,24 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   })();
   const saveStatsSections = (next) => saveConfig(setPersonalize(config, "statsSections", next, accView));
 
+  // Filtro GLOBAL (cuentas + categorías) — mismo mecanismo que en Dashboard,
+  // así ambas vistas quedan sincronizadas: saldo, evolución de saldo, ingresos
+  // y gastos del periodo, categorías, todo respeta la misma personalización.
+  const globalAccHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
+  const globalIncCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+  const globalExpCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+
   const hiddenAccs = config.hiddenAccountCards || [];
-  const scopedTxs = view === "all"
-    ? txs.filter((t) => !hiddenAccs.includes(t.accountId))
-    : txs.filter((t) => t.accountId === view);
+  const scopedTxs = (view === "all"
+    ? txs.filter((t) => !hiddenAccs.includes(t.accountId) && !globalAccHidden.includes(t.accountId))
+    : txs.filter((t) => t.accountId === view)
+  ).filter((t) => {
+    if (t.type === "income" && globalIncCatsHidden.includes(t.categoryId)) return false;
+    if (t.type === "expense" && globalExpCatsHidden.includes(t.categoryId)) return false;
+    return true;
+  });
   const scopedInitial = view === "all"
-    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id)).reduce((s, a) => s + (a.initialBalance || 0), 0)
+    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id)).reduce((s, a) => s + (a.initialBalance || 0), 0)
     : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
 
   // ============== datos del rango ==============
