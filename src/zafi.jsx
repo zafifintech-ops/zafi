@@ -8953,20 +8953,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const inc = monthStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const exp = monthStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
-  // Saldo destacado: ahora respeta el mismo filtro global de cuentas/categorías
-  // (antes usaba accountBalance() con TODAS las tx, sin filtrar por categoría).
-  const headerBalance = view === "all"
-    ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
-        .reduce((s, a) => {
-          const accInitial = a.initialBalance || 0;
-          const accFlow = scopedTxs.filter((t) => t.accountId === a.id)
-            .reduce((sum, t) => sum + (t.type === "income" ? t.amount : -t.amount), 0);
-          return s + accInitial + accFlow;
-        }, 0)
-    : (config.accounts.find((a) => a.id === view)?.initialBalance || 0) +
-        scopedTxs.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  // Saldo destacado: ahora es el FLUJO NETO del periodo seleccionado
+  // (ingresos − gastos, ya filtrado por cuentas/categorías) — NO el saldo
+  // acumulado con saldo inicial. Es literalmente `inc - exp` de arriba, ya
+  // que ambos derivan del mismo rangeTxs filtrado.
+  const headerBalance = inc - exp;
   const accName = view === "all" ? "General" : (config.accounts.find((a) => a.id === view) || {}).name || "";
-  const headerLabel = view === "all" ? "Balance total" : `Saldo · ${accName}`;
+  const headerLabel = view === "all" ? "Flujo neto · Total" : `Flujo neto · ${accName}`;
 
   const byCat = {};
   let uncategorizedExp = 0;
@@ -9210,41 +9203,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "balance") {
           const hasActiveFilter = globalAccHidden.length > 0 || globalIncCatsHidden.length > 0 || globalExpCatsHidden.length > 0;
-          // Desglose para que el saldo sea verificable a mano: saldo inicial + flujo
-          // de las cuentas/categorías seleccionadas (todo el historial, no solo el
-          // periodo). Si tus movimientos están TODOS dentro del rango visible, el
-          // "flujo" de aquí debe coincidir con sumar los montos marcados en el
-          // filtro "Personalizar vista".
-          const initialSum = view === "all"
-            ? config.accounts.filter((a) => !hiddenAccs.includes(a.id) && !globalAccHidden.includes(a.id))
-                .reduce((s, a) => s + (a.initialBalance || 0), 0)
-            : (config.accounts.find((a) => a.id === view)?.initialBalance || 0);
-          const flowSum = headerBalance - initialSum;
           return (
             <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
-              <div className="cc-label">{headerLabel}</div>
+              <div className="cc-label">{headerLabel} · {rangeLabel(dateRange)}</div>
               <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
-                {fmt(headerBalance)}
+                {headerBalance >= 0 ? "+" : "−"}{fmt(Math.abs(headerBalance)).replace("-", "")}
               </div>
-              {hasActiveFilter && (
-                <div style={{ marginTop: 6 }}>
-                  <div style={{ fontSize: 11, color: "var(--ink-faint)",
-                    display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                      <line x1="17" y1="16" x2="23" y2="16" />
-                    </svg>
-                    Con filtro aplicado · suma todo el historial
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--ink-faint)", paddingLeft: 15 }}>
-                    Saldo inicial {fmtBare(initialSum)} + movimientos filtrados {flowSum >= 0 ? "+" : "−"}{fmtBare(Math.abs(flowSum)).replace("-", "")}
-                  </div>
-                </div>
-              )}
+              <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 4 }}>
+                Ingresos {fmtBare(inc)} − Gastos {fmtBare(exp)}{hasActiveFilter ? " · con filtro aplicado" : ""}
+              </div>
             </div>
           );
         }
