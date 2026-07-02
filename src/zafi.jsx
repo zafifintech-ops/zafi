@@ -4971,7 +4971,18 @@ export default function App() {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
   };
-  const saveConfig = (c) => { setConfig(c); persist("cc:config", c); };
+  // Acepta un valor directo O una función updater (c) => newConfig, igual que
+  // setState de React. Usar el patrón funcional evita perder cambios cuando
+  // se hacen varias ediciones rápidas seguidas (eliminar categoría, togglear
+  // varios filtros): cada actualización se calcula sobre el ÚLTIMO estado
+  // real de React, no sobre un config "congelado" en el closure del handler.
+  const saveConfig = (c) => {
+    setConfig((prev) => {
+      const next = typeof c === "function" ? c(prev) : c;
+      persist("cc:config", next);
+      return next;
+    });
+  };
   const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
   const resetAll = async () => {
     const u = auth.currentUser;
@@ -5712,8 +5723,30 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
   }, [rawTxs, archivedIds]);
 
   // Wrapper de saveConfig que preserva archivedAccountIds del rawConfig
-  // (porque los componentes hijos no los ven)
+  // (porque los componentes hijos no los ven). Acepta también una función
+  // updater (prevFilteredConfig) => nextConfig — igual que setState funcional —
+  // para que ediciones rápidas seguidas (eliminar categorías, togglear varios
+  // filtros) se calculen siempre sobre el ÚLTIMO estado real de React, no
+  // sobre un config capturado en un closure viejo. Esto evita que un cambio
+  // pise/revierta al anterior cuando el usuario actúa rápido.
   const saveConfigWrapped = (next) => {
+    if (typeof next === "function") {
+      saveConfig((prevRaw) => {
+        // Reconstruir la vista "filtrada" (sin archivadas) que ven los hijos,
+        // a partir del ÚLTIMO rawConfig real — no del rawConfig capturado
+        // cuando Main renderizó por última vez.
+        const prevArchived = prevRaw.archivedAccountIds || [];
+        const prevFiltered = prevArchived.length === 0 ? prevRaw : {
+          ...prevRaw,
+          accounts: prevRaw.accounts.filter((a) => !prevArchived.includes(a.id)),
+          categories: (prevRaw.categories || []).filter((c) => !prevArchived.includes(c.accountId)),
+        };
+        const computed = next(prevFiltered);
+        if (computed.archivedAccountIds !== undefined) return computed;
+        return { ...computed, archivedAccountIds: prevRaw.archivedAccountIds };
+      });
+      return;
+    }
     if (next.archivedAccountIds !== undefined) {
       saveConfig(next);
     } else {
@@ -8798,23 +8831,35 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const headerLabel = view === "all" ? "Balance total" : `Saldo · ${accName}`;
 
   const byCat = {};
-  monthStat.filter((t) => t.type === "expense" && t.categoryId).forEach((t) => {
-    // Solo cuenta si la categoría asignada es realmente de tipo gasto
-    // (evita que un movimiento mal-categorizado con una categoría de ingresos —
-    // ej. "Ingresos de paso" — aparezca en la gráfica de gastos).
-    const cat = config.categories.find((c) => c.id === t.categoryId);
-    if (!cat || cat.type !== "expense") return;
-    byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+  let uncategorizedExp = 0;
+  monthStat.filter((t) => t.type === "expense").forEach((t) => {
+    // Solo cuenta en una categoría específica si la categoría asignada es
+    // realmente de tipo gasto (evita que un movimiento mal-categorizado con
+    // una categoría de ingresos — ej. "Ingresos de paso" — aparezca aquí).
+    // Los gastos SIN categoría (o con categoría inválida) se acumulan aparte
+    // en "Sin categoría" — así la suma de filas siempre coincide con el KPI
+    // de "Gastos" del periodo (antes se perdían silenciosamente del desglose).
+    const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    if (cat && cat.type === "expense") {
+      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    } else {
+      uncategorizedExp += t.amount;
+    }
   });
+  const UNCAT_ID = "__uncategorized__";
   const rows = Object.entries(byCat)
     .filter(([id]) => !globalExpCatsHidden.includes(id))
+    .concat(uncategorizedExp > 0 && !globalExpCatsHidden.includes(UNCAT_ID) ? [[UNCAT_ID, uncategorizedExp]] : [])
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
   const maxCat = rows.length ? rows[0][1] : 1;
-  const catOf = (id) => config.categories.find((c) => c.id === id);
+  const catOf = (id) => id === UNCAT_ID
+    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", type: "expense" }
+    : config.categories.find((c) => c.id === id);
   const dashExpRows = Object.entries(byCat)
     .map(([id, amt]) => ({ cat: catOf(id), amt }))
     .filter((x) => x.cat && x.cat.type === "expense")
+    .concat(uncategorizedExp > 0 ? [{ cat: catOf(UNCAT_ID), amt: uncategorizedExp }] : [])
     .sort((a, b) => b.amt - a.amt);
 
   // gastos más grandes del rango (excluyendo pass-through)
@@ -8858,13 +8903,18 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   // gráfica de líneas: gasto acumulado por día en el periodo
   const expenseLinePoints = (() => {
     // Respeta el filtro de categorías de la gráfica de "Gastos por categoría"
-    // y excluye txs cuya categoría no sea de tipo gasto (Ingresos de paso, etc).
+    // e INCLUYE los gastos sin categoría (o con categoría inválida) bajo
+    // "Sin categoría" — así el total acumulado siempre coincide con el KPI
+    // de "Gastos" del periodo (antes se perdían silenciosamente aquí también).
     const expTxs = rangeTxs.filter((t) => {
       if (t.type !== "expense") return false;
-      if (!t.categoryId) return false;
-      const cat = config.categories.find((c) => c.id === t.categoryId);
-      if (!cat || cat.type !== "expense") return false;
-      if (globalExpCatsHidden.includes(t.categoryId)) return false;
+      const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+      const isUncategorized = !cat || cat.type !== "expense";
+      if (isUncategorized) {
+        if (globalExpCatsHidden.includes(UNCAT_ID)) return false;
+      } else if (globalExpCatsHidden.includes(t.categoryId)) {
+        return false;
+      }
       return true;
     });
     if (expTxs.length < 2) return [];
@@ -10218,17 +10268,29 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   };
 
   const save = (cat) => {
-    let cats;
-    if (cat.id) cats = config.categories.map((c) => (c.id === cat.id ? cat : c));
-    else cats = [...config.categories, { ...cat, id: uid(), keywords: [] }];
-    saveConfig({ ...config, categories: cats });
+    // Patrón funcional: calcula sobre el ÚLTIMO config real, no sobre el prop
+    // capturado al abrir el modal — evita perder ediciones si el usuario
+    // guarda varias categorías seguidas rápido.
+    saveConfig((prev) => {
+      let cats;
+      if (cat.id) cats = prev.categories.map((c) => (c.id === cat.id ? cat : c));
+      else cats = [...prev.categories, { ...cat, id: uid(), keywords: [] }];
+      return { ...prev, categories: cats };
+    });
     setEditing(null);
     showToast("Categoría guardada");
   };
   const askDel = (cat) => setConfirmDel(cat);
   const doDel = () => {
     if (!confirmDel) return;
-    saveConfig({ ...config, categories: config.categories.filter((c) => c.id !== confirmDel.id) });
+    // Patrón funcional: el ID a borrar se captura de `confirmDel`, pero la
+    // lista base de categorías se toma del ÚLTIMO estado real al momento de
+    // aplicar el cambio, no de un `config` prop potencialmente desactualizado.
+    const delId = confirmDel.id;
+    saveConfig((prev) => ({
+      ...prev,
+      categories: prev.categories.filter((c) => c.id !== delId),
+    }));
     showToast("Categoría eliminada");
     setConfirmDel(null);
   };
@@ -12961,21 +13023,37 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const rangeExpense = rangeStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const rangeFlow = rangeIncome - rangeExpense;
 
-  // categorías de gasto e ingreso por separado
+  // categorías de gasto e ingreso por separado — los movimientos SIN categoría
+  // (o con categoría inválida) se acumulan aparte en "Sin categoría", así la
+  // suma de filas siempre coincide con los totales de Ingresos/Gastos del
+  // periodo (antes se perdían silenciosamente del desglose por categoría).
+  const UNCAT_ID = "__uncategorized__";
   const expByCat = {};
   const incByCat = {};
+  let uncategorizedExp = 0, uncategorizedInc = 0;
   rangeStat.forEach((t) => {
-    if (!t.categoryId) return;
-    if (t.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
-    else incByCat[t.categoryId] = (incByCat[t.categoryId] || 0) + t.amount;
+    const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    if (t.type === "expense") {
+      if (cat && cat.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
+      else uncategorizedExp += t.amount;
+    } else {
+      if (cat && cat.type === "income") incByCat[t.categoryId] = (incByCat[t.categoryId] || 0) + t.amount;
+      else uncategorizedInc += t.amount;
+    }
   });
+  const catOfGlobal = (id) => id === UNCAT_ID
+    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", type: null }
+    : config.categories.find((c) => c.id === id);
   const expRows = Object.entries(expByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
     .filter((x) => x.cat && x.cat.type === "expense")
+    .concat(uncategorizedExp > 0 ? [{ cat: { ...catOfGlobal(UNCAT_ID), type: "expense" }, amt: uncategorizedExp }] : [])
     .sort((a, b) => b.amt - a.amt);
   const incRows = Object.entries(incByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
-    .filter((x) => x.cat && x.cat.type === "income").sort((a, b) => b.amt - a.amt);
+    .filter((x) => x.cat && x.cat.type === "income")
+    .concat(uncategorizedInc > 0 ? [{ cat: { ...catOfGlobal(UNCAT_ID), type: "income" }, amt: uncategorizedInc }] : [])
+    .sort((a, b) => b.amt - a.amt);
 
   // pie de gastos (siempre del rango)
   const pieTotal = rangeExpense;
@@ -14223,11 +14301,17 @@ function GlobalCustomizeModal({ config, accView, onClose, saveConfig }) {
     const incHidden = incomeCats.filter((c) => !incSet.has(c.id)).map((c) => c.id);
     const expHidden = expenseCats.filter((c) => !expSet.has(c.id)).map((c) => c.id);
 
-    let next = config;
-    next = setPersonalize(next, "globalAccountsHidden", accHidden, accView);
-    next = setPersonalize(next, "globalIncCatsHidden", incHidden, accView);
-    next = setPersonalize(next, "globalExpCatsHidden", expHidden, accView);
-    saveConfig(next);
+    // Patrón funcional: construye sobre el ÚLTIMO config real al momento de
+    // guardar, no sobre el `config` prop capturado cuando se abrió el modal —
+    // así, aunque haya cambios externos mientras el modal está abierto, o el
+    // usuario togglee varias categorías muy rápido, no se pierde nada.
+    saveConfig((prev) => {
+      let next = prev;
+      next = setPersonalize(next, "globalAccountsHidden", accHidden, accView);
+      next = setPersonalize(next, "globalIncCatsHidden", incHidden, accView);
+      next = setPersonalize(next, "globalExpCatsHidden", expHidden, accView);
+      return next;
+    });
   };
 
   const toggleAcc = (id) => {
