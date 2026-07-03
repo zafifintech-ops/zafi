@@ -1823,7 +1823,7 @@ function PlanBadge({ plan }) {
    cada cuenta sobrante: archivar (la cuenta + sus movimientos quedan ocultos)
    o eliminar permanentemente. Las archivadas se restauran automáticamente al
    subir de plan. */
-function PlanDowngradeModal({ config, txs, saveConfig, saveTxs }) {
+function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccView }) {
   const plan = getUserPlan(config);
   const max = getMaxAccountsForPlan(plan);
   const planLabel = plan === "free" ? "Free" : plan === "lite" ? "Lite" : "Pro";
@@ -1887,25 +1887,38 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs }) {
       if (action === "delete") toDelete.push(id);
     });
 
-    // Eliminar cuentas + sus categorías + sus movimientos
+    // Si la cuenta que se está viendo actualmente va a archivarse o
+    // eliminarse, regresar la vista a "Todas" — si no, la UI se queda
+    // "ciega" (accView apuntaría a una cuenta que ya no está en el config
+    // visible, y TODOS los listados por cuenta, incluida la que sí se
+    // mantiene, se muestran vacíos hasta que algo resetee accView).
+    if (setAccView && accView !== "all" && (toArchive.includes(accView) || toDelete.includes(accView))) {
+      setAccView("all");
+    }
+
+    // Patrón funcional: opera sobre el ÚLTIMO config real al aplicar, no
+    // sobre el `config` prop capturado cuando se abrió el modal — evita
+    // perder esta acción si hay otro guardado casi simultáneo (por ejemplo,
+    // el mismo cambio de plan que disparó este modal).
     if (toDelete.length > 0) {
       const delSet = new Set(toDelete);
-      const newAccounts = config.accounts.filter((a) => !delSet.has(a.id));
-      const newCategories = config.categories.filter((c) => !delSet.has(c.accountId));
-      const newTxs = txs.filter((t) => !delSet.has(t.accountId));
-      // Limpiar también de archivedAccountIds por si estaba
-      const newArchived = (config.archivedAccountIds || []).filter((id) => !delSet.has(id));
-      saveTxs(newTxs);
-      saveConfig({
-        ...config,
-        accounts: newAccounts,
-        categories: newCategories,
-        archivedAccountIds: [...newArchived, ...toArchive],
+      saveTxs(txs.filter((t) => !delSet.has(t.accountId)));
+      saveConfig((prev) => {
+        const newAccounts = prev.accounts.filter((a) => !delSet.has(a.id));
+        const newCategories = prev.categories.filter((c) => !delSet.has(c.accountId));
+        const newArchived = (prev.archivedAccountIds || []).filter((id) => !delSet.has(id));
+        return {
+          ...prev,
+          accounts: newAccounts,
+          categories: newCategories,
+          archivedAccountIds: [...newArchived, ...toArchive],
+        };
       });
-    } else {
-      // Solo archivar
-      const newArchived = [...(config.archivedAccountIds || []), ...toArchive];
-      saveConfig({ ...config, archivedAccountIds: newArchived });
+    } else if (toArchive.length > 0) {
+      saveConfig((prev) => ({
+        ...prev,
+        archivedAccountIds: [...new Set([...(prev.archivedAccountIds || []), ...toArchive])],
+      }));
     }
   };
 
@@ -6323,6 +6336,22 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       accViewApplied.current = true; // no hay default, quedamos en "all"
     }
   }, [config]);
+
+  // ============= PROTECCIÓN: accView "huérfano" =============
+  // Si la cuenta que se está viendo desaparece del config visible (se
+  // archivó por un downgrade de plan, se eliminó, etc.) y accView sigue
+  // apuntando a ese ID, TODOS los componentes que filtran por accView
+  // (Dashboard, Categorías, Estadísticas) devuelven listas vacías — la UI
+  // se queda "ciega" y parece que se perdieron datos, aunque en realidad
+  // solo están ocultos. Este efecto detecta ese caso y regresa a "Todas"
+  // automáticamente, para que las cuentas y categorías vuelvan a verse.
+  useEffect(() => {
+    if (accView === "all") return;
+    if (!config?.accounts) return;
+    const exists = config.accounts.some((a) => a.id === accView);
+    if (!exists) setAccView("all");
+  }, [accView, config?.accounts]);
+
   const [transferOpen, setTransferOpen] = useState(false);
 
   // Guarda una transferencia entre cuentas como dos txs vinculadas
@@ -6604,6 +6633,8 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
           txs={rawTxs}
           saveConfig={saveConfig}
           saveTxs={saveTxs}
+          accView={accView}
+          setAccView={setAccView}
         />
       )}
     </div>
