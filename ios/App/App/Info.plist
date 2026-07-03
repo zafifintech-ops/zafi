@@ -34,7 +34,16 @@
 				<string>com.googleusercontent.apps.308516673564-ju957earku47i36hav3m14epkld3ti91</string>
 			</array>
 		</dict>
-		<dict/>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.zafifintech.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zafi</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
