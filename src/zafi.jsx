@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { CapacitorHttp } from "@capacitor/core";
+import { CapacitorHttp, Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { NativeBiometric } from "capacitor-native-biometric";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -2952,6 +2953,212 @@ function recurringDatesBetween(rule, fromDate, toDate) {
   return dates;
 }
 
+/* ===== Notificaciones locales (iOS/Android vía Capacitor) ================
+   Todo LOCAL — no requiere servidor ni Cloud Functions (evitamos el costo del
+   plan Blaze). El contenido se recalcula con los datos más recientes cada vez
+   que la app carga o cambian los movimientos, así que no es "tiempo real"
+   pero cubre bien el caso de uso sin infraestructura de backend. */
+
+// Hash determinístico de un string a un número dentro de un rango — usado
+// para generar IDs de notificación estables por regla recurrente (así al
+// reprogramar, cancelamos exactamente la anterior en vez de acumular).
+function hashToRange(str, min, max) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return min + (h % (max - min));
+}
+
+const NOTIF_ID_WEEKLY = 2000;
+const NOTIF_ID_NO_ACTIVITY = 3000;
+const NOTIF_ID_SCORE = 4000;
+const NOTIF_ID_TIP = 5000;
+
+// Pool de consejos financieros genéricos para notificaciones — se usan cuando
+// no hay un consejo generado por IA en caché reciente. Rotan de forma
+// determinística (no aleatoria) para no repetir el mismo varias veces seguidas.
+const NOTIF_TIP_POOL = [
+  "Aparta 10% de cada ingreso para tu fondo de emergencia, antes de gastar en cualquier otra cosa.",
+  "Revisa tus suscripciones mensuales — cancela las que no uses en las últimas 4 semanas.",
+  "Ponte un objetivo de ahorro mensual concreto, no solo 'ahorrar lo que sobre'.",
+  "Compara cuánto gastas en restaurantes vs súper — cocinar más suele ahorrar bastante.",
+  "Antes de una compra grande, espera 24 horas. Si sigues queriéndola, adelante.",
+  "Registra tus gastos el mismo día — entre más tardes, más se te olvida.",
+  "Revisa tu categoría de mayor gasto este mes. ¿Hay algo ahí que puedas recortar?",
+  "Automatiza tu ahorro: que se transfiera solo el día que te pagan, antes de que lo veas.",
+  "Ten un fondo de emergencia de al menos 3 meses de gastos fijos.",
+  "Compara precios entre tus 3 gastos recurrentes más caros — a veces hay mejores opciones.",
+];
+function pickRotatingTip() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return NOTIF_TIP_POOL[dayOfYear % NOTIF_TIP_POOL.length];
+}
+// Busca el consejo más reciente generado por IA en caché local (si existe y
+// no expiró), sin importar el dataKey exacto — para notificaciones basta con
+// que sea razonablemente reciente, no perfectamente sincronizado.
+function getCachedAiTip() {
+  try {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith(`${FIN_CACHE_PREFIX}tips_`));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.timestamp > FIN_CACHE_TTL_MS) continue;
+      if (Array.isArray(parsed.payload) && parsed.payload.length > 0) {
+        const idx = Math.floor(Date.now() / 86400000) % parsed.payload.length;
+        return parsed.payload[idx];
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function requestNotificationPermission() {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display === "granted") return true;
+    const req = await LocalNotifications.requestPermissions();
+    return req.display === "granted";
+  } catch (e) { console.error("notif permission", e); return false; }
+}
+
+/* Reprograma TODAS las notificaciones locales según el estado actual de
+   config/txs y las preferencias del usuario (config.notificationPrefs).
+   Cancela las anteriores (por ID fijo) antes de reprogramar, para no
+   acumular duplicados en cada apertura de la app. */
+async function scheduleAllNotifications(config, txs) {
+  if (!Capacitor.isNativePlatform()) return;
+  const granted = await requestNotificationPermission();
+  if (!granted) return;
+
+  const prefs = config.notificationPrefs || {};
+  const notifications = [];
+  const idsToCancel = [NOTIF_ID_WEEKLY, NOTIF_ID_NO_ACTIVITY, NOTIF_ID_TIP];
+
+  // 1. Recordatorios de recurrentes — se dispara si la PRÓXIMA ocurrencia
+  //    de la regla es MAÑANA (1 día antes, dando tiempo a reaccionar).
+  if (prefs.recurringReminders !== false) {
+    const allRec = (config.recurring || []).filter(isRecActive);
+    const tomorrow = dateKeyDaysAfter(today(), 1);
+    const weekAhead = dateKeyDaysAfter(today(), 7);
+    allRec.forEach((rule) => {
+      const id = hashToRange(`rec_${rule.id}`, 1000, 2000);
+      idsToCancel.push(id);
+      const fires = recurringDatesBetween(rule, today(), weekAhead);
+      if (fires.length === 0 || fires[0] !== tomorrow) return;
+      const acc = config.accounts.find((a) => a.id === rule.accountId);
+      const at = new Date();
+      at.setDate(at.getDate() + 1);
+      at.setHours(9, 0, 0, 0);
+      notifications.push({
+        id,
+        title: "Pago recurrente mañana",
+        body: `${rule.description || "Movimiento"} · $${fmtBare(rule.amount)} mxn${acc ? " · " + acc.name : ""}`,
+        schedule: { at },
+      });
+    });
+  }
+
+  // 2. Resumen semanal — cada lunes 9am, con los datos de la semana Lun-Dom
+  //    más reciente disponible (se recalcula cada vez que abres la app).
+  if (prefs.weeklySummary !== false) {
+    const now = new Date();
+    const dow = now.getDay(); // 0=domingo
+    const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+    const lastMonday = new Date(now); lastMonday.setDate(now.getDate() - daysSinceMonday); lastMonday.setHours(0, 0, 0, 0);
+    const prevMonday = new Date(lastMonday); prevMonday.setDate(lastMonday.getDate() - 7);
+    const prevSunday = new Date(lastMonday); prevSunday.setDate(lastMonday.getDate() - 1);
+    const fromK = prevMonday.toISOString().slice(0, 10);
+    const toK = prevSunday.toISOString().slice(0, 10);
+    const weekTxs = (txs || []).filter((t) => t.date >= fromK && t.date <= toK && !t.synthetic);
+    const wIn = weekTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+    const wOut = weekTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    const nextMonday = new Date(lastMonday); nextMonday.setDate(lastMonday.getDate() + 7); nextMonday.setHours(9, 0, 0, 0);
+    // Si "hoy" ya es lunes después de las 9am, programar para el lunes siguiente
+    if (now >= nextMonday) nextMonday.setDate(nextMonday.getDate() + 7);
+    notifications.push({
+      id: NOTIF_ID_WEEKLY,
+      title: "Tu resumen semanal",
+      body: wIn === 0 && wOut === 0
+        ? "No registraste movimientos la semana pasada."
+        : `Ingresos $${fmtBare(wIn)} · Gastos $${fmtBare(wOut)} · Neto ${wIn - wOut >= 0 ? "+" : "-"}$${fmtBare(Math.abs(wIn - wOut))}`,
+      schedule: { at: nextMonday, every: "week" },
+    });
+  }
+
+  // 3. "No has registrado movimientos" — se reprograma cada vez que agregas
+  //    un movimiento nuevo (se calcula desde el último real, sin sintéticas).
+  if (prefs.noActivityReminder !== false) {
+    const realTxs = (txs || []).filter((t) => !t.synthetic);
+    const lastDate = realTxs.length > 0
+      ? realTxs.reduce((max, t) => (t.date > max ? t.date : max), realTxs[0].date)
+      : today();
+    const gapDays = prefs.noActivityDays || 4;
+    const targetK = dateKeyDaysAfter(lastDate, gapDays);
+    let at = new Date(targetK + "T18:00:00");
+    // Si ya pasó esa fecha (llevas más de N días sin registrar), avisar mañana
+    if (at < new Date()) { at = new Date(); at.setDate(at.getDate() + 1); at.setHours(18, 0, 0, 0); }
+    notifications.push({
+      id: NOTIF_ID_NO_ACTIVITY,
+      title: "¿Todo bien con tus finanzas?",
+      body: "No has registrado movimientos en varios días. Un registro rápido te ayuda a mantener tu calificación al día.",
+      schedule: { at },
+    });
+  }
+
+  // 4. Consejo financiero — cada 3 días, a media mañana. Usa el consejo real
+  //    más reciente generado por IA (si hay uno en caché) o rota entre un
+  //    pool curado de consejos genéricos si no.
+  if (prefs.tips !== false) {
+    const tipText = getCachedAiTip() || pickRotatingTip();
+    const at = new Date();
+    at.setDate(at.getDate() + 3);
+    at.setHours(11, 0, 0, 0);
+    notifications.push({
+      id: NOTIF_ID_TIP,
+      title: "💡 Consejo del día",
+      body: tipText,
+      schedule: { at },
+    });
+  }
+
+  try { await LocalNotifications.cancel({ notifications: idsToCancel.map((id) => ({ id })) }); } catch (e) {}
+  if (notifications.length > 0) {
+    try { await LocalNotifications.schedule({ notifications }); } catch (e) { console.error("schedule notif", e); }
+  }
+}
+
+/* Notificación INMEDIATA (no programada) cuando la Calificación financiera
+   cambia significativamente respecto a la última vez que el usuario la vio.
+   Se guarda el último valor visto en localStorage (dato de UI, no crítico,
+   no necesita viajar a Firestore). */
+async function notifyScoreChangeIfNeeded(config, newScore, newStatus) {
+  if (!Capacitor.isNativePlatform()) return;
+  const prefs = config.notificationPrefs || {};
+  if (prefs.scoreChange === false) return;
+  const granted = await requestNotificationPermission();
+  if (!granted) return;
+  let lastScore = null;
+  try { lastScore = JSON.parse(localStorage.getItem("zafi_last_notified_score") || "null"); } catch (e) {}
+  if (lastScore !== null && Math.abs(newScore - lastScore) < 5) return; // cambio poco significativo
+  if (lastScore === null) {
+    // primera vez — solo guardamos referencia, no molestamos con notificación
+    try { localStorage.setItem("zafi_last_notified_score", JSON.stringify(newScore)); } catch (e) {}
+    return;
+  }
+  const direction = newScore > lastScore ? "subió" : "bajó";
+  try {
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: NOTIF_ID_SCORE,
+        title: `Tu calificación ${direction} a ${newScore}`,
+        body: `Ahora estás en "${newStatus}". Abre Zafi para ver el detalle.`,
+      }],
+    });
+  } catch (e) { console.error("notify score", e); }
+  try { localStorage.setItem("zafi_last_notified_score", JSON.stringify(newScore)); } catch (e) {}
+}
+
 /* Procesar todas las recurrencias activas. Devuelve { config, txs, generated } */
 function processRecurring(config, txs) {
   const rules = Array.isArray(config.recurring) ? config.recurring : [];
@@ -4894,6 +5101,17 @@ export default function App() {
     return () => { window.__zafiOnPersistError = null; };
   }, []);
 
+  // Reprograma notificaciones locales (recurrentes, resumen semanal, "sin
+  // actividad") cada vez que config o txs cambian — así siempre reflejan el
+  // estado más reciente sin necesitar servidor. No hace nada en web (solo
+  // dispositivos nativos vía Capacitor). Con debounce para no reprogramar en
+  // cada cambio menor (varios guardados seguidos solo disparan una vez).
+  useEffect(() => {
+    if (!config || !config.setupComplete) return;
+    const t = setTimeout(() => scheduleAllNotifications(config, txs), 3000);
+    return () => clearTimeout(t);
+  }, [config, txs]);
+
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.title = "Zafi · Finanzas personales con IA";
@@ -5964,30 +6182,39 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     const max = getMaxAccountsForPlan(plan);
     const archived = rawConfig.archivedAccountIds || [];
     const activeCount = rawConfig.accounts.filter((a) => !archived.includes(a.id)).length;
+    if (archived.length === 0 || activeCount >= max) return;
 
-    // Si hay archivadas y caben en el plan actual, restaurarlas (más recientes primero)
-    if (archived.length > 0 && activeCount < max) {
-      const slots = max - activeCount;
+    // Patrón funcional: opera sobre el ÚLTIMO config real al momento de
+    // guardar, no sobre el `rawConfig` capturado cuando se disparó el efecto
+    // — evita perder la restauración si hubo otro cambio de config casi
+    // simultáneo (por ejemplo, el mismo guardado que cambió el plan).
+    saveConfig((prev) => {
+      const prevArchived = prev.archivedAccountIds || [];
+      const prevPlan = getUserPlan(prev);
+      const prevMax = getMaxAccountsForPlan(prevPlan);
+      const prevActiveCount = prev.accounts.filter((a) => !prevArchived.includes(a.id)).length;
+      if (prevArchived.length === 0 || prevActiveCount >= prevMax) return prev;
+
+      const slots = prevMax - prevActiveCount;
       // Ordenar archivadas por última actividad para restaurar las más activas
       const lastTxByAcc = new Map();
       for (const t of rawTxs) {
         const existing = lastTxByAcc.get(t.accountId);
         if (!existing || t.date > existing) lastTxByAcc.set(t.accountId, t.date);
       }
-      const archivedSorted = [...archived].sort((a, b) => {
+      const archivedSorted = [...prevArchived].sort((a, b) => {
         const da = lastTxByAcc.get(a) || "";
         const db = lastTxByAcc.get(b) || "";
         return db.localeCompare(da);
       });
       const toRestore = archivedSorted.slice(0, slots);
-      if (toRestore.length > 0) {
-        const restoreSet = new Set(toRestore);
-        const newArchived = archived.filter((id) => !restoreSet.has(id));
-        saveConfig({ ...rawConfig, archivedAccountIds: newArchived });
-        showToast && showToast(`${toRestore.length} cuenta${toRestore.length === 1 ? "" : "s"} restaurada${toRestore.length === 1 ? "" : "s"}`);
-      }
-    }
-  }, [rawConfig?.plan]);
+      if (toRestore.length === 0) return prev;
+      const restoreSet = new Set(toRestore);
+      const newArchived = prevArchived.filter((id) => !restoreSet.has(id));
+      showToast && showToast(`${toRestore.length} cuenta${toRestore.length === 1 ? "" : "s"} restaurada${toRestore.length === 1 ? "" : "s"}`);
+      return { ...prev, archivedAccountIds: newArchived };
+    });
+  }, [rawConfig?.plan, rawConfig?.archivedAccountIds]);
 
   const showDowngradeModal = needsAccountDowngrade(rawConfig);
 
@@ -6306,10 +6533,14 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       {accountsOpen && (
         <AccountsModal
           config={config}
+          rawConfig={rawConfig}
           txs={txs}
+          rawTxs={rawTxs}
           saveConfig={saveConfigWrapped}
+          saveConfigRaw={saveConfig}
           showToast={showToast}
           resetAll={resetAll}
+          setAccView={setAccView}
           onClose={() => setAccountsOpen(false)}
         />
       )}
@@ -6895,6 +7126,22 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
 }
 
 /* ===================== MODAL: AJUSTES GENERALES ========================= */
+/* Resumen corto para la fila de Notificaciones en el menú de Settings */
+function notifPrefsSummary(config) {
+  const prefs = config.notificationPrefs || {};
+  const allOff = prefs.recurringReminders === false && prefs.weeklySummary === false
+    && prefs.noActivityReminder === false && prefs.scoreChange === false && prefs.tips === false;
+  if (allOff) return "Desactivadas";
+  const activeCount = [
+    prefs.recurringReminders !== false,
+    prefs.weeklySummary !== false,
+    prefs.noActivityReminder !== false,
+    prefs.scoreChange !== false,
+    prefs.tips !== false,
+  ].filter(Boolean).length;
+  return `${activeCount} de 5 activas`;
+}
+
 function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
   const user = auth.currentUser;
   const email = user?.email || "";
@@ -7071,7 +7318,7 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
               {ROW(IconPerson, t("personalInfo"), "", () => setSection("personal"))}
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("lang"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
-              {ROW(IconBell, t("notifications"), t("comingSoon"), () => {})}
+              {ROW(IconBell, t("notifications"), notifPrefsSummary(config), () => setSection("notifications"))}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
@@ -7308,6 +7555,57 @@ function SettingsModal({ config, saveConfig, onClose, showToast, resetAll }) {
                     })}
                   </div>
                 </>
+              )}
+            </div>
+          </>
+        )}
+
+        {section === "notifications" && (
+          <>
+            {BACK(t("notifications"))}
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginBottom: 16, lineHeight: 1.5 }}>
+                Notificaciones locales — se generan en tu dispositivo, no necesitan conexión constante.
+                {Capacitor.isNativePlatform() ? "" : " Solo disponibles en la app móvil."}
+              </div>
+              {[
+                { key: "recurringReminders", title: "Pagos recurrentes", desc: "Un día antes de que se registre un pago automático." },
+                { key: "weeklySummary", title: "Resumen semanal", desc: "Cada lunes por la mañana, ingresos y gastos de la semana." },
+                { key: "noActivityReminder", title: "Sin actividad", desc: "Si llevas varios días sin registrar movimientos." },
+                { key: "scoreChange", title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja." },
+                { key: "tips", title: "Consejos financieros", desc: "Un consejo cada 3 días, basado en tus finanzas cuando hay uno disponible." },
+              ].map((item) => {
+                const prefs = config.notificationPrefs || {};
+                const isOn = prefs[item.key] !== false;
+                return (
+                  <div key={item.key} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                    padding: "12px 0", borderBottom: "1px solid var(--line-soft)",
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>{item.title}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.4 }}>{item.desc}</div>
+                    </div>
+                    <label className={`cc-switch ${isOn ? "on" : ""}`}>
+                      <input type="checkbox" checked={isOn}
+                        onChange={() => saveConfig({
+                          ...config,
+                          notificationPrefs: { ...prefs, [item.key]: !isOn },
+                        })} />
+                      <span className="cc-switch-track" />
+                      <span className="cc-switch-thumb" />
+                    </label>
+                  </div>
+                );
+              })}
+
+              {(config.notificationPrefs?.noActivityReminder !== false) && (
+                <div style={{ marginTop: 20 }}>
+                  <div className="cc-label" style={{ marginBottom: 8 }}>Avisar tras cuántos días sin registrar</div>
+                  {CHIP_ROW([[2, "2 días"], [3, "3 días"], [4, "4 días"], [7, "1 semana"]],
+                    config.notificationPrefs?.noActivityDays || 4,
+                    (v) => saveConfig({ ...config, notificationPrefs: { ...(config.notificationPrefs || {}), noActivityDays: v } }))}
+                </div>
               )}
             </div>
           </>
@@ -8570,6 +8868,13 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, [data]);
+
+  // Notificación local si la calificación cambió significativamente desde la
+  // última vez que el usuario la vio (no en demoMode, solo con data real).
+  useEffect(() => {
+    if (demoMode || !data?.score) return;
+    notifyScoreChangeIfNeeded(config, data.score, data.status);
+  }, [data?.score]);
 
   const dark = useDarkMode();
 
@@ -10749,6 +11054,192 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   );
 }
 
+/* ===== Modal: elegir/crear categorías al crear una cuenta nueva =========== */
+/* Aparece automáticamente justo después de crear una cuenta. Muestra las
+   categorías default ya asignadas (con checkbox para desmarcar las que no
+   apliquen) y permite agregar categorías propias antes de terminar — así el
+   usuario decide desde el inicio, en vez de heredar el set default a ciegas. */
+function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig, onClose }) {
+  const [closing, close] = useSheetClose(onClose);
+  const dark = useDarkMode();
+  const accCats = config.categories.filter((c) => c.accountId === accountId);
+  const incomeCats = accCats.filter((c) => c.type === "income");
+  const expenseCats = accCats.filter((c) => c.type === "expense");
+
+  const [incSelected, setIncSelected] = useState(new Set(incomeCats.map((c) => c.id)));
+  const [expSelected, setExpSelected] = useState(new Set(expenseCats.map((c) => c.id)));
+  const [customCats, setCustomCats] = useState([]); // categorías nuevas agregadas aquí
+  const [addingType, setAddingType] = useState(null); // "income" | "expense" | null
+  const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState("📦");
+
+  const toggleInc = (id) => {
+    const next = new Set(incSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setIncSelected(next);
+  };
+  const toggleExp = (id) => {
+    const next = new Set(expSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpSelected(next);
+  };
+
+  const addCustom = () => {
+    if (!newName.trim() || !addingType) return;
+    const cat = {
+      id: uid(), name: newName.trim(), emoji: newEmoji || "📦",
+      type: addingType, accountId, keywords: [],
+    };
+    setCustomCats((prev) => [...prev, cat]);
+    if (addingType === "income") setIncSelected((prev) => new Set(prev).add(cat.id));
+    else setExpSelected((prev) => new Set(prev).add(cat.id));
+    setNewName(""); setNewEmoji("📦"); setAddingType(null);
+  };
+
+  const finish = () => {
+    // Quitar del config las categorías default que el usuario desmarcó, y
+    // agregar las personalizadas que haya creado en este paso.
+    const toRemove = accCats
+      .filter((c) => (c.type === "income" ? !incSelected.has(c.id) : !expSelected.has(c.id)))
+      .map((c) => c.id);
+    const kept = config.categories.filter((c) => !toRemove.includes(c.id));
+    saveConfig({ ...config, categories: [...kept, ...customCats] });
+    onClose();
+  };
+
+  const AddRow = ({ type }) => (
+    addingType === type ? (
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <input value={newEmoji} onChange={(e) => setNewEmoji(e.target.value.slice(0, 2) || "📦")}
+          style={{ width: 44, textAlign: "center", fontSize: 18, padding: "8px 4px",
+            borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)" }} />
+        <input value={newName} onChange={(e) => setNewName(e.target.value)}
+          placeholder="Nombre de categoría" autoFocus
+          onKeyDown={(e) => e.key === "Enter" && addCustom()}
+          style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)",
+            background: "var(--paper)", fontSize: 13.5, fontFamily: "'Montserrat', sans-serif" }} />
+        <button onClick={addCustom} disabled={!newName.trim()}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "none",
+            background: "#5B6EE8", color: "#fff", fontSize: 13, fontWeight: 600,
+            cursor: newName.trim() ? "pointer" : "not-allowed", opacity: newName.trim() ? 1 : 0.5 }}>
+          +
+        </button>
+        <button onClick={() => { setAddingType(null); setNewName(""); }}
+          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)",
+            background: "transparent", color: "var(--ink-soft)", fontSize: 13, cursor: "pointer" }}>
+          ×
+        </button>
+      </div>
+    ) : (
+      <button onClick={() => setAddingType(type)}
+        style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8,
+          border: "1px dashed var(--line)", background: "transparent",
+          color: "#5B6EE8", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          fontFamily: "'Montserrat', sans-serif" }}>
+        + Agregar categoría de {type === "income" ? "ingreso" : "gasto"}
+      </button>
+    )
+  );
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} style={{ zIndex: 100000000 }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-sheet-handle" />
+        <div style={{ padding: "8px 22px 20px" }}>
+          <div style={{
+            fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600,
+            color: "var(--ink)", letterSpacing: "-.02em", marginBottom: 4,
+          }}>
+            Categorías para {accountName}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 18 }}>
+            Elige cuáles usar, quita las que no apliquen, o agrega las tuyas. Puedes cambiar esto después.
+          </div>
+
+          <div style={{ maxHeight: "58vh", overflowY: "auto" }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: ".06em", color: "var(--green)", fontFamily: "'Montserrat', sans-serif" }}>
+                  Ingresos
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {incomeCats.map((c) => {
+                  const isOn = incSelected.has(c.id);
+                  return (
+                    <button key={c.id} onClick={() => toggleInc(c.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                        border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                        borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 18 }}>{c.emoji}</span>
+                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
+                      <div style={{ width: 20, height: 20, borderRadius: 5,
+                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                        background: isOn ? "#5B6EE8" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                          strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <AddRow type="income" />
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--coral)" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: ".06em", color: "var(--coral)", fontFamily: "'Montserrat', sans-serif" }}>
+                  Gastos
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {expenseCats.map((c) => {
+                  const isOn = expSelected.has(c.id);
+                  return (
+                    <button key={c.id} onClick={() => toggleExp(c.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                        border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                        borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                      <span style={{ fontSize: 18 }}>{c.emoji}</span>
+                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
+                      <div style={{ width: 20, height: 20, borderRadius: 5,
+                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
+                        background: isOn ? "#5B6EE8" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                          strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <AddRow type="expense" />
+            </div>
+          </div>
+
+          <button onClick={finish}
+            style={{ width: "100%", marginTop: 16, padding: 14, borderRadius: 12, border: "none",
+              background: dark ? "#F5F5F7" : "rgba(26,24,21,.92)",
+              color: dark ? "#1B2230" : "#fff",
+              fontSize: 14, fontWeight: 600, fontFamily: "'Montserrat', sans-serif",
+              cursor: "pointer", letterSpacing: ".02em" }}>
+            Listo
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+
 function CatModal({ cat, accounts, onClose, onSave }) {
   const [name, setName] = useState(cat.name || "");
   const [emoji, setEmoji] = useState(cat.emoji || "📦");
@@ -10801,25 +11292,33 @@ function CatModal({ cat, accounts, onClose, onSave }) {
 }
 
 /* ================== MODAL: GESTIONAR CUENTAS ============================= */
-function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }) {
+function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigRaw, showToast, resetAll, setAccView, onClose }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Cuenta recién creada esperando que el usuario elija sus categorías
+  const [newAccountSetup, setNewAccountSetup] = useState(null); // { id, name } | null
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
 
   const save = (acc) => {
     let accounts, categories = config.categories;
+    const isNew = !acc.id;
     if (acc.id) {
       accounts = config.accounts.map((a) => (a.id === acc.id ? acc : a));
     } else {
       const nid = uid();
-      accounts = [...config.accounts, { ...acc, id: nid }];
+      accounts = [...config.accounts, { ...acc, id: nid, createdAt: today() }];
       categories = [...config.categories, ...defaultCatsForAccount(nid)];
+      // Cambiar la vista a la cuenta recién creada — así aparece de inmediato
+      // en Dashboard/Categorías sin que el usuario tenga que cambiar de vista
+      // manualmente (antes quedaba "escondida" si veías otra cuenta específica).
+      if (setAccView) setAccView(nid);
+      setNewAccountSetup({ id: nid, name: acc.name });
     }
     saveConfig({ ...config, accounts, categories, accountMode: accounts.length > 1 ? "multiple" : "single" });
     setEditing(null);
-    showToast("Cuenta guardada");
+    showToast(isNew ? "Cuenta creada" : "Cuenta guardada");
   };
   const askDel = (acc) => {
     if (config.accounts.length <= 1) {
@@ -10918,6 +11417,61 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
           );
         })()}
 
+        {/* Cuentas archivadas — respaldo manual si el auto-restore al subir de
+            plan no alcanzó a correr (o el usuario quiere restaurar antes de
+            que le toque el cupo automáticamente). Solo visible si hay alguna. */}
+        {rawConfig && (rawConfig.archivedAccountIds || []).length > 0 && (() => {
+          const archived = rawConfig.archivedAccountIds || [];
+          const plan = getUserPlan(rawConfig);
+          const max = getMaxAccountsForPlan(plan);
+          const activeCount = rawConfig.accounts.filter((a) => !archived.includes(a.id)).length;
+          const hasSlot = activeCount < max;
+          const archivedAccounts = rawConfig.accounts.filter((a) => archived.includes(a.id));
+
+          const restore = (accId) => {
+            if (!saveConfigRaw) return;
+            saveConfigRaw((prev) => {
+              const prevArchived = prev.archivedAccountIds || [];
+              const prevPlan = getUserPlan(prev);
+              const prevMax = getMaxAccountsForPlan(prevPlan);
+              const prevActiveCount = prev.accounts.filter((a) => !prevArchived.includes(a.id)).length;
+              if (prevActiveCount >= prevMax) return prev; // sin cupo, no hacer nada
+              return { ...prev, archivedAccountIds: prevArchived.filter((id) => id !== accId) };
+            });
+            showToast && showToast("Cuenta restaurada");
+          };
+
+          return (
+            <div style={{ marginTop: 22 }}>
+              <div className="cc-label" style={{ marginBottom: 8 }}>
+                Cuentas archivadas ({archivedAccounts.length})
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 10, lineHeight: 1.5 }}>
+                {hasSlot
+                  ? "Tienes cupo — puedes restaurarlas manualmente, o se restaurarán solas la próxima vez que abras la app."
+                  : `Necesitas más cupo en tu plan (${plan === "free" ? "1 cuenta" : plan === "lite" ? "3 cuentas" : "cuentas"}) para restaurarlas. Sube de plan o archiva otra cuenta activa primero.`}
+              </div>
+              {archivedAccounts.map((a) => (
+                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 0", borderBottom: "1px solid var(--line-soft)" }}>
+                  <span style={{ fontSize: 16, opacity: 0.6 }}>📦</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink-soft)" }}>{a.name}</div>
+                  </div>
+                  <button onClick={() => hasSlot && restore(a.id)} disabled={!hasSlot}
+                    style={{ padding: "6px 12px", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                      borderRadius: 10, border: "1px solid " + (hasSlot ? "#5B6EE8" : "var(--line)"),
+                      background: hasSlot ? "#5B6EE8" : "transparent",
+                      color: hasSlot ? "#fff" : "var(--ink-faint)",
+                      cursor: hasSlot ? "pointer" : "not-allowed" }}>
+                    Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "14px 0 0", lineHeight: 1.5 }}>
           {_lang === "es"
             ? "El saldo inicial es el dinero que ya tienes. El saldo de la derecha se ajusta con tus movimientos."
@@ -10946,6 +11500,15 @@ function AccountsModal({ config, txs, saveConfig, showToast, resetAll, onClose }
           />
         )}
       </div>
+      {newAccountSetup && (
+        <NewAccountCategoriesModal
+          config={config}
+          accountId={newAccountSetup.id}
+          accountName={newAccountSetup.name}
+          saveConfig={saveConfig}
+          onClose={() => setNewAccountSetup(null)}
+        />
+      )}
     </div>,
     document.body
   );
