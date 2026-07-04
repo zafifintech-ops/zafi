@@ -749,52 +749,35 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 
 /* ===== Loading screen (Firebase auth verification) ===== */
 .cc-loading{position:fixed;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:32px;
+  align-items:center;justify-content:center;
   background:#ffffff;overflow:hidden;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light){background:linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%);}}
-.cc-loading.cc-dark{background:linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%);}
-/* Halo radial detrás del logo */
-.cc-loading-halo{position:absolute;width:360px;height:360px;border-radius:50%;
-  background:radial-gradient(circle,rgba(91,110,232,.22) 0%,rgba(91,110,232,.06) 40%,transparent 70%);
-  filter:blur(20px);
-  animation:ccLoadingHalo 3.2s ease-in-out infinite;}
-.cc-loading.cc-dark .cc-loading-halo{
-  background:radial-gradient(circle,rgba(91,110,232,.38) 0%,rgba(91,110,232,.1) 40%,transparent 70%);}
-@keyframes ccLoadingHalo{
-  0%,100%{transform:scale(.85);opacity:.55;}
-  50%{transform:scale(1.1);opacity:1;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light){background:#0D0F14;}}
+.cc-loading.cc-dark{background:#0D0F14;}
+.cc-loading-ring{position:relative;width:72px;height:72px;
+  display:flex;align-items:center;justify-content:center;}
+.cc-loading-ring svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.cc-loading-arc{fill:none;stroke:#5B6EE8;stroke-width:5;stroke-linecap:round;
+  stroke-dasharray:188;
+  animation:ccRingFill 2s cubic-bezier(.6,0,.4,1) infinite;}
+.cc-loading.cc-dark .cc-loading-arc{stroke:#8B9CFF;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-arc{stroke:#8B9CFF;}}
+@keyframes ccRingFill{
+  0%  {stroke-dashoffset:188;opacity:.4;}
+  45% {stroke-dashoffset:0;  opacity:1;}
+  55% {stroke-dashoffset:0;  opacity:1;}
+  100%{stroke-dashoffset:-188;opacity:.4;}
 }
-/* Wordmark zafi con punto verde */
-.cc-loading-wordmark{position:relative;z-index:2;display:flex;align-items:baseline;gap:6px;
-  font-family:'Fraunces',serif;font-weight:600;font-size:44px;
-  letter-spacing:-.06em;color:#1B2230;
-  opacity:0;animation:ccLoadingLogoIn .7s cubic-bezier(.16,1,.3,1) .1s forwards;}
-.cc-loading.cc-dark .cc-loading-wordmark{color:#F5F5F7;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-wordmark{color:#F5F5F7;}}
-@keyframes ccLoadingLogoIn{
-  from{opacity:0;transform:translateY(6px);}
-  to{opacity:1;transform:translateY(0);}
-}
-.cc-loading-dot{display:inline-block;width:10px;height:10px;border-radius:50%;
-  background:#4ADE80;margin-bottom:6px;
-  box-shadow:0 0 14px rgba(74,222,128,.55);
-  animation:ccLoadingDot 1.8s ease-in-out infinite;}
-@keyframes ccLoadingDot{
-  0%,100%{transform:scale(1);box-shadow:0 0 14px rgba(74,222,128,.55);}
-  50%{transform:scale(1.35);box-shadow:0 0 22px rgba(74,222,128,.9),0 0 36px rgba(74,222,128,.4);}
-}
-/* Tres puntitos indigo en cascada */
-.cc-loading-dots{position:relative;z-index:2;display:flex;gap:8px;
-  opacity:0;animation:ccLoadingDotsIn .5s ease .6s forwards;}
-@keyframes ccLoadingDotsIn{to{opacity:1;}}
-.cc-loading-dots span{width:6px;height:6px;border-radius:50%;background:#5B6EE8;
-  animation:ccLoadingDotBounce 1.4s ease-in-out infinite;opacity:.3;}
-.cc-loading-dots span:nth-child(2){animation-delay:.18s;}
-.cc-loading-dots span:nth-child(3){animation-delay:.36s;}
-.cc-loading.cc-dark .cc-loading-dots span{background:#8B9CFF;}
-@keyframes ccLoadingDotBounce{
-  0%,100%{opacity:.3;transform:translateY(0);}
-  40%{opacity:1;transform:translateY(-5px);}
+.cc-loading-track{fill:none;stroke:rgba(91,110,232,.12);stroke-width:5;stroke-linecap:round;}
+.cc-loading.cc-dark .cc-loading-track{stroke:rgba(139,156,255,.12);}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-track{stroke:rgba(139,156,255,.12);}}
+.cc-loading-center{width:4px;height:4px;border-radius:50%;background:#5B6EE8;
+  position:relative;z-index:2;
+  animation:ccCenterDot 2s ease-in-out infinite;}
+.cc-loading.cc-dark .cc-loading-center{background:#8B9CFF;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-center{background:#8B9CFF;}}
+@keyframes ccCenterDot{
+  0%,100%{transform:scale(.7);opacity:.4;}
+  50%{transform:scale(1.2);opacity:1;}
 }
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));z-index:60;
@@ -5407,25 +5390,14 @@ export default function App() {
   // Si el usuario eligió explícitamente claro → claro. Oscuro → oscuro. Auto/sin preferencia → según SO
   const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad === "auto" && sysDarkLoad) || (!savedThemeLoad && sysDarkLoad);
   if (user === undefined) return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 99999,
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 32,
-      background: isLoadDark
-        ? "linear-gradient(165deg,#13161D 0%,#0D0F14 40%,#0A0C10 100%)"
-        : "#ffffff",
-      overflow: "hidden",
-    }}>
+    <div className={`cc-loading${isLoadDark ? " cc-dark" : " cc-light"}`}>
       <style>{STYLE}</style>
-      <div className="cc-loading-halo" />
-      <div style={{
-        position: "relative", zIndex: 2,
-        fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 44,
-        letterSpacing: "-.06em",
-        color: isLoadDark ? "#F5F5F7" : "#1B2230",
-      }}>zafi</div>
-      <div className="cc-loading-dots" style={{ position: "relative", zIndex: 2 }}>
-        <span /><span /><span />
+      <div className="cc-loading-ring">
+        <svg viewBox="0 0 72 72" width="72" height="72">
+          <circle className="cc-loading-track" cx="36" cy="36" r="30" />
+          <circle className="cc-loading-arc" cx="36" cy="36" r="30" />
+        </svg>
+        <div className="cc-loading-center" />
       </div>
     </div>
   );
