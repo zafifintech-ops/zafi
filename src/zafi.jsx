@@ -8901,9 +8901,60 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     });
     const incTxs = filtered.filter(t => t.type === "income");
     const expTxs = filtered.filter(t => t.type === "expense");
-    const totalIn = incTxs.reduce((s, t) => s + t.amount, 0);
+    const totalIn  = incTxs.reduce((s, t) => s + t.amount, 0);
     const totalOut = expTxs.reduce((s, t) => s + t.amount, 0);
-    return { totalIn, totalOut, txCount: filtered.length, incCount: incTxs.length, expCount: expTxs.length };
+
+    // Top 5 categorías de gasto con monto y % del total
+    const byCat = {};
+    expTxs.forEach(t => {
+      const cat = t.categoryId ? config.categories.find(c => c.id === t.categoryId) : null;
+      const key  = (cat && cat.type === "expense") ? cat.name : "Sin categoría";
+      byCat[key] = (byCat[key] || 0) + t.amount;
+    });
+    const topExpCats = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, amt]) => ({
+        name,
+        amount: amt,
+        pct: totalOut > 0 ? Math.round((amt / totalOut) * 100) : 0,
+      }));
+
+    // Top 3 categorías de ingreso
+    const byInCat = {};
+    incTxs.forEach(t => {
+      const cat = t.categoryId ? config.categories.find(c => c.id === t.categoryId) : null;
+      const key  = (cat && cat.type === "income") ? cat.name : "Sin categoría";
+      byInCat[key] = (byInCat[key] || 0) + t.amount;
+    });
+    const topIncCats = Object.entries(byInCat)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, amt]) => ({ name, amount: amt }));
+
+    // Frecuencia de gasto: transacciones por semana aprox
+    const dates = filtered.map(t => new Date(t.date).getTime()).filter(Boolean);
+    const spanDays = dates.length > 1
+      ? (Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24)
+      : 30;
+    const txPerWeek = spanDays > 0 ? Math.round((expTxs.length / spanDays) * 7 * 10) / 10 : 0;
+
+    // Gasto promedio por transacción
+    const avgExpTx = expTxs.length > 0 ? Math.round(totalOut / expTxs.length) : 0;
+
+    // % gastado del ingreso
+    const spendRatio = totalIn > 0 ? Math.round((totalOut / totalIn) * 100) : 0;
+
+    // Sin categorizar
+    const uncatAmt = byCat["Sin categoría"] || 0;
+    const uncatPct = totalOut > 0 ? Math.round((uncatAmt / totalOut) * 100) : 0;
+
+    return {
+      totalIn, totalOut, txCount: filtered.length,
+      incCount: incTxs.length, expCount: expTxs.length,
+      topExpCats, topIncCats, txPerWeek, avgExpTx, spendRatio,
+      uncatPct, spanDays: Math.round(spanDays),
+    };
   })();
 
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
@@ -8930,32 +8981,63 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     setLoading(true);
     const callAI = async () => {
       try {
-        const prompt = `Eres un asesor financiero experto. Analiza brevemente esta situación financiera y da 3 consejos cortos (máximo 25 palabras cada uno) en español:
-- Ingresos: ${fmtMxn(baseData.totalIn)}
-- Gastos: ${fmtMxn(baseData.totalOut)}
-- Transacciones: ${baseData.txCount}
-- Score calculado: ${localScore}/100
+        const topExpStr = baseData.topExpCats.length > 0
+          ? baseData.topExpCats.map(c => `  • ${c.name}: ${fmtMxn(c.amount)} (${c.pct}%)`).join("\n")
+          : "  • Sin datos de categorías";
+        const topIncStr = baseData.topIncCats.length > 0
+          ? baseData.topIncCats.map(c => `  • ${c.name}: ${fmtMxn(c.amount)}`).join("\n")
+          : "  • Sin datos";
 
-Responde SOLO con JSON: {"score": ${localScore}, "status": "${localStatus}", "analyses": ["consejo1", "consejo2", "consejo3"]}`;
+        const prompt = `Eres un asesor financiero personal. Analiza esta situación financiera REAL y genera 3 observaciones o consejos MUY ESPECÍFICOS basados en los datos concretos (menciona categorías, montos o hábitos específicos que ves). Máximo 30 palabras cada uno. En español, tono directo y útil.
+
+DATOS DEL PERÍODO (${baseData.spanDays} días):
+- Ingresos: ${fmtMxn(baseData.totalIn)} (${baseData.incCount} movimientos)
+- Gastos: ${fmtMxn(baseData.totalOut)} (${baseData.expCount} movimientos)
+- % gastado del ingreso: ${baseData.spendRatio}%
+- Gasto promedio por transacción: ${fmtMxn(baseData.avgExpTx)}
+- Frecuencia de gastos: ~${baseData.txPerWeek} transacciones/semana
+- Sin categorizar: ${baseData.uncatPct}% del gasto total
+
+TOP CATEGORÍAS DE GASTO:
+${topExpStr}
+
+FUENTES DE INGRESO:
+${topIncStr}
+
+CALIFICACIÓN: ${localScore}/100 (${localStatus})
+
+Instrucciones: Sé específico — menciona las categorías reales por nombre, señala si algo está muy alto o muy bien. NO des consejos genéricos tipo "ahorra más". Responde SOLO con JSON válido sin markdown:
+{"analyses": ["observación1", "observación2", "observación3"]}`;
 
         const res = await fetch("/api/claude", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, maxTokens: 300 }),
+          body: JSON.stringify({ prompt, maxTokens: 400 }),
         });
         if (!res.ok) throw new Error("API error");
         const json = await res.json();
         const text = (json.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
         const parsed = JSON.parse(text);
-        // Siempre usar el score local calculado — ignorar lo que devuelva la IA
-        // para evitar que varíe entre recargas
         setData({ ...parsed, score: localScore, status: localStatus });
       } catch {
-        setData({ score: localScore, status: localStatus, analyses: [
-          "Mantén tus gastos por debajo del 80% de tus ingresos.",
-          "Ahorra al menos un 10% de cada ingreso que recibas.",
-          "Revisa tus categorías de mayor gasto para encontrar oportunidades.",
-        ]});
+        // Fallback también personalizado con los datos que tenemos
+        const topCat = baseData.topExpCats[0];
+        const fallback = topCat
+          ? [
+              `Tu mayor gasto es ${topCat.name} con ${fmtMxn(topCat.amount)} (${topCat.pct}% del total).`,
+              baseData.spendRatio > 80
+                ? `Estás gastando el ${baseData.spendRatio}% de tus ingresos — intenta reducirlo a menos del 80%.`
+                : `Gastas el ${baseData.spendRatio}% de tus ingresos, lo cual es un buen margen.`,
+              baseData.uncatPct > 15
+                ? `El ${baseData.uncatPct}% de tus gastos no tiene categoría — categorizarlos te dará mejor visibilidad.`
+                : "Mantén el hábito de registrar y categorizar cada movimiento.",
+            ]
+          : [
+              "Registra tus gastos por categoría para obtener análisis más precisos.",
+              "Mantén tus gastos por debajo del 80% de tus ingresos.",
+              "Un fondo de emergencia equivale a 3 meses de gastos fijos.",
+            ];
+        setData({ score: localScore, status: localStatus, analyses: fallback });
       } finally {
         setLoading(false);
       }
