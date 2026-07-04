@@ -8698,14 +8698,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       ctx.fillStyle = headGlow;
       ctx.fillRect(0, 0, W, H);
 
-      // Track (fondo semitransparente del donut)
-      ctx.lineWidth = LW;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-      ctx.beginPath();
-      ctx.arc(CX, CY, R, 0, Math.PI * 2);
-      ctx.stroke();
-
       // Arco en segmentos con gradiente
       for (let i = 0; i < NUM_SEG; i++) {
         const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
@@ -8795,79 +8787,98 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 /* ── FlameScoreIndicator — llamita kawaii caminando ── */
 function FlameScoreIndicator({ targetScore, inView }) {
   const canvasRef = useRef(null);
-  const stateRef = useRef({ current: 0, walkPhase: 0, blinkTimer: 0, blinking: false, blinkProgress: 0, particles: [], raf: null });
+  const stRef = useRef({
+    current: 0, walkPhase: 0,
+    blinkTimer: 0, blinking: false, blinkProg: 0,
+    particles: [], raf: null,
+  });
 
-  useEffect(() => {
-    if (inView) stateRef.current.current = 0;
-  }, [inView, targetScore]);
+  useEffect(() => { if (inView) stRef.current.current = 0; }, [inView, targetScore]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const W = 260, H = 300;
+    const W = 260, H = 320;
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + "px"; canvas.style.height = H + "px";
     ctx.scale(dpr, dpr);
 
     const lerp = (a, b, t) => a + (b - a) * t;
 
-    // Colores por estado
     const getState = (pct) => {
       if (pct < 35) return {
         flame1: [255, 80, 50], flame2: [210, 25, 20], flame3: [130, 10, 10],
-        walkSpeed: 0.18, flicker: 0.9, mood: "sad", label: "Atención",
-        particles: 3,
+        walkSpeed: 0.18, mood: "sad", label: "Atención", spawnRate: 0.5,
       };
       if (pct < 65) return {
-        flame1: [255, 190, 60], flame2: [240, 110, 20], flame3: [180, 60, 10],
-        walkSpeed: 0.10, flicker: 0.6, mood: "neutral", label: "Regular",
-        particles: 2,
+        flame1: [255, 180, 60], flame2: [240, 110, 20], flame3: [180, 60, 10],
+        walkSpeed: 0.10, mood: "neutral", label: "Regular", spawnRate: 0.35,
       };
       if (pct < 90) return {
-        flame1: [255, 220, 50], flame2: [240, 160, 10], flame3: [200, 100, 0],
-        walkSpeed: 0.065, flicker: 0.4, mood: "happy", label: "Muy bien",
-        particles: 1,
+        flame1: [255, 220, 90], flame2: [240, 160, 10], flame3: [200, 100, 0],
+        walkSpeed: 0.065, mood: "happy", label: "Muy bien", spawnRate: 0.22,
       };
       return {
-        flame1: [255, 230, 80], flame2: [255, 180, 20], flame3: [220, 120, 0],
-        walkSpeed: 0.05, flicker: 0.25, mood: "excellent", label: "Perfecto",
-        particles: 1,
+        flame1: [255, 240, 150], flame2: [255, 180, 20], flame3: [220, 120, 0],
+        walkSpeed: 0.05, mood: "excellent", label: "Perfecto", spawnRate: 0.15,
       };
     };
 
+    // Dibuja una capa de llama ondulada con forma de fuego
+    const drawFlameLayer = (cx, cy, radius, points, wobble, speed, f1, col, alpha, t) => {
+      const N = 64;
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const angle = (i / N) * Math.PI * 2;
+        const wave = Math.sin(angle * points + t * speed) * wobble;
+        const upStretch = Math.max(0, -Math.sin(angle)) * 14;
+        const r = radius + wave + upStretch;
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r * 0.85;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      const grad = ctx.createRadialGradient(cx, cy - 8, 0, cx, cy, radius + wobble + 14);
+      grad.addColorStop(0,   `rgba(${f1[0]},${f1[1]},${f1[2]},${alpha})`);
+      grad.addColorStop(0.5, `rgba(${col[0]},${col[1]},${col[2]},${alpha * 0.7})`);
+      grad.addColorStop(1,   `rgba(${col[0]},${col[1]},${col[2]},0)`);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    };
+
     const draw = () => {
-      const st = stateRef.current;
+      const st = stRef.current;
       const T = targetScore || 0;
       st.current = lerp(st.current, T, 0.05);
       if (Math.abs(st.current - T) < 0.1) st.current = T;
       const pct = st.current;
       const state = getState(pct);
+      const { flame1: f1, flame2: f2, flame3: f3 } = state;
 
       st.walkPhase += state.walkSpeed;
-      st.blinkTimer++;
 
-      // Parpadeo cada ~15s (900 frames)
+      // Parpadeo
+      st.blinkTimer++;
       if (!st.blinking && st.blinkTimer > 900 + Math.random() * 300) {
-        st.blinking = true; st.blinkProgress = 0; st.blinkTimer = 0;
+        st.blinking = true; st.blinkProg = 0; st.blinkTimer = 0;
       }
       if (st.blinking) {
-        st.blinkProgress += 0.18;
-        if (st.blinkProgress >= 1) { st.blinking = false; st.blinkProgress = 0; }
+        st.blinkProg += 0.2;
+        if (st.blinkProg >= 1) { st.blinking = false; st.blinkProg = 0; }
       }
-      const blinkAmt = st.blinking ? Math.sin(st.blinkProgress * Math.PI) : 0;
+      const blinkAmt = st.blinking ? Math.sin(st.blinkProg * Math.PI) : 0;
 
       // Partículas
-      if (Math.random() < state.flicker * 0.3) {
+      if (Math.random() < state.spawnRate) {
         st.particles.push({
-          x: W / 2 + (Math.random() - 0.5) * 24,
-          y: H / 2 - 68,
-          vx: (Math.random() - 0.5) * 0.8,
-          vy: -(0.6 + Math.random() * 1.2),
+          x: W / 2 + (Math.random() - 0.5) * 20,
+          y: H / 2 - 72,
+          vx: (Math.random() - 0.5) * 0.7,
+          vy: -(0.7 + Math.random() * 1.1),
           life: 1,
-          size: 2 + Math.random() * 3,
-          r: state.flame1[0], g: state.flame1[1], b: state.flame1[2],
+          size: 1.5 + Math.random() * 2.5,
         });
       }
       st.particles = st.particles.filter(p => {
@@ -8878,204 +8889,178 @@ function FlameScoreIndicator({ targetScore, inView }) {
       ctx.clearRect(0, 0, W, H);
 
       const CX = W / 2;
-      const CY = H / 2 + 10;
       const bob = Math.abs(Math.sin(st.walkPhase)) * 3;
-      const cy = CY + bob; // centro del cuerpo con bob
-
-      const f1 = state.flame1, f2 = state.flame2, f3 = state.flame3;
+      const CY = H / 2 + 20 + bob;
       const t = performance.now() / 1000;
+      const swing = Math.sin(st.walkPhase) * 8;
 
-      // ── Ground glow ──
-      const gg = ctx.createRadialGradient(CX, cy + 55, 0, CX, cy + 55, 48);
-      gg.addColorStop(0, `rgba(${f2[0]},${f2[1]},${f2[2]},0.22)`);
+      // 1. Score arriba
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.95)`;
+      ctx.font = "300 40px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(Math.round(pct), CX, 34);
+      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.60)`;
+      ctx.font = "400 12px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(state.label, CX, 58);
+
+      // 2. Ground glow
+      const gg = ctx.createRadialGradient(CX, CY + 65, 0, CX, CY + 65, 55);
+      gg.addColorStop(0, `rgba(${f2[0]},${f2[1]},${f2[2]},0.55)`);
       gg.addColorStop(1, `rgba(${f2[0]},${f2[1]},${f2[2]},0)`);
       ctx.fillStyle = gg;
       ctx.beginPath();
-      ctx.ellipse(CX, cy + 58, 46, 14, 0, 0, Math.PI * 2);
+      ctx.ellipse(CX, CY + 65, 55, 8, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // ── Aureola de fuego 3 capas ──
-      const drawFlameAura = (radius, alpha, points, speed, wobble) => {
-        ctx.beginPath();
-        for (let i = 0; i <= 360; i += 3) {
-          const angle = (i * Math.PI) / 180;
-          const wave = Math.sin(angle * points + t * speed) * wobble;
-          const upStretch = Math.max(0, -Math.sin(angle)) * 14;
-          const r = radius + wave + upStretch;
-          const x = CX + Math.cos(angle) * r;
-          const y = cy - 10 + Math.sin(angle) * r * 0.88;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        const grad = ctx.createRadialGradient(CX, cy - 10, 0, CX, cy - 10, radius + wobble + 14);
-        grad.addColorStop(0, `rgba(${f1[0]},${f1[1]},${f1[2]},${alpha})`);
-        grad.addColorStop(0.55, `rgba(${f2[0]},${f2[1]},${f2[2]},${alpha * 0.6})`);
-        grad.addColorStop(1, `rgba(${f3[0]},${f3[1]},${f3[2]},0)`);
-        ctx.fillStyle = grad;
-        ctx.fill();
-      };
-      drawFlameAura(50, 0.18, 5, 2.2, 8);
-      drawFlameAura(38, 0.30, 4, 3.0, 6);
-      drawFlameAura(28, 0.45, 3, 4.0, 4);
+      // 3. Aureola de fuego — 3 capas concéntricas
+      const layers = [
+        { r: 78, col: f3, alpha: 0.55, points: 9, wob: 8, speed: 1.0 },
+        { r: 66, col: f2, alpha: 0.80, points: 7, wob: 6, speed: 1.2 },
+        { r: 52, col: f1, alpha: 0.90, points: 6, wob: 4, speed: 1.5 },
+      ];
+      layers.forEach(l => drawFlameLayer(CX, CY - 10, l.r, l.points, l.wob, l.speed, f1, l.col, l.alpha, t));
 
-      const walkL = Math.sin(st.walkPhase);
-      const walkR = -walkL;
-
-      // ── BRAZOS Y PIERNAS DETRÁS (lado derecho) ──
-      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
+      // 4. Extremidades TRASERAS (derecha — detrás del cuerpo)
       ctx.lineWidth = 4; ctx.lineCap = "round";
-      // Pierna derecha
-      const lrx = CX + 12, lry = cy + 40;
+      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
+      // Brazo derecho
       ctx.beginPath();
-      ctx.moveTo(lrx, lry);
-      ctx.lineTo(lrx + walkR * 8, lry + 22);
+      ctx.moveTo(CX + 16, CY + 22);
+      ctx.bezierCurveTo(CX + 22, CY + 28, CX + 24, CY + 36, CX + 20 + swing, CY + 42);
       ctx.stroke();
-      // Brazo derecho (fase opuesta a pierna derecha)
-      const brx = CX + 18, bry = cy + 22;
+      // Pierna derecha
       ctx.beginPath();
-      ctx.moveTo(brx, bry);
-      ctx.lineTo(brx + walkL * 10, bry + 14);
+      ctx.moveTo(CX + 7, CY + 40);
+      ctx.lineTo(CX + 8 - swing, CY + 62);
       ctx.stroke();
 
-      // ── CUERPO (gota/bombilla) ──
+      // 5. Cuerpo (gota/bombilla con Bézier)
       ctx.beginPath();
-      ctx.moveTo(CX, cy - 42);
-      ctx.bezierCurveTo(CX + 32, cy - 42, CX + 38, cy, CX + 28, cy + 32);
-      ctx.bezierCurveTo(CX + 18, cy + 52, CX - 18, cy + 52, CX - 28, cy + 32);
-      ctx.bezierCurveTo(CX - 38, cy, CX - 32, cy - 42, CX, cy - 42);
+      ctx.moveTo(CX, CY - 46);
+      ctx.bezierCurveTo(CX + 34, CY - 41, CX + 40, CY + 14, CX + 24, CY + 34);
+      ctx.bezierCurveTo(CX + 12, CY + 46, CX - 12, CY + 46, CX - 24, CY + 34);
+      ctx.bezierCurveTo(CX - 40, CY + 14, CX - 34, CY - 41, CX, CY - 46);
       ctx.closePath();
-      const bodyGrad = ctx.createRadialGradient(CX - 10, cy - 20, 4, CX + 4, cy + 10, 52);
-      bodyGrad.addColorStop(0, `rgb(${Math.min(255, f1[0] + 40)},${Math.min(255, f1[1] + 30)},${Math.min(255, f1[2] + 20)})`);
+      const bodyGrad = ctx.createRadialGradient(CX - 10, CY - 18, 3, CX + 6, CY + 20, 52);
+      bodyGrad.addColorStop(0, `rgb(255,220,140)`);
       bodyGrad.addColorStop(1, `rgb(${f2[0]},${f2[1]},${f2[2]})`);
       ctx.fillStyle = bodyGrad;
       ctx.fill();
 
-      // ── Cachetitos ──
-      ctx.fillStyle = "rgba(255,120,140,0.55)";
-      ctx.beginPath(); ctx.ellipse(CX - 22, cy + 4, 9, 5, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(CX + 22, cy + 4, 9, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+      // 6. Cara
+      const eyeY = CY + 2;
+      const eyeOffsets = [-13, 13];
 
-      // ── Ojos ──
-      const eyeY = cy - 14;
-      const eyeScale = blinkAmt > 0.5 ? 1 - (blinkAmt - 0.5) * 2 : 1;
-      [-11, 11].forEach((ox) => {
+      // Cachetitos
+      ctx.fillStyle = "rgba(255,120,140,0.55)";
+      ctx.beginPath(); ctx.ellipse(CX - 22, CY + 14, 9, 5, -0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(CX + 22, CY + 14, 9, 5, 0.2, 0, Math.PI * 2); ctx.fill();
+
+      // Ojos
+      eyeOffsets.forEach((ox) => {
         const ex = CX + ox;
-        if (eyeScale > 0.05) {
-          ctx.save();
-          ctx.scale(1, eyeScale);
-          ctx.translate(0, eyeY * (1 - eyeScale));
-          // Ojo negro
-          ctx.fillStyle = "#1a1a1a";
-          ctx.beginPath(); ctx.arc(ex, eyeY / eyeScale + eyeY * (1 - 1 / eyeScale), 5.5, 0, Math.PI * 2); ctx.fill();
-          // Brillito
-          ctx.fillStyle = "rgba(255,255,255,0.85)";
-          ctx.beginPath(); ctx.arc(ex + 2, eyeY / eyeScale + eyeY * (1 - 1 / eyeScale) - 2, 1.8, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-        // Ojos tristes (sad) — cejas curvadas
+        const eyeScaleY = blinkAmt > 0 ? Math.max(0.05, 1 - blinkAmt) : 1;
+        ctx.save();
+        ctx.translate(ex, eyeY);
+        ctx.scale(1, eyeScaleY);
+        ctx.fillStyle = "rgb(42,20,8)";
+        ctx.beginPath(); ctx.arc(0, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.88)";
+        ctx.beginPath(); ctx.arc(1.2, -1.2, 1.1, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        // Cejas tristes
         if (state.mood === "sad") {
-          ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
+          ctx.strokeStyle = "rgb(42,20,8)"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
           ctx.beginPath();
-          ctx.arc(ex, eyeY - 8, 5, 0.3 * Math.sign(ox), Math.PI - 0.3 * Math.sign(ox));
+          ctx.arc(ex, eyeY - 7, 4.5, ox < 0 ? 0.5 : Math.PI - 0.5, ox < 0 ? Math.PI - 0.5 : 0.5 + Math.PI, ox < 0);
           ctx.stroke();
-        }
-        // Ojos cerrados sonrientes (excellent)
-        if (state.mood === "excellent" && eyeScale < 0.3) {
-          ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
-          ctx.beginPath(); ctx.arc(ex, eyeY, 5, Math.PI, Math.PI * 2); ctx.stroke();
         }
       });
 
-      // ── Boca ──
-      ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      // Boca
+      ctx.strokeStyle = "rgb(42,20,8)"; ctx.lineWidth = 2; ctx.lineCap = "round";
       ctx.beginPath();
       if (state.mood === "sad") {
-        ctx.arc(CX, cy + 16, 7, 0, Math.PI); // boca triste
+        ctx.arc(CX, CY + 26, 6, 0, Math.PI); // triste (arco hacia abajo)
       } else if (state.mood === "neutral") {
-        ctx.moveTo(CX - 7, cy + 16); ctx.lineTo(CX + 7, cy + 16); // neutra
+        ctx.moveTo(CX - 6, CY + 24); ctx.lineTo(CX + 6, CY + 24);
       } else {
-        ctx.arc(CX, cy + 10, 7, Math.PI, Math.PI * 2); // sonrisa
+        ctx.arc(CX, CY + 20, 6, Math.PI, Math.PI * 2); // sonrisa
       }
       ctx.stroke();
 
-      // ── Corona + sparkles (excellent) ──
+      // 7. Extremidades DELANTERAS (izquierda — delante del cuerpo)
+      ctx.lineWidth = 4; ctx.lineCap = "round";
+      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
+      // Brazo izquierdo
+      ctx.beginPath();
+      ctx.moveTo(CX - 16, CY + 22);
+      ctx.bezierCurveTo(CX - 22, CY + 28, CX - 24, CY + 36, CX - 20 - swing, CY + 42);
+      ctx.stroke();
+      // Pierna izquierda
+      ctx.beginPath();
+      ctx.moveTo(CX - 7, CY + 40);
+      ctx.lineTo(CX - 8 + swing, CY + 62);
+      ctx.stroke();
+
+      // 8. Corona + sparkles si score ≥ 90
       if (pct >= 90) {
-        const crownAlpha = Math.min(1, (pct - 90) / 10);
-        // 5 llamitas corona
+        const crownA = Math.min(1, (pct - 90) / 10);
+        // 5 llamitas pequeñas encima
         for (let i = 0; i < 5; i++) {
-          const ca = -Math.PI / 2 + (i - 2) * 0.38;
-          const cx2 = CX + Math.cos(ca) * 22;
-          const cy2 = cy - 58 + Math.sin(ca) * 6 + Math.sin(t * 3 + i) * 3;
+          const ca = -Math.PI / 2 + (i - 2) * 0.40;
+          const cx2 = CX + Math.cos(ca) * 24;
+          const cy2 = CY - 56 + Math.sin(ca) * 8 + Math.sin(t * 3 + i) * 3;
           ctx.save();
-          ctx.globalAlpha = crownAlpha;
-          const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, 9);
-          fg.addColorStop(0, `rgb(${f1[0]},${f1[1]},${f1[2]})`);
-          fg.addColorStop(1, `rgba(${f3[0]},${f3[1]},${f3[2]},0)`);
+          ctx.globalAlpha = crownA;
+          const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, 10);
+          fg.addColorStop(0, `rgb(255,240,100)`);
+          fg.addColorStop(0.6, `rgb(255,180,20)`);
+          fg.addColorStop(1, `rgba(220,120,0,0)`);
           ctx.fillStyle = fg;
-          ctx.beginPath(); ctx.arc(cx2, cy2, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx2, cy2, 10, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
         // 6 sparkles orbitando
         for (let i = 0; i < 6; i++) {
-          const sa = t * 1.2 + (i / 6) * Math.PI * 2;
-          const sr = 52;
-          const sx = CX + Math.cos(sa) * sr;
-          const sy = cy - 10 + Math.sin(sa) * sr * 0.55;
+          const sa = t * 1.3 + (i / 6) * Math.PI * 2;
+          const sx = CX + Math.cos(sa) * 58;
+          const sy = CY - 10 + Math.sin(sa) * 38;
           ctx.save();
-          ctx.globalAlpha = crownAlpha * (0.6 + Math.sin(t * 3 + i) * 0.4);
-          ctx.fillStyle = `rgb(${f1[0]},${f1[1]},${f1[2]})`;
-          ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = crownA * (0.55 + Math.sin(t * 4 + i) * 0.45);
+          ctx.fillStyle = `rgb(255,230,80)`;
+          ctx.beginPath(); ctx.arc(sx, sy, 2.8, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
       }
 
-      // ── BRAZOS Y PIERNAS DELANTE (lado izquierdo) ──
-      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
-      ctx.lineWidth = 4; ctx.lineCap = "round";
-      // Pierna izquierda
-      const llx = CX - 12, lly = cy + 40;
-      ctx.beginPath();
-      ctx.moveTo(llx, lly);
-      ctx.lineTo(llx + walkL * 8, lly + 22);
-      ctx.stroke();
-      // Brazo izquierdo
-      const blx = CX - 18, bly = cy + 22;
-      ctx.beginPath();
-      ctx.moveTo(blx, bly);
-      ctx.lineTo(blx + walkR * 10, bly + 14);
-      ctx.stroke();
-
-      // ── Partículas ──
+      // 9. Partículas de fuego subiendo
       st.particles.forEach(p => {
         ctx.save();
-        ctx.globalAlpha = p.life * 0.85;
-        ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+        ctx.globalAlpha = p.life * 0.8;
+        const pg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+        pg.addColorStop(0, `rgb(${f1[0]},${f1[1]},${f1[2]})`);
+        pg.addColorStop(1, `rgba(${f2[0]},${f2[1]},${f2[2]},0)`);
+        ctx.fillStyle = pg;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       });
 
-      // ── Score y label arriba ──
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.90)`;
-      ctx.font = "300 38px 'Montserrat', -apple-system, system-ui, sans-serif";
-      ctx.fillText(Math.round(pct), CX, 32);
-      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.60)`;
-      ctx.font = "400 12px 'Montserrat', -apple-system, system-ui, sans-serif";
-      ctx.fillText(state.label, CX, 56);
-
       st.raf = requestAnimationFrame(draw);
     };
 
-    stateRef.current.raf = requestAnimationFrame(draw);
-    return () => { if (stateRef.current.raf) cancelAnimationFrame(stateRef.current.raf); };
+    stRef.current.raf = requestAnimationFrame(draw);
+    return () => { if (stRef.current.raf) cancelAnimationFrame(stRef.current.raf); };
   }, [targetScore]);
 
   return (
     <canvas ref={canvasRef}
-      style={{ display: "block", width: 260, height: 300, borderRadius: 20 }}
-      role="img" aria-label="Indicador de calificación financiera" />
+      style={{ display: "block", width: 260, height: 320 }}
+      role="img" aria-label="Indicador de calificación financiera llamita" />
   );
 }
+
 
 function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [data, setData] = useState(null);
