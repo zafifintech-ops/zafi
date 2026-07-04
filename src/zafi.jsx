@@ -766,7 +766,7 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 }
 /* Wordmark zafi con punto verde */
 .cc-loading-wordmark{position:relative;z-index:2;display:flex;align-items:baseline;gap:6px;
-  font-family:'Fraunces',serif;font-weight:400;font-size:44px;
+  font-family:'Fraunces',serif;font-weight:600;font-size:44px;
   letter-spacing:-.06em;color:#1B2230;
   opacity:0;animation:ccLoadingLogoIn .7s cubic-bezier(.16,1,.3,1) .1s forwards;}
 .cc-loading.cc-dark .cc-loading-wordmark{color:#F5F5F7;}
@@ -8607,6 +8607,7 @@ function setFinancialCache(kind, accView, dataKey, payload) {
    cabeza. Píldoras se desprenden detrás de la cola, viajan más rápido y se
    fusionan al alcanzar la cabeza. Color semáforo: rojo/naranja/verde según score.
    El score animado sube desde 0 al valor real con lerp cuando entra al viewport. */
+/* ── ScoreCanvasIndicator — arco giratorio con píldoras (donut más grueso) ── */
 function ScoreCanvasIndicator({ targetScore, inView, dark }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({
@@ -8619,7 +8620,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
   });
   const rafRef = useRef(null);
 
-  // Cuando cambia inView de false → true, resetear la animación de entrada
   useEffect(() => {
     if (inView) {
       stateRef.current.currentPct = 0;
@@ -8644,8 +8644,8 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
     const W = displaySize, H = displaySize;
     const CX = W / 2, CY = H / 2;
-    const R = 100;
-    const LW = 16;
+    const R = 96;
+    const LW = 28; // más grueso (era 16)
     const NUM_SEG = 80;
     const ARC_SPEED = 0.006;
 
@@ -8654,7 +8654,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       if (pct < 35) { r = 226; g = 55; b = 55; }
       else if (pct < 65) { r = 230; g = 140; b = 20; }
       else { r = 60; g = 190; b = 60; }
-
       let name;
       if (pct >= 95) name = "Perfecto";
       else if (pct >= 90) name = "Excelente";
@@ -8662,7 +8661,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       else if (pct >= 65) name = "Bueno";
       else if (pct >= 45) name = "Regular";
       else name = "Atención";
-
       return { r, g, b, name };
     };
     const rgba = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
@@ -8672,64 +8670,56 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
     const render = () => {
       const st = stateRef.current;
       const T = targetScore || 0;
-
       st.currentPct = lerp(st.currentPct, T, 0.04);
-      if (Math.abs(st.currentPct - T) < 0.5) {
-        st.currentPct = T;
-        st.animatingIn = false;
-      }
+      if (Math.abs(st.currentPct - T) < 0.5) { st.currentPct = T; st.animatingIn = false; }
       const displayPct = Math.round(st.currentPct);
-
       const color = getColor(st.currentPct);
       st.angle += ARC_SPEED;
-
       const arcSpan = (0.12 + (st.currentPct / 100) * 0.66) * Math.PI * 2;
       const arcHead = st.angle;
       const arcTail = st.angle - arcSpan;
 
       ctx.clearRect(0, 0, W, H);
 
-      // Glow ambiente al centro
+      // Glow ambiente
       const ambient = ctx.createRadialGradient(CX, CY, 30, CX, CY, 130);
       ambient.addColorStop(0, rgba(color, dark ? 0.12 : 0.08));
       ambient.addColorStop(1, rgba(color, 0));
       ctx.fillStyle = ambient;
       ctx.fillRect(0, 0, W, H);
 
-      // Glow en la cabeza del arco
+      // Glow cabeza
       const headX = CX + Math.cos(arcHead) * R;
       const headY = CY + Math.sin(arcHead) * R;
-      const headGlow = ctx.createRadialGradient(headX, headY, 0, headX, headY, 42);
+      const headGlow = ctx.createRadialGradient(headX, headY, 0, headX, headY, 50);
       headGlow.addColorStop(0, rgba(color, 0.55));
       headGlow.addColorStop(0.5, rgba(color, 0.15));
       headGlow.addColorStop(1, rgba(color, 0));
       ctx.fillStyle = headGlow;
       ctx.fillRect(0, 0, W, H);
 
-      // Dibujar arco en 80 segmentos con gradiente cola→cabeza
+      // Track (fondo semitransparente del donut)
       ctx.lineWidth = LW;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Arco en segmentos con gradiente
       for (let i = 0; i < NUM_SEG; i++) {
-        const t0 = i / NUM_SEG;
-        const t1 = (i + 1) / NUM_SEG;
-        const a0 = arcTail + t0 * arcSpan;
-        const a1 = arcTail + t1 * arcSpan;
-
-        const b0 = 0.45 + t0 * 0.55;
-        const b1 = 0.45 + t1 * 0.55;
-        const c0 = scaleC(color, b0);
-        const c1 = scaleC(color, b1);
-
-        const x0 = CX + Math.cos(a0) * R;
-        const y0 = CY + Math.sin(a0) * R;
-        const x1 = CX + Math.cos(a1) * R;
-        const y1 = CY + Math.sin(a1) * R;
-
+        const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
+        const a0 = arcTail + t0 * arcSpan, a1 = arcTail + t1 * arcSpan;
+        const b0 = 0.45 + t0 * 0.55, b1 = 0.45 + t1 * 0.55;
+        const c0 = scaleC(color, b0), c1 = scaleC(color, b1);
+        const x0 = CX + Math.cos(a0) * R, y0 = CY + Math.sin(a0) * R;
+        const x1 = CX + Math.cos(a1) * R, y1 = CY + Math.sin(a1) * R;
         const grad = ctx.createLinearGradient(x0, y0, x1, y1);
         grad.addColorStop(0, rgba(c0, 1));
         grad.addColorStop(1, rgba(c1, 1));
-
         ctx.strokeStyle = grad;
         ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
+        ctx.lineWidth = LW;
         ctx.beginPath();
         ctx.arc(CX, CY, R, a0, a1 + 0.002);
         ctx.stroke();
@@ -8740,7 +8730,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       const pillSpan = 0.11;
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
       const groupInterval = 1400 + (st.currentPct / 100) * 3000;
-
       if (canSpawn && (now - st.lastPillTime) > groupInterval) {
         const STAGGER_T = 0.32;
         st.pills.push({ t: 0 });
@@ -8748,56 +8737,34 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         st.pills.push({ t: -STAGGER_T * 2 });
         st.lastPillTime = now;
       }
-
       const gapSize = Math.PI * 2 - arcSpan;
       const T_SPEED = 0.013;
       const RADIUS_OUT = 14;
-
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
         if (p.t >= 1) return false;
         if (p.t < 0) return true;
-
-        const smoothstep = (x) => {
-          x = Math.max(0, Math.min(1, x));
-          return x * x * (3 - 2 * x);
-        };
-
-        const DETACH_END = 0.2;
-        const detach = smoothstep(p.t / DETACH_END);
-
-        const MERGE_START = 0.82;
-        const merge = smoothstep((p.t - MERGE_START) / (1 - MERGE_START));
-
+        const smoothstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+        const detach = smoothstep(p.t / 0.2);
+        const merge = smoothstep((p.t - 0.82) / 0.18);
         const pillAngle = arcTail - p.t * gapSize;
-        const parabola = Math.sin(p.t * Math.PI) * RADIUS_OUT;
-        const rEff = R + parabola * detach;
-
-        const spanWide = 0.24;
+        const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT * detach;
         const stretch = Math.max(1 - detach, merge);
-        const pillSpanCur = pillSpan + (spanWide - pillSpan) * stretch;
-
-        const brightness = 0.45 + 0.55 * detach;
-        const pillColor = scaleC(color, brightness);
-
-        const pStart = pillAngle;
-        const pEnd = pillAngle + pillSpanCur;
-
+        const pillSpanCur = pillSpan + (0.24 - pillSpan) * stretch;
+        const pillColor = scaleC(color, 0.45 + 0.55 * detach);
         const midAngle = pillAngle + pillSpanCur / 2;
-        const gx = CX + Math.cos(midAngle) * rEff;
-        const gy = CY + Math.sin(midAngle) * rEff;
+        const gx = CX + Math.cos(midAngle) * rEff, gy = CY + Math.sin(midAngle) * rEff;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
         pillGlow.addColorStop(0, rgba(pillColor, 0.5));
         pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
-
         ctx.strokeStyle = rgba(pillColor, 1);
         ctx.lineCap = "round";
+        ctx.lineWidth = LW;
         ctx.beginPath();
-        ctx.arc(CX, CY, rEff, pStart, pEnd);
+        ctx.arc(CX, CY, rEff, pillAngle, pillAngle + pillSpanCur);
         ctx.stroke();
-
         return true;
       });
 
@@ -8807,7 +8774,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       ctx.fillStyle = rgba(color, 1);
       ctx.font = "600 34px 'Montserrat', -apple-system, system-ui, sans-serif";
       ctx.fillText(displayPct, CX, CY - 6);
-
       ctx.fillStyle = rgba(color, 0.65);
       ctx.font = "500 13px 'Montserrat', -apple-system, system-ui, sans-serif";
       ctx.fillText(color.name, CX, CY + 20);
@@ -8816,27 +8782,316 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
     };
 
     rafRef.current = requestAnimationFrame(render);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [targetScore, dark]);
 
   return (
     <canvas ref={canvasRef}
       style={{ display: "block", width: 260, height: 260 }}
-      role="img"
-      aria-label="Indicador de calificación financiera" />
+      role="img" aria-label="Indicador de calificación financiera" />
   );
 }
 
+/* ── FlameScoreIndicator — llamita kawaii caminando ── */
+function FlameScoreIndicator({ targetScore, inView }) {
+  const canvasRef = useRef(null);
+  const stateRef = useRef({ current: 0, walkPhase: 0, blinkTimer: 0, blinking: false, blinkProgress: 0, particles: [], raf: null });
 
-/* ===== Tarjeta de calificación financiera con IA (Pro) ================== */
+  useEffect(() => {
+    if (inView) stateRef.current.current = 0;
+  }, [inView, targetScore]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const W = 260, H = 300;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + "px"; canvas.style.height = H + "px";
+    ctx.scale(dpr, dpr);
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    // Colores por estado
+    const getState = (pct) => {
+      if (pct < 35) return {
+        flame1: [255, 80, 50], flame2: [210, 25, 20], flame3: [130, 10, 10],
+        walkSpeed: 0.18, flicker: 0.9, mood: "sad", label: "Atención",
+        particles: 3,
+      };
+      if (pct < 65) return {
+        flame1: [255, 190, 60], flame2: [240, 110, 20], flame3: [180, 60, 10],
+        walkSpeed: 0.10, flicker: 0.6, mood: "neutral", label: "Regular",
+        particles: 2,
+      };
+      if (pct < 90) return {
+        flame1: [255, 220, 50], flame2: [240, 160, 10], flame3: [200, 100, 0],
+        walkSpeed: 0.065, flicker: 0.4, mood: "happy", label: "Muy bien",
+        particles: 1,
+      };
+      return {
+        flame1: [255, 230, 80], flame2: [255, 180, 20], flame3: [220, 120, 0],
+        walkSpeed: 0.05, flicker: 0.25, mood: "excellent", label: "Perfecto",
+        particles: 1,
+      };
+    };
+
+    const draw = () => {
+      const st = stateRef.current;
+      const T = targetScore || 0;
+      st.current = lerp(st.current, T, 0.05);
+      if (Math.abs(st.current - T) < 0.1) st.current = T;
+      const pct = st.current;
+      const state = getState(pct);
+
+      st.walkPhase += state.walkSpeed;
+      st.blinkTimer++;
+
+      // Parpadeo cada ~15s (900 frames)
+      if (!st.blinking && st.blinkTimer > 900 + Math.random() * 300) {
+        st.blinking = true; st.blinkProgress = 0; st.blinkTimer = 0;
+      }
+      if (st.blinking) {
+        st.blinkProgress += 0.18;
+        if (st.blinkProgress >= 1) { st.blinking = false; st.blinkProgress = 0; }
+      }
+      const blinkAmt = st.blinking ? Math.sin(st.blinkProgress * Math.PI) : 0;
+
+      // Partículas
+      if (Math.random() < state.flicker * 0.3) {
+        st.particles.push({
+          x: W / 2 + (Math.random() - 0.5) * 24,
+          y: H / 2 - 68,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: -(0.6 + Math.random() * 1.2),
+          life: 1,
+          size: 2 + Math.random() * 3,
+          r: state.flame1[0], g: state.flame1[1], b: state.flame1[2],
+        });
+      }
+      st.particles = st.particles.filter(p => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.018;
+        return p.life > 0;
+      });
+
+      ctx.clearRect(0, 0, W, H);
+
+      const CX = W / 2;
+      const CY = H / 2 + 10;
+      const bob = Math.abs(Math.sin(st.walkPhase)) * 3;
+      const cy = CY + bob; // centro del cuerpo con bob
+
+      const f1 = state.flame1, f2 = state.flame2, f3 = state.flame3;
+      const t = performance.now() / 1000;
+
+      // ── Ground glow ──
+      const gg = ctx.createRadialGradient(CX, cy + 55, 0, CX, cy + 55, 48);
+      gg.addColorStop(0, `rgba(${f2[0]},${f2[1]},${f2[2]},0.22)`);
+      gg.addColorStop(1, `rgba(${f2[0]},${f2[1]},${f2[2]},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.ellipse(CX, cy + 58, 46, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ── Aureola de fuego 3 capas ──
+      const drawFlameAura = (radius, alpha, points, speed, wobble) => {
+        ctx.beginPath();
+        for (let i = 0; i <= 360; i += 3) {
+          const angle = (i * Math.PI) / 180;
+          const wave = Math.sin(angle * points + t * speed) * wobble;
+          const upStretch = Math.max(0, -Math.sin(angle)) * 14;
+          const r = radius + wave + upStretch;
+          const x = CX + Math.cos(angle) * r;
+          const y = cy - 10 + Math.sin(angle) * r * 0.88;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        const grad = ctx.createRadialGradient(CX, cy - 10, 0, CX, cy - 10, radius + wobble + 14);
+        grad.addColorStop(0, `rgba(${f1[0]},${f1[1]},${f1[2]},${alpha})`);
+        grad.addColorStop(0.55, `rgba(${f2[0]},${f2[1]},${f2[2]},${alpha * 0.6})`);
+        grad.addColorStop(1, `rgba(${f3[0]},${f3[1]},${f3[2]},0)`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      };
+      drawFlameAura(50, 0.18, 5, 2.2, 8);
+      drawFlameAura(38, 0.30, 4, 3.0, 6);
+      drawFlameAura(28, 0.45, 3, 4.0, 4);
+
+      const walkL = Math.sin(st.walkPhase);
+      const walkR = -walkL;
+
+      // ── BRAZOS Y PIERNAS DETRÁS (lado derecho) ──
+      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
+      ctx.lineWidth = 4; ctx.lineCap = "round";
+      // Pierna derecha
+      const lrx = CX + 12, lry = cy + 40;
+      ctx.beginPath();
+      ctx.moveTo(lrx, lry);
+      ctx.lineTo(lrx + walkR * 8, lry + 22);
+      ctx.stroke();
+      // Brazo derecho (fase opuesta a pierna derecha)
+      const brx = CX + 18, bry = cy + 22;
+      ctx.beginPath();
+      ctx.moveTo(brx, bry);
+      ctx.lineTo(brx + walkL * 10, bry + 14);
+      ctx.stroke();
+
+      // ── CUERPO (gota/bombilla) ──
+      ctx.beginPath();
+      ctx.moveTo(CX, cy - 42);
+      ctx.bezierCurveTo(CX + 32, cy - 42, CX + 38, cy, CX + 28, cy + 32);
+      ctx.bezierCurveTo(CX + 18, cy + 52, CX - 18, cy + 52, CX - 28, cy + 32);
+      ctx.bezierCurveTo(CX - 38, cy, CX - 32, cy - 42, CX, cy - 42);
+      ctx.closePath();
+      const bodyGrad = ctx.createRadialGradient(CX - 10, cy - 20, 4, CX + 4, cy + 10, 52);
+      bodyGrad.addColorStop(0, `rgb(${Math.min(255, f1[0] + 40)},${Math.min(255, f1[1] + 30)},${Math.min(255, f1[2] + 20)})`);
+      bodyGrad.addColorStop(1, `rgb(${f2[0]},${f2[1]},${f2[2]})`);
+      ctx.fillStyle = bodyGrad;
+      ctx.fill();
+
+      // ── Cachetitos ──
+      ctx.fillStyle = "rgba(255,120,140,0.55)";
+      ctx.beginPath(); ctx.ellipse(CX - 22, cy + 4, 9, 5, -0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(CX + 22, cy + 4, 9, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+
+      // ── Ojos ──
+      const eyeY = cy - 14;
+      const eyeScale = blinkAmt > 0.5 ? 1 - (blinkAmt - 0.5) * 2 : 1;
+      [-11, 11].forEach((ox) => {
+        const ex = CX + ox;
+        if (eyeScale > 0.05) {
+          ctx.save();
+          ctx.scale(1, eyeScale);
+          ctx.translate(0, eyeY * (1 - eyeScale));
+          // Ojo negro
+          ctx.fillStyle = "#1a1a1a";
+          ctx.beginPath(); ctx.arc(ex, eyeY / eyeScale + eyeY * (1 - 1 / eyeScale), 5.5, 0, Math.PI * 2); ctx.fill();
+          // Brillito
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.beginPath(); ctx.arc(ex + 2, eyeY / eyeScale + eyeY * (1 - 1 / eyeScale) - 2, 1.8, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+        // Ojos tristes (sad) — cejas curvadas
+        if (state.mood === "sad") {
+          ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.arc(ex, eyeY - 8, 5, 0.3 * Math.sign(ox), Math.PI - 0.3 * Math.sign(ox));
+          ctx.stroke();
+        }
+        // Ojos cerrados sonrientes (excellent)
+        if (state.mood === "excellent" && eyeScale < 0.3) {
+          ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.arc(ex, eyeY, 5, Math.PI, Math.PI * 2); ctx.stroke();
+        }
+      });
+
+      // ── Boca ──
+      ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      ctx.beginPath();
+      if (state.mood === "sad") {
+        ctx.arc(CX, cy + 16, 7, 0, Math.PI); // boca triste
+      } else if (state.mood === "neutral") {
+        ctx.moveTo(CX - 7, cy + 16); ctx.lineTo(CX + 7, cy + 16); // neutra
+      } else {
+        ctx.arc(CX, cy + 10, 7, Math.PI, Math.PI * 2); // sonrisa
+      }
+      ctx.stroke();
+
+      // ── Corona + sparkles (excellent) ──
+      if (pct >= 90) {
+        const crownAlpha = Math.min(1, (pct - 90) / 10);
+        // 5 llamitas corona
+        for (let i = 0; i < 5; i++) {
+          const ca = -Math.PI / 2 + (i - 2) * 0.38;
+          const cx2 = CX + Math.cos(ca) * 22;
+          const cy2 = cy - 58 + Math.sin(ca) * 6 + Math.sin(t * 3 + i) * 3;
+          ctx.save();
+          ctx.globalAlpha = crownAlpha;
+          const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, 9);
+          fg.addColorStop(0, `rgb(${f1[0]},${f1[1]},${f1[2]})`);
+          fg.addColorStop(1, `rgba(${f3[0]},${f3[1]},${f3[2]},0)`);
+          ctx.fillStyle = fg;
+          ctx.beginPath(); ctx.arc(cx2, cy2, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+        // 6 sparkles orbitando
+        for (let i = 0; i < 6; i++) {
+          const sa = t * 1.2 + (i / 6) * Math.PI * 2;
+          const sr = 52;
+          const sx = CX + Math.cos(sa) * sr;
+          const sy = cy - 10 + Math.sin(sa) * sr * 0.55;
+          ctx.save();
+          ctx.globalAlpha = crownAlpha * (0.6 + Math.sin(t * 3 + i) * 0.4);
+          ctx.fillStyle = `rgb(${f1[0]},${f1[1]},${f1[2]})`;
+          ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      // ── BRAZOS Y PIERNAS DELANTE (lado izquierdo) ──
+      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
+      ctx.lineWidth = 4; ctx.lineCap = "round";
+      // Pierna izquierda
+      const llx = CX - 12, lly = cy + 40;
+      ctx.beginPath();
+      ctx.moveTo(llx, lly);
+      ctx.lineTo(llx + walkL * 8, lly + 22);
+      ctx.stroke();
+      // Brazo izquierdo
+      const blx = CX - 18, bly = cy + 22;
+      ctx.beginPath();
+      ctx.moveTo(blx, bly);
+      ctx.lineTo(blx + walkR * 10, bly + 14);
+      ctx.stroke();
+
+      // ── Partículas ──
+      st.particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.life * 0.85;
+        ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      });
+
+      // ── Score y label arriba ──
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.90)`;
+      ctx.font = "300 38px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(Math.round(pct), CX, 32);
+      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.60)`;
+      ctx.font = "400 12px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(state.label, CX, 56);
+
+      st.raf = requestAnimationFrame(draw);
+    };
+
+    stateRef.current.raf = requestAnimationFrame(draw);
+    return () => { if (stateRef.current.raf) cancelAnimationFrame(stateRef.current.raf); };
+  }, [targetScore]);
+
+  return (
+    <canvas ref={canvasRef}
+      style={{ display: "block", width: 260, height: 300, borderRadius: 20 }}
+      role="img" aria-label="Indicador de calificación financiera" />
+  );
+}
+
 function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Estilo del indicador: "donut" o "flame" — persiste en localStorage
+  const [scoreStyle, setScoreStyle] = useState(() => {
+    try { return localStorage.getItem("zafi_score_style") || "donut"; } catch { return "donut"; }
+  });
+  const toggleScoreStyle = () => {
+    const next = scoreStyle === "donut" ? "flame" : "donut";
+    setScoreStyle(next);
+    try { localStorage.setItem("zafi_score_style", next); } catch {}
+  };
 
   // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
   const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
@@ -8844,14 +9099,6 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
-    // Filtrado UNIFICADO — antes esta card tenía su PROPIA lógica distinta a
-    // Dashboard/Estadísticas: en la vista "Todas las cuentas" IGNORABA por
-    // completo el filtro de categorías (solo aplicaba el de cuentas), y en
-    // vista de cuenta específica nunca respetaba "Sin categoría". Esto hacía
-    // que el score pareciera "cambiar solo" al cambiar de vista, aunque el
-    // filtro seleccionado en Personalizar vista fuera el mismo. Ahora aplica
-    // SIEMPRE ambos filtros (cuentas + categorías, con soporte UNCAT_ID),
-    // exactamente igual que el resto de la app.
     let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
@@ -8873,127 +9120,61 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     return { totalIn, totalOut, txCount: filtered.length, incCount: incTxs.length, expCount: expTxs.length };
   })();
 
-  // catIds captura el catálogo completo de categorías activas (no solo cuáles están
-  // ocultas) — así, si el usuario elimina o agrega una categoría, el cache se invalida
-  // y el análisis se recalcula de inmediato, aunque esa categoría no estuviera oculta.
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
   const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
   useEffect(() => {
-    // Calcular score local
     const ratio = baseData.totalIn > 0 ? baseData.totalIn / Math.max(baseData.totalOut, 1) : 0;
-    let score = 50;
-    if (ratio >= 2) score = 90;
-    else if (ratio >= 1.5) score = 80;
-    else if (ratio >= 1.2) score = 72;
-    else if (ratio >= 1.05) score = 65;
-    else if (ratio >= 0.95) score = 55;
-    else if (ratio >= 0.8) score = 42;
-    else score = 28;
+    const rawScore = Math.min(100, Math.round(ratio * 55));
+    const localScore = Math.max(0, Math.min(100, rawScore));
+    const localStatus = localScore >= 65 ? "Excelente" : localScore >= 35 ? "Regular" : "Crítico";
 
-    // Si hay pocos datos, score demo basado en datos sintéticos
-    if (baseData.txCount < 3) {
-      if (demoMode) {
-        // Modo demo: mostrar algo bonito sin datos
-        const demoAnalyses = [
-          "Tu situación financiera se ve estable este periodo.",
-          "Tienes margen para aumentar tu ahorro mensual.",
-          "Tus gastos están dentro de tus ingresos.",
-          "Considera diversificar tus categorías de gasto.",
-          "Buena disciplina con el dinero este mes.",
-        ];
-        setData({ score: 72, status: "Bueno", color: "#5B6EE8", analyses: demoAnalyses });
-        return;
-      }
-      setData(null);
-      setError("Necesitas al menos 3 movimientos para tu calificación.");
+    if (baseData.txCount === 0) {
+      setData({ score: 0, status: "Sin datos", analyses: ["Agrega transacciones para ver tu calificación financiera."] });
+      setLoading(false);
       return;
     }
 
-    setError(false);
-
-    const finalScore = Math.min(100, Math.max(0, score));
-    let status, color;
-    // Escala más estricta: 80 ya no es "Excelente", hay que ganárselo
-    if (finalScore >= 95) { status = "Perfecto"; color = "#10B981"; }
-    else if (finalScore >= 90) { status = "Excelente"; color = "#10B981"; }
-    else if (finalScore >= 80) { status = "Muy bien"; color = "#5B6EE8"; }
-    else if (finalScore >= 65) { status = "Bueno"; color = "#5B6EE8"; }
-    else if (finalScore >= 45) { status = "Regular"; color = "#F59E0B"; }
-    else { status = "Atención"; color = "#EF4444"; }
-
-    // En demoMode, generamos análisis locales sin llamar a IA
     if (demoMode) {
-      const diff = baseData.totalIn - baseData.totalOut;
-      const fallbackAnalyses = [
-        `Tu flujo neto es ${diff >= 0 ? "positivo" : "negativo"}: ${fmtMxn(diff)}.`,
-        `Llevas ${baseData.expCount} gastos y ${baseData.incCount} ingresos en este periodo.`,
-        baseData.totalIn > 0
-          ? `Tu ratio ingreso/gasto es ${(baseData.totalIn / Math.max(baseData.totalOut, 1)).toFixed(2)}x.`
-          : "Sin ingresos registrados todavía en este periodo.",
-        finalScore >= 65
-          ? "Tu manejo del dinero va por buen camino."
-          : "Hay espacio para optimizar tus gastos. Revisa categorías.",
-        "Calificación con datos reales de tu cuenta.",
-      ];
-      setData({ score: finalScore, status, color, analyses: fallbackAnalyses });
-      return;
-    }
-
-    // Revisar cache: si los datos no cambiaron desde el último análisis, reusar
-    const cached = getFinancialCache("score", accView, dataKey);
-    if (cached && cached.score === finalScore && Array.isArray(cached.analyses)) {
-      setData({ score: finalScore, status, color, analyses: cached.analyses });
+      setData({ score: localScore, status: localStatus, analyses: ["Modo demo activo — conecta tus cuentas para análisis real."] });
       setLoading(false);
       return;
     }
 
     setLoading(true);
-
     const callAI = async () => {
       try {
-        const systemPrompt = `Eres el asistente financiero de Zafi. Genera EXACTAMENTE 5 análisis cortos y específicos sobre la situación financiera del usuario. Cada análisis debe tener máximo 22 palabras, ser directo, casual y útil. Usa números concretos del usuario. NO uses markdown. Responde SOLO con un array JSON: ["análisis 1", "análisis 2", "análisis 3", "análisis 4", "análisis 5"]`;
-        const userMsg = `Datos del periodo:
+        const prompt = `Eres un asesor financiero experto. Analiza brevemente esta situación financiera y da 3 consejos cortos (máximo 25 palabras cada uno) en español:
 - Ingresos: ${fmtMxn(baseData.totalIn)}
 - Gastos: ${fmtMxn(baseData.totalOut)}
-- Flujo neto: ${fmtMxn(baseData.totalIn - baseData.totalOut)}
-- Total movimientos: ${baseData.txCount}
-- Score calculado: ${score}/100
+- Transacciones: ${baseData.txCount}
+- Score calculado: ${localScore}/100
 
-Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro potencial, ratio, hábitos, sugerencia).`;
+Responde SOLO con JSON: {"score": ${localScore}, "status": "${localStatus}", "analyses": ["consejo1", "consejo2", "consejo3"]}`;
 
-        const raw = await callClaude(systemPrompt, [{ role: "user", content: userMsg }]);
-        const clean = raw.replace(/```json|```/g, "").trim();
-        const start = clean.indexOf("[");
-        const end = clean.lastIndexOf("]");
-        const arr = JSON.parse(clean.slice(start, end + 1));
-
-        const analysesArr = arr.slice(0, 5);
-        setData({ score: finalScore, status, color, analyses: analysesArr });
-        setFinancialCache("score", accView, dataKey, { score: finalScore, analyses: analysesArr });
-        setLoading(false);
-      } catch (e) {
-        const diff = baseData.totalIn - baseData.totalOut;
-        const fallbackAnalyses = [
-          `Tu flujo neto es ${diff >= 0 ? "positivo" : "negativo"}: ${fmtMxn(diff)}.`,
-          `Llevas ${baseData.expCount} gastos y ${baseData.incCount} ingresos en este periodo.`,
-          baseData.totalIn > 0
-            ? `Tu ratio ingreso/gasto es ${(baseData.totalIn / Math.max(baseData.totalOut, 1)).toFixed(2)}x.`
-            : "Sin ingresos registrados todavía en este periodo.",
-          finalScore >= 65
-            ? "Tu manejo del dinero va por buen camino, sigue así."
-            : "Hay espacio para optimizar tus gastos. Revisa categorías.",
-          "Calificación calculada con datos disponibles localmente.",
-        ];
-        setData({ score: finalScore, status, color, analyses: fallbackAnalyses });
+        const res = await fetch("/api/claude", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, maxTokens: 300 }),
+        });
+        if (!res.ok) throw new Error("API error");
+        const json = await res.json();
+        const text = (json.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(text);
+        setData(parsed);
+      } catch {
+        setData({ score: localScore, status: localStatus, analyses: [
+          "Mantén tus gastos por debajo del 80% de tus ingresos.",
+          "Ahorra al menos un 10% de cada ingreso que recibas.",
+          "Revisa tus categorías de mayor gasto para encontrar oportunidades.",
+        ]});
+      } finally {
         setLoading(false);
       }
     };
-
     callAI();
   }, [dataKey]);
 
-  // Rotación cada 8 segundos (suficiente para leer sin sentir prisa)
   useEffect(() => {
     if (!data?.analyses || data.analyses.length < 2) return;
     const id = setInterval(() => {
@@ -9002,34 +9183,23 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     return () => clearInterval(id);
   }, [data]);
 
-  // IntersectionObserver + score animado del Canvas
-  // El ScoreCanvasIndicator maneja internamente la animación 0→score con lerp.
-  // Aquí solo detectamos cuándo la card está en viewport para (re)disparar la animación.
   const cardRef = useRef(null);
   const [inView, setInView] = useState(false);
 
-  // IntersectionObserver: dispara cuando la card entra o sale del viewport
   useEffect(() => {
     if (!cardRef.current) return;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setInView(true);
-          } else {
-            // Al salir del viewport, resetear para que se re-anime al volver
-            setInView(false);
-          }
+          if (entry.isIntersecting) { setInView(true); } else { setInView(false); }
         });
       },
-      { threshold: 0.4 } // 40% visible para considerar "en vista"
+      { threshold: 0.4 }
     );
     observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, [data]);
 
-  // Notificación local si la calificación cambió significativamente desde la
-  // última vez que el usuario la vio (no en demoMode, solo con data real).
   useEffect(() => {
     if (demoMode || !data?.score) return;
     notifyScoreChangeIfNeeded(config, data.score, data.status);
@@ -9037,7 +9207,6 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
 
   const dark = useDarkMode();
 
-  // Estado: error
   if (error) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
@@ -9047,7 +9216,6 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     );
   }
 
-  // Estado: cargando
   if (loading || !data) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
@@ -9060,55 +9228,52 @@ Genera 5 análisis distintos (cada uno enfocado en un aspecto: balance, ahorro p
     );
   }
 
-  // ============= COLORES SEMÁFORO PARA EL INDICADOR =============
-  // Semáforo: rojo <35% | naranja 35-64% | verde 65-100%
   const scoreColorRGB = (() => {
-    if (data.score < 35) return { r: 226, g: 55, b: 55, name: "Crítico" };
-    if (data.score < 65) return { r: 230, g: 140, b: 20, name: "Regular" };
-    return { r: 60, g: 190, b: 60, name: "Excelente" };
+    if (data.score < 35) return { r: 226, g: 55, b: 55 };
+    if (data.score < 65) return { r: 230, g: 140, b: 20 };
+    return { r: 60, g: 190, b: 60 };
   })();
-  // gaugeColors sigue existiendo porque el resto del componente (dots de paginación) lo usa
   const gaugeColors = {
     center: `rgb(${scoreColorRGB.r}, ${scoreColorRGB.g}, ${scoreColorRGB.b})`,
     light: `rgba(${scoreColorRGB.r}, ${scoreColorRGB.g}, ${scoreColorRGB.b}, 0.4)`,
     dark: `rgb(${Math.round(scoreColorRGB.r * 0.6)}, ${Math.round(scoreColorRGB.g * 0.6)}, ${Math.round(scoreColorRGB.b * 0.6)})`,
   };
 
-  // ID único para el gradient/mask (evita colisiones entre múltiples instancias)
-  const gaugeId = `gauge_${data.score}_${data.status}`.replace(/\s/g, "_");
-
   return (
-    <div ref={cardRef} className="cc-card" style={{
-      padding: 0, overflow: "hidden", position: "relative",
-    }}>
-      {/* Header con label */}
+    <div ref={cardRef} className="cc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
+      {/* Header con label y toggle */}
       <div style={{
         padding: "16px 20px 6px",
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
       }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
+        {/* Toggle donut ↔ llamita */}
+        <button onClick={toggleScoreStyle} style={{
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: 18, lineHeight: 1, padding: "2px 4px", borderRadius: 8,
+          opacity: 0.7, transition: "opacity .2s",
+        }} title={scoreStyle === "donut" ? "Ver llamita" : "Ver donut"}>
+          {scoreStyle === "donut" ? "🔥" : "⭕"}
+        </button>
       </div>
 
-      {/* Blob-face animado */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
-        {/* Indicador Canvas con arco animado y píldoras */}
-        <ScoreCanvasIndicator
-          targetScore={data.score}
-          inView={inView}
-          dark={dark}
-        />
+      {/* Indicador */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: scoreStyle === "flame" ? "0 20px 0" : "8px 20px 4px" }}>
+        {scoreStyle === "donut" ? (
+          <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
+        ) : (
+          <FlameScoreIndicator targetScore={data.score} inView={inView} />
+        )}
       </div>
 
       {/* Análisis rotativo */}
       <div style={{ padding: "4px 20px 18px" }}>
         <div key={currentIdx} style={{
           fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55,
-          textAlign: "center", animation: "ccFadeIn .4s ease",
-          minHeight: 38,
+          textAlign: "center", animation: "ccFadeIn .4s ease", minHeight: 38,
         }}>
           {data.analyses[currentIdx]}
         </div>
-        {/* Indicadores de paginación */}
         <div style={{ display: "flex", gap: 5, marginTop: 10, justifyContent: "center" }}>
           {data.analyses.map((_, i) => (
             <span key={i} style={{
@@ -9656,8 +9821,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               const active = view === a.id;
               return (
                 <button key={a.id} className={`cc-acc-card ${active ? "on" : ""}`}
-                  onClick={() => setView(a.id)}
-                  style={{ opacity: 1, cursor: "pointer" }}>
+                  onClick={() => (config.accounts.length > 1 && hasFeature(config, "account_toggle")) ? setView(a.id) : null}
+                  style={{ opacity: 1, cursor: config.accounts.length > 1 ? "pointer" : "default" }}>
                   <div className="cc-acc-icon">🏦</div>
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
@@ -11556,7 +11721,7 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
           if (plan === "free") return (
             <div style={{ marginTop:16, padding:14, borderRadius:14, border:"1px solid var(--line)",
               background:"var(--surface-2)", textAlign:"center" }}>
-              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Cuentas múltiples disponibles en Lite o Pro</div>
+              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Las cuentas múltiples son Lite o Pro</div>
             </div>
           );
           if (!canAdd) return (
