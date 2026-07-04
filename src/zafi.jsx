@@ -8801,9 +8801,18 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
           pillLW = LW * bounce;
         }
 
-        const brightness = lerp(0.50, 1.0, detach);
-        const pillColor  = scaleC(color, brightness);
-        const alpha      = lerp(0.5, 1.0, detach);
+        // ── Gradiente igual al arco ────────────────────────────────
+        // La cápsula nació en la cola del arco (t=0 del arco = 0.45 brightness)
+        // y viaja hacia la cabeza. Su posición en el gradiente del arco es
+        // proporcional a cuánto ha recorrido el hueco (p.t dentro del ciclo completo).
+        // Así el color de la cápsula siempre encaja con lo que habría en esa zona.
+        const arcPos  = 1 - p.t; // 0 en cola (oscuro), 1 en cabeza (brillante)
+        const bTail   = 0.45 + arcPos * 0.55;       // brillo extremo posterior
+        const bHead   = 0.45 + (arcPos + 0.04) * 0.55; // brillo extremo anterior (un poco más claro)
+        const cTail   = scaleC(color, Math.min(1, bTail));
+        const cHead   = scaleC(color, Math.min(1, bHead));
+
+        const alpha = lerp(0.5, 1.0, detach);
 
         // Glow se expande al aterrizar
         const midAngle = pAngle + PILL_SPAN / 2;
@@ -8811,12 +8820,21 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         const gy = CY + Math.sin(midAngle) * rEff;
         const glowR = merge > 0 ? lerp(14, 38, merge) : 12;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
-        pillGlow.addColorStop(0, rgba(pillColor, 0.5 * alpha));
-        pillGlow.addColorStop(1, rgba(pillColor, 0));
+        pillGlow.addColorStop(0, rgba(cHead, 0.5 * alpha));
+        pillGlow.addColorStop(1, rgba(cHead, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
-        ctx.strokeStyle = rgba(pillColor, alpha);
+        // Gradiente lineal a lo largo del arco de la cápsula (cola→cabeza)
+        const x0pill = CX + Math.cos(pAngle) * rEff;
+        const y0pill = CY + Math.sin(pAngle) * rEff;
+        const x1pill = CX + Math.cos(pAngle + PILL_SPAN) * rEff;
+        const y1pill = CY + Math.sin(pAngle + PILL_SPAN) * rEff;
+        const pillGrad = ctx.createLinearGradient(x0pill, y0pill, x1pill, y1pill);
+        pillGrad.addColorStop(0, rgba(cTail, alpha));
+        pillGrad.addColorStop(1, rgba(cHead, alpha));
+
+        ctx.strokeStyle = pillGrad;
         ctx.lineCap = "round";
         ctx.lineWidth = Math.max(2, pillLW);
         ctx.beginPath();
