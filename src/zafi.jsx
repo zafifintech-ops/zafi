@@ -8947,19 +8947,21 @@ function FlameScoreIndicator({ targetScore, inView }) {
       ctx.fillStyle = bodyGrad;
       ctx.fill();
 
-      // 6. Cara — expresión progresiva 0% triste → 100% feliz
-      // moodT: 0 = muy triste, 1 = muy feliz (interpolado suavemente)
+      // 6. Cara — expresión progresiva + microanimaciones periódicas
       const moodT = Math.max(0, Math.min(1, pct / 100));
-      const eyeY = CY + 6;
-      const eyeR = 2.4; // ojos pequeños y tiernos
 
-      // Cachetitos — más sutiles y pequeños
+      // Ojos MÁS CERCA de la boca: eyeY sube, mouthY baja → cara compacta
+      const eyeY  = CY + 12;
+      const mouthY = CY + 20;
+      const eyeR  = 2.4;
+
+      // Cachetitos
       ctx.fillStyle = "rgba(255,110,140,0.40)";
-      ctx.beginPath(); ctx.ellipse(CX - 19, CY + 16, 7, 4, -0.15, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(CX + 19, CY + 16, 7, 4, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(CX - 18, eyeY + 6, 7, 4, -0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(CX + 18, eyeY + 6, 7, 4,  0.15, 0, Math.PI * 2); ctx.fill();
 
       // Ojos — negros sólidos, sin brillito, con parpadeo
-      [-10, 10].forEach((ox) => {
+      [-9, 9].forEach((ox) => {
         const ex = CX + ox;
         const eyeScaleY = blinkAmt > 0 ? Math.max(0.05, 1 - blinkAmt) : 1;
         ctx.save();
@@ -8970,31 +8972,56 @@ function FlameScoreIndicator({ targetScore, inView }) {
         ctx.restore();
       });
 
-      // Cejas — de inclinadas triste (↘↙) a neutras a levantadas feliz (↗↖)
-      // Angulo: triste = inclinado hacia adentro-abajo, feliz = neutro/levantado
+      // Microanimación periódica de cejas y boca
+      // Ciclo de 5s: 0-3.5s expresión base, 3.5-4s transición in, 4-4.5s pose alterna, 4.5-5s transición out
+      const exprCycle = (t % 5.0) / 5.0;             // 0→1 cada 5s
+      const altPhase  = exprCycle > 0.70 && exprCycle < 0.90;  // ventana de pose alterna
+      const altBlend  = (() => {
+        if (exprCycle >= 0.70 && exprCycle < 0.78)  return (exprCycle - 0.70) / 0.08; // fade in
+        if (exprCycle >= 0.78 && exprCycle < 0.86)  return 1;                          // hold
+        if (exprCycle >= 0.86 && exprCycle < 0.94)  return 1 - (exprCycle - 0.86) / 0.08; // fade out
+        return 0;
+      })();
+
+      // Pose alterna varía según moodT:
+      // triste → cejas aún más caídas + boca más fruncida
+      // feliz  → cejas levantadas sorpresa + boca abierta (óvalo)
+      const altBrowExtra = moodT < 0.5 ? lerp(0, 3, altBlend) : lerp(0, -3, altBlend);
+      const altMouthOpen = moodT >= 0.5 ? altBlend : 0; // boca abierta solo en positivo
+
+      // Cejas — tilt base por moodT + micro-variación
       ctx.strokeStyle = "#111"; ctx.lineWidth = 1.5; ctx.lineCap = "round";
-      [-10, 10].forEach((ox) => {
+      [-9, 9].forEach((ox) => {
         const ex = CX + ox;
         const sign = ox < 0 ? 1 : -1;
-        // triste: extremo exterior más bajo; feliz: horizontal o exterior más alto
-        const eyebrowTilt = lerp(3, -2, moodT) * sign;
+        const baseTilt   = lerp(3.5, -2, moodT) * sign;
+        const finalTilt  = baseTilt + altBrowExtra * sign;
         ctx.beginPath();
-        ctx.moveTo(ex - 4, eyeY - 6 + eyebrowTilt);
-        ctx.lineTo(ex + 4, eyeY - 6 - eyebrowTilt);
+        ctx.moveTo(ex - 4, eyeY - 6 + finalTilt);
+        ctx.lineTo(ex + 4, eyeY - 6 - finalTilt);
         ctx.stroke();
       });
 
-      // Boca — arco interpolado: triste (curva abajo) → neutra → sonrisa (curva arriba)
-      // Usamos quadraticCurveTo con control point que sube o baja según moodT
-      const mouthY = CY + 26;
-      const mouthW = 7;
-      // control point Y: triste = +6 (curva abajo), feliz = -6 (curva arriba)
-      const cpY = mouthY + lerp(6, -6, moodT);
+      // Boca — curva base + micro-variación
+      const mouthW = 6.5;
+      const baseCpY  = mouthY + lerp(5.5, -5.5, moodT);   // base triste→feliz
+      const finalCpY = lerp(baseCpY, mouthY - 8, altMouthOpen * moodT); // abre más si feliz
       ctx.strokeStyle = "#111"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(CX - mouthW, mouthY);
-      ctx.quadraticCurveTo(CX, cpY, CX + mouthW, mouthY);
-      ctx.stroke();
+
+      if (altMouthOpen > 0.5 && moodT > 0.6) {
+        // Boca abierta — óvalo pequeño
+        const ow = lerp(mouthW, mouthW * 1.3, altMouthOpen);
+        const oh = lerp(0, 4, altMouthOpen);
+        ctx.fillStyle = "#111";
+        ctx.beginPath();
+        ctx.ellipse(CX, mouthY - 2, ow * 0.6, oh, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(CX - mouthW, mouthY);
+        ctx.quadraticCurveTo(CX, finalCpY, CX + mouthW, mouthY);
+        ctx.stroke();
+      }
 
       // 7. Extremidades DELANTERAS (izquierda — delante del cuerpo)
       ctx.lineWidth = 4; ctx.lineCap = "round";
