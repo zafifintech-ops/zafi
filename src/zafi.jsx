@@ -8960,6 +8960,28 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
           ? baseData.topIncCats.map(c => `  • ${c.name}: ${fmtMxn(c.amount)}`).join("\n")
           : "  • Sin datos";
 
+        // Categorías excluidas por el filtro activo
+        const hiddenExpNames = expCatsHidden.map(id => {
+          if (id === UNCAT_ID) return "Sin categoría";
+          const c = config.categories.find(c => c.id === id);
+          return c ? c.name : null;
+        }).filter(Boolean);
+        const hiddenIncNames = incCatsHidden.map(id => {
+          if (id === UNCAT_ID) return "Sin categoría";
+          const c = config.categories.find(c => c.id === id);
+          return c ? c.name : null;
+        }).filter(Boolean);
+        const hiddenAccNames = accHidden.map(id => {
+          const a = config.accounts.find(a => a.id === id);
+          return a ? a.name : null;
+        }).filter(Boolean);
+
+        const filtroStr = [
+          hiddenAccNames.length  ? `Cuentas excluidas: ${hiddenAccNames.join(", ")}` : "",
+          hiddenExpNames.length  ? `Categorías de gasto excluidas: ${hiddenExpNames.join(", ")}` : "",
+          hiddenIncNames.length  ? `Categorías de ingreso excluidas: ${hiddenIncNames.join(", ")}` : "",
+        ].filter(Boolean).join("\n");
+
         const prompt = `Eres un asesor financiero personal. Analiza esta situación financiera REAL y genera 3 observaciones o consejos MUY ESPECÍFICOS basados en los datos concretos (menciona categorías, montos o hábitos específicos que ves). Máximo 30 palabras cada uno. En español, tono directo y útil.
 
 DATOS DEL PERÍODO (${baseData.spanDays} días):
@@ -8969,7 +8991,7 @@ DATOS DEL PERÍODO (${baseData.spanDays} días):
 - Gasto promedio por transacción: ${fmtMxn(baseData.avgExpTx)}
 - Frecuencia de gastos: ~${baseData.txPerWeek} transacciones/semana
 - Sin categorizar: ${baseData.uncatPct}% del gasto total
-
+${filtroStr ? `\nFILTRO ACTIVO (estos datos NO están incluidos en el análisis):\n${filtroStr}` : ""}
 TOP CATEGORÍAS DE GASTO:
 ${topExpStr}
 
@@ -8978,7 +9000,7 @@ ${topIncStr}
 
 CALIFICACIÓN: ${localScore}/100 (${localStatus})
 
-Instrucciones: Sé específico — menciona las categorías reales por nombre, señala si algo está muy alto o muy bien. NO des consejos genéricos tipo "ahorra más". Responde SOLO con JSON válido sin markdown:
+Instrucciones: Sé específico — menciona las categorías reales por nombre, señala si algo está muy alto o muy bien. Si hay filtros activos, menciona que el análisis es parcial. NO des consejos genéricos tipo "ahorra más". Responde SOLO con JSON válido sin markdown:
 {"analyses": ["observación1", "observación2", "observación3"]}`;
 
         const res = await fetch("/api/claude", {
@@ -9128,8 +9150,6 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
-    // Mismo fix que FinancialScoreCard: antes ignoraba el filtro de categorías
-    // en vista "Todas" y el de "Sin categoría" en vista de cuenta específica.
     let filtered = txsInRange(txs, dateRange).filter(t =>
       accView === "all" ? true : t.accountId === accView
     );
@@ -9144,17 +9164,22 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
       if (t.type === "expense") return !expCatsHidden.includes(key);
       return true;
     });
-    const totalIn = filtered.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const totalOut = filtered.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+    const expTxs = filtered.filter(t => t.type === "expense");
+    const incTxs = filtered.filter(t => t.type === "income");
+    const totalIn  = incTxs.reduce((s, t) => s + t.amount, 0);
+    const totalOut = expTxs.reduce((s, t) => s + t.amount, 0);
     const byCat = {};
-    filtered.filter(t => t.type === "expense" && t.categoryId).forEach(t => {
-      byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+    expTxs.forEach(t => {
+      const cat = t.categoryId ? config.categories.find(c => c.id === t.categoryId) : null;
+      const key  = (cat && cat.type === "expense") ? cat.name : "Sin categoría";
+      byCat[key] = (byCat[key] || 0) + t.amount;
     });
-    const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, amt]) => {
-      const c = config.categories.find(c => c.id === id);
-      return c ? `${c.name} (${fmtMxn(amt)})` : null;
-    }).filter(Boolean).join(", ");
-    return { totalIn, totalOut, txCount: filtered.length, topCats };
+    const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([name, amt]) => `${name} (${fmtMxn(amt)}, ${totalOut > 0 ? Math.round(amt/totalOut*100) : 0}%)`)
+      .join(", ");
+    const spendRatio = totalIn > 0 ? Math.round((totalOut / totalIn) * 100) : 0;
+    const avgExpTx   = expTxs.length > 0 ? Math.round(totalOut / expTxs.length) : 0;
+    return { totalIn, totalOut, txCount: filtered.length, topCats, spendRatio, avgExpTx };
   })();
 
   // catIds captura el catálogo completo de categorías activas — invalida el cache
@@ -9200,15 +9225,39 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
 
     const callAI = async () => {
       try {
-        const systemPrompt = `Eres un asesor financiero amigable. Genera EXACTAMENTE 5 consejos cortos y prácticos para mejorar las finanzas del usuario basado en sus datos. Cada consejo debe tener máximo 25 palabras, ser específico, accionable y útil. Usa lenguaje casual en español mexicano. NO uses markdown. Responde SOLO con un array JSON: ["consejo 1", "consejo 2", "consejo 3", "consejo 4", "consejo 5"]`;
+        // Nombres de categorías/cuentas ocultas por el filtro activo
+        const hiddenExpNames = expCatsHidden.map(id => {
+          if (id === UNCAT_ID) return "Sin categoría";
+          const c = config.categories.find(c => c.id === id);
+          return c ? c.name : null;
+        }).filter(Boolean);
+        const hiddenIncNames = incCatsHidden.map(id => {
+          if (id === UNCAT_ID) return "Sin categoría";
+          const c = config.categories.find(c => c.id === id);
+          return c ? c.name : null;
+        }).filter(Boolean);
+        const hiddenAccNames = accHidden.map(id => {
+          const a = config.accounts.find(a => a.id === id);
+          return a ? a.name : null;
+        }).filter(Boolean);
+        const filtroStr = [
+          hiddenAccNames.length  ? `Cuentas excluidas: ${hiddenAccNames.join(", ")}` : "",
+          hiddenExpNames.length  ? `Gastos excluidos: ${hiddenExpNames.join(", ")}` : "",
+          hiddenIncNames.length  ? `Ingresos excluidos: ${hiddenIncNames.join(", ")}` : "",
+        ].filter(Boolean).join(" | ");
+
+        const systemPrompt = `Eres un asesor financiero amigable. Genera EXACTAMENTE 5 consejos cortos y prácticos para mejorar las finanzas del usuario basado en sus datos reales. Cada consejo debe tener máximo 28 palabras, ser específico (menciona categorías o montos reales), accionable y útil. Usa lenguaje casual en español mexicano. NO uses markdown. Responde SOLO con un array JSON: ["consejo 1", "consejo 2", "consejo 3", "consejo 4", "consejo 5"]`;
         const userMsg = `Datos del usuario:
 - Ingresos: ${fmtMxn(baseData.totalIn)}
 - Gastos: ${fmtMxn(baseData.totalOut)}
-- Flujo: ${fmtMxn(baseData.totalIn - baseData.totalOut)}
+- % gastado del ingreso: ${baseData.spendRatio}%
+- Gasto promedio por transacción: ${fmtMxn(baseData.avgExpTx)}
+- Flujo neto: ${fmtMxn(baseData.totalIn - baseData.totalOut)}
 - Top categorías de gasto: ${baseData.topCats || "sin datos"}
 - Total movimientos: ${baseData.txCount}
+${filtroStr ? `- Filtro activo (NO incluidos): ${filtroStr}` : ""}
 
-Genera 5 consejos prácticos personalizados.`;
+Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en el consejo relevante.`;
 
         const raw = await callClaude(systemPrompt, [{ role: "user", content: userMsg }]);
         const clean = raw.replace(/```json|```/g, "").trim();
