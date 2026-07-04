@@ -8609,156 +8609,217 @@ function setFinancialCache(kind, accView, dataKey, payload) {
    El score animado sube desde 0 al valor real con lerp cuando entra al viewport. */
 function ScoreCanvasIndicator({ targetScore, inView, dark }) {
   const canvasRef = useRef(null);
-  const animRef = useRef({ current: 0, raf: null });
+  const stateRef = useRef({
+    currentPct: 0,
+    angle: -Math.PI / 2,
+    pills: [],
+    lastPillTime: 0,
+    animatingIn: true,
+    hasStarted: false,
+  });
+  const rafRef = useRef(null);
 
-  const getScoreInfo = (pct) => {
-    let r, g, b;
-    if (pct < 35)      { r = 220; g = 53;  b = 53;  }
-    else if (pct < 65) { r = 230; g = 140; b = 20;  }
-    else               { r = 48;  g = 196; b = 96;  }
-    let name;
-    if (pct >= 95)      name = "Perfecto";
-    else if (pct >= 90) name = "Excelente";
-    else if (pct >= 80) name = "Muy bien";
-    else if (pct >= 65) name = "Bueno";
-    else if (pct >= 45) name = "Regular";
-    else                name = "Atención";
-    return { r, g, b, name };
-  };
-
-  // Reset animación cuando entra al viewport
+  // Cuando cambia inView de false → true, resetear la animación de entrada
   useEffect(() => {
-    if (inView) animRef.current.current = 0;
+    if (inView) {
+      stateRef.current.currentPct = 0;
+      stateRef.current.animatingIn = true;
+      stateRef.current.pills = [];
+      stateRef.current.lastPillTime = 0;
+    }
   }, [inView, targetScore]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const SIZE = 260;
-    canvas.width  = SIZE * dpr;
-    canvas.height = SIZE * dpr;
-    canvas.style.width  = SIZE + "px";
-    canvas.style.height = SIZE + "px";
+    const displaySize = 260;
+    canvas.width = displaySize * dpr;
+    canvas.height = displaySize * dpr;
+    canvas.style.width = displaySize + "px";
+    canvas.style.height = displaySize + "px";
     ctx.scale(dpr, dpr);
 
-    const CX = SIZE / 2, CY = SIZE / 2;
-    const R_OUTER = 108;
-    const R_INNER = 78;
-    const LW = R_OUTER - R_INNER; // 30px de grosor
-    const R = (R_OUTER + R_INNER) / 2;
+    const W = displaySize, H = displaySize;
+    const CX = W / 2, CY = H / 2;
+    const R = 100;
+    const LW = 16;
+    const NUM_SEG = 80;
+    const ARC_SPEED = 0.006;
 
-    // Arranca en las 7 en punto (225°), barre 270° en sentido horario
-    const START_A = (225 * Math.PI) / 180;
-    const FULL_SWEEP = (270 * Math.PI) / 180;
+    const getColor = (pct) => {
+      let r, g, b;
+      if (pct < 35) { r = 226; g = 55; b = 55; }
+      else if (pct < 65) { r = 230; g = 140; b = 20; }
+      else { r = 60; g = 190; b = 60; }
 
+      let name;
+      if (pct >= 95) name = "Perfecto";
+      else if (pct >= 90) name = "Excelente";
+      else if (pct >= 80) name = "Muy bien";
+      else if (pct >= 65) name = "Bueno";
+      else if (pct >= 45) name = "Regular";
+      else name = "Atención";
+
+      return { r, g, b, name };
+    };
+    const rgba = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+    const scaleC = (c, f) => ({ r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) });
     const lerp = (a, b, t) => a + (b - a) * t;
 
-    const draw = () => {
+    const render = () => {
+      const st = stateRef.current;
       const T = targetScore || 0;
-      animRef.current.current = lerp(animRef.current.current, T, 0.05);
-      if (Math.abs(animRef.current.current - T) < 0.15) animRef.current.current = T;
-      const pct = animRef.current.current;
-      const info = getScoreInfo(pct);
-      const cr = info.r, cg = info.g, cb = info.b;
-      const colorStr = `rgb(${cr},${cg},${cb})`;
-      const colorA0  = `rgba(${cr},${cg},${cb},0)`;
 
-      ctx.clearRect(0, 0, SIZE, SIZE);
+      st.currentPct = lerp(st.currentPct, T, 0.04);
+      if (Math.abs(st.currentPct - T) < 0.5) {
+        st.currentPct = T;
+        st.animatingIn = false;
+      }
+      const displayPct = Math.round(st.currentPct);
 
-      // ── Glow blob difuso detrás (círculo blureado estilo imagen) ──
-      // Capa interior: blob concentrado en el hueco del donut
-      const glow1 = ctx.createRadialGradient(CX, CY, 0, CX, CY, R_INNER - 2);
-      glow1.addColorStop(0,   `rgba(${cr},${cg},${cb},${dark ? 0.60 : 0.45})`);
-      glow1.addColorStop(0.45,`rgba(${cr},${cg},${cb},${dark ? 0.35 : 0.25})`);
-      glow1.addColorStop(1,   colorA0);
-      ctx.fillStyle = glow1;
-      ctx.beginPath();
-      ctx.arc(CX, CY, R_INNER - 2, 0, Math.PI * 2);
-      ctx.fill();
+      const color = getColor(st.currentPct);
+      st.angle += ARC_SPEED;
 
-      // Capa exterior: halo que sangra más allá del anillo
-      const glow2 = ctx.createRadialGradient(CX, CY, R_INNER, CX, CY, R_OUTER + 44);
-      glow2.addColorStop(0, `rgba(${cr},${cg},${cb},0.28)`);
-      glow2.addColorStop(1, colorA0);
-      ctx.fillStyle = glow2;
-      ctx.beginPath();
-      ctx.arc(CX, CY, R_OUTER + 44, 0, Math.PI * 2);
-      ctx.fill();
+      const arcSpan = (0.12 + (st.currentPct / 100) * 0.66) * Math.PI * 2;
+      const arcHead = st.angle;
+      const arcTail = st.angle - arcSpan;
 
-      // ── Track del donut (rail glass) ──
+      ctx.clearRect(0, 0, W, H);
+
+      // Glow ambiente al centro
+      const ambient = ctx.createRadialGradient(CX, CY, 30, CX, CY, 130);
+      ambient.addColorStop(0, rgba(color, dark ? 0.12 : 0.08));
+      ambient.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = ambient;
+      ctx.fillRect(0, 0, W, H);
+
+      // Glow en la cabeza del arco
+      const headX = CX + Math.cos(arcHead) * R;
+      const headY = CY + Math.sin(arcHead) * R;
+      const headGlow = ctx.createRadialGradient(headX, headY, 0, headX, headY, 42);
+      headGlow.addColorStop(0, rgba(color, 0.55));
+      headGlow.addColorStop(0.5, rgba(color, 0.15));
+      headGlow.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = headGlow;
+      ctx.fillRect(0, 0, W, H);
+
+      // Dibujar arco en 80 segmentos con gradiente cola→cabeza
       ctx.lineWidth = LW;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = dark
-        ? "rgba(255,255,255,0.08)"
-        : "rgba(0,0,0,0.07)";
-      ctx.beginPath();
-      ctx.arc(CX, CY, R, START_A, START_A + FULL_SWEEP);
-      ctx.stroke();
+      for (let i = 0; i < NUM_SEG; i++) {
+        const t0 = i / NUM_SEG;
+        const t1 = (i + 1) / NUM_SEG;
+        const a0 = arcTail + t0 * arcSpan;
+        const a1 = arcTail + t1 * arcSpan;
 
-      // ── Arco de progreso con gradiente opacidad cola→cabeza ──
-      const sweep = (pct / 100) * FULL_SWEEP;
-      if (sweep > 0.01) {
-        const NUM_SEG = 60;
-        ctx.lineWidth = LW;
-        for (let i = 0; i < NUM_SEG; i++) {
-          const t0 = i / NUM_SEG;
-          const t1 = (i + 1) / NUM_SEG;
-          if (t0 * FULL_SWEEP > sweep) break;
-          const a0 = START_A + t0 * sweep;
-          const a1 = START_A + Math.min(t1 * sweep, sweep);
-          const alpha0 = 0.20 + t0 * 0.80;
-          const alpha1 = 0.20 + t1 * 0.80;
-          const x0 = CX + Math.cos(a0) * R, y0 = CY + Math.sin(a0) * R;
-          const x1 = CX + Math.cos(a1) * R, y1 = CY + Math.sin(a1) * R;
-          const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-          grad.addColorStop(0, `rgba(${cr},${cg},${cb},${alpha0})`);
-          grad.addColorStop(1, `rgba(${cr},${cg},${cb},${alpha1})`);
-          ctx.strokeStyle = grad;
-          ctx.lineCap = i === NUM_SEG - 1 ? "round" : "butt";
-          ctx.beginPath();
-          ctx.arc(CX, CY, R, a0, a1 + 0.002);
-          ctx.stroke();
-        }
+        const b0 = 0.45 + t0 * 0.55;
+        const b1 = 0.45 + t1 * 0.55;
+        const c0 = scaleC(color, b0);
+        const c1 = scaleC(color, b1);
 
-        // Glow puntual en la cabeza del arco
-        const headA = START_A + sweep;
-        const hx = CX + Math.cos(headA) * R;
-        const hy = CY + Math.sin(headA) * R;
-        const headGlow = ctx.createRadialGradient(hx, hy, 0, hx, hy, 30);
-        headGlow.addColorStop(0, `rgba(${cr},${cg},${cb},0.75)`);
-        headGlow.addColorStop(1, colorA0);
-        ctx.fillStyle = headGlow;
-        ctx.fillRect(0, 0, SIZE, SIZE);
+        const x0 = CX + Math.cos(a0) * R;
+        const y0 = CY + Math.sin(a0) * R;
+        const x1 = CX + Math.cos(a1) * R;
+        const y1 = CY + Math.sin(a1) * R;
+
+        const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, rgba(c0, 1));
+        grad.addColorStop(1, rgba(c1, 1));
+
+        ctx.strokeStyle = grad;
+        ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
+        ctx.beginPath();
+        ctx.arc(CX, CY, R, a0, a1 + 0.002);
+        ctx.stroke();
       }
 
-      // ── Reflejo glass (highlight blanco en el anillo) ──
-      ctx.save();
-      ctx.globalAlpha = dark ? 0.05 : 0.16;
-      ctx.lineWidth = LW * 0.45;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(CX, CY, R, START_A, START_A + FULL_SWEEP * 0.42);
-      ctx.stroke();
-      ctx.restore();
+      // Píldoras
+      const now = performance.now();
+      const pillSpan = 0.11;
+      const canSpawn = st.currentPct < 98 && !st.animatingIn;
+      const groupInterval = 1400 + (st.currentPct / 100) * 3000;
 
-      // ── Texto central ──
+      if (canSpawn && (now - st.lastPillTime) > groupInterval) {
+        const STAGGER_T = 0.32;
+        st.pills.push({ t: 0 });
+        st.pills.push({ t: -STAGGER_T });
+        st.pills.push({ t: -STAGGER_T * 2 });
+        st.lastPillTime = now;
+      }
+
+      const gapSize = Math.PI * 2 - arcSpan;
+      const T_SPEED = 0.013;
+      const RADIUS_OUT = 14;
+
+      st.pills = st.pills.filter((p) => {
+        p.t += T_SPEED;
+        if (p.t >= 1) return false;
+        if (p.t < 0) return true;
+
+        const smoothstep = (x) => {
+          x = Math.max(0, Math.min(1, x));
+          return x * x * (3 - 2 * x);
+        };
+
+        const DETACH_END = 0.2;
+        const detach = smoothstep(p.t / DETACH_END);
+
+        const MERGE_START = 0.82;
+        const merge = smoothstep((p.t - MERGE_START) / (1 - MERGE_START));
+
+        const pillAngle = arcTail - p.t * gapSize;
+        const parabola = Math.sin(p.t * Math.PI) * RADIUS_OUT;
+        const rEff = R + parabola * detach;
+
+        const spanWide = 0.24;
+        const stretch = Math.max(1 - detach, merge);
+        const pillSpanCur = pillSpan + (spanWide - pillSpan) * stretch;
+
+        const brightness = 0.45 + 0.55 * detach;
+        const pillColor = scaleC(color, brightness);
+
+        const pStart = pillAngle;
+        const pEnd = pillAngle + pillSpanCur;
+
+        const midAngle = pillAngle + pillSpanCur / 2;
+        const gx = CX + Math.cos(midAngle) * rEff;
+        const gy = CY + Math.sin(midAngle) * rEff;
+        const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
+        pillGlow.addColorStop(0, rgba(pillColor, 0.5));
+        pillGlow.addColorStop(1, rgba(pillColor, 0));
+        ctx.fillStyle = pillGlow;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = rgba(pillColor, 1);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(CX, CY, rEff, pStart, pEnd);
+        ctx.stroke();
+
+        return true;
+      });
+
+      // Texto central
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = colorStr;
-      ctx.font = `700 ${pct >= 100 ? 28 : 34}px 'Montserrat', -apple-system, system-ui, sans-serif`;
-      ctx.fillText(Math.round(pct), CX, CY - 10);
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},0.70)`;
-      ctx.font = "500 12.5px 'Montserrat', -apple-system, system-ui, sans-serif";
-      ctx.fillText(info.name, CX, CY + 16);
+      ctx.fillStyle = rgba(color, 1);
+      ctx.font = "600 34px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(displayPct, CX, CY - 6);
 
-      animRef.current.raf = requestAnimationFrame(draw);
+      ctx.fillStyle = rgba(color, 0.65);
+      ctx.font = "500 13px 'Montserrat', -apple-system, system-ui, sans-serif";
+      ctx.fillText(color.name, CX, CY + 20);
+
+      rafRef.current = requestAnimationFrame(render);
     };
 
-    animRef.current.raf = requestAnimationFrame(draw);
-    return () => { if (animRef.current.raf) cancelAnimationFrame(animRef.current.raf); };
+    rafRef.current = requestAnimationFrame(render);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [targetScore, dark]);
 
   return (
