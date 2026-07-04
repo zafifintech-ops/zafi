@@ -3066,11 +3066,14 @@ async function scheduleAllNotifications(config, txs) {
   if (!granted) return;
 
   const prefs = config.notificationPrefs || {};
+  const plan  = getUserPlan(config); // "free" | "lite" | "pro"
+  const isLite = plan === "lite" || plan === "pro";
+  const isPro  = plan === "pro";
+
   const notifications = [];
   const idsToCancel = [NOTIF_ID_WEEKLY, NOTIF_ID_NO_ACTIVITY, NOTIF_ID_TIP];
 
-  // 1. Recordatorios de recurrentes — se dispara si la PRÓXIMA ocurrencia
-  //    de la regla es MAÑANA (1 día antes, dando tiempo a reaccionar).
+  // 1. Recordatorios de recurrentes — Free+
   if (prefs.recurringReminders !== false) {
     const allRec = (config.recurring || []).filter(isRecActive);
     const tomorrow = dateKeyDaysAfter(today(), 1);
@@ -3093,11 +3096,10 @@ async function scheduleAllNotifications(config, txs) {
     });
   }
 
-  // 2. Resumen semanal — cada lunes 9am, con los datos de la semana Lun-Dom
-  //    más reciente disponible (se recalcula cada vez que abres la app).
-  if (prefs.weeklySummary !== false) {
+  // 2. Resumen semanal — Lite+
+  if (isLite && prefs.weeklySummary !== false) {
     const now = new Date();
-    const dow = now.getDay(); // 0=domingo
+    const dow = now.getDay();
     const daysSinceMonday = dow === 0 ? 6 : dow - 1;
     const lastMonday = new Date(now); lastMonday.setDate(now.getDate() - daysSinceMonday); lastMonday.setHours(0, 0, 0, 0);
     const prevMonday = new Date(lastMonday); prevMonday.setDate(lastMonday.getDate() - 7);
@@ -3108,7 +3110,6 @@ async function scheduleAllNotifications(config, txs) {
     const wIn = weekTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const wOut = weekTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
     const nextMonday = new Date(lastMonday); nextMonday.setDate(lastMonday.getDate() + 7); nextMonday.setHours(9, 0, 0, 0);
-    // Si "hoy" ya es lunes después de las 9am, programar para el lunes siguiente
     if (now >= nextMonday) nextMonday.setDate(nextMonday.getDate() + 7);
     notifications.push({
       id: NOTIF_ID_WEEKLY,
@@ -3120,8 +3121,7 @@ async function scheduleAllNotifications(config, txs) {
     });
   }
 
-  // 3. "No has registrado movimientos" — se reprograma cada vez que agregas
-  //    un movimiento nuevo (se calcula desde el último real, sin sintéticas).
+  // 3. Sin actividad — Free+
   if (prefs.noActivityReminder !== false) {
     const realTxs = (txs || []).filter((t) => !t.synthetic);
     const lastDate = realTxs.length > 0
@@ -3130,7 +3130,6 @@ async function scheduleAllNotifications(config, txs) {
     const gapDays = prefs.noActivityDays || 4;
     const targetK = dateKeyDaysAfter(lastDate, gapDays);
     let at = new Date(targetK + "T18:00:00");
-    // Si ya pasó esa fecha (llevas más de N días sin registrar), avisar mañana
     if (at < new Date()) { at = new Date(); at.setDate(at.getDate() + 1); at.setHours(18, 0, 0, 0); }
     notifications.push({
       id: NOTIF_ID_NO_ACTIVITY,
@@ -3140,10 +3139,8 @@ async function scheduleAllNotifications(config, txs) {
     });
   }
 
-  // 4. Consejo financiero — cada 3 días, a media mañana. Usa el consejo real
-  //    más reciente generado por IA (si hay uno en caché) o rota entre un
-  //    pool curado de consejos genéricos si no.
-  if (prefs.tips !== false) {
+  // 4. Consejo financiero (IA) — solo Pro
+  if (isPro && prefs.tips !== false) {
     const tipText = getCachedAiTip() || pickRotatingTip();
     const at = new Date();
     at.setDate(at.getDate() + 3);
@@ -3168,6 +3165,7 @@ async function scheduleAllNotifications(config, txs) {
    no necesita viajar a Firestore). */
 async function notifyScoreChangeIfNeeded(config, newScore, newStatus) {
   if (!Capacitor.isNativePlatform()) return;
+  if (getUserPlan(config) !== "pro") return; // solo Pro
   const prefs = config.notificationPrefs || {};
   if (prefs.scoreChange === false) return;
   const granted = await requestNotificationPermission();
@@ -4766,7 +4764,7 @@ function AuthScreen() {
       <div style={{ position: "fixed", top: "calc(60px + env(safe-area-inset-top))",
         left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 2,
         pointerEvents: "none" }}>
-        <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 200,
+        <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400,
           fontSize: 52, letterSpacing: "-.05em", color: "#1A1815",
           fontFeatureSettings: '"ss01"', lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
@@ -5489,11 +5487,7 @@ export default function App() {
 /* ============================= ONBOARDING FLOW ========================== */
 /* Decide entre: usar asistente o configurar manualmente */
 function OnboardingFlow({ onDone }) {
-  const [mode, setMode] = useState(null); // null | "assistant" | "manual"
-
-  if (mode === "assistant") return <Onboarding onDone={onDone} />;
-  if (mode === "manual") return <ManualOnboarding onDone={onDone} />;
-  return <OnboardingChoice onPickAssistant={() => setMode("assistant")} onPickManual={() => setMode("manual")} />;
+  return <ManualOnboarding onDone={onDone} />;
 }
 
 /* ─── Pantalla 1: Elegir asistente o manual ─── */
@@ -7670,43 +7664,71 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                 Notificaciones locales — se generan en tu dispositivo, no necesitan conexión constante.
                 {Capacitor.isNativePlatform() ? "" : " Solo disponibles en la app móvil."}
               </div>
-              {[
-                { key: "recurringReminders", title: "Pagos recurrentes", desc: "Un día antes de que se registre un pago automático." },
-                { key: "weeklySummary", title: "Resumen semanal", desc: "Cada lunes por la mañana, ingresos y gastos de la semana." },
-                { key: "noActivityReminder", title: "Sin actividad", desc: "Si llevas varios días sin registrar movimientos." },
-                { key: "scoreChange", title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja." },
-                { key: "tips", title: "Consejos financieros", desc: "Un consejo cada 3 días, basado en tus finanzas cuando hay uno disponible." },
-              ].map((item) => {
-                const prefs = config.notificationPrefs || {};
-                const isOn = prefs[item.key] !== false;
-                return (
-                  <div key={item.key} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                    padding: "12px 0", borderBottom: "1px solid var(--line-soft)",
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>{item.title}</div>
-                      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.4 }}>{item.desc}</div>
-                    </div>
-                    <label className={`cc-switch ${isOn ? "on" : ""}`}>
-                      <input type="checkbox" checked={isOn}
-                        onChange={() => saveConfig({
-                          ...config,
-                          notificationPrefs: { ...prefs, [item.key]: !isOn },
-                        })} />
-                      <span className="cc-switch-track" />
-                      <span className="cc-switch-thumb" />
-                    </label>
-                  </div>
+              {(() => {
+                const plan = getUserPlan(config);
+                const isLite = plan === "lite" || plan === "pro";
+                const isPro  = plan === "pro";
+                const BADGE = (label) => (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: ".04em",
+                    padding: "2px 6px", borderRadius: 6, marginLeft: 6,
+                    background: label === "Pro" ? "rgba(91,110,232,.12)" : "rgba(120,80,200,.10)",
+                    color: label === "Pro" ? "#5B6EE8" : "#7C4DBC",
+                  }}>{label}</span>
                 );
-              })}
+                return [
+                  { key: "recurringReminders", title: "Pagos recurrentes",     desc: "Un día antes de que se registre un pago automático.", allowed: true,    badge: null },
+                  { key: "noActivityReminder", title: "Sin actividad",          desc: "Si llevas varios días sin registrar movimientos.",    allowed: true,    badge: null },
+                  { key: "weeklySummary",       title: "Resumen semanal",        desc: "Cada lunes por la mañana, ingresos y gastos de la semana.", allowed: isLite, badge: "Lite" },
+                  { key: "scoreChange",         title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja.",     allowed: isPro,   badge: "Pro" },
+                  { key: "tips",                title: "Consejos financieros",   desc: "Un consejo cada 3 días, basado en tus finanzas.",    allowed: isPro,   badge: "Pro" },
+                ].map((item) => {
+                  const prefs = config.notificationPrefs || {};
+                  const isOn  = item.allowed && prefs[item.key] !== false;
+                  return (
+                    <div key={item.key} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                      padding: "12px 0", borderBottom: "1px solid var(--line-soft)",
+                      opacity: item.allowed ? 1 : 0.45,
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center" }}>
+                          {item.title}
+                          {item.badge && BADGE(item.badge)}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.4 }}>{item.desc}</div>
+                      </div>
+                      <label className={`cc-switch ${isOn ? "on" : ""}`} style={{ pointerEvents: item.allowed ? "auto" : "none" }}>
+                        <input type="checkbox" checked={isOn} disabled={!item.allowed}
+                          onChange={() => item.allowed && saveConfig({
+                            ...config,
+                            notificationPrefs: { ...prefs, [item.key]: !isOn },
+                          })} />
+                        <span className="cc-switch-track" />
+                        <span className="cc-switch-thumb" />
+                      </label>
+                    </div>
+                  );
+                });
+              })()}
 
               {(config.notificationPrefs?.noActivityReminder !== false) && (
-                <div style={{ marginTop: 20 }}>
-                  <div className="cc-label" style={{ marginBottom: 8 }}>Avisar tras cuántos días sin registrar</div>
-                  {CHIP_ROW([[2, "2 días"], [3, "3 días"], [4, "4 días"], [7, "1 semana"]],
-                    config.notificationPrefs?.noActivityDays || 4,
-                    (v) => saveConfig({ ...config, notificationPrefs: { ...(config.notificationPrefs || {}), noActivityDays: v } }))}
+                <div style={{ marginTop: 16, padding: "14px 0 4px" }}>
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 10, fontWeight: 600, letterSpacing: ".03em", textTransform: "uppercase" }}>
+                    Avisar tras cuántos días sin registrar
+                  </div>
+                  {CHIP_ROW(
+                    [[2, "2 días"], [3, "3 días"], [4, "4 días"], [7, "1 semana"], [0, "Nunca"]],
+                    config.notificationPrefs?.noActivityDays ?? 4,
+                    (v) => {
+                      if (v === 0) {
+                        // "Nunca" = apagar el toggle de sin actividad
+                        saveConfig({ ...config, notificationPrefs: { ...(config.notificationPrefs || {}), noActivityReminder: false } });
+                      } else {
+                        saveConfig({ ...config, notificationPrefs: { ...(config.notificationPrefs || {}), noActivityDays: v } });
+                      }
+                    }
+                  )}
                 </div>
               )}
             </div>
@@ -8845,11 +8867,130 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
 
 
+/* ── ScorePillIndicator — pill con gradiente y glow ── */
+function ScorePillIndicator({ targetScore, dark }) {
+  const [displayed, setDisplayed] = useState(0);
+
+  useEffect(() => {
+    let frame;
+    const animate = () => {
+      setDisplayed(prev => {
+        const diff = targetScore - prev;
+        if (Math.abs(diff) < 0.3) return targetScore;
+        frame = requestAnimationFrame(animate);
+        return prev + diff * 0.06;
+      });
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [targetScore]);
+
+  const pct = Math.round(displayed);
+
+  const getState = (v) => {
+    if (v < 35) return {
+      grad:    "linear-gradient(90deg, #B32020 0%, #D93232 55%, #E84545 100%)",
+      glowCol: "rgba(200,40,40,0.22)",
+      label:   "Atención",
+    };
+    if (v < 65) return {
+      grad:    "linear-gradient(90deg, #C47000 0%, #E08010 55%, #F09828 100%)",
+      glowCol: "rgba(210,120,10,0.22)",
+      label:   "Regular",
+    };
+    if (v < 90) return {
+      grad:    "linear-gradient(90deg, #1A9040 0%, #28B050 55%, #38C860 100%)",
+      glowCol: "rgba(35,165,70,0.22)",
+      label:   "Muy bien",
+    };
+    return {
+      grad:    "linear-gradient(90deg, #1A8040 0%, #22A050 40%, #34C060 75%, #80D878 100%)",
+      glowCol: "rgba(40,175,80,0.22)",
+      label:   "Perfecto",
+    };
+  };
+
+  const s = getState(pct);
+  const fillPct = (displayed / 100) * 100;
+
+  // Color del texto según posición sobre fill o fondo
+  const numOnFill   = fillPct > 14;
+  const rightOnFill = fillPct > 84;
+  const numCol      = numOnFill   ? "#fff" : (dark ? "rgba(255,255,255,0.85)" : "#1a1a1a");
+  const rightCol    = rightOnFill ? "rgba(255,255,255,0.92)" : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)");
+
+  return (
+    <div style={{ position: "relative", height: 64, borderRadius: 32,
+      filter: `drop-shadow(0 4px 14px ${s.glowCol}) drop-shadow(0 0 4px ${s.glowCol})`,
+      transition: "filter .7s ease",
+    }}>
+      {/* Track */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: 32,
+        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.055)",
+        overflow: "hidden",
+      }}>
+        {/* Fill */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, bottom: 0,
+          width: `${fillPct}%`,
+          borderRadius: 32,
+          background: s.grad,
+          transition: "width .9s cubic-bezier(.34,1.2,.64,1)",
+          overflow: "hidden",
+        }}>
+          {/* Reflejo glass */}
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, height: "50%",
+            borderRadius: "32px 32px 50% 50%",
+            background: "linear-gradient(to bottom, rgba(255,255,255,0.18), transparent)",
+          }} />
+        </div>
+      </div>
+      {/* Texto */}
+      <div style={{
+        position: "absolute", inset: 0, zIndex: 2,
+        display: "flex", alignItems: "center",
+        padding: "0 20px", justifyContent: "space-between",
+        pointerEvents: "none",
+      }}>
+        <div style={{ fontSize: 31, fontWeight: 700, letterSpacing: "-.03em",
+          lineHeight: 1, color: numCol, transition: "color .4s ease",
+          fontFamily: "'Montserrat', sans-serif",
+        }}>
+          {pct}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: rightCol,
+            transition: "color .4s ease", fontFamily: "'Montserrat', sans-serif",
+          }}>
+            {s.label}
+          </div>
+          <div style={{ fontSize: 9.5, fontWeight: 400, color: rightCol,
+            transition: "color .4s ease", marginTop: 2, opacity: .7,
+            fontFamily: "'Montserrat', sans-serif",
+          }}>
+            de 100
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Estilo del indicador — persiste en localStorage
+  const [scoreStyle, setScoreStyle] = useState(() => {
+    try { return localStorage.getItem("zafi_score_style") || "donut"; } catch { return "donut"; }
+  });
+  const setStyle = (s) => {
+    setScoreStyle(s);
+    try { localStorage.setItem("zafi_score_style", s); } catch {}
+  };
 
   // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
   const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
@@ -9105,15 +9246,37 @@ Instrucciones: Sé específico — menciona las categorías reales por nombre, s
 
   return (
     <div ref={cardRef} className="cc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
-      {/* Header */}
-      <div style={{ padding: "16px 20px 6px", display: "flex", alignItems: "center", gap: 8 }}>
+      {/* Header con selector de estilo */}
+      <div style={{ padding: "16px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
+        {/* Selector — dos opciones de texto, sin emoji */}
+        <div style={{ display: "flex", gap: 2, background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
+          borderRadius: 10, padding: 3,
+        }}>
+          {[["donut", "Donut"], ["pill", "Pill"]].map(([key, label]) => (
+            <button key={key} onClick={() => setStyle(key)} style={{
+              background: scoreStyle === key ? (dark ? "rgba(255,255,255,0.12)" : "#fff") : "none",
+              border: "none", cursor: "pointer", borderRadius: 8,
+              padding: "3px 10px", fontSize: 11, fontWeight: 600,
+              color: scoreStyle === key ? "var(--ink)" : "var(--ink-soft)",
+              transition: "all .2s ease", boxShadow: scoreStyle === key ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Indicador */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
-        <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
-      </div>
+      {scoreStyle === "donut" ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
+          <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
+        </div>
+      ) : (
+        <div style={{ padding: "10px 20px 6px" }}>
+          <ScorePillIndicator targetScore={data.score} dark={dark} />
+        </div>
+      )}
 
       {/* Análisis rotativo */}
       <div style={{ padding: "4px 20px 18px" }}>
