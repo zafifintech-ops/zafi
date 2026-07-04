@@ -8681,22 +8681,23 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
       ctx.clearRect(0, 0, W, H);
 
-      // Glow ambiente
-      const ambient = ctx.createRadialGradient(CX, CY, 30, CX, CY, 130);
-      ambient.addColorStop(0, rgba(color, dark ? 0.12 : 0.08));
-      ambient.addColorStop(1, rgba(color, 0));
-      ctx.fillStyle = ambient;
-      ctx.fillRect(0, 0, W, H);
-
-      // Glow cabeza
-      const headX = CX + Math.cos(arcHead) * R;
-      const headY = CY + Math.sin(arcHead) * R;
-      const headGlow = ctx.createRadialGradient(headX, headY, 0, headX, headY, 50);
-      headGlow.addColorStop(0, rgba(color, 0.55));
-      headGlow.addColorStop(0.5, rgba(color, 0.15));
-      headGlow.addColorStop(1, rgba(color, 0));
-      ctx.fillStyle = headGlow;
-      ctx.fillRect(0, 0, W, H);
+      // Glow uniforme a lo largo de todo el arco — no solo en las puntas
+      // Muestreamos N puntos del arco y pintamos un radialGradient pequeño en cada uno
+      const GLOW_STEPS = 18;
+      const glowAlpha  = dark ? 0.10 : 0.07; // sutil, no exagerado
+      for (let g = 0; g < GLOW_STEPS; g++) {
+        const gFrac = g / (GLOW_STEPS - 1);
+        const gAngle = arcTail + gFrac * arcSpan;
+        const gx = CX + Math.cos(gAngle) * R;
+        const gy = CY + Math.sin(gAngle) * R;
+        const brightness = 0.45 + gFrac * 0.55; // igual que el gradiente del arco
+        const gc = scaleC(color, brightness);
+        const gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, LW * 1.8);
+        gr.addColorStop(0, rgba(gc, glowAlpha * 1.8));
+        gr.addColorStop(1, rgba(gc, 0));
+        ctx.fillStyle = gr;
+        ctx.fillRect(0, 0, W, H);
+      }
 
       // ── Arco principal + cápsulas ─────────────────────────────────
       // La cápsula es una rebanada que se DESPRENDE de la cola y se INTEGRA
@@ -8806,11 +8807,14 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         // y viaja hacia la cabeza. Su posición en el gradiente del arco es
         // proporcional a cuánto ha recorrido el hueco (p.t dentro del ciclo completo).
         // Así el color de la cápsula siempre encaja con lo que habría en esa zona.
-        const arcPos  = 1 - p.t; // 0 en cola (oscuro), 1 en cabeza (brillante)
-        const bTail   = 0.45 + arcPos * 0.55;       // brillo extremo posterior
-        const bHead   = 0.45 + (arcPos + 0.04) * 0.55; // brillo extremo anterior (un poco más claro)
-        const cTail   = scaleC(color, Math.min(1, bTail));
-        const cHead   = scaleC(color, Math.min(1, bHead));
+        // La cápsula sale de la cola (oscura) y viaja hacia la cabeza (brillante).
+        // Su extremo trasero (pAngle) es el más oscuro, el frontal (pAngle+PILL_SPAN) el más claro.
+        // arcPos sigue la posición real en el gradiente del arco.
+        const arcPos  = 1 - p.t; // 0 = recién salida de cola (oscuro), 1 = cerca de cabeza (brillante)
+        const bTail   = 0.45 + Math.max(0, arcPos - 0.04) * 0.55; // extremo trasero: más oscuro
+        const bHead   = 0.45 + Math.min(1, arcPos + 0.04) * 0.55; // extremo frontal: más claro
+        const cTail   = scaleC(color, Math.min(1, bTail));  // color del extremo que viene de la cola
+        const cHead   = scaleC(color, Math.min(1, bHead));  // color del extremo que va a la cabeza
 
         const alpha = lerp(0.5, 1.0, detach);
 
@@ -8944,7 +8948,9 @@ Responde SOLO con JSON: {"score": ${localScore}, "status": "${localStatus}", "an
         const json = await res.json();
         const text = (json.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
         const parsed = JSON.parse(text);
-        setData(parsed);
+        // Siempre usar el score local calculado — ignorar lo que devuelva la IA
+        // para evitar que varíe entre recargas
+        setData({ ...parsed, score: localScore, status: localStatus });
       } catch {
         setData({ score: localScore, status: localStatus, analyses: [
           "Mantén tus gastos por debajo del 80% de tus ingresos.",
