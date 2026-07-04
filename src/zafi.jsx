@@ -8726,33 +8726,38 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
       // Calcular cuánto acortar la cola y cuánto extender la cabeza
       // basado en las cápsulas activas
-      let tailTrim  = 0; // ángulo a restar de la cola (el hueco que dejó la cápsula)
-      let headExtra = 0; // rebote elástico en la cabeza al recibir
+      let tailTrim  = 0;
+      let headExtra = 0;
+      let tailExtra = 0;
       let headBounceAmt = 0;
+      let tailBounceAmt = 0;
 
       st.pills.forEach((p) => {
         if (p.t < 0) return;
         if (p.t < DETACH_END) {
-          // Recién salida: el hueco en la cola es proporcional a cuánto se alejó
           const sep = smoothstep(p.t / DETACH_END);
           tailTrim = Math.max(tailTrim, PILL_SPAN * sep);
+          tailBounceAmt = Math.max(tailBounceAmt, p.t / DETACH_END);
         }
         if (p.t > MERGE_START) {
-          // Llegando: la cabeza crece con rebote
           const raw = (p.t - MERGE_START) / (1 - MERGE_START);
           headBounceAmt = Math.max(headBounceAmt, raw);
         }
       });
 
-      // Spring de cabeza: crece rápido y oscila antes de asentarse
+      // Mismo spring en ambos extremos
+      const tailSpring = tailBounceAmt > 0
+        ? 1 + Math.sin(tailBounceAmt * Math.PI * 2.8) * 0.28 * (1 - tailBounceAmt)
+        : 1;
       const headSpring = headBounceAmt > 0
         ? 1 + Math.sin(headBounceAmt * Math.PI * 2.8) * 0.28 * (1 - headBounceAmt)
         : 1;
-      headExtra = (headSpring - 1) * PILL_SPAN;
+      tailExtra = (tailSpring - 1) * PILL_SPAN; // rebote en la cola al soltarse
+      headExtra = (headSpring - 1) * PILL_SPAN; // rebote en la cabeza al recibirla
 
-      // Arco ajustado: cola más corta (hueco), cabeza con rebote
-      const arcTailAdj = arcTail + tailTrim;   // cola retrocede → arco más corto
-      const arcSpanAdj = arcSpan - tailTrim + headExtra;
+      // Arco ajustado: cola más corta (hueco) + rebote en cola y cabeza
+      const arcTailAdj = arcTail + tailTrim - tailExtra;
+      const arcSpanAdj = arcSpan - tailTrim + tailExtra + headExtra;
 
       for (let i = 0; i < NUM_SEG; i++) {
         const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
