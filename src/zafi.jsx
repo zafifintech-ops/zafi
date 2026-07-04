@@ -8947,47 +8947,53 @@ function FlameScoreIndicator({ targetScore, inView }) {
       ctx.fillStyle = bodyGrad;
       ctx.fill();
 
-      // 6. Cara
-      const eyeY = CY + 2;
-      const eyeOffsets = [-13, 13];
+      // 6. Cara — expresión progresiva 0% triste → 100% feliz
+      // moodT: 0 = muy triste, 1 = muy feliz (interpolado suavemente)
+      const moodT = Math.max(0, Math.min(1, pct / 100));
+      const eyeY = CY + 6;
+      const eyeR = 2.4; // ojos pequeños y tiernos
 
-      // Cachetitos
-      ctx.fillStyle = "rgba(255,120,140,0.55)";
-      ctx.beginPath(); ctx.ellipse(CX - 22, CY + 14, 9, 5, -0.2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(CX + 22, CY + 14, 9, 5, 0.2, 0, Math.PI * 2); ctx.fill();
+      // Cachetitos — más sutiles y pequeños
+      ctx.fillStyle = "rgba(255,110,140,0.40)";
+      ctx.beginPath(); ctx.ellipse(CX - 19, CY + 16, 7, 4, -0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(CX + 19, CY + 16, 7, 4, 0.15, 0, Math.PI * 2); ctx.fill();
 
-      // Ojos
-      eyeOffsets.forEach((ox) => {
+      // Ojos — negros sólidos, sin brillito, con parpadeo
+      [-10, 10].forEach((ox) => {
         const ex = CX + ox;
         const eyeScaleY = blinkAmt > 0 ? Math.max(0.05, 1 - blinkAmt) : 1;
         ctx.save();
         ctx.translate(ex, eyeY);
         ctx.scale(1, eyeScaleY);
-        ctx.fillStyle = "rgb(42,20,8)";
-        ctx.beginPath(); ctx.arc(0, 0, 3.2, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "rgba(255,255,255,0.88)";
-        ctx.beginPath(); ctx.arc(1.2, -1.2, 1.1, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#111";
+        ctx.beginPath(); ctx.arc(0, 0, eyeR, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
-
-        // Cejas tristes
-        if (state.mood === "sad") {
-          ctx.strokeStyle = "rgb(42,20,8)"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
-          ctx.beginPath();
-          ctx.arc(ex, eyeY - 7, 4.5, ox < 0 ? 0.5 : Math.PI - 0.5, ox < 0 ? Math.PI - 0.5 : 0.5 + Math.PI, ox < 0);
-          ctx.stroke();
-        }
       });
 
-      // Boca
-      ctx.strokeStyle = "rgb(42,20,8)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      // Cejas — de inclinadas triste (↘↙) a neutras a levantadas feliz (↗↖)
+      // Angulo: triste = inclinado hacia adentro-abajo, feliz = neutro/levantado
+      ctx.strokeStyle = "#111"; ctx.lineWidth = 1.5; ctx.lineCap = "round";
+      [-10, 10].forEach((ox) => {
+        const ex = CX + ox;
+        const sign = ox < 0 ? 1 : -1;
+        // triste: extremo exterior más bajo; feliz: horizontal o exterior más alto
+        const eyebrowTilt = lerp(3, -2, moodT) * sign;
+        ctx.beginPath();
+        ctx.moveTo(ex - 4, eyeY - 6 + eyebrowTilt);
+        ctx.lineTo(ex + 4, eyeY - 6 - eyebrowTilt);
+        ctx.stroke();
+      });
+
+      // Boca — arco interpolado: triste (curva abajo) → neutra → sonrisa (curva arriba)
+      // Usamos quadraticCurveTo con control point que sube o baja según moodT
+      const mouthY = CY + 26;
+      const mouthW = 7;
+      // control point Y: triste = +6 (curva abajo), feliz = -6 (curva arriba)
+      const cpY = mouthY + lerp(6, -6, moodT);
+      ctx.strokeStyle = "#111"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
       ctx.beginPath();
-      if (state.mood === "sad") {
-        ctx.arc(CX, CY + 26, 6, 0, Math.PI); // triste (arco hacia abajo)
-      } else if (state.mood === "neutral") {
-        ctx.moveTo(CX - 6, CY + 24); ctx.lineTo(CX + 6, CY + 24);
-      } else {
-        ctx.arc(CX, CY + 20, 6, Math.PI, Math.PI * 2); // sonrisa
-      }
+      ctx.moveTo(CX - mouthW, mouthY);
+      ctx.quadraticCurveTo(CX, cpY, CX + mouthW, mouthY);
       ctx.stroke();
 
       // 7. Extremidades DELANTERAS (izquierda — delante del cuerpo)
