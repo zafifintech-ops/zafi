@@ -8698,7 +8698,23 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       ctx.fillStyle = headGlow;
       ctx.fillRect(0, 0, W, H);
 
-      // Arco en segmentos con gradiente
+      // ── Efectos de goma en el arco principal ──────────────────────
+      // tailSquish: la cola se adelgaza cuando una píldora acaba de salir
+      // headBounce: la cabeza "rebota" de grosor cuando una píldora se funde
+      let tailSquish  = 0; // 0 = sin efecto, 1 = máximo adelgazamiento
+      let headBounce  = 0; // 0 = sin efecto, 1 = máximo engrosamiento
+      st.pills.forEach((p) => {
+        if (p.t >= 0 && p.t < 0.22) tailSquish  = Math.max(tailSquish,  1 - p.t / 0.22);
+        if (p.t > 0.78 && p.t < 1)  headBounce  = Math.max(headBounce, (p.t - 0.78) / 0.22);
+      });
+
+      // Rebote elástico en la cabeza: overshoot → settle usando spring
+      // headBounce raw 0→1, convertimos a oscilación amortiguada
+      const headSpring = headBounce > 0
+        ? 1 + Math.sin(headBounce * Math.PI * 2.5) * 0.35 * (1 - headBounce)
+        : 1;
+
+      // Arco principal en segmentos — grosor varía por zona
       for (let i = 0; i < NUM_SEG; i++) {
         const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
         const a0 = arcTail + t0 * arcSpan, a1 = arcTail + t1 * arcSpan;
@@ -8710,21 +8726,32 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         grad.addColorStop(0, rgba(c0, 1));
         grad.addColorStop(1, rgba(c1, 1));
         ctx.strokeStyle = grad;
+
+        // Grosor variable por segmento:
+        // - Cola (t0 < 0.15): se adelgaza con tailSquish (goma jalada)
+        // - Cabeza (t0 > 0.85): rebota con headSpring (golpe absorbido)
+        // - Medio: grosor normal
+        const isTail  = t0 < 0.15;
+        const isHead  = t0 > 0.85;
+        const tailFactor = isTail  ? lerp(1, 0.22, tailSquish * (1 - t0 / 0.15)) : 1;
+        const headFactor = isHead  ? headSpring : 1;
+        const segLW = LW * tailFactor * headFactor;
+
         ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
-        ctx.lineWidth = LW;
+        ctx.lineWidth = Math.max(1, segLW);
         ctx.beginPath();
         ctx.arc(CX, CY, R, a0, a1 + 0.002);
         ctx.stroke();
       }
 
-      // Píldoras — despegue chicle + viaje suave + fusión expresiva
+      // ── Píldoras — goma de desprendimiento y rebote de fusión ─────
       const now = performance.now();
-      const PILL_SPAN_REST  = 0.10;  // ancho en vuelo normal
-      const PILL_SPAN_WIDE  = 0.30;  // ancho en despegue/fusión (efecto chicle)
-      const RADIUS_OUT      = 18;    // cuánto se aleja radialmente en el arco del vuelo
+      const PILL_SPAN_BASE  = 0.10;
+      const PILL_SPAN_WIDE  = 0.32;
+      const RADIUS_OUT      = 16;
       const T_SPEED         = 0.012;
-      const DETACH_END      = 0.22;  // 0→22% de vida: fase de despegue
-      const MERGE_START     = 0.78;  // 78→100% de vida: fase de fusión
+      const DETACH_END      = 0.20;
+      const MERGE_START     = 0.80;
 
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
       const groupInterval = 1400 + (st.currentPct / 100) * 3000;
@@ -8737,66 +8764,80 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       }
 
       const gapSize = Math.PI * 2 - arcSpan;
-
       const smoothstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+      // Overshoot elástico: sube rápido, rebota y se asienta
+      const elastic = (x) => {
+        x = Math.max(0, Math.min(1, x));
+        return 1 - Math.pow(2, -8 * x) * Math.cos(x * Math.PI * 3.5);
+      };
 
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
         if (p.t >= 1) return false;
-        if (p.t < 0)  return true; // en espera de stagger
+        if (p.t < 0)  return true;
 
-        // ── Fases ──────────────────────────────────────────────────
-        // detach: 0→1 durante DETACH_END (la píldora se estira al salir)
-        const detach = smoothstep(p.t / DETACH_END);
-        // merge:  0→1 durante la fase final (la píldora se ensancha al fundirse)
-        const merge  = p.t > MERGE_START
-          ? smoothstep((p.t - MERGE_START) / (1 - MERGE_START))
-          : 0;
+        // Fases
+        const detachRaw = p.t / DETACH_END;
+        const detach    = smoothstep(Math.min(1, detachRaw));
+        const mergeRaw  = p.t > MERGE_START ? (p.t - MERGE_START) / (1 - MERGE_START) : 0;
+        const merge     = smoothstep(Math.min(1, mergeRaw));
 
-        // ── Posición ───────────────────────────────────────────────
-        const pillAngle = arcTail - p.t * gapSize;
+        // ── Ancho ─────────────────────────────────────────────────
+        // Despegue: empieza muy ancha (goma que se jala), se adelgaza
+        // Vuelo: delgada
+        // Fusión: se ensancha con overshoot elástico (golpe absorbido)
+        let pillSpanCur;
+        if (detach < 1) {
+          // Se está jalando: ancha → delgada
+          pillSpanCur = lerp(PILL_SPAN_WIDE, PILL_SPAN_BASE, elastic(detachRaw));
+        } else if (merge > 0) {
+          // Se está integrando: delgada → ancha → rebota de vuelta
+          const mergeSpring = 1 + Math.sin(mergeRaw * Math.PI * 2.2) * 0.55 * (1 - merge);
+          pillSpanCur = PILL_SPAN_BASE + (PILL_SPAN_WIDE * 0.7 - PILL_SPAN_BASE) * merge * mergeSpring;
+        } else {
+          pillSpanCur = PILL_SPAN_BASE;
+        }
 
-        // Radio: sale pegada al arco, se aleja en parábola y regresa al fundirse
-        // La parábola sube SOLO una vez se ha despegado (detach) y antes de la fusión
+        // ── Grosor de línea ────────────────────────────────────────
+        // Despegue: adelgaza (goma jalada)
+        // Fusión: engorda con rebote elástico
+        let pillLW;
+        if (detach < 1) {
+          pillLW = lerp(LW * 0.3, LW, elastic(detachRaw));
+        } else if (merge > 0) {
+          const bounceSpring = 1 + Math.sin(mergeRaw * Math.PI * 2.5) * 0.45 * (1 - merge);
+          pillLW = LW * bounceSpring;
+        } else {
+          pillLW = LW;
+        }
+
+        // ── Radio ──────────────────────────────────────────────────
         const flyFactor = detach * (1 - merge);
         const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT * flyFactor;
 
-        // ── Forma (ancho del arco) ─────────────────────────────────
-        // Despegue: empieza ancha (chicle), se adelgaza al separarse
-        // Vuelo:    delgada y compacta
-        // Fusión:   se ensancha de nuevo al integrarse
-        const stretchFactor = Math.max(1 - detach, merge);
-        const pillSpanCur = PILL_SPAN_REST + (PILL_SPAN_WIDE - PILL_SPAN_REST) * stretchFactor;
-
-        // ── Color y opacidad ───────────────────────────────────────
-        // Arranca tenue (pegada al arco = misma opacidad que la cola)
-        // Se aclara al máximo cuando se suelta; regresa al color cabeza al fusionarse
-        const brightness = detach < 1 ? lerp(0.45, 1.0, detach) : lerp(1.0, 1.0, merge);
+        // ── Color ──────────────────────────────────────────────────
+        const brightness = lerp(0.40, 1.0, detach);
         const pillColor  = scaleC(color, brightness);
+        const alpha = detach < 1 ? lerp(0.25, 1.0, detach) : 1.0;
 
-        // Opacidad: aparece gradualmente al despegarse, se desvanece SOLO si no hay merge
-        const alpha = detach < 1
-          ? lerp(0.3, 1.0, detach)
-          : lerp(1.0, 0.0, merge > 0.85 ? (merge - 0.85) / 0.15 : 0);
-
-        // ── Glow propio de cada píldora ────────────────────────────
-        const midAngle = pillAngle + pillSpanCur / 2;
-        const gx = CX + Math.cos(midAngle) * rEff;
-        const gy = CY + Math.sin(midAngle) * rEff;
-        // Glow grande en despegue y fusión; pequeño en vuelo
-        const glowR = lerp(16, 36, stretchFactor);
+        // ── Glow ───────────────────────────────────────────────────
+        const midAngle = pillAngle => pillAngle + pillSpanCur / 2;
+        const pAngle   = arcTail - p.t * gapSize;
+        const gx = CX + Math.cos(midAngle(pAngle)) * rEff;
+        const gy = CY + Math.sin(midAngle(pAngle)) * rEff;
+        const glowR = merge > 0 ? lerp(18, 40, merge) : lerp(10, 22, detach);
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
-        pillGlow.addColorStop(0, rgba(pillColor, 0.55 * alpha));
+        pillGlow.addColorStop(0, rgba(pillColor, 0.6 * alpha));
         pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
-        // ── Trazo del arco ─────────────────────────────────────────
+        // ── Trazo ──────────────────────────────────────────────────
         ctx.strokeStyle = rgba(pillColor, alpha);
         ctx.lineCap = "round";
-        ctx.lineWidth = LW;
+        ctx.lineWidth = Math.max(1, pillLW);
         ctx.beginPath();
-        ctx.arc(CX, CY, rEff, pillAngle, pillAngle + pillSpanCur);
+        ctx.arc(CX, CY, rEff, pAngle, pAngle + pillSpanCur);
         ctx.stroke();
 
         return true;
