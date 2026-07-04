@@ -8698,69 +8698,18 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       ctx.fillStyle = headGlow;
       ctx.fillRect(0, 0, W, H);
 
-      // ── Arco principal con efecto goma ────────────────────────────
-      // tailBite:  cuánto "se comió" la cola al soltar una cápsula (0→1)
-      // headAbsorb: cuánto "creció" la cabeza al recibirla (0→1)
-      // Ambos se calculan desde las píldoras activas
-      let tailBite   = 0;
-      let headAbsorb = 0;
-      st.pills.forEach((p) => {
-        if (p.t >= 0 && p.t < 0.25) {
-          // Justo saliendo: la cola se encoge rápido y luego rebota de vuelta
-          const raw = p.t / 0.25;
-          tailBite = Math.max(tailBite, Math.sin(raw * Math.PI)); // arco seno: sube y baja
-        }
-        if (p.t > 0.78 && p.t < 1) {
-          // Justo llegando: la cabeza crece con rebote
-          const raw = (p.t - 0.78) / 0.22;
-          headAbsorb = Math.max(headAbsorb, Math.sin(raw * Math.PI));
-        }
-      });
+      // ── Arco principal + cápsulas ─────────────────────────────────
+      // La cápsula es una rebanada que se DESPRENDE de la cola y se INTEGRA
+      // a la cabeza. El arco no cambia de grosor — simplemente es más corto
+      // mientras la cápsula viaja (le falta ese trozo).
+      // Al integrarse, el arco crece de vuelta con un pequeño rebote elástico.
 
-      // Spring en la cabeza: sube, pasa de largo (overshoot) y se asienta
-      const headSpring = headAbsorb > 0
-        ? 1 + Math.sin(headAbsorb * Math.PI * 2.2) * 0.30 * (1 - headAbsorb)
-        : 1;
-
-      for (let i = 0; i < NUM_SEG; i++) {
-        const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
-        const a0 = arcTail + t0 * arcSpan, a1 = arcTail + t1 * arcSpan;
-        const b0 = 0.45 + t0 * 0.55, b1 = 0.45 + t1 * 0.55;
-        const c0 = scaleC(color, b0), c1 = scaleC(color, b1);
-        const x0 = CX + Math.cos(a0) * R, y0 = CY + Math.sin(a0) * R;
-        const x1 = CX + Math.cos(a1) * R, y1 = CY + Math.sin(a1) * R;
-        const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-        grad.addColorStop(0, rgba(c0, 1));
-        grad.addColorStop(1, rgba(c1, 1));
-        ctx.strokeStyle = grad;
-
-        // Cola (primeros 12% del arco): se adelgaza al morder
-        // Cabeza (últimos 12%): rebota de grosor al absorber
-        let segLW = LW;
-        if (t0 < 0.12) {
-          const zone = 1 - t0 / 0.12; // 1 en punta de cola, 0 a 12%
-          segLW = LW * (1 - tailBite * 0.75 * zone);
-        } else if (t0 > 0.88) {
-          const zone = (t0 - 0.88) / 0.12;
-          segLW = LW * (headSpring - 1) * zone + LW;
-        }
-
-        ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
-        ctx.lineWidth = Math.max(1.5, segLW);
-        ctx.beginPath();
-        ctx.arc(CX, CY, R, a0, a1 + 0.002);
-        ctx.stroke();
-      }
-
-      // ── Píldoras — rebanadas completas del arco ───────────────────
-      // La cápsula viaja con LW completo, igual de gruesa que el arco.
-      // Solo el arco principal se encoge/crece — la cápsula es el trozo cortado.
       const now = performance.now();
-      const PILL_SPAN   = 0.11;  // ancho fijo de la rebanada
-      const RADIUS_OUT  = 14;    // cuánto se aleja en el vuelo
+      const PILL_SPAN   = 0.11;
+      const RADIUS_OUT  = 16;
       const T_SPEED     = 0.012;
-      const DETACH_END  = 0.18;  // salida: viaja limpia a LW completo
-      const MERGE_START = 0.82;  // llegada: se integra con rebote en el arco
+      const DETACH_END  = 0.16; // tiempo que tarda en separarse limpiamente
+      const MERGE_START = 0.84;
 
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
       const groupInterval = 1400 + (st.currentPct / 100) * 3000;
@@ -8775,6 +8724,56 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       const gapSize = Math.PI * 2 - arcSpan;
       const smoothstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 
+      // Calcular cuánto acortar la cola y cuánto extender la cabeza
+      // basado en las cápsulas activas
+      let tailTrim  = 0; // ángulo a restar de la cola (el hueco que dejó la cápsula)
+      let headExtra = 0; // rebote elástico en la cabeza al recibir
+      let headBounceAmt = 0;
+
+      st.pills.forEach((p) => {
+        if (p.t < 0) return;
+        if (p.t < DETACH_END) {
+          // Recién salida: el hueco en la cola es proporcional a cuánto se alejó
+          const sep = smoothstep(p.t / DETACH_END);
+          tailTrim = Math.max(tailTrim, PILL_SPAN * sep);
+        }
+        if (p.t > MERGE_START) {
+          // Llegando: la cabeza crece con rebote
+          const raw = (p.t - MERGE_START) / (1 - MERGE_START);
+          headBounceAmt = Math.max(headBounceAmt, raw);
+        }
+      });
+
+      // Spring de cabeza: crece rápido y oscila antes de asentarse
+      const headSpring = headBounceAmt > 0
+        ? 1 + Math.sin(headBounceAmt * Math.PI * 2.8) * 0.28 * (1 - headBounceAmt)
+        : 1;
+      headExtra = (headSpring - 1) * PILL_SPAN;
+
+      // Arco ajustado: cola más corta (hueco), cabeza con rebote
+      const arcTailAdj = arcTail + tailTrim;   // cola retrocede → arco más corto
+      const arcSpanAdj = arcSpan - tailTrim + headExtra;
+
+      for (let i = 0; i < NUM_SEG; i++) {
+        const t0 = i / NUM_SEG, t1 = (i + 1) / NUM_SEG;
+        const a0 = arcTailAdj + t0 * arcSpanAdj;
+        const a1 = arcTailAdj + t1 * arcSpanAdj;
+        const b0 = 0.45 + t0 * 0.55, b1 = 0.45 + t1 * 0.55;
+        const c0 = scaleC(color, b0), c1 = scaleC(color, b1);
+        const x0 = CX + Math.cos(a0) * R, y0 = CY + Math.sin(a0) * R;
+        const x1 = CX + Math.cos(a1) * R, y1 = CY + Math.sin(a1) * R;
+        const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+        grad.addColorStop(0, rgba(c0, 1));
+        grad.addColorStop(1, rgba(c1, 1));
+        ctx.strokeStyle = grad;
+        ctx.lineCap = (i === 0 || i === NUM_SEG - 1) ? "round" : "butt";
+        ctx.lineWidth = LW;
+        ctx.beginPath();
+        ctx.arc(CX, CY, R, a0, a1 + 0.002);
+        ctx.stroke();
+      }
+
+      // ── Cápsulas — rebanadas viajando con grosor y forma completos ──
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
         if (p.t >= 1) return false;
@@ -8789,31 +8788,29 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         const flyFactor = detach * (1 - merge);
         const rEff      = R + Math.sin(p.t * Math.PI) * RADIUS_OUT * flyFactor;
 
-        // Grosor: LW completo durante todo el viaje
-        // Al integrarse, crece con overshoot y vuelve (rebote de llegada)
+        // Grosor: idéntico al arco en todo momento
+        // Solo al integrarse, un pequeño overshoot en grosor (golpe)
         let pillLW = LW;
         if (merge > 0) {
-          const bounce = 1 + Math.sin(merge * Math.PI * 2.0) * 0.35 * (1 - merge);
+          const bounce = 1 + Math.sin(merge * Math.PI * 1.8) * 0.22 * (1 - merge);
           pillLW = LW * bounce;
         }
 
-        // Color: sale desde la cola (tenue) y se aclara al instante
-        const brightness = lerp(0.45, 1.0, detach);
+        const brightness = lerp(0.50, 1.0, detach);
         const pillColor  = scaleC(color, brightness);
-        const alpha      = lerp(0.4, 1.0, detach);
+        const alpha      = lerp(0.5, 1.0, detach);
 
-        // Glow — pequeño en vuelo, se expande al aterrizar
+        // Glow se expande al aterrizar
         const midAngle = pAngle + PILL_SPAN / 2;
         const gx = CX + Math.cos(midAngle) * rEff;
         const gy = CY + Math.sin(midAngle) * rEff;
-        const glowR = merge > 0 ? lerp(14, 36, merge) : 14;
+        const glowR = merge > 0 ? lerp(14, 38, merge) : 12;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
-        pillGlow.addColorStop(0, rgba(pillColor, 0.55 * alpha));
+        pillGlow.addColorStop(0, rgba(pillColor, 0.5 * alpha));
         pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
-        // Trazo — rebanada completa, grosor LW todo el tiempo
         ctx.strokeStyle = rgba(pillColor, alpha);
         ctx.lineCap = "round";
         ctx.lineWidth = Math.max(2, pillLW);
