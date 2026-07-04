@@ -8684,16 +8684,16 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
       // Glow uniforme a lo largo de todo el arco — no solo en las puntas
       // Muestreamos N puntos del arco y pintamos un radialGradient pequeño en cada uno
       const GLOW_STEPS = 18;
-      const glowAlpha  = dark ? 0.10 : 0.07; // sutil, no exagerado
+      const glowAlpha  = dark ? 0.05 : 0.035;
       for (let g = 0; g < GLOW_STEPS; g++) {
         const gFrac = g / (GLOW_STEPS - 1);
         const gAngle = arcTail + gFrac * arcSpan;
         const gx = CX + Math.cos(gAngle) * R;
         const gy = CY + Math.sin(gAngle) * R;
-        const brightness = 0.45 + gFrac * 0.55; // igual que el gradiente del arco
+        const brightness = 0.45 + gFrac * 0.55;
         const gc = scaleC(color, brightness);
-        const gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, LW * 1.8);
-        gr.addColorStop(0, rgba(gc, glowAlpha * 1.8));
+        const gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, LW * 1.4);
+        gr.addColorStop(0, rgba(gc, glowAlpha * 2));
         gr.addColorStop(1, rgba(gc, 0));
         ctx.fillStyle = gr;
         ctx.fillRect(0, 0, W, H);
@@ -8803,40 +8803,39 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         }
 
         // ── Gradiente igual al arco ────────────────────────────────
-        // La cápsula nació en la cola del arco (t=0 del arco = 0.45 brightness)
-        // y viaja hacia la cabeza. Su posición en el gradiente del arco es
-        // proporcional a cuánto ha recorrido el hueco (p.t dentro del ciclo completo).
-        // Así el color de la cápsula siempre encaja con lo que habría en esa zona.
-        // La cápsula sale de la cola (oscura) y viaja hacia la cabeza (brillante).
-        // Su extremo trasero (pAngle) es el más oscuro, el frontal (pAngle+PILL_SPAN) el más claro.
-        // arcPos sigue la posición real en el gradiente del arco.
-        const arcPos  = 1 - p.t; // 0 = recién salida de cola (oscuro), 1 = cerca de cabeza (brillante)
-        const bTail   = 0.45 + Math.max(0, arcPos - 0.04) * 0.55; // extremo trasero: más oscuro
-        const bHead   = 0.45 + Math.min(1, arcPos + 0.04) * 0.55; // extremo frontal: más claro
-        const cTail   = scaleC(color, Math.min(1, bTail));  // color del extremo que viene de la cola
-        const cHead   = scaleC(color, Math.min(1, bHead));  // color del extremo que va a la cabeza
+        // La cápsula viaja por el hueco de arcTail→arcHead en sentido contrario al arco.
+        // pAngle = arcTail - p.t*gapSize: decrece con p.t, así que:
+        //   pAngle es el extremo FRONTAL (apunta hacia arcHead = brillante)
+        //   pAngle + PILL_SPAN es el extremo TRASERO (apunta hacia arcTail = oscuro)
+        // El gradiente del arco va de 0.45 (cola) a 1.0 (cabeza).
+        // arcPos = p.t: 0 = recién salida (junto a la cola = oscuro), 1 = llegando (junto a cabeza = brillante)
+        const arcPos  = p.t;
+        const bFront  = 0.45 + Math.min(1, arcPos + 0.06) * 0.55; // extremo frontal: más brillante
+        const bBack   = 0.45 + Math.max(0, arcPos - 0.06) * 0.55; // extremo trasero: más oscuro
+        const cFront  = scaleC(color, Math.min(1, bFront));
+        const cBack   = scaleC(color, Math.min(1, bBack));
 
         const alpha = lerp(0.5, 1.0, detach);
 
-        // Glow se expande al aterrizar
+        // Glow
         const midAngle = pAngle + PILL_SPAN / 2;
         const gx = CX + Math.cos(midAngle) * rEff;
         const gy = CY + Math.sin(midAngle) * rEff;
         const glowR = merge > 0 ? lerp(14, 38, merge) : 12;
         const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
-        pillGlow.addColorStop(0, rgba(cHead, 0.5 * alpha));
-        pillGlow.addColorStop(1, rgba(cHead, 0));
+        pillGlow.addColorStop(0, rgba(cFront, 0.4 * alpha));
+        pillGlow.addColorStop(1, rgba(cFront, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
 
-        // Gradiente lineal a lo largo del arco de la cápsula (cola→cabeza)
+        // Gradiente lineal: pAngle (frontal=brillante) → pAngle+PILL_SPAN (trasero=oscuro)
         const x0pill = CX + Math.cos(pAngle) * rEff;
         const y0pill = CY + Math.sin(pAngle) * rEff;
         const x1pill = CX + Math.cos(pAngle + PILL_SPAN) * rEff;
         const y1pill = CY + Math.sin(pAngle + PILL_SPAN) * rEff;
         const pillGrad = ctx.createLinearGradient(x0pill, y0pill, x1pill, y1pill);
-        pillGrad.addColorStop(0, rgba(cTail, alpha));
-        pillGrad.addColorStop(1, rgba(cHead, alpha));
+        pillGrad.addColorStop(0, rgba(cFront, alpha)); // frontal: brillante
+        pillGrad.addColorStop(1, rgba(cBack,  alpha)); // trasero: oscuro
 
         ctx.strokeStyle = pillGrad;
         ctx.lineCap = "round";
