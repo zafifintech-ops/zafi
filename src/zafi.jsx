@@ -8717,46 +8717,88 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
         ctx.stroke();
       }
 
-      // Píldoras
+      // Píldoras — despegue chicle + viaje suave + fusión expresiva
       const now = performance.now();
-      const pillSpan = 0.11;
+      const PILL_SPAN_REST  = 0.10;  // ancho en vuelo normal
+      const PILL_SPAN_WIDE  = 0.30;  // ancho en despegue/fusión (efecto chicle)
+      const RADIUS_OUT      = 18;    // cuánto se aleja radialmente en el arco del vuelo
+      const T_SPEED         = 0.012;
+      const DETACH_END      = 0.22;  // 0→22% de vida: fase de despegue
+      const MERGE_START     = 0.78;  // 78→100% de vida: fase de fusión
+
       const canSpawn = st.currentPct < 98 && !st.animatingIn;
       const groupInterval = 1400 + (st.currentPct / 100) * 3000;
       if (canSpawn && (now - st.lastPillTime) > groupInterval) {
-        const STAGGER_T = 0.32;
+        const STAGGER = 0.30;
         st.pills.push({ t: 0 });
-        st.pills.push({ t: -STAGGER_T });
-        st.pills.push({ t: -STAGGER_T * 2 });
+        st.pills.push({ t: -STAGGER });
+        st.pills.push({ t: -STAGGER * 2 });
         st.lastPillTime = now;
       }
+
       const gapSize = Math.PI * 2 - arcSpan;
-      const T_SPEED = 0.013;
-      const RADIUS_OUT = 14;
+
+      const smoothstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+
       st.pills = st.pills.filter((p) => {
         p.t += T_SPEED;
         if (p.t >= 1) return false;
-        if (p.t < 0) return true;
-        const smoothstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
-        const detach = smoothstep(p.t / 0.2);
-        const merge = smoothstep((p.t - 0.82) / 0.18);
+        if (p.t < 0)  return true; // en espera de stagger
+
+        // ── Fases ──────────────────────────────────────────────────
+        // detach: 0→1 durante DETACH_END (la píldora se estira al salir)
+        const detach = smoothstep(p.t / DETACH_END);
+        // merge:  0→1 durante la fase final (la píldora se ensancha al fundirse)
+        const merge  = p.t > MERGE_START
+          ? smoothstep((p.t - MERGE_START) / (1 - MERGE_START))
+          : 0;
+
+        // ── Posición ───────────────────────────────────────────────
         const pillAngle = arcTail - p.t * gapSize;
-        const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT * detach;
-        const stretch = Math.max(1 - detach, merge);
-        const pillSpanCur = pillSpan + (0.24 - pillSpan) * stretch;
-        const pillColor = scaleC(color, 0.45 + 0.55 * detach);
+
+        // Radio: sale pegada al arco, se aleja en parábola y regresa al fundirse
+        // La parábola sube SOLO una vez se ha despegado (detach) y antes de la fusión
+        const flyFactor = detach * (1 - merge);
+        const rEff = R + Math.sin(p.t * Math.PI) * RADIUS_OUT * flyFactor;
+
+        // ── Forma (ancho del arco) ─────────────────────────────────
+        // Despegue: empieza ancha (chicle), se adelgaza al separarse
+        // Vuelo:    delgada y compacta
+        // Fusión:   se ensancha de nuevo al integrarse
+        const stretchFactor = Math.max(1 - detach, merge);
+        const pillSpanCur = PILL_SPAN_REST + (PILL_SPAN_WIDE - PILL_SPAN_REST) * stretchFactor;
+
+        // ── Color y opacidad ───────────────────────────────────────
+        // Arranca tenue (pegada al arco = misma opacidad que la cola)
+        // Se aclara al máximo cuando se suelta; regresa al color cabeza al fusionarse
+        const brightness = detach < 1 ? lerp(0.45, 1.0, detach) : lerp(1.0, 1.0, merge);
+        const pillColor  = scaleC(color, brightness);
+
+        // Opacidad: aparece gradualmente al despegarse, se desvanece SOLO si no hay merge
+        const alpha = detach < 1
+          ? lerp(0.3, 1.0, detach)
+          : lerp(1.0, 0.0, merge > 0.85 ? (merge - 0.85) / 0.15 : 0);
+
+        // ── Glow propio de cada píldora ────────────────────────────
         const midAngle = pillAngle + pillSpanCur / 2;
-        const gx = CX + Math.cos(midAngle) * rEff, gy = CY + Math.sin(midAngle) * rEff;
-        const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, 24);
-        pillGlow.addColorStop(0, rgba(pillColor, 0.5));
+        const gx = CX + Math.cos(midAngle) * rEff;
+        const gy = CY + Math.sin(midAngle) * rEff;
+        // Glow grande en despegue y fusión; pequeño en vuelo
+        const glowR = lerp(16, 36, stretchFactor);
+        const pillGlow = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
+        pillGlow.addColorStop(0, rgba(pillColor, 0.55 * alpha));
         pillGlow.addColorStop(1, rgba(pillColor, 0));
         ctx.fillStyle = pillGlow;
         ctx.fillRect(0, 0, W, H);
-        ctx.strokeStyle = rgba(pillColor, 1);
+
+        // ── Trazo del arco ─────────────────────────────────────────
+        ctx.strokeStyle = rgba(pillColor, alpha);
         ctx.lineCap = "round";
         ctx.lineWidth = LW;
         ctx.beginPath();
         ctx.arc(CX, CY, rEff, pillAngle, pillAngle + pillSpanCur);
         ctx.stroke();
+
         return true;
       });
 
@@ -8784,315 +8826,6 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
   );
 }
 
-/* ── FlameScoreIndicator — llamita kawaii caminando ── */
-function FlameScoreIndicator({ targetScore, inView }) {
-  const canvasRef = useRef(null);
-  const stRef = useRef({
-    current: 0, walkPhase: 0,
-    blinkTimer: 0, blinking: false, blinkProg: 0,
-    particles: [], raf: null,
-  });
-
-  useEffect(() => { if (inView) stRef.current.current = 0; }, [inView, targetScore]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const W = 260, H = 320;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    canvas.style.width = W + "px"; canvas.style.height = H + "px";
-    ctx.scale(dpr, dpr);
-
-    const lerp = (a, b, t) => a + (b - a) * t;
-
-    const getState = (pct) => {
-      if (pct < 35) return {
-        flame1: [255, 80, 50], flame2: [210, 25, 20], flame3: [130, 10, 10],
-        walkSpeed: 0.18, mood: "sad", label: "Atención", spawnRate: 0.5,
-      };
-      if (pct < 65) return {
-        flame1: [255, 180, 60], flame2: [240, 110, 20], flame3: [180, 60, 10],
-        walkSpeed: 0.10, mood: "neutral", label: "Regular", spawnRate: 0.35,
-      };
-      if (pct < 90) return {
-        flame1: [255, 220, 90], flame2: [240, 160, 10], flame3: [200, 100, 0],
-        walkSpeed: 0.065, mood: "happy", label: "Muy bien", spawnRate: 0.22,
-      };
-      return {
-        flame1: [255, 240, 150], flame2: [255, 180, 20], flame3: [220, 120, 0],
-        walkSpeed: 0.05, mood: "excellent", label: "Perfecto", spawnRate: 0.15,
-      };
-    };
-
-    // Dibuja una capa de llama ondulada con forma de fuego
-    const drawFlameLayer = (cx, cy, radius, points, wobble, speed, f1, col, alpha, t) => {
-      const N = 64;
-      ctx.beginPath();
-      for (let i = 0; i <= N; i++) {
-        const angle = (i / N) * Math.PI * 2;
-        const wave = Math.sin(angle * points + t * speed) * wobble;
-        const upStretch = Math.max(0, -Math.sin(angle)) * 14;
-        const r = radius + wave + upStretch;
-        const x = cx + Math.cos(angle) * r;
-        const y = cy + Math.sin(angle) * r * 0.85;
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-      const grad = ctx.createRadialGradient(cx, cy - 8, 0, cx, cy, radius + wobble + 14);
-      grad.addColorStop(0,   `rgba(${f1[0]},${f1[1]},${f1[2]},${alpha})`);
-      grad.addColorStop(0.5, `rgba(${col[0]},${col[1]},${col[2]},${alpha * 0.7})`);
-      grad.addColorStop(1,   `rgba(${col[0]},${col[1]},${col[2]},0)`);
-      ctx.fillStyle = grad;
-      ctx.fill();
-    };
-
-    const draw = () => {
-      const st = stRef.current;
-      const T = targetScore || 0;
-      st.current = lerp(st.current, T, 0.05);
-      if (Math.abs(st.current - T) < 0.1) st.current = T;
-      const pct = st.current;
-      const state = getState(pct);
-      const { flame1: f1, flame2: f2, flame3: f3 } = state;
-
-      st.walkPhase += state.walkSpeed;
-
-      // Parpadeo
-      st.blinkTimer++;
-      if (!st.blinking && st.blinkTimer > 900 + Math.random() * 300) {
-        st.blinking = true; st.blinkProg = 0; st.blinkTimer = 0;
-      }
-      if (st.blinking) {
-        st.blinkProg += 0.2;
-        if (st.blinkProg >= 1) { st.blinking = false; st.blinkProg = 0; }
-      }
-      const blinkAmt = st.blinking ? Math.sin(st.blinkProg * Math.PI) : 0;
-
-      // Partículas
-      if (Math.random() < state.spawnRate) {
-        st.particles.push({
-          x: W / 2 + (Math.random() - 0.5) * 20,
-          y: H / 2 - 72,
-          vx: (Math.random() - 0.5) * 0.7,
-          vy: -(0.7 + Math.random() * 1.1),
-          life: 1,
-          size: 1.5 + Math.random() * 2.5,
-        });
-      }
-      st.particles = st.particles.filter(p => {
-        p.x += p.vx; p.y += p.vy; p.life -= 0.018;
-        return p.life > 0;
-      });
-
-      ctx.clearRect(0, 0, W, H);
-
-      const CX = W / 2;
-      const bob = Math.abs(Math.sin(st.walkPhase)) * 3;
-      const CY = H / 2 + 20 + bob;
-      const t = performance.now() / 1000;
-      const swing = Math.sin(st.walkPhase) * 8;
-
-      // 1. Score arriba
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.95)`;
-      ctx.font = "300 40px 'Montserrat', -apple-system, system-ui, sans-serif";
-      ctx.fillText(Math.round(pct), CX, 34);
-      ctx.fillStyle = `rgba(${f2[0]},${f2[1]},${f2[2]},0.60)`;
-      ctx.font = "400 12px 'Montserrat', -apple-system, system-ui, sans-serif";
-      ctx.fillText(state.label, CX, 58);
-
-      // 2. Ground glow
-      const gg = ctx.createRadialGradient(CX, CY + 65, 0, CX, CY + 65, 55);
-      gg.addColorStop(0, `rgba(${f2[0]},${f2[1]},${f2[2]},0.55)`);
-      gg.addColorStop(1, `rgba(${f2[0]},${f2[1]},${f2[2]},0)`);
-      ctx.fillStyle = gg;
-      ctx.beginPath();
-      ctx.ellipse(CX, CY + 65, 55, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 3. Aureola de fuego — 3 capas concéntricas
-      const layers = [
-        { r: 78, col: f3, alpha: 0.55, points: 9, wob: 8, speed: 1.0 },
-        { r: 66, col: f2, alpha: 0.80, points: 7, wob: 6, speed: 1.2 },
-        { r: 52, col: f1, alpha: 0.90, points: 6, wob: 4, speed: 1.5 },
-      ];
-      layers.forEach(l => drawFlameLayer(CX, CY - 10, l.r, l.points, l.wob, l.speed, f1, l.col, l.alpha, t));
-
-      // 4. Extremidades TRASERAS (derecha — detrás del cuerpo)
-      ctx.lineWidth = 4; ctx.lineCap = "round";
-      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
-      // Brazo derecho
-      ctx.beginPath();
-      ctx.moveTo(CX + 16, CY + 22);
-      ctx.bezierCurveTo(CX + 22, CY + 28, CX + 24, CY + 36, CX + 20 + swing, CY + 42);
-      ctx.stroke();
-      // Pierna derecha
-      ctx.beginPath();
-      ctx.moveTo(CX + 7, CY + 40);
-      ctx.lineTo(CX + 8 - swing, CY + 62);
-      ctx.stroke();
-
-      // 5. Cuerpo (gota/bombilla con Bézier)
-      ctx.beginPath();
-      ctx.moveTo(CX, CY - 46);
-      ctx.bezierCurveTo(CX + 34, CY - 41, CX + 40, CY + 14, CX + 24, CY + 34);
-      ctx.bezierCurveTo(CX + 12, CY + 46, CX - 12, CY + 46, CX - 24, CY + 34);
-      ctx.bezierCurveTo(CX - 40, CY + 14, CX - 34, CY - 41, CX, CY - 46);
-      ctx.closePath();
-      const bodyGrad = ctx.createRadialGradient(CX - 10, CY - 18, 3, CX + 6, CY + 20, 52);
-      bodyGrad.addColorStop(0, `rgb(255,220,140)`);
-      bodyGrad.addColorStop(1, `rgb(${f2[0]},${f2[1]},${f2[2]})`);
-      ctx.fillStyle = bodyGrad;
-      ctx.fill();
-
-      // 6. Cara — expresión progresiva + microanimaciones periódicas
-      const moodT = Math.max(0, Math.min(1, pct / 100));
-
-      // Ojos MÁS CERCA de la boca: eyeY sube, mouthY baja → cara compacta
-      const eyeY  = CY + 12;
-      const mouthY = CY + 20;
-      const eyeR  = 2.4;
-
-      // Cachetitos
-      ctx.fillStyle = "rgba(255,110,140,0.40)";
-      ctx.beginPath(); ctx.ellipse(CX - 18, eyeY + 6, 7, 4, -0.15, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(CX + 18, eyeY + 6, 7, 4,  0.15, 0, Math.PI * 2); ctx.fill();
-
-      // Ojos — negros sólidos, sin brillito, con parpadeo
-      [-9, 9].forEach((ox) => {
-        const ex = CX + ox;
-        const eyeScaleY = blinkAmt > 0 ? Math.max(0.05, 1 - blinkAmt) : 1;
-        ctx.save();
-        ctx.translate(ex, eyeY);
-        ctx.scale(1, eyeScaleY);
-        ctx.fillStyle = "#111";
-        ctx.beginPath(); ctx.arc(0, 0, eyeR, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      });
-
-      // Microanimación periódica de cejas y boca
-      // Ciclo de 5s: 0-3.5s expresión base, 3.5-4s transición in, 4-4.5s pose alterna, 4.5-5s transición out
-      const exprCycle = (t % 5.0) / 5.0;             // 0→1 cada 5s
-      const altPhase  = exprCycle > 0.70 && exprCycle < 0.90;  // ventana de pose alterna
-      const altBlend  = (() => {
-        if (exprCycle >= 0.70 && exprCycle < 0.78)  return (exprCycle - 0.70) / 0.08; // fade in
-        if (exprCycle >= 0.78 && exprCycle < 0.86)  return 1;                          // hold
-        if (exprCycle >= 0.86 && exprCycle < 0.94)  return 1 - (exprCycle - 0.86) / 0.08; // fade out
-        return 0;
-      })();
-
-      // Pose alterna varía según moodT:
-      // triste → cejas aún más caídas + boca más fruncida
-      // feliz  → cejas levantadas sorpresa + boca abierta (óvalo)
-      const altBrowExtra = moodT < 0.5 ? lerp(0, 3, altBlend) : lerp(0, -3, altBlend);
-      const altMouthOpen = moodT >= 0.5 ? altBlend : 0; // boca abierta solo en positivo
-
-      // Cejas — tilt base por moodT + micro-variación
-      ctx.strokeStyle = "#111"; ctx.lineWidth = 1.5; ctx.lineCap = "round";
-      [-9, 9].forEach((ox) => {
-        const ex = CX + ox;
-        const sign = ox < 0 ? 1 : -1;
-        const baseTilt   = lerp(3.5, -2, moodT) * sign;
-        const finalTilt  = baseTilt + altBrowExtra * sign;
-        ctx.beginPath();
-        ctx.moveTo(ex - 4, eyeY - 6 + finalTilt);
-        ctx.lineTo(ex + 4, eyeY - 6 - finalTilt);
-        ctx.stroke();
-      });
-
-      // Boca — curva base + micro-variación
-      const mouthW = 6.5;
-      const baseCpY  = mouthY + lerp(5.5, -5.5, moodT);   // base triste→feliz
-      const finalCpY = lerp(baseCpY, mouthY - 8, altMouthOpen * moodT); // abre más si feliz
-      ctx.strokeStyle = "#111"; ctx.lineWidth = 1.8; ctx.lineCap = "round";
-
-      if (altMouthOpen > 0.5 && moodT > 0.6) {
-        // Boca abierta — óvalo pequeño
-        const ow = lerp(mouthW, mouthW * 1.3, altMouthOpen);
-        const oh = lerp(0, 4, altMouthOpen);
-        ctx.fillStyle = "#111";
-        ctx.beginPath();
-        ctx.ellipse(CX, mouthY - 2, ow * 0.6, oh, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(CX - mouthW, mouthY);
-        ctx.quadraticCurveTo(CX, finalCpY, CX + mouthW, mouthY);
-        ctx.stroke();
-      }
-
-      // 7. Extremidades DELANTERAS (izquierda — delante del cuerpo)
-      ctx.lineWidth = 4; ctx.lineCap = "round";
-      ctx.strokeStyle = `rgb(${f2[0]},${f2[1]},${f2[2]})`;
-      // Brazo izquierdo
-      ctx.beginPath();
-      ctx.moveTo(CX - 16, CY + 22);
-      ctx.bezierCurveTo(CX - 22, CY + 28, CX - 24, CY + 36, CX - 20 - swing, CY + 42);
-      ctx.stroke();
-      // Pierna izquierda
-      ctx.beginPath();
-      ctx.moveTo(CX - 7, CY + 40);
-      ctx.lineTo(CX - 8 + swing, CY + 62);
-      ctx.stroke();
-
-      // 8. Corona + sparkles si score ≥ 90
-      if (pct >= 90) {
-        const crownA = Math.min(1, (pct - 90) / 10);
-        // 5 llamitas pequeñas encima
-        for (let i = 0; i < 5; i++) {
-          const ca = -Math.PI / 2 + (i - 2) * 0.40;
-          const cx2 = CX + Math.cos(ca) * 24;
-          const cy2 = CY - 56 + Math.sin(ca) * 8 + Math.sin(t * 3 + i) * 3;
-          ctx.save();
-          ctx.globalAlpha = crownA;
-          const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, 10);
-          fg.addColorStop(0, `rgb(255,240,100)`);
-          fg.addColorStop(0.6, `rgb(255,180,20)`);
-          fg.addColorStop(1, `rgba(220,120,0,0)`);
-          ctx.fillStyle = fg;
-          ctx.beginPath(); ctx.arc(cx2, cy2, 10, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-        // 6 sparkles orbitando
-        for (let i = 0; i < 6; i++) {
-          const sa = t * 1.3 + (i / 6) * Math.PI * 2;
-          const sx = CX + Math.cos(sa) * 58;
-          const sy = CY - 10 + Math.sin(sa) * 38;
-          ctx.save();
-          ctx.globalAlpha = crownA * (0.55 + Math.sin(t * 4 + i) * 0.45);
-          ctx.fillStyle = `rgb(255,230,80)`;
-          ctx.beginPath(); ctx.arc(sx, sy, 2.8, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-      }
-
-      // 9. Partículas de fuego subiendo
-      st.particles.forEach(p => {
-        ctx.save();
-        ctx.globalAlpha = p.life * 0.8;
-        const pg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-        pg.addColorStop(0, `rgb(${f1[0]},${f1[1]},${f1[2]})`);
-        pg.addColorStop(1, `rgba(${f2[0]},${f2[1]},${f2[2]},0)`);
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      });
-
-      st.raf = requestAnimationFrame(draw);
-    };
-
-    stRef.current.raf = requestAnimationFrame(draw);
-    return () => { if (stRef.current.raf) cancelAnimationFrame(stRef.current.raf); };
-  }, [targetScore]);
-
-  return (
-    <canvas ref={canvasRef}
-      style={{ display: "block", width: 260, height: 320 }}
-      role="img" aria-label="Indicador de calificación financiera llamita" />
-  );
-}
 
 
 function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
@@ -9100,16 +8833,6 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
-
-  // Estilo del indicador: "donut" o "flame" — persiste en localStorage
-  const [scoreStyle, setScoreStyle] = useState(() => {
-    try { return localStorage.getItem("zafi_score_style") || "donut"; } catch { return "donut"; }
-  });
-  const toggleScoreStyle = () => {
-    const next = scoreStyle === "donut" ? "flame" : "donut";
-    setScoreStyle(next);
-    try { localStorage.setItem("zafi_score_style", next); } catch {}
-  };
 
   // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
   const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
@@ -9259,29 +8982,14 @@ Responde SOLO con JSON: {"score": ${localScore}, "status": "${localStatus}", "an
 
   return (
     <div ref={cardRef} className="cc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
-      {/* Header con label y toggle */}
-      <div style={{
-        padding: "16px 20px 6px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-      }}>
+      {/* Header */}
+      <div style={{ padding: "16px 20px 6px", display: "flex", alignItems: "center", gap: 8 }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
-        {/* Toggle donut ↔ llamita */}
-        <button onClick={toggleScoreStyle} style={{
-          background: "none", border: "none", cursor: "pointer",
-          fontSize: 18, lineHeight: 1, padding: "2px 4px", borderRadius: 8,
-          opacity: 0.7, transition: "opacity .2s",
-        }} title={scoreStyle === "donut" ? "Ver llamita" : "Ver donut"}>
-          {scoreStyle === "donut" ? "🔥" : "⭕"}
-        </button>
       </div>
 
       {/* Indicador */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: scoreStyle === "flame" ? "0 20px 0" : "8px 20px 4px" }}>
-        {scoreStyle === "donut" ? (
-          <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
-        ) : (
-          <FlameScoreIndicator targetScore={data.score} inView={inView} />
-        )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
+        <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
       </div>
 
       {/* Análisis rotativo */}
