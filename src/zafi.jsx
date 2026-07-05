@@ -4766,7 +4766,7 @@ function AuthScreen() {
         pointerEvents: "none" }}>
         <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400,
           fontSize: 52, letterSpacing: "-.05em", color: "#1A1815",
-          fontFeatureSettings: '"ss01"', lineHeight: 1, opacity: .85 }}>zafi</span>
+          lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
 
       {/* Card flotante centrada */}
@@ -8874,9 +8874,11 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
 /* ── ScorePillIndicator — pill con gradiente y glow ── */
 function ScorePillIndicator({ targetScore, dark }) {
-  const [displayed, setDisplayed] = useState(0);
+  // Arranca directamente en el targetScore para evitar el flash de texto blanco
+  const [displayed, setDisplayed] = useState(targetScore);
 
   useEffect(() => {
+    // Si el score cambió (no es la primera vez), animamos desde el valor actual
     let frame;
     const animate = () => {
       setDisplayed(prev => {
@@ -8918,21 +8920,27 @@ function ScorePillIndicator({ targetScore, dark }) {
   const s = getState(pct);
   const fillPct = (displayed / 100) * 100;
 
-  // Color del texto según posición sobre fill o fondo
+  // Color del texto según si el fill ya cubre esa zona
+  // El número está a ~20px del borde izq — fill lo cubre cuando pct > ~14
+  // El texto derecho está a ~20px del borde der — fill lo cubre cuando pct > ~84
   const numOnFill   = fillPct > 14;
   const rightOnFill = fillPct > 84;
-  const numCol      = numOnFill   ? "#fff" : (dark ? "rgba(255,255,255,0.85)" : "#1a1a1a");
-  const rightCol    = rightOnFill ? "rgba(255,255,255,0.92)" : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)");
+  const numCol   = numOnFill   ? "#fff" : (dark ? "rgba(255,255,255,0.85)" : "#1a1a1a");
+  const rightCol = rightOnFill ? "rgba(255,255,255,0.92)" : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)");
 
   return (
-    <div style={{ position: "relative", height: 64, borderRadius: 32,
-      filter: `drop-shadow(0 4px 14px ${s.glowCol}) drop-shadow(0 0 4px ${s.glowCol})`,
-      transition: "filter .7s ease",
-    }}>
+    <div style={{ position: "relative", height: 64, borderRadius: 32 }}>
+      {/* Glow — usando boxShadow en lugar de drop-shadow para evitar el borde cuadrado */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 32,
+        boxShadow: `0 4px 18px ${s.glowCol}, 0 0 6px ${s.glowCol}`,
+        transition: "box-shadow .7s ease",
+        pointerEvents: "none", zIndex: 0,
+      }} />
       {/* Track */}
       <div style={{ position: "absolute", inset: 0, borderRadius: 32,
         background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.055)",
-        overflow: "hidden",
+        overflow: "hidden", zIndex: 1,
       }}>
         {/* Fill */}
         <div style={{
@@ -13007,6 +13015,18 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
             disabled={busy}
             onChange={(e) => setInput(e.target.value)}
             onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+            onKeyDown={(e) => {
+              // Desktop: Enter envía, Shift+Enter hace salto de línea
+              // Móvil (Capacitor): nunca auto-enviar — el usuario usa el botón
+              if (e.key === "Enter" && !e.shiftKey && !Capacitor.isNativePlatform()) {
+                e.preventDefault();
+                if (!busy && (input.trim() || attachedImgs.length)) {
+                  if (listening) stopVoice(false);
+                  setTimeout(() => send(), 100);
+                }
+              }
+            }}
+            enterKeyHint={Capacitor.isNativePlatform() ? "send" : "enter"}
             rows={1}
             style={{ resize: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.4 }}
           />
