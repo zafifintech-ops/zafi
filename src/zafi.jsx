@@ -8947,7 +8947,6 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
 
-  // Estilo del indicador — persiste en localStorage
   const [scoreStyle, setScoreStyle] = useState(() => {
     try { return localStorage.getItem("zafi_score_style") || "donut"; } catch { return "donut"; }
   });
@@ -8956,16 +8955,19 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     try { localStorage.setItem("zafi_score_style", s); } catch {}
   };
 
-  // Filtros: cuentas ocultas (cuando ves "Todas") y categorías ocultas (cuando ves una cuenta específica)
-  const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
-  const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", accView) || [];
-  const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+  // El score SIEMPRE se calcula sobre "todas las cuentas" — es una calificación
+  // global de tus finanzas, no de una cuenta específica.
+  const scoreAccView = "all";
+
+  // Filtros globales — siempre sobre "todas las cuentas"
+  const accHidden = getPersonalize(config, "globalAccountsHidden", scoreAccView) || [];
+  const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", scoreAccView) || [];
+  const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", scoreAccView) || [];
 
   const baseData = (() => {
-    let filtered = txsInRange(txs, dateRange).filter(t =>
-      accView === "all" ? true : t.accountId === accView
-    );
-    if (accView === "all" && accHidden.length > 0) {
+    let filtered = txsInRange(txs, dateRange);
+    // Siempre "all" — quitamos solo cuentas ocultas en la vista global
+    if (accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
     }
     filtered = filtered.filter((t) => {
@@ -9035,7 +9037,7 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   })();
 
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
-  const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
+  const dataKey = `${scoreAccView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
   // ── Calificación financiera: 4 métricas ponderadas ──────────────────────
   const _score = (() => {
