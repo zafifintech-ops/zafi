@@ -402,8 +402,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
 .cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
-  border:2px solid rgba(255,255,255,.55);
-  box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.25);
+  border:1px solid rgba(255,255,255,.3);
+  box-shadow:inset -6px -8px 16px rgba(40,30,90,.15), inset 6px 6px 14px rgba(255,255,255,.12);
   animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
   background:radial-gradient(circle, rgba(30,111,224,.55) 0%, rgba(91,155,255,.25) 45%, rgba(30,111,224,0) 70%);
@@ -5122,15 +5122,15 @@ function OrbCanvas({ size = 78, dark = false }) {
     };
 
     // Cuadrícula de partículas
-    const GRID = 28;
+    const GRID = 34;
     const parts = [];
     for (let i = 0; i < GRID; i++)
       for (let j = 0; j < GRID; j++)
         parts.push({ gx: (i / (GRID - 1)) - 0.5, gy: (j / (GRID - 1)) - 0.5 });
 
     let t = 0;
+    const rx = 0.35; // inclinación leve — vista casi de frente
 
-    // Máscara circular para que la onda quede dentro del círculo del orb
     const drawFrame = () => {
       ctx.clearRect(0, 0, size * DPR, size * DPR);
       ctx.save();
@@ -5139,37 +5139,39 @@ function OrbCanvas({ size = 78, dark = false }) {
       ctx.arc(CX, CY, size * DPR / 2 - DPR, 0, Math.PI * 2);
       ctx.clip();
 
-      // Fondo del orb
-      const bg = ctx.createRadialGradient(CX, CY, 0, CX, CY, size * DPR / 2);
-      bg.addColorStop(0, "rgba(20,40,90,0.9)");
-      bg.addColorStop(1, "rgba(10,20,50,0.95)");
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, size * DPR, size * DPR);
+      // Fondo transparente — sin relleno
 
-      const span = size * DPR * 0.78;
+      const span = size * DPR * 0.92;
       const proj = [];
+      let sumY = 0, count = 0;
       for (const pt of parts) {
         const dist = Math.sqrt(pt.gx * pt.gx + pt.gy * pt.gy);
-        const wave = Math.sin(dist * 10 - t * 2) * 0.14 * (1 - dist);
+        // Ondas concéntricas expandiéndose desde el centro
+        const wave = Math.sin(dist * 14 - t * 2.5) * 0.10;
+        // Desvanecimiento hacia los bordes (olas del mar)
+        const fade = Math.max(0, 1 - dist * 1.6);
         let x = pt.gx * span;
         let y = pt.gy * span;
-        let z = wave * span;
-        // Inclinación en perspectiva
-        const rx = 1.0;
+        let z = wave * span * 0.6;
         const y2 = y * Math.cos(rx) - z * Math.sin(rx);
         const z2 = y * Math.sin(rx) + z * Math.cos(rx);
         y = y2; z = z2;
-        proj.push({ x, y, z, mix: 0.5 + wave * 3 });
+        if (fade > 0.02) { sumY += y; count++; }
+        proj.push({ x, y, z, dist, wave, fade });
       }
+      // Compensar para centrar la onda en el círculo
+      const offsetY = count > 0 ? sumY / count : 0;
+
       proj.sort((a, b) => a.z - b.z);
       for (const pt of proj) {
-        const d = Math.max(0, Math.min(1, (pt.z + span * 0.5) / span));
-        const color = colorAt(pt.mix);
+        if (pt.fade <= 0.02) continue;
+        const d = Math.max(0, Math.min(1, (pt.z + span * 0.3) / (span * 0.6)));
+        const color = colorAt(0.5 + pt.wave * 4);
         const px = CX + pt.x;
-        const py = CY + pt.y * 0.7;
-        const psize = (0.5 + d * 1.3) * DPR;
-        const alpha = 0.2 + d * 0.8;
-        if (d > 0.6) {
+        const py = CY + pt.y - offsetY;
+        const psize = (0.4 + d * 1.3) * DPR;
+        const alpha = (0.25 + d * 0.75) * pt.fade;
+        if (d > 0.65 && pt.fade > 0.4) {
           ctx.beginPath();
           ctx.arc(px, py, psize * 2.5, 0, Math.PI * 2);
           const g = ctx.createRadialGradient(px, py, 0, px, py, psize * 2.5);
@@ -5185,7 +5187,7 @@ function OrbCanvas({ size = 78, dark = false }) {
       }
       ctx.restore();
 
-      t += 0.012;
+      t += 0.014;
       rafRef.current = requestAnimationFrame(drawFrame);
     };
 
