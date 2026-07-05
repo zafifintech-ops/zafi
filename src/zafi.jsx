@@ -91,9 +91,9 @@ body{
   --coral-2:#CC5548;
   --coral-soft:rgba(181,69,58,.08);
   --coral-glow:rgba(181,69,58,.12);
-  --gold:#8C7FAE;
-  --gold-soft:rgba(140,127,174,.10);
-  --gold-glow:rgba(140,127,174,.18);
+  --gold:#1E6FE0;
+  --gold-soft:rgba(30,111,224,.10);
+  --gold-glow:rgba(30,111,224,.18);
 
   /* Acentos del orb IA — iridiscente */
   --orb-purple:#A78BFA;
@@ -140,9 +140,9 @@ body{
   --coral-2:#FCA5A5;
   --coral-soft:rgba(248,113,113,.1);
   --coral-glow:rgba(248,113,113,.15);
-  --gold:#B4A0D6;
-  --gold-soft:rgba(180,160,214,.1);
-  --gold-glow:rgba(180,160,214,.18);
+  --gold:#5B9BFF;
+  --gold-soft:rgba(91,155,255,.1);
+  --gold-glow:rgba(91,155,255,.18);
   --orb-purple:#B49BFF;
   --orb-blue:#78B8FF;
   --orb-mint:#6EF5DE;
@@ -522,9 +522,9 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   position:relative;overflow:hidden;
   transition:all .2s ease;}
 .cc-acc-card:hover{background:rgba(255,255,255,.7);}
-.cc-acc-card.on{border-color:rgba(140,127,174,.35);
-  background:rgba(140,127,174,.08);
-  box-shadow:0 0 0 1px rgba(140,127,174,.2);}
+.cc-acc-card.on{border-color:rgba(30,111,224,.35);
+  background:rgba(30,111,224,.08);
+  box-shadow:0 0 0 1px rgba(30,111,224,.2);}
 .cc-acc-card.on .cc-acc-label{color:var(--gold);}
 .cc-acc-card.on .cc-acc-icon{background:var(--gold-soft);}
 .cc-acc-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
@@ -10380,9 +10380,9 @@ function useDragSort(items, onApply) {
     boxShadow: dragIdx === i
       ? "0 12px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.10)"
       : overIdx === i
-        ? "0 0 0 2px var(--gold), 0 4px 14px rgba(140,127,174,.18)"
+        ? "0 0 0 2px var(--gold), 0 4px 14px rgba(30,111,224,.18)"
         : undefined,
-    borderColor: overIdx === i ? "var(--gold)" : dragIdx === i ? "rgba(140,127,174,.5)" : undefined,
+    borderColor: overIdx === i ? "var(--gold)" : dragIdx === i ? "rgba(30,111,224,.5)" : undefined,
     background: overIdx === i ? "var(--gold-soft)" : dragIdx === i ? "var(--surface-2)" : undefined,
     opacity: dragIdx !== null && dragIdx !== i && overIdx !== i ? 0.5 : 1,
     zIndex: dragIdx === i ? 10 : undefined,
