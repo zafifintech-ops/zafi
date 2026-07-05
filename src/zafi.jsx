@@ -7220,7 +7220,7 @@ function notifPrefsSummary(config) {
     prefs.scoreChange !== false,
     prefs.tips !== false,
   ].filter(Boolean).length;
-  return `${activeCount} de 5 activas`;
+  return null;
 }
 
 function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, showToast, resetAll }) {
@@ -7232,6 +7232,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
   const [age, setAge] = useState(config.userAge ? String(config.userAge) : "");
+  const [country, setCountry] = useState(config.userCountry || "");
   const [lang, setLang] = useState(config.language || "es");
   const [currency, setCurrency] = useState(config.currency || "MXN");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -7245,7 +7246,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const avatarSrc = getAvatarSrc(config);
 
   const savePersonal = () => {
-    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim(), userAge: Number(age) || null });
+    saveConfig({ ...config, userName: userName.trim(), phone: phone.trim(), userAge: Number(age) || null, userCountry: country.trim() });
     showToast(t("infoUpdated"));
     setSaved(true);
   };
@@ -7401,7 +7402,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
               {ROW(IconBell, t("notifications"), notifPrefsSummary(config), () => setSection("notifications"))}
               {ROW(() => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,
-                "Registro automático", "Apple Pay + Atajos", () => setSection("autotrack"))}
+                "Registro automático", null, () => setSection("autotrack"))}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
@@ -7456,6 +7457,10 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               <div>
                 <label className="cc-label">{t("phone")}</label>
                 <input className="cc-input" value={phone} onChange={(e) => { setPhone(e.target.value); markDirty(); }} placeholder="+52 664 123 4567" type="tel" />
+              </div>
+              <div>
+                <label className="cc-label">País</label>
+                <input className="cc-input" value={country} onChange={(e) => { setCountry(e.target.value); markDirty(); }} placeholder="México" />
               </div>
               <div>
                 <label className="cc-label">{t("email")}</label>
