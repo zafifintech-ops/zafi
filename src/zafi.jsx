@@ -678,6 +678,7 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-auth-form{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;}
 .cc-auth-form.back{animation:ccAuthSwitchBack .4s cubic-bezier(.2,.8,.3,1) both;}
 .cc-auth-title{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;display:inline-block;}
+.cc-onboard-step{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:12px auto 16px;cursor:grab;flex-shrink:0;}
@@ -5128,7 +5129,7 @@ function OrbCanvas({ size = 78, dark = false }) {
     };
 
     // Cuadrícula de partículas
-    const GRID = 34;
+    const GRID = 26;
     const parts = [];
     for (let i = 0; i < GRID; i++)
       for (let j = 0; j < GRID; j++)
@@ -5136,8 +5137,14 @@ function OrbCanvas({ size = 78, dark = false }) {
 
     let t = 0;
     const rx = 0.35; // inclinación leve — vista casi de frente
+    let lastTime = 0;
+    const FRAME_MS = 1000 / 30; // limitar a 30fps para ahorrar batería/CPU
 
-    const drawFrame = () => {
+    const drawFrame = (now) => {
+      rafRef.current = requestAnimationFrame(drawFrame);
+      if (now - lastTime < FRAME_MS) return;
+      lastTime = now;
+
       ctx.clearRect(0, 0, size * DPR, size * DPR);
       // Sin clip — las partículas se desvanecen naturalmente hacia los bordes
 
@@ -5186,8 +5193,7 @@ function OrbCanvas({ size = 78, dark = false }) {
         ctx.fill();
       }
 
-      t += 0.009;
-      rafRef.current = requestAnimationFrame(drawFrame);
+      t += 0.018;
     };
 
     rafRef.current = requestAnimationFrame(drawFrame);
@@ -5842,6 +5848,7 @@ function ManualOnboarding({ onDone }) {
             <div style={{ flex:1, height:3, borderRadius:99, background: step >= 2 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
           </div>
 
+          <div key={step} className="cc-onboard-step" style={{ display:"flex", flexDirection:"column", flex:1, minHeight:0 }}>
           <div style={{ fontSize:22, fontWeight:700, color:inkColor, letterSpacing:"-.02em", lineHeight:1.2, marginBottom:6 }}>
             {step === 0 ? "Tu primera cuenta" : step === 1 ? "Fuentes de ingreso" : "Categorías de gasto"}
           </div>
@@ -5934,6 +5941,7 @@ function ManualOnboarding({ onDone }) {
             </button>
           </div>
           )}
+          </div>
 
           {/* Botones */}
           <div style={{ display:"flex", gap:10, paddingTop:8, borderTop:`1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"}` }}>
