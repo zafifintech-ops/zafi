@@ -396,12 +396,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 /* Orb central de IA — protruye arriba y abajo de la barra, centrado */
 .cc-orb-slot{flex:0 0 78px;display:flex;align-items:center;justify-content:center;position:relative;height:100%;}
 .cc-orb-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:78px;height:78px;border-radius:50%;border:none;cursor:pointer;
+  width:92px;height:92px;border-radius:50%;border:none;cursor:pointer;
   background:transparent;
   display:flex;align-items:center;justify-content:center;
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
-.cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
+.cc-orb{width:92px;height:92px;border-radius:50%;position:relative;
   animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:2px;border-radius:50%;z-index:-1;
   background:radial-gradient(circle, rgba(30,111,224,.18) 0%, rgba(91,155,255,.08) 45%, rgba(30,111,224,0) 70%);
@@ -6913,7 +6913,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
             onMouseDown={onOrbDown} onMouseUp={onOrbUp} onMouseLeave={onOrbUp}
             onTouchStart={onOrbDown} onTouchEnd={onOrbUp}
             aria-label="Asistente Zafi (mantén presionado para hablar)">
-            <OrbCanvas size={78} />
+            <OrbCanvas size={92} />
           </button>
         </div>
 
