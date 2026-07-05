@@ -8966,7 +8966,9 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
 
   const baseData = (() => {
     // statTxs excluye los pass-through reales (con flag passThrough) que se cancelan
-    let filtered = statTxs(txsInRange(txs, dateRange)).all;
+    // También excluimos el saldo inicial (id __initial_*) que no es ingreso del período
+    let filtered = statTxs(txsInRange(txs, dateRange)).all
+      .filter(t => !(t.synthetic && String(t.id).startsWith("__initial_")));
     // Filtro por cuenta según la vista
     if (scoreAccView !== "all") {
       filtered = filtered.filter(t => t.accountId === scoreAccView);
@@ -14345,12 +14347,19 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const expByCat = {};
   const incByCat = {};
   let uncategorizedExp = 0, uncategorizedInc = 0;
+  let initialBalanceExp = 0, initialBalanceInc = 0;
   rangeStat.forEach((t) => {
-    // Las transacciones synthetic (netos de pass-through generados por statTxs)
-    // no tienen categoría real y no existen en la lista de movimientos —
-    // no deben contarse como "Sin categoría" o generan datos fantasma.
-    if (t.synthetic) return;
+    // Los pass-through sintéticos (netos generados por statTxs) no cuentan.
+    // El saldo inicial (id __initial_*) sí es un synthetic pero SÍ queremos
+    // mostrarlo con su propia etiqueta "Saldo inicial".
+    const isInitialBalance = t.synthetic && String(t.id).startsWith("__initial_");
+    if (t.synthetic && !isInitialBalance) return;
     const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+    if (isInitialBalance) {
+      if (t.type === "expense") initialBalanceExp += t.amount;
+      else initialBalanceInc += t.amount;
+      return;
+    }
     if (t.type === "expense") {
       if (cat && cat.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
       else uncategorizedExp += t.amount;
@@ -14359,18 +14368,23 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
       else uncategorizedInc += t.amount;
     }
   });
+  const INITIAL_ID = "__initial_balance__";
   const catOfGlobal = (id) => id === UNCAT_ID
     ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", type: null }
+    : id === INITIAL_ID
+    ? { id: INITIAL_ID, name: "Saldo inicial", emoji: "🏦", type: null }
     : config.categories.find((c) => c.id === id);
   const expRows = Object.entries(expByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
     .filter((x) => x.cat && x.cat.type === "expense")
     .concat(uncategorizedExp > 0 ? [{ cat: { ...catOfGlobal(UNCAT_ID), type: "expense" }, amt: uncategorizedExp }] : [])
+    .concat(initialBalanceExp > 0 ? [{ cat: { ...catOfGlobal(INITIAL_ID), type: "expense" }, amt: initialBalanceExp }] : [])
     .sort((a, b) => b.amt - a.amt);
   const incRows = Object.entries(incByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
     .filter((x) => x.cat && x.cat.type === "income")
     .concat(uncategorizedInc > 0 ? [{ cat: { ...catOfGlobal(UNCAT_ID), type: "income" }, amt: uncategorizedInc }] : [])
+    .concat(initialBalanceInc > 0 ? [{ cat: { ...catOfGlobal(INITIAL_ID), type: "income" }, amt: initialBalanceInc }] : [])
     .sort((a, b) => b.amt - a.amt);
 
   // pie de gastos (siempre del rango)
