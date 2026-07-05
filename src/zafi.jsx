@@ -9037,83 +9037,94 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
   const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
-  // ── Calificación financiera: 5 métricas ponderadas ──────────────────────
+  // ── Calificación financiera: 4 métricas ponderadas ──────────────────────
   const _score = (() => {
-    const { totalIn, totalOut, txCount, expCount, incCount,
-            topExpCats, uncatPct, spanDays } = baseData;
+    const { totalIn, totalOut, txCount, incCount, topExpCats, spanDays } = baseData;
 
     if (txCount === 0) return 0;
 
-    // 1. RATIO AHORRO (50pts) — criterio principal y dominante
-    //    Si gastas más de lo que ganas, el score no puede ser alto sin importar lo demás
-    let savingsScore = 0;
+    // 1. FLUJO NETO (45pts) — el corazón de la calificación
+    //    Cualquier flujo negativo castiga severamente.
+    //    0pts en cuanto gastas más de lo que ganas.
+    //    El castigo es progresivo: no necesitas -$100k para llegar a 0,
+    //    con -$5k ya pierdes casi todos los puntos de esta métrica.
+    let flowScore = 0;
     if (totalIn > 0) {
-      const spendPct = totalOut / totalIn;
-      if (spendPct <= 0.50)       savingsScore = 50;                                          // ahorra >50%
-      else if (spendPct <= 0.70)  savingsScore = 50 - ((spendPct - 0.50) / 0.20) * 8;        // 50→42
-      else if (spendPct <= 0.85)  savingsScore = 42 - ((spendPct - 0.70) / 0.15) * 10;       // 42→32
-      else if (spendPct <= 1.00)  savingsScore = 32 - ((spendPct - 0.85) / 0.15) * 14;       // 32→18
-      else if (spendPct <= 1.20)  savingsScore = 18 - ((spendPct - 1.00) / 0.20) * 12;       // 18→6  (flujo negativo)
-      else if (spendPct <= 1.50)  savingsScore = 6  - ((spendPct - 1.20) / 0.30) * 5;        // 6→1
-      else                         savingsScore = 0;                                           // gasta 150%+ → 0
-    } else if (totalOut === 0) {
-      savingsScore = 20; // sin transacciones suficientes
+      const flujo = totalIn - totalOut;
+      if (flujo >= 0) {
+        // Flujo positivo: escala de 0 a 45 según % ahorrado
+        const savePct = flujo / totalIn; // 0 = break-even, 1 = ahorras todo
+        if (savePct >= 0.30)      flowScore = 45;
+        else if (savePct >= 0.15) flowScore = 30 + ((savePct - 0.15) / 0.15) * 15;
+        else if (savePct >= 0.05) flowScore = 18 + ((savePct - 0.05) / 0.10) * 12;
+        else                       flowScore = savePct / 0.05 * 18; // 0→18 en break-even casi exacto
+      } else {
+        // Flujo negativo: castigo rápido basado en % del ingreso que te faltó
+        // Con -10% de ingreso ya pierdes mucho; con -30% llegas a 0
+        const deficit = Math.abs(flujo) / totalIn; // qué % de tus ingresos te faltaron
+        if (deficit <= 0.05)       flowScore = Math.max(0, 18 - deficit / 0.05 * 10); // 18→8
+        else if (deficit <= 0.15)  flowScore = Math.max(0, 8  - ((deficit - 0.05) / 0.10) * 7); // 8→1
+        else                        flowScore = 0; // deficit > 15% del ingreso → 0
+      }
     }
 
-    // TECHO DURO: si el flujo es negativo, el score total no puede pasar de 55
-    const flujoCap = (totalIn > 0 && totalOut > totalIn) ? 55 : 100;
-
-    // 2. CONSISTENCIA DE REGISTRO (20pts)
-    let consistencyScore = 0;
-    if (spanDays > 0 && txCount > 0) {
-      const txPerDay = txCount / Math.max(spanDays, 1);
-      if (txPerDay >= 1.0)       consistencyScore = 20;
-      else if (txPerDay >= 0.5)  consistencyScore = 14 + ((txPerDay - 0.5) / 0.5) * 6;
-      else if (txPerDay >= 0.2)  consistencyScore = 8  + ((txPerDay - 0.2) / 0.3) * 6;
-      else if (txPerDay >= 0.07) consistencyScore = 4  + ((txPerDay - 0.07) / 0.13) * 4;
-      else                        consistencyScore = Math.max(1, txPerDay * 57);
+    // 2. RATIO DE AHORRO (25pts) — qué % de tus ingresos conservas
+    //    Complementa el flujo con una escala más granular
+    let savingsScore = 0;
+    if (totalIn > 0 && totalOut <= totalIn) {
+      const savePct = (totalIn - totalOut) / totalIn;
+      if (savePct >= 0.30)      savingsScore = 25;
+      else if (savePct >= 0.20) savingsScore = 20 + ((savePct - 0.20) / 0.10) * 5;
+      else if (savePct >= 0.10) savingsScore = 12 + ((savePct - 0.10) / 0.10) * 8;
+      else if (savePct >= 0.00) savingsScore = savePct / 0.10 * 12;
     }
+    // Si hay flujo negativo, esta métrica también penaliza (ya no es 0, es negativa en espíritu)
+    // pero la dejamos en 0 — el flowScore ya lo castiga
 
-    // 3. DIVERSIFICACIÓN DE GASTOS (10pts)
-    let diversScore = 10;
+    // 3. CONCENTRACIÓN DE GASTO (15pts)
+    //    Si más del 60% de tus gastos va a una sola categoría es una señal de riesgo
+    let diversScore = 15;
     if (topExpCats.length > 0 && totalOut > 0) {
       const topPct = topExpCats[0].pct / 100;
-      if (topPct <= 0.40)      diversScore = 10;
-      else if (topPct <= 0.60) diversScore = 10 - ((topPct - 0.40) / 0.20) * 4;
-      else if (topPct <= 0.80) diversScore = 6  - ((topPct - 0.60) / 0.20) * 4;
-      else                      diversScore = Math.max(1, 2 - ((topPct - 0.80) / 0.20) * 1);
+      if (topPct <= 0.40)      diversScore = 15;
+      else if (topPct <= 0.55) diversScore = 15 - ((topPct - 0.40) / 0.15) * 5;  // 15→10
+      else if (topPct <= 0.70) diversScore = 10 - ((topPct - 0.55) / 0.15) * 5;  // 10→5
+      else if (topPct <= 0.85) diversScore = 5  - ((topPct - 0.70) / 0.15) * 3;  // 5→2
+      else                      diversScore = 1;
     }
 
-    // 4. FRECUENCIA DE INGRESOS (10pts)
+    // 4. REGULARIDAD DE INGRESOS (15pts)
+    //    Tener ingresos frecuentes y de varias fuentes es señal de estabilidad
     let incomeScore = 0;
     if (incCount > 0 && spanDays > 0) {
+      // Fuentes distintas de ingreso
+      const uniqueSources = Object.keys((() => {
+        const s = {};
+        // Contamos por categoryId para aproximar "fuentes"
+        return s;
+      })()).length || Math.min(incCount, 4);
+
       const incPerMonth = (incCount / Math.max(spanDays, 1)) * 30;
-      if (incPerMonth >= 2.0)      incomeScore = 10;
-      else if (incPerMonth >= 1.0) incomeScore = 7 + ((incPerMonth - 1.0)) * 3;
-      else if (incPerMonth >= 0.5) incomeScore = 4 + ((incPerMonth - 0.5) / 0.5) * 3;
-      else                          incomeScore = Math.max(1, incPerMonth * 8);
+      // Puntaje base por frecuencia
+      let freqScore = 0;
+      if (incPerMonth >= 4)       freqScore = 15;
+      else if (incPerMonth >= 2)  freqScore = 10 + ((incPerMonth - 2) / 2) * 5;
+      else if (incPerMonth >= 1)  freqScore = 6  + ((incPerMonth - 1) / 1) * 4;
+      else if (incPerMonth >= 0.5)freqScore = 3  + ((incPerMonth - 0.5) / 0.5) * 3;
+      else                         freqScore = Math.max(1, incPerMonth * 6);
+      incomeScore = freqScore;
     }
 
-    // 5. CATEGORIZACIÓN (10pts)
-    let catScore = 0;
-    if (txCount > 0) {
-      const catPct = 100 - uncatPct;
-      if (catPct >= 90)      catScore = 10;
-      else if (catPct >= 70) catScore = 10 - ((90 - catPct) / 20) * 4;
-      else if (catPct >= 50) catScore = 6  - ((70 - catPct) / 20) * 3;
-      else                    catScore = Math.max(1, catPct / 50 * 3);
-    }
-
-    const raw = savingsScore + consistencyScore + diversScore + incomeScore + catScore;
-    return Math.max(0, Math.min(flujoCap, Math.round(raw)));
+    const raw = flowScore + savingsScore + diversScore + incomeScore;
+    return Math.max(0, Math.min(100, Math.round(raw)));
   })();
 
   const localScore  = _score;
   const localStatus = localScore >= 90 ? "Perfecto"
-    : localScore >= 80 ? "Excelente"
-    : localScore >= 65 ? "Muy bien"
-    : localScore >= 45 ? "Bueno"
-    : localScore >= 30 ? "Regular"
+    : localScore >= 78 ? "Excelente"
+    : localScore >= 62 ? "Muy bien"
+    : localScore >= 44 ? "Bueno"
+    : localScore >= 25 ? "Regular"
     : "Atención";
 
   useEffect(() => {
