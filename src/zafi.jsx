@@ -402,28 +402,13 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
 .cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
-  background:
-    radial-gradient(circle at 35% 75%, rgba(99,102,241,.95) 0%, rgba(99,102,241,0) 45%),
-    radial-gradient(circle at 70% 55%, rgba(96,165,250,.9) 0%, rgba(96,165,250,0) 50%),
-    radial-gradient(circle at 55% 25%, rgba(94,234,212,.55) 0%, rgba(94,234,212,0) 40%),
-    radial-gradient(circle at 25% 30%, rgba(167,139,250,.85) 0%, rgba(167,139,250,0) 55%),
-    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #1E6FE0 100%);
-  filter:saturate(1.25);
   border:2px solid rgba(255,255,255,.55);
-  box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.35);
-  animation:ccOrbBreathe 4s ease-in-out infinite, ccOrbDrift 8s ease-in-out infinite;}
-.cc-orb::before{content:"";position:absolute;inset:0;border-radius:50%;
-  background:radial-gradient(circle at 30% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 28%);
-  animation:ccOrbShine 4s ease-in-out infinite;}
+  box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.25);
+  animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
-  background:radial-gradient(circle, rgba(124,139,245,.55) 0%, rgba(167,139,250,.25) 45%, rgba(124,139,245,0) 70%);
+  background:radial-gradient(circle, rgba(30,111,224,.55) 0%, rgba(91,155,255,.25) 45%, rgba(30,111,224,0) 70%);
   animation:ccOrbGlow 4s ease-in-out infinite;}
 @keyframes ccOrbBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
-@keyframes ccOrbDrift{
-  0%,100%{background-position:35% 75%, 70% 55%, 55% 25%, 25% 30%, 50% 50%;filter:saturate(1.25) hue-rotate(0deg);}
-  33%{background-position:55% 65%, 45% 70%, 70% 35%, 35% 45%, 50% 50%;filter:saturate(1.4) hue-rotate(-12deg);}
-  66%{background-position:25% 60%, 75% 45%, 40% 30%, 50% 25%, 50% 50%;filter:saturate(1.35) hue-rotate(14deg);}}
-@keyframes ccOrbShine{0%,100%{opacity:.85;transform:scale(1);}50%{opacity:1;transform:scale(1.04) translate(2px,2px);}}
 @keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
 
 /* ============== FAB superior (+) ============== */
@@ -5102,6 +5087,119 @@ function SplashScreen({ onDone }) {
   );
 }
 
+/* ── OrbCanvas — orbe de partículas con onda plana (colores zafiro) ── */
+function OrbCanvas({ size = 78, dark = false }) {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = size * DPR;
+    canvas.height = size * DPR;
+    canvas.style.width = size + "px";
+    canvas.style.height = size + "px";
+
+    const CX = size * DPR / 2;
+    const CY = size * DPR / 2;
+
+    // Paleta zafiro + glow
+    const PAL = [
+      [40, 130, 255],
+      [120, 180, 255],
+      [30, 90, 200],
+    ];
+    const colorAt = (mix) => {
+      mix = Math.max(0, Math.min(1, mix));
+      if (mix < 0.5) {
+        const tt = mix * 2;
+        return PAL[0].map((c, i) => Math.round(c + (PAL[1][i] - c) * tt));
+      }
+      const tt = (mix - 0.5) * 2;
+      return PAL[1].map((c, i) => Math.round(c + (PAL[2][i] - c) * tt));
+    };
+
+    // Cuadrícula de partículas
+    const GRID = 28;
+    const parts = [];
+    for (let i = 0; i < GRID; i++)
+      for (let j = 0; j < GRID; j++)
+        parts.push({ gx: (i / (GRID - 1)) - 0.5, gy: (j / (GRID - 1)) - 0.5 });
+
+    let t = 0;
+
+    // Máscara circular para que la onda quede dentro del círculo del orb
+    const drawFrame = () => {
+      ctx.clearRect(0, 0, size * DPR, size * DPR);
+      ctx.save();
+      // Clip circular
+      ctx.beginPath();
+      ctx.arc(CX, CY, size * DPR / 2 - DPR, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Fondo del orb
+      const bg = ctx.createRadialGradient(CX, CY, 0, CX, CY, size * DPR / 2);
+      bg.addColorStop(0, "rgba(20,40,90,0.9)");
+      bg.addColorStop(1, "rgba(10,20,50,0.95)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size * DPR, size * DPR);
+
+      const span = size * DPR * 0.78;
+      const proj = [];
+      for (const pt of parts) {
+        const dist = Math.sqrt(pt.gx * pt.gx + pt.gy * pt.gy);
+        const wave = Math.sin(dist * 10 - t * 2) * 0.14 * (1 - dist);
+        let x = pt.gx * span;
+        let y = pt.gy * span;
+        let z = wave * span;
+        // Inclinación en perspectiva
+        const rx = 1.0;
+        const y2 = y * Math.cos(rx) - z * Math.sin(rx);
+        const z2 = y * Math.sin(rx) + z * Math.cos(rx);
+        y = y2; z = z2;
+        proj.push({ x, y, z, mix: 0.5 + wave * 3 });
+      }
+      proj.sort((a, b) => a.z - b.z);
+      for (const pt of proj) {
+        const d = Math.max(0, Math.min(1, (pt.z + span * 0.5) / span));
+        const color = colorAt(pt.mix);
+        const px = CX + pt.x;
+        const py = CY + pt.y * 0.7;
+        const psize = (0.5 + d * 1.3) * DPR;
+        const alpha = 0.2 + d * 0.8;
+        if (d > 0.6) {
+          ctx.beginPath();
+          ctx.arc(px, py, psize * 2.5, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(px, py, 0, px, py, psize * 2.5);
+          g.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.3})`);
+          g.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0)`);
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, psize, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      t += 0.012;
+      rafRef.current = requestAnimationFrame(drawFrame);
+    };
+
+    rafRef.current = requestAnimationFrame(drawFrame);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [size, dark]);
+
+  return (
+    <canvas ref={canvasRef}
+      className="cc-orb"
+      style={{ display: "block", borderRadius: "50%" }} />
+  );
+}
+
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -6822,7 +6920,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
             onMouseDown={onOrbDown} onMouseUp={onOrbUp} onMouseLeave={onOrbUp}
             onTouchStart={onOrbDown} onTouchEnd={onOrbUp}
             aria-label="Asistente Zafi (mantén presionado para hablar)">
-            <span className="cc-orb" />
+            <OrbCanvas size={78} />
           </button>
         </div>
 
@@ -9334,17 +9432,20 @@ INSTRUCCIONES CRÍTICAS:
         <div style={{ display: "flex", gap: 2, background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
           borderRadius: 10, padding: 3,
         }}>
-          {[["donut", "Donut"], ["pill", "Pill"]].map(([key, label]) => (
+          {[["donut", "Donut"], ["pill", "Pill"]].map(([key, label]) => {
+            const active = scoreStyle === key;
+            return (
             <button key={key} onClick={() => setStyle(key)} style={{
-              background: scoreStyle === key ? (dark ? "rgba(255,255,255,0.12)" : "#fff") : "none",
+              background: active ? (dark ? "rgba(255,255,255,0.16)" : "#fff") : "none",
               border: "none", cursor: "pointer", borderRadius: 8,
               padding: "3px 10px", fontSize: 11, fontWeight: 600,
-              color: scoreStyle === key ? "var(--ink)" : "var(--ink-soft)",
-              transition: "all .2s ease", boxShadow: scoreStyle === key ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+              color: active ? (dark ? "#fff" : "var(--ink)") : "var(--ink-soft)",
+              transition: "all .2s ease",
+              boxShadow: active ? (dark ? "none" : "0 1px 4px rgba(0,0,0,0.10)") : "none",
             }}>
               {label}
             </button>
-          ))}
+          )})}
         </div>
       </div>
 
