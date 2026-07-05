@@ -8874,23 +8874,31 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
 /* ── ScorePillIndicator — pill con gradiente y glow ── */
 function ScorePillIndicator({ targetScore, dark }) {
-  // Arranca directamente en el targetScore para evitar el flash de texto blanco
   const [displayed, setDisplayed] = useState(targetScore);
+  const [animated, setAnimated] = useState(false);
 
+  // Al montar, arrancamos desde 0 con un pequeño delay para que se vea la animación
   useEffect(() => {
-    // Si el score cambió (no es la primera vez), animamos desde el valor actual
+    setDisplayed(0);
+    const t = setTimeout(() => setAnimated(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Cuando animated=true o targetScore cambia, animamos hacia el target
+  useEffect(() => {
+    if (!animated) return;
     let frame;
     const animate = () => {
       setDisplayed(prev => {
         const diff = targetScore - prev;
         if (Math.abs(diff) < 0.3) return targetScore;
         frame = requestAnimationFrame(animate);
-        return prev + diff * 0.06;
+        return prev + diff * 0.055;
       });
     };
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
-  }, [targetScore]);
+  }, [targetScore, animated]);
 
   const pct = Math.round(displayed);
 
@@ -8917,12 +8925,13 @@ function ScorePillIndicator({ targetScore, dark }) {
     };
   };
 
-  const s = getState(pct);
+  const s = getState(Math.max(pct, targetScore < 35 ? 0 : targetScore < 65 ? 0 : 0));
+  // Usar el estado del target para el color (no del displayed) — evita cambio de color raro
+  const sTarget = getState(targetScore);
   const fillPct = (displayed / 100) * 100;
 
-  // Color del texto según si el fill ya cubre esa zona
-  // El número está a ~20px del borde izq — fill lo cubre cuando pct > ~14
-  // El texto derecho está a ~20px del borde der — fill lo cubre cuando pct > ~84
+  // El número está sobre el fill cuando pct > ~14
+  // El texto derecho está sobre el fill cuando pct > ~84
   const numOnFill   = fillPct > 14;
   const rightOnFill = fillPct > 84;
   const numCol   = numOnFill   ? "#fff" : (dark ? "rgba(255,255,255,0.85)" : "#1a1a1a");
@@ -8930,11 +8939,10 @@ function ScorePillIndicator({ targetScore, dark }) {
 
   return (
     <div style={{ position: "relative", height: 64, borderRadius: 32 }}>
-      {/* Glow — usando boxShadow en lugar de drop-shadow para evitar el borde cuadrado */}
+      {/* Sombra discreta — sin glow de color */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: 32,
-        boxShadow: `0 4px 18px ${s.glowCol}, 0 0 6px ${s.glowCol}`,
-        transition: "box-shadow .7s ease",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08)",
         pointerEvents: "none", zIndex: 0,
       }} />
       {/* Track */}
@@ -8942,13 +8950,13 @@ function ScorePillIndicator({ targetScore, dark }) {
         background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.055)",
         overflow: "hidden", zIndex: 1,
       }}>
-        {/* Fill */}
+        {/* Fill — anima desde 0% */}
         <div style={{
           position: "absolute", top: 0, left: 0, bottom: 0,
           width: `${fillPct}%`,
           borderRadius: 32,
-          background: s.grad,
-          transition: "width .9s cubic-bezier(.34,1.2,.64,1)",
+          background: sTarget.grad,
+          transition: "width .9s cubic-bezier(.34,1.2,.64,1), background .5s ease",
           overflow: "hidden",
         }}>
           {/* Reflejo glass */}
@@ -8966,20 +8974,30 @@ function ScorePillIndicator({ targetScore, dark }) {
         padding: "0 20px", justifyContent: "space-between",
         pointerEvents: "none",
       }}>
-        <div style={{ fontSize: 31, fontWeight: 700, letterSpacing: "-.03em",
-          lineHeight: 1, color: numCol, transition: "color .4s ease",
+        <div style={{
+          fontSize: 31, fontWeight: 700, letterSpacing: "-.03em",
+          lineHeight: 1, color: numCol, transition: "color .3s ease",
           fontFamily: "'Montserrat', sans-serif",
+          // Fade+slide desde abajo al montar
+          opacity: animated ? 1 : 0,
+          transform: animated ? "translateY(0)" : "translateY(6px)",
+          transition: "color .3s ease, opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
         }}>
           {pct}
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div style={{
+          textAlign: "right",
+          opacity: animated ? 1 : 0,
+          transform: animated ? "translateY(0)" : "translateY(4px)",
+          transition: "opacity .5s ease .45s, transform .5s cubic-bezier(.34,1.4,.64,1) .45s",
+        }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: rightCol,
-            transition: "color .4s ease", fontFamily: "'Montserrat', sans-serif",
+            transition: "color .3s ease", fontFamily: "'Montserrat', sans-serif",
           }}>
-            {s.label}
+            {sTarget.label}
           </div>
           <div style={{ fontSize: 9.5, fontWeight: 400, color: rightCol,
-            transition: "color .4s ease", marginTop: 2, opacity: .7,
+            transition: "color .3s ease", marginTop: 2, opacity: .7,
             fontFamily: "'Montserrat', sans-serif",
           }}>
             de 100
@@ -9086,12 +9104,12 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
   const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
-  useEffect(() => {
-    const ratio = baseData.totalIn > 0 ? baseData.totalIn / Math.max(baseData.totalOut, 1) : 0;
-    const rawScore = Math.min(100, Math.round(ratio * 55));
-    const localScore = Math.max(0, Math.min(100, rawScore));
-    const localStatus = localScore >= 65 ? "Excelente" : localScore >= 35 ? "Regular" : "Crítico";
+  // Cálculo determinista del score — siempre igual para los mismos datos
+  const _ratio = baseData.totalIn > 0 ? baseData.totalIn / Math.max(baseData.totalOut, 1) : 0;
+  const localScore  = Math.max(0, Math.min(100, Math.round(_ratio * 55)));
+  const localStatus = localScore >= 65 ? "Excelente" : localScore >= 35 ? "Regular" : "Crítico";
 
+  useEffect(() => {
     if (baseData.txCount === 0) {
       setData({ score: 0, status: "Sin datos", analyses: ["Agrega transacciones para ver tu calificación financiera."] });
       setLoading(false);
@@ -9220,7 +9238,9 @@ Instrucciones: Sé específico — menciona las categorías reales por nombre, s
 
   useEffect(() => {
     if (demoMode || !data?.score) return;
-    notifyScoreChangeIfNeeded(config, data.score, data.status);
+    // Solo notificar en vista "todas" para que el score sea consistente
+    if (accView !== "all") return;
+    notifyScoreChangeIfNeeded(config, localScore, localStatus);
   }, [data?.score]);
 
   const dark = useDarkMode();
