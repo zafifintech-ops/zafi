@@ -246,8 +246,8 @@ body{
   font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
 .cc-plan-badge.free{background:rgba(0,0,0,.06);color:var(--ink-soft);}
 .cc-dark .cc-plan-badge.free{background:rgba(255,255,255,.08);color:var(--ink-soft);}
-.cc-plan-badge.lite{background:rgba(91,110,232,.12);color:#5B6EE8;}
-.cc-dark .cc-plan-badge.lite{background:rgba(91,110,232,.2);color:#8b9ef4;}
+.cc-plan-badge.lite{background:rgba(30,111,224,.12);color:#1E6FE0;}
+.cc-dark .cc-plan-badge.lite{background:rgba(30,111,224,.2);color:#8b9ef4;}
 .cc-plan-badge.pro{background:linear-gradient(120deg,#b8860b,#d4a017,#c9a84c);color:#fff;
   box-shadow:0 2px 8px rgba(180,130,0,.35);}
 @keyframes ccProShimmer{0%,100%{opacity:1}50%{opacity:.75}}
@@ -407,7 +407,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
     radial-gradient(circle at 70% 55%, rgba(96,165,250,.9) 0%, rgba(96,165,250,0) 50%),
     radial-gradient(circle at 55% 25%, rgba(94,234,212,.55) 0%, rgba(94,234,212,0) 40%),
     radial-gradient(circle at 25% 30%, rgba(167,139,250,.85) 0%, rgba(167,139,250,0) 55%),
-    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #5B6EE8 100%);
+    radial-gradient(circle at 50% 50%, #7C8BF5 0%, #1E6FE0 100%);
   filter:saturate(1.25);
   border:2px solid rgba(255,255,255,.55);
   box-shadow:inset -6px -8px 16px rgba(40,30,90,.35), inset 6px 6px 14px rgba(255,255,255,.35);
@@ -430,24 +430,24 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 /* Botón "+" del header — al lado del chip de fecha */
 .cc-header-add{display:inline-flex;align-items:center;justify-content:center;
   width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;
-  background:linear-gradient(135deg,#5B6EE8 0%,#7C8FF5 100%);
+  background:linear-gradient(135deg,#1E6FE0 0%,#7C8FF5 100%);
   color:#fff;font-family:inherit;font-size:20px;line-height:1;
-  box-shadow:0 4px 12px rgba(91,110,232,.32);
+  box-shadow:0 4px 12px rgba(30,111,224,.32);
   transition:transform .15s,box-shadow .2s;flex-shrink:0;}
-.cc-header-add:hover{box-shadow:0 6px 18px rgba(91,110,232,.42);transform:translateY(-1px);}
+.cc-header-add:hover{box-shadow:0 6px 18px rgba(30,111,224,.42);transform:translateY(-1px);}
 .cc-header-add:active{transform:scale(.93);}
-.cc-dark .cc-header-add{box-shadow:0 4px 12px rgba(91,110,232,.45);}
+.cc-dark .cc-header-add{box-shadow:0 4px 12px rgba(30,111,224,.45);}
 /* Opciones del sheet "+ Agregar movimiento" — sin emojis */
 .cc-add-option{display:flex;align-items:center;gap:14px;width:100%;
   padding:14px 14px;border:1px solid var(--line);border-radius:14px;
   background:var(--paper);cursor:pointer;text-align:left;font-family:inherit;
   transition:border-color .15s,background .15s,transform .12s;}
-.cc-add-option:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-add-option:hover{border-color:rgba(30,111,224,.4);background:var(--surface);}
 .cc-add-option:active{transform:scale(.985);}
 .cc-add-option-icon{display:flex;align-items:center;justify-content:center;
   width:40px;height:40px;border-radius:11px;flex-shrink:0;
-  background:rgba(91,110,232,.1);color:#5B6EE8;}
-.cc-dark .cc-add-option-icon{background:rgba(91,110,232,.18);color:#8B9CFF;}
+  background:rgba(30,111,224,.1);color:#1E6FE0;}
+.cc-dark .cc-add-option-icon{background:rgba(30,111,224,.18);color:#5B9BFF;}
 .cc-add-option-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}
 .cc-add-option-label{font-weight:600;font-size:15px;color:var(--ink);
   letter-spacing:-.01em;font-family:'Montserrat',sans-serif;}
@@ -460,21 +460,21 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   background:var(--paper);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;
   color:var(--ink);letter-spacing:-.01em;
   transition:border-color .15s,background .15s,transform .12s;}
-.cc-photo-btn:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-photo-btn:hover{border-color:rgba(30,111,224,.4);background:var(--surface);}
 .cc-photo-btn:active{transform:scale(.98);}
 .cc-photo-btn-icon{display:flex;align-items:center;justify-content:center;
   width:38px;height:38px;border-radius:10px;
-  background:rgba(91,110,232,.1);color:#5B6EE8;}
-.cc-dark .cc-photo-btn-icon{background:rgba(91,110,232,.18);color:#8B9CFF;}
+  background:rgba(30,111,224,.1);color:#1E6FE0;}
+.cc-dark .cc-photo-btn-icon{background:rgba(30,111,224,.18);color:#5B9BFF;}
 /* Botón "Personalizar" pequeño para headers de cards */
 .cc-personalize-btn{display:inline-flex;align-items:center;gap:6px;
   padding:6px 11px;border-radius:9px;border:1px solid var(--line);
   background:var(--surface);color:var(--ink-soft);cursor:pointer;
   font-family:'Montserrat',sans-serif;font-size:11.5px;font-weight:600;
   letter-spacing:-.005em;transition:.15s;flex-shrink:0;}
-.cc-personalize-btn:hover{background:rgba(91,110,232,.08);
-  border-color:rgba(91,110,232,.3);color:#5B6EE8;}
-.cc-personalize-btn:hover svg{color:#5B6EE8;}
+.cc-personalize-btn:hover{background:rgba(30,111,224,.08);
+  border-color:rgba(30,111,224,.3);color:#1E6FE0;}
+.cc-personalize-btn:hover svg{color:#1E6FE0;}
 .cc-personalize-btn svg{color:var(--ink-faint);}
 /* Buscador de movimientos */
 .cc-search-wrap{position:relative;display:flex;align-items:center;flex:1;}
@@ -483,8 +483,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   font-family:'Montserrat',sans-serif;font-size:14px;font-weight:500;
   letter-spacing:-.005em;outline:none;transition:border-color .15s,background .15s;}
 .cc-search-input::placeholder{color:var(--ink-faint);font-weight:400;}
-.cc-search-input:focus{border-color:rgba(91,110,232,.45);background:var(--surface);}
-.cc-dark .cc-search-input:focus{background:rgba(91,110,232,.08);}
+.cc-search-input:focus{border-color:rgba(30,111,224,.45);background:var(--surface);}
+.cc-dark .cc-search-input:focus{background:rgba(30,111,224,.08);}
 .cc-search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);
   color:var(--ink-faint);pointer-events:none;}
 .cc-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);
@@ -498,13 +498,13 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   padding:12px 14px;border:1px solid var(--line);border-radius:14px;
   background:var(--paper);cursor:pointer;text-align:left;font-family:inherit;
   transition:border-color .15s,background .15s,transform .12s;}
-.cc-report-btn:hover{border-color:rgba(91,110,232,.4);background:var(--surface);}
+.cc-report-btn:hover{border-color:rgba(30,111,224,.4);background:var(--surface);}
 .cc-report-btn:active{transform:scale(.985);}
 .cc-report-icon{display:flex;align-items:center;justify-content:center;
   width:38px;height:38px;border-radius:11px;flex-shrink:0;}
 /* Placeholder coloreado cuando hay detección automática activa */
-.cc-input-detected::placeholder{color:#5B6EE8;opacity:.9;font-weight:500;font-style:italic;}
-.cc-dark .cc-input-detected::placeholder{color:#8B9CFF;opacity:.95;}
+.cc-input-detected::placeholder{color:#1E6FE0;opacity:.9;font-weight:500;font-style:italic;}
+.cc-dark .cc-input-detected::placeholder{color:#5B9BFF;opacity:.95;}
 .cc-fab-menu{position:fixed;top:70px;right:18px;z-index:45;display:flex;flex-direction:column;gap:8px;
   align-items:flex-end;animation:ccUp .15s cubic-bezier(.16,1,.3,1);}
 .cc-fab-mini{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;
@@ -583,7 +583,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-switch-thumb{position:absolute;left:2px;top:2px;width:21px;height:21px;
   background:#fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.18);
   transition:transform .22s cubic-bezier(.2,.7,.2,1);}
-.cc-switch.on .cc-switch-track{background:#5B6EE8;}
+.cc-switch.on .cc-switch-track{background:#1E6FE0;}
 .cc-switch.on .cc-switch-thumb{transform:translateX(17px);}
 .cc-dark .cc-switch-track{background:rgba(255,255,255,.15);}
 
@@ -613,8 +613,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
 @keyframes ccTipIn{0%{opacity:0;transform:translateY(6px);}100%{opacity:1;transform:translateY(0);}}
 @keyframes ccTipProgress{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
-@keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6);}50%{box-shadow:0 0 0 4px rgba(91,110,232,1), 0 0 32px rgba(91,110,232,.8);}}
-@keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(91,110,232,.7), 0 0 24px rgba(91,110,232,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(91,110,232,.9), 0 0 32px rgba(91,110,232,.7);}}
+@keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(30,111,224,.85), 0 0 24px rgba(30,111,224,.6);}50%{box-shadow:0 0 0 4px rgba(30,111,224,1), 0 0 32px rgba(30,111,224,.8);}}
+@keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(30,111,224,.7), 0 0 24px rgba(30,111,224,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(30,111,224,.9), 0 0 32px rgba(30,111,224,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
@@ -636,10 +636,10 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 /* Chips de tags */
 .cc-tag-chip{display:inline-flex;align-items:center;gap:4px;
   padding:5px 10px;border-radius:99px;font-size:12px;font-weight:500;
-  background:rgba(91,110,232,.1);color:#5B6EE8;
-  border:1px solid rgba(91,110,232,.25);cursor:pointer;
+  background:rgba(30,111,224,.1);color:#1E6FE0;
+  border:1px solid rgba(30,111,224,.25);cursor:pointer;
   font-family:'Montserrat',sans-serif;transition:.15s;}
-.cc-tag-chip:hover{background:rgba(91,110,232,.18);}
+.cc-tag-chip:hover{background:rgba(30,111,224,.18);}
 .cc-tag-chip.suggest{background:var(--surface);color:var(--ink-soft);
   border:1px dashed var(--line);}
 .cc-tag-chip.suggest:hover{background:var(--surface-2);border-style:solid;}
@@ -756,25 +756,25 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-loading-ring{position:relative;width:72px;height:72px;
   display:flex;align-items:center;justify-content:center;}
 .cc-loading-ring svg{position:absolute;inset:0;transform:rotate(-90deg);}
-.cc-loading-arc{fill:none;stroke:#5B6EE8;stroke-width:5;stroke-linecap:round;
+.cc-loading-arc{fill:none;stroke:#1E6FE0;stroke-width:5;stroke-linecap:round;
   stroke-dasharray:188;
   animation:ccRingFill 2s cubic-bezier(.6,0,.4,1) infinite;}
-.cc-loading.cc-dark .cc-loading-arc{stroke:#8B9CFF;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-arc{stroke:#8B9CFF;}}
+.cc-loading.cc-dark .cc-loading-arc{stroke:#5B9BFF;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-arc{stroke:#5B9BFF;}}
 @keyframes ccRingFill{
   0%  {stroke-dashoffset:188;opacity:.4;}
   45% {stroke-dashoffset:0;  opacity:1;}
   55% {stroke-dashoffset:0;  opacity:1;}
   100%{stroke-dashoffset:-188;opacity:.4;}
 }
-.cc-loading-track{fill:none;stroke:rgba(91,110,232,.12);stroke-width:5;stroke-linecap:round;}
-.cc-loading.cc-dark .cc-loading-track{stroke:rgba(139,156,255,.12);}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-track{stroke:rgba(139,156,255,.12);}}
-.cc-loading-center{width:4px;height:4px;border-radius:50%;background:#5B6EE8;
+.cc-loading-track{fill:none;stroke:rgba(30,111,224,.12);stroke-width:5;stroke-linecap:round;}
+.cc-loading.cc-dark .cc-loading-track{stroke:rgba(91,155,255,.12);}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-track{stroke:rgba(91,155,255,.12);}}
+.cc-loading-center{width:4px;height:4px;border-radius:50%;background:#1E6FE0;
   position:relative;z-index:2;
   animation:ccCenterDot 2s ease-in-out infinite;}
-.cc-loading.cc-dark .cc-loading-center{background:#8B9CFF;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-center{background:#8B9CFF;}}
+.cc-loading.cc-dark .cc-loading-center{background:#5B9BFF;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-center{background:#5B9BFF;}}
 @keyframes ccCenterDot{
   0%,100%{transform:scale(.7);opacity:.4;}
   50%{transform:scale(1.2);opacity:1;}
@@ -1648,10 +1648,10 @@ function LockedSection({ label, icon, plan, onUpgrade }) {
     <div className="cc-card" style={{ padding: "20px 20px 18px", textAlign: "center", cursor: "pointer" }}
       onClick={onUpgrade}>
       <div style={{ width: 44, height: 44, borderRadius: 14, margin: "0 auto 10px",
-        background: plan === "pro" ? "rgba(180,130,0,.1)" : "rgba(91,110,232,.08)",
+        background: plan === "pro" ? "rgba(180,130,0,.1)" : "rgba(30,111,224,.08)",
         display: "flex", alignItems: "center", justifyContent: "center" }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={plan === "pro" ? "#C9A84C" : "#5B6EE8"}
+          stroke={plan === "pro" ? "#C9A84C" : "#1E6FE0"}
           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2"/>
           <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -1666,9 +1666,9 @@ function LockedSection({ label, icon, plan, onUpgrade }) {
         fontWeight: 700, fontSize: 13,
         background: plan === "pro"
           ? "linear-gradient(120deg,#b8860b,#d4a017,#c9a84c)"
-          : "#5B6EE8",
+          : "#1E6FE0",
         color: "#fff",
-        boxShadow: plan === "pro" ? "0 4px 12px rgba(180,130,0,.3)" : "0 4px 12px rgba(91,110,232,.3)" }}>
+        boxShadow: plan === "pro" ? "0 4px 12px rgba(180,130,0,.3)" : "0 4px 12px rgba(30,111,224,.3)" }}>
         {plan === "pro" ? "✦ Ver Pro" : "Ver Lite"}
       </div>
     </div>
@@ -1681,9 +1681,9 @@ function LockedBlur({ plan, onUpgrade, children, blurAmount = 10 }) {
   const planLabel = plan === "pro" ? "Pro" : "Lite";
   const gradient = plan === "pro"
     ? "linear-gradient(135deg, #B8860B 0%, #D4A017 50%, #E8C547 100%)"
-    : "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)";
-  const accentColor = plan === "pro" ? "#D4A017" : "#5B6EE8";
-  const glowColor = plan === "pro" ? "rgba(212,160,23,.4)" : "rgba(91,110,232,.4)";
+    : "linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)";
+  const accentColor = plan === "pro" ? "#D4A017" : "#1E6FE0";
+  const glowColor = plan === "pro" ? "rgba(212,160,23,.4)" : "rgba(30,111,224,.4)";
   const dark = useDarkMode();
 
   // Mensaje contextual según plan
@@ -1718,7 +1718,7 @@ function LockedBlur({ plan, onUpgrade, children, blurAmount = 10 }) {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}`,
-          boxShadow: `0 12px 32px rgba(0,0,0,.18), 0 0 0 1px ${plan === "pro" ? "rgba(212,160,23,.15)" : "rgba(91,110,232,.15)"}`,
+          boxShadow: `0 12px 32px rgba(0,0,0,.18), 0 0 0 1px ${plan === "pro" ? "rgba(212,160,23,.15)" : "rgba(30,111,224,.15)"}`,
           pointerEvents: "auto",
           transition: "transform .18s cubic-bezier(.2,.8,.3,1)",
           fontFamily: "'Montserrat', sans-serif",
@@ -1990,12 +1990,12 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
               <div key={account.id} style={{
                 marginBottom: 12, borderRadius: 14,
                 border: `1.5px solid ${
-                  action === "keep" ? "#5B6EE8"
+                  action === "keep" ? "#1E6FE0"
                   : action === "delete" ? "rgba(239,68,68,.5)"
                   : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.08)")
                 }`,
                 background: action === "keep"
-                  ? (dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.05)")
+                  ? (dark ? "rgba(30,111,224,.1)" : "rgba(30,111,224,.05)")
                   : action === "delete"
                   ? (dark ? "rgba(239,68,68,.08)" : "rgba(239,68,68,.04)")
                   : "transparent",
@@ -2039,8 +2039,8 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
                   <button onClick={() => setAction(account.id, "keep")}
                     style={{
                       flex: 1, padding: "8px 6px", borderRadius: 9,
-                      border: `1px solid ${action === "keep" ? "#5B6EE8" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
-                      background: action === "keep" ? "#5B6EE8" : "transparent",
+                      border: `1px solid ${action === "keep" ? "#1E6FE0" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
+                      background: action === "keep" ? "#1E6FE0" : "transparent",
                       color: action === "keep" ? "#fff" : (dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)"),
                       fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                       letterSpacing: "-.005em",
@@ -2085,12 +2085,12 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
           {/* Helper text */}
           <div style={{
             marginTop: 16, padding: "12px 14px", borderRadius: 12,
-            background: dark ? "rgba(91,110,232,.08)" : "rgba(91,110,232,.05)",
-            border: `1px solid ${dark ? "rgba(91,110,232,.18)" : "rgba(91,110,232,.15)"}`,
+            background: dark ? "rgba(30,111,224,.08)" : "rgba(30,111,224,.05)",
+            border: `1px solid ${dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.15)"}`,
             fontSize: 12, lineHeight: 1.55,
             color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
           }}>
-            <strong style={{ color: "#5B6EE8" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan ocultos. Si subes a un plan superior se restauran automáticamente.<br/>
+            <strong style={{ color: "#1E6FE0" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan ocultos. Si subes a un plan superior se restauran automáticamente.<br/>
             <strong style={{ color: "#EF4444" }}>🗑 Eliminar:</strong> borra la cuenta, sus movimientos y categorías para siempre. No se puede deshacer.
           </div>
         </div>
@@ -2105,12 +2105,12 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
             style={{
               width: "100%", padding: "14px 20px", borderRadius: 12, border: "none",
               background: canContinue
-                ? "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)"
+                ? "linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)"
                 : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)"),
               color: canContinue ? "#fff" : (dark ? "rgba(245,245,247,.4)" : "rgba(26,26,31,.4)"),
               fontSize: 14, fontWeight: 600, fontFamily: "inherit",
               cursor: canContinue ? "pointer" : "not-allowed",
-              boxShadow: canContinue ? "0 4px 16px rgba(91,110,232,.35)" : "none",
+              boxShadow: canContinue ? "0 4px 16px rgba(30,111,224,.35)" : "none",
               letterSpacing: "-.005em",
               transition: "all .15s ease",
             }}>
@@ -2247,11 +2247,11 @@ function UpgradeModal({ config, onClose, feature }) {
         checkBg: "rgba(212,160,23,.15)",
       }
     : {
-        gradient: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
-        gradientSoft: "linear-gradient(135deg, rgba(91,110,232,.10) 0%, rgba(139,92,246,.08) 100%)",
-        glowColor: "rgba(91,110,232,.35)",
-        accent: "#5B6EE8",
-        checkBg: "rgba(91,110,232,.15)",
+        gradient: "linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)",
+        gradientSoft: "linear-gradient(135deg, rgba(30,111,224,.10) 0%, rgba(139,92,246,.08) 100%)",
+        glowColor: "rgba(30,111,224,.35)",
+        accent: "#1E6FE0",
+        checkBg: "rgba(30,111,224,.15)",
       };
 
   const planName = targetPlan === "pro" ? "Zafi Pro" : "Zafi Lite";
@@ -4790,7 +4790,7 @@ function AuthScreen() {
           </span>
           {!showForgot && (
             <button onClick={() => switchTab(tab === "login" ? "register" : "login")}
-              style={{ ...softLink, color: "#5B6EE8", fontWeight: 500, fontSize: 14 }}>
+              style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 14 }}>
               {tab === "login" ? "Registrarse" : "Iniciar sesión"}
             </button>
           )}
@@ -5531,7 +5531,7 @@ function OnboardingChoice({ onPickAssistant, onPickManual }) {
             <div style={{
               width:44, height:44, borderRadius:14, flexShrink:0,
               display:"flex", alignItems:"center", justifyContent:"center",
-              background:"linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+              background:"linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)",
               color:"#fff",
             }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -5794,9 +5794,9 @@ function ManualOnboarding({ onDone }) {
                 style={{
                   width:"100%", display:"flex", alignItems:"center", gap:12,
                   padding:"12px 14px", marginBottom:8, borderRadius:14,
-                  border:`1.5px solid ${c.on ? "#5B6EE8" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
+                  border:`1.5px solid ${c.on ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
                   background: c.on
-                    ? (dark ? "rgba(91,110,232,.15)" : "rgba(91,110,232,.08)")
+                    ? (dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)")
                     : (dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)"),
                   cursor:"pointer", textAlign:"left", fontFamily:FONT,
                   transition:"all .12s ease",
@@ -5813,8 +5813,8 @@ function ManualOnboarding({ onDone }) {
                 )}
                 <span style={{
                   width:22, height:22, borderRadius:"50%",
-                  border:`2px solid ${c.on ? "#5B6EE8" : (dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.2)")}`,
-                  background: c.on ? "#5B6EE8" : "transparent",
+                  border:`2px solid ${c.on ? "#1E6FE0" : (dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.2)")}`,
+                  background: c.on ? "#1E6FE0" : "transparent",
                   display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
                 }}>
                   {c.on && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
@@ -5902,8 +5902,8 @@ function ManualOnboarding({ onDone }) {
                   style={{
                     aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
                     fontSize:22, lineHeight:1, padding:0,
-                    background: newEmoji === e ? "rgba(91,110,232,.2)" : "transparent",
-                    border:`2px solid ${newEmoji === e ? "#5B6EE8" : "transparent"}`,
+                    background: newEmoji === e ? "rgba(30,111,224,.2)" : "transparent",
+                    border:`2px solid ${newEmoji === e ? "#1E6FE0" : "transparent"}`,
                     borderRadius:10, cursor:"pointer",
                   }}>{e}</button>
               ))}
@@ -6094,11 +6094,11 @@ REGLAS DE RESPUESTA:
                     }}
                     style={{
                       padding: "10px 16px", borderRadius: 12, border: "none",
-                      background: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+                      background: "linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)",
                       color: "#fff", fontSize: 13, fontWeight: 600,
                       fontFamily: "'Montserrat', sans-serif", cursor: "pointer",
                       display: "inline-flex", alignItems: "center", gap: 6,
-                      boxShadow: "0 4px 12px rgba(91,110,232,.25)",
+                      boxShadow: "0 4px 12px rgba(30,111,224,.25)",
                     }}>
                     ✨ Ver detalles de Zafi Lite
                   </button>
@@ -6953,12 +6953,12 @@ function TopFabSheet({ items, onClose }) {
                 ) : it.icon}
               </span>
               <span className="cc-add-option-text">
-                <span className="cc-add-option-label">{it.label}{it.locked ? <span style={{ fontSize: 10, color: "#5B6EE8", fontWeight: 600, marginLeft: 6 }}>LITE</span> : ""}</span>
+                <span className="cc-add-option-label">{it.label}{it.locked ? <span style={{ fontSize: 10, color: "#1E6FE0", fontWeight: 600, marginLeft: 6 }}>LITE</span> : ""}</span>
                 <span className="cc-add-option-desc">{it.desc}</span>
               </span>
               {it.locked ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="#5B6EE8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  stroke="#1E6FE0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               ) : (
@@ -7343,9 +7343,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
         <button key={k} onClick={() => onPick(k)}
           style={{ flex: 1, padding: "12px 8px", borderRadius: 14, cursor: "pointer",
             fontFamily: "'Montserrat', sans-serif", fontSize: 14, fontWeight: current === k ? 600 : 400,
-            background: current === k ? "#5B6EE8" : "var(--surface)",
+            background: current === k ? "#1E6FE0" : "var(--surface)",
             color: current === k ? "#fff" : "var(--ink)",
-            border: `1px solid ${current === k ? "#5B6EE8" : "var(--line)"}`,
+            border: `1px solid ${current === k ? "#1E6FE0" : "var(--line)"}`,
             transition: "all .15s ease" }}>
           {l}
         </button>
@@ -7375,9 +7375,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
                 </div>
                 <div style={{ position: "absolute", bottom: -2, right: -2, width: 26, height: 26, borderRadius: "50%",
-                  background: "#5B6EE8", color: "#fff",
+                  background: "#1E6FE0", color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0 2px 8px rgba(91,110,232,.4)", border: "2px solid var(--paper)" }}>
+                  boxShadow: "0 2px 8px rgba(30,111,224,.4)", border: "2px solid var(--paper)" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9" />
@@ -7467,7 +7467,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               <button onClick={saved ? undefined : savePersonal} disabled={saved}
                 style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
                   fontFamily: "inherit", borderRadius: 14, border: "none",
-                  background: "#5B6EE8", color: "#fff",
+                  background: "#1E6FE0", color: "#fff",
                   cursor: saved ? "default" : "pointer",
                   opacity: saved ? 0.5 : 1, transition: "opacity .2s",
                   letterSpacing: "-.01em" }}>
@@ -7491,19 +7491,19 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   pro: ["Cuentas ilimitadas", "Captura por foto", "IA ilimitada", "Ingresos vs Gastos", "Calificación financiera", "Consejos con IA"],
                 };
                 return (
-                  <div key={p} style={{ borderRadius: 16, border: `1.5px solid ${isCurrent ? "#5B6EE8" : "var(--line)"}`,
-                    background: isCurrent ? "rgba(91,110,232,.05)" : "var(--surface)", padding: "16px" }}>
+                  <div key={p} style={{ borderRadius: 16, border: `1.5px solid ${isCurrent ? "#1E6FE0" : "var(--line)"}`,
+                    background: isCurrent ? "rgba(30,111,224,.05)" : "var(--surface)", padding: "16px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <PlanBadge plan={p} />
-                        {isCurrent && <span style={{ fontSize: 11, color: "#5B6EE8", fontWeight: 600 }}>Plan actual</span>}
+                        {isCurrent && <span style={{ fontSize: 11, color: "#1E6FE0", fontWeight: 600 }}>Plan actual</span>}
                       </div>
                       <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{prices[p]}</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       {feats[p].map((f, i) => (
                         <div key={i} style={{ fontSize: 12.5, color: "var(--ink-soft)", display: "flex", gap: 6 }}>
-                          <span style={{ color: p === "pro" ? "#C9A84C" : "#5B6EE8" }}>✓</span> {f}
+                          <span style={{ color: p === "pro" ? "#C9A84C" : "#1E6FE0" }}>✓</span> {f}
                         </div>
                       ))}
                     </div>
@@ -7527,7 +7527,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                         setSection("menu");
                       }}
                         style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
-                          background: p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#5B6EE8" : "rgba(0,0,0,.08)",
+                          background: p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
                           color: p === "free" ? "var(--ink)" : "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
                         {p === "pro" ? "✦ Activar Pro" : p === "lite" ? "Activar Lite" : "Cambiar a Free"}
                       </button>
@@ -7556,15 +7556,15 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                       showToast("Cuenta de inicio actualizada");
                     }}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
-                        border: `1px solid ${isOn ? "rgba(91,110,232,.4)" : "var(--line)"}`,
-                        borderRadius: 12, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        border: `1px solid ${isOn ? "rgba(30,111,224,.4)" : "var(--line)"}`,
+                        borderRadius: 12, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s" }}>
                       <span style={{ fontSize: 20 }}>{a.id === "all" ? "🌐" : "🏦"}</span>
                       <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--ink)",
                         fontFamily: "'Montserrat', sans-serif" }}>{a.name || a.id === "all" ? (a.name || "General") : a.name}</div>
                       <div style={{ width: 22, height: 22, borderRadius: 6,
-                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                        background: isOn ? "#5B6EE8" : "transparent",
+                        border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                        background: isOn ? "#1E6FE0" : "transparent",
                         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {isOn && (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -7675,8 +7675,8 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   <span style={{
                     fontSize: 10, fontWeight: 700, letterSpacing: ".04em",
                     padding: "2px 6px", borderRadius: 6, marginLeft: 6,
-                    background: label === "Pro" ? "rgba(91,110,232,.12)" : "rgba(120,80,200,.10)",
-                    color: label === "Pro" ? "#5B6EE8" : "#7C4DBC",
+                    background: label === "Pro" ? "rgba(30,111,224,.12)" : "rgba(120,80,200,.10)",
+                    color: label === "Pro" ? "#1E6FE0" : "#7C4DBC",
                   }}>{label}</span>
                 );
                 return [
@@ -7914,10 +7914,10 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
   const chip = (id, label) => (
     <button key={id} onClick={() => changePreset(id)}
       style={{ padding: "10px 0", flex: 1,
-        background: preset === id ? "rgba(91,110,232,.12)" : "var(--surface)",
-        border: `1.5px solid ${preset === id ? "#5B6EE8" : "var(--line)"}`,
+        background: preset === id ? "rgba(30,111,224,.12)" : "var(--surface)",
+        border: `1.5px solid ${preset === id ? "#1E6FE0" : "var(--line)"}`,
         borderRadius: 11, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
-        fontWeight: preset === id ? 600 : 400, color: preset === id ? "#5B6EE8" : "var(--ink)",
+        fontWeight: preset === id ? 600 : 400, color: preset === id ? "#1E6FE0" : "var(--ink)",
         transition: "all .15s ease", textAlign: "center" }}>
       {label}
     </button>
@@ -7986,24 +7986,24 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
         <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
           <button onClick={() => hasFeature(config, "date_all") ? changePreset("all") : null}
             style={{ flex: 1, padding: "11px 0",
-              background: preset === "all" ? "rgba(91,110,232,.12)" : "var(--surface)",
-              border: `1.5px solid ${preset === "all" ? "#5B6EE8" : "var(--line)"}`,
+              background: preset === "all" ? "rgba(30,111,224,.12)" : "var(--surface)",
+              border: `1.5px solid ${preset === "all" ? "#1E6FE0" : "var(--line)"}`,
               borderRadius: 11, cursor: hasFeature(config, "date_all") ? "pointer" : "default",
               fontFamily: "inherit", fontSize: 13,
               fontWeight: preset === "all" ? 600 : 400,
-              color: hasFeature(config, "date_all") ? (preset === "all" ? "#5B6EE8" : "var(--ink)") : "var(--ink-faint)",
+              color: hasFeature(config, "date_all") ? (preset === "all" ? "#1E6FE0" : "var(--ink)") : "var(--ink-faint)",
               opacity: hasFeature(config, "date_all") ? 1 : .5,
               textAlign: "center", transition: "all .15s ease" }}>
             {hasFeature(config, "date_all") ? (_lang === "es" ? "Todo el historial" : "All history") : "🔒 Todo"}
           </button>
           <button onClick={() => hasFeature(config, "date_custom") ? changePreset("custom") : null}
             style={{ flex: 1, padding: "11px 0",
-              background: preset === "custom" ? "rgba(91,110,232,.12)" : "var(--surface)",
-              border: `1.5px solid ${preset === "custom" ? "#5B6EE8" : "var(--line)"}`,
+              background: preset === "custom" ? "rgba(30,111,224,.12)" : "var(--surface)",
+              border: `1.5px solid ${preset === "custom" ? "#1E6FE0" : "var(--line)"}`,
               borderRadius: 11, cursor: hasFeature(config, "date_custom") ? "pointer" : "default",
               fontFamily: "inherit", fontSize: 13,
               fontWeight: preset === "custom" ? 600 : 400,
-              color: hasFeature(config, "date_custom") ? (preset === "custom" ? "#5B6EE8" : "var(--ink)") : "var(--ink-faint)",
+              color: hasFeature(config, "date_custom") ? (preset === "custom" ? "#1E6FE0" : "var(--ink)") : "var(--ink-faint)",
               opacity: hasFeature(config, "date_custom") ? 1 : .5,
               textAlign: "center", transition: "all .15s ease" }}>
             {hasFeature(config, "date_custom") ? (_lang === "es" ? "Personalizado" : "Custom") : "🔒 Personalizado"}
@@ -8030,7 +8030,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
         <button onClick={saved ? undefined : apply} disabled={saved}
           style={{ width: "100%", padding: 14, fontSize: 14, fontWeight: 600,
             fontFamily: "inherit", borderRadius: 14, border: "none",
-            background: "#5B6EE8", color: "#fff", cursor: saved ? "default" : "pointer",
+            background: "#1E6FE0", color: "#fff", cursor: saved ? "default" : "pointer",
             opacity: saved ? 0.5 : 1, transition: "opacity .2s" }}>
           {saved ? "Listo" : (_lang === "es" ? "Aplicar" : "Apply")}
         </button>
@@ -8364,7 +8364,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
           top: targetRect.top - 6, left: targetRect.left - 6,
           width: targetRect.width + 12, height: targetRect.height + 12,
           borderRadius: 14,
-          boxShadow: `0 0 0 3px rgba(91,110,232,.85), 0 0 24px rgba(91,110,232,.6)`,
+          boxShadow: `0 0 0 3px rgba(30,111,224,.85), 0 0 24px rgba(30,111,224,.6)`,
           zIndex: 999991,
           pointerEvents: "none",
           transition: "top .18s cubic-bezier(.2,.8,.3,1), left .18s cubic-bezier(.2,.8,.3,1), width .18s cubic-bezier(.2,.8,.3,1), height .18s cubic-bezier(.2,.8,.3,1)",
@@ -8413,7 +8413,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
               {STEPS.map((_, i) => (
                 <span key={i} style={{
                   width: i === step ? 18 : 6, height: 6, borderRadius: 99,
-                  background: i === step ? "#5B6EE8" : (i < step ? "rgba(91,110,232,.4)" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)")),
+                  background: i === step ? "#1E6FE0" : (i < step ? "rgba(30,111,224,.4)" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)")),
                   transition: "all .25s ease",
                 }} />
               ))}
@@ -8451,10 +8451,10 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
           {current.cta ? (
             <button onClick={onAdvance} style={{
               width: "100%", padding: "12px 18px", borderRadius: 12, border: "none",
-              background: "linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+              background: "linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)",
               color: "#fff", fontSize: 13.5, fontWeight: 600,
               fontFamily: "inherit", cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(91,110,232,.35)",
+              boxShadow: "0 4px 14px rgba(30,111,224,.35)",
               letterSpacing: "-.005em",
               transition: "transform .15s ease",
             }}
@@ -8469,11 +8469,11 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 padding: "10px 14px", borderRadius: 12,
-                background: dark ? "rgba(91,110,232,.1)" : "rgba(91,110,232,.06)",
-                fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
+                background: dark ? "rgba(30,111,224,.1)" : "rgba(30,111,224,.06)",
+                fontSize: 12.5, fontWeight: 600, color: "#1E6FE0",
               }}>
                 <span style={{
-                  width: 8, height: 8, borderRadius: 99, background: "#5B6EE8",
+                  width: 8, height: 8, borderRadius: 99, background: "#1E6FE0",
                   animation: "ccTourDotPulse 1.5s ease-in-out infinite",
                 }} />
                 Esperando que lo hagas…
@@ -10185,13 +10185,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <div onClick={() => setUpgradeFeature && setUpgradeFeature("lite")}
                   style={{
                     marginTop: 12, padding: "10px 14px", borderRadius: 10,
-                    background: "rgba(91,110,232,.08)",
-                    border: "1px dashed rgba(91,110,232,.25)",
+                    background: "rgba(30,111,224,.08)",
+                    border: "1px dashed rgba(30,111,224,.25)",
                     textAlign: "center", cursor: "pointer",
                     transition: "background .15s ease",
                   }}>
                   <span style={{
-                    fontSize: 12.5, fontWeight: 600, color: "#5B6EE8",
+                    fontSize: 12.5, fontWeight: 600, color: "#1E6FE0",
                     fontFamily: "'Montserrat', sans-serif",
                   }}>
                     Ver todos los {scopedTxs.length} movimientos con Lite →
@@ -10450,7 +10450,7 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
         </div>
         {accountLabel && (
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-            background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+            background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
             borderRadius: 99, fontSize: 11.5, fontWeight: 600,
             fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
             🏦 Configuración para {accountLabel}
@@ -10485,8 +10485,8 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
                   if (needed !== "free" && !hasIt) return (
                     <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
                       padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
-                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(91,110,232,.12)",
-                      color: needed === "pro" ? "#fff" : "#5B6EE8",
+                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(30,111,224,.12)",
+                      color: needed === "pro" ? "#fff" : "#1E6FE0",
                       fontFamily:"'Montserrat',sans-serif", letterSpacing:".05em" }}>
                       {needed === "pro" ? "✦ PRO" : "LITE"}
                     </span>
@@ -10536,7 +10536,7 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
                       color: "var(--ink)", fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
                     <button onClick={() => onToggleAccountCard && onToggleAccountCard(a.id)}
                       style={{ width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer",
-                        position: "relative", background: isOn ? "#5B6EE8" : "var(--surface-2)",
+                        position: "relative", background: isOn ? "#1E6FE0" : "var(--surface-2)",
                         transition: "background .15s" }}>
                       <span style={{ position: "absolute", top: 3, left: isOn ? 22 : 3, width: 21, height: 21,
                         borderRadius: "50%", background: "#fff",
@@ -11564,7 +11564,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
             background: "var(--paper)", fontSize: 13.5, fontFamily: "'Montserrat', sans-serif" }} />
         <button onClick={addCustom} disabled={!newName.trim()}
           style={{ padding: "8px 12px", borderRadius: 8, border: "none",
-            background: "#5B6EE8", color: "#fff", fontSize: 13, fontWeight: 600,
+            background: "#1E6FE0", color: "#fff", fontSize: 13, fontWeight: 600,
             cursor: newName.trim() ? "pointer" : "not-allowed", opacity: newName.trim() ? 1 : 0.5 }}>
           +
         </button>
@@ -11578,7 +11578,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
       <button onClick={() => setAddingType(type)}
         style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8,
           border: "1px dashed var(--line)", background: "transparent",
-          color: "#5B6EE8", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          color: "#1E6FE0", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
           fontFamily: "'Montserrat', sans-serif" }}>
         + Agregar categoría de {type === "income" ? "ingreso" : "gasto"}
       </button>
@@ -11615,14 +11615,14 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                   return (
                     <button key={c.id} onClick={() => toggleInc(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                        border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                        borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
+                        borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
                       <span style={{ fontSize: 18 }}>{c.emoji}</span>
                       <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
                       <div style={{ width: 20, height: 20, borderRadius: 5,
-                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                        background: isOn ? "#5B6EE8" : "transparent",
+                        border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                        background: isOn ? "#1E6FE0" : "transparent",
                         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
                           strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
@@ -11648,14 +11648,14 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                   return (
                     <button key={c.id} onClick={() => toggleExp(c.id)}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                        border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                        borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                        border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
+                        borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
                       <span style={{ fontSize: 18 }}>{c.emoji}</span>
                       <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
                       <div style={{ width: 20, height: 20, borderRadius: 5,
-                        border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                        background: isOn ? "#5B6EE8" : "transparent",
+                        border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                        background: isOn ? "#1E6FE0" : "transparent",
                         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
                           strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
@@ -11904,8 +11904,8 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
                   </div>
                   <button onClick={() => hasSlot && restore(a.id)} disabled={!hasSlot}
                     style={{ padding: "6px 12px", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                      borderRadius: 10, border: "1px solid " + (hasSlot ? "#5B6EE8" : "var(--line)"),
-                      background: hasSlot ? "#5B6EE8" : "transparent",
+                      borderRadius: 10, border: "1px solid " + (hasSlot ? "#1E6FE0" : "var(--line)"),
+                      background: hasSlot ? "#1E6FE0" : "transparent",
                       color: hasSlot ? "#fff" : "var(--ink-faint)",
                       cursor: hasSlot ? "pointer" : "not-allowed" }}>
                     Restaurar
@@ -13101,7 +13101,7 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
           <button disabled={busy || (!input.trim() && !listening && !attachedImgs.length)}
             onClick={() => { if (listening) stopVoice(false); setTimeout(() => send(), 100); }}
             style={{ padding: "10px 14px", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
-              borderRadius: 14, border: "none", background: "#5B6EE8", color: "#fff",
+              borderRadius: 14, border: "none", background: "#1E6FE0", color: "#fff",
               cursor: "pointer", opacity: (busy || (!input.trim() && !listening && !attachedImgs.length)) ? 0.4 : 1,
               flexShrink: 0, transition: "opacity .15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
@@ -13373,7 +13373,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade }) {
                 <button onClick={() => { setShowUpgrade(false); if (onUpgrade) onUpgrade(); onClose(); }}
                   style={{
                     padding:"14px 18px", borderRadius:14, border:"none",
-                    background:"linear-gradient(135deg, #5B6EE8 0%, #8B5CF6 100%)",
+                    background:"linear-gradient(135deg, #1E6FE0 0%, #8B5CF6 100%)",
                     color:"#fff", fontSize:14, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
                     letterSpacing:".01em",
                   }}>
@@ -13452,7 +13452,7 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
               {config.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 14, color: "#5B6EE8" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 14, color: "#1E6FE0" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12" />
@@ -13485,7 +13485,7 @@ function TransferModal({ config, defaultFromId, onClose, onSave }) {
         </div>
 
         {fromAcc && toAcc && (
-          <div style={{ background: "rgba(91,110,232,.08)", border: "1px solid rgba(91,110,232,.2)",
+          <div style={{ background: "rgba(30,111,224,.08)", border: "1px solid rgba(30,111,224,.2)",
             borderRadius: 12, padding: "10px 12px", marginBottom: 14,
             fontSize: 12.5, color: "var(--ink-soft)", fontFamily: "'Montserrat', sans-serif", lineHeight: 1.4 }}>
             Se creará un cargo en <b style={{ color: "var(--ink)" }}>{fromAcc.name}</b> y un abono en <b style={{ color: "var(--ink)" }}>{toAcc.name}</b>.
@@ -13761,7 +13761,7 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 
 /* ============================ ESTADÍSTICAS =============================== */
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
-const CHART_PALETTE = ["#5B6EE8", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
+const CHART_PALETTE = ["#1E6FE0", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
 
 function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart }) {
   // rows: [{cat, amt}]
@@ -13795,9 +13795,9 @@ function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart
             <button key={k} onClick={() => handleTypeClick(k)}
               style={{ padding: "5px 12px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
                 fontSize: 11.5, fontWeight: chartType === k ? 700 : 500,
-                background: chartType === k ? "#5B6EE8" : "var(--surface)",
+                background: chartType === k ? "#1E6FE0" : "var(--surface)",
                 color: chartType === k ? "#fff" : (isLocked ? "var(--ink-faint)" : "var(--ink-soft)"),
-                border: `1px solid ${chartType === k ? "#5B6EE8" : "var(--line)"}`,
+                border: `1px solid ${chartType === k ? "#1E6FE0" : "var(--line)"}`,
                 display: "inline-flex", alignItems: "center", gap: 4, opacity: isLocked ? 0.7 : 1 }}>
               {isLocked && (
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -14837,7 +14837,7 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
         </div>
         {accountLabel && (
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-            background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+            background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
             borderRadius: 99, fontSize: 11.5, fontWeight: 600,
             fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
             🏦 Configuración para {accountLabel}
@@ -14869,8 +14869,8 @@ function StatsConfigModal({ sections, config, accountLabel, onClose, onSave, def
                   {needed && !hasIt && (
                     <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
                       padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
-                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(91,110,232,.12)",
-                      color: needed === "pro" ? "#fff" : "#5B6EE8",
+                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(30,111,224,.12)",
+                      color: needed === "pro" ? "#fff" : "#1E6FE0",
                       fontFamily:"'Montserrat',sans-serif", letterSpacing:".05em" }}>
                       {needed === "pro" ? "✦ PRO" : "LITE"}
                     </span>
@@ -14991,7 +14991,7 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
           const lbl = acc ? acc.name : "todas las cuentas";
           return (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+              background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
               borderRadius: 99, fontSize: 11.5, fontWeight: 600,
               fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
               🏦 Configuración para {lbl}
@@ -15019,9 +15019,9 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
             return (
               <button key={c.id} onClick={() => toggle(c.id)}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-                  border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                  border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
                   borderRadius: 12,
-                  background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                  background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   transition: "all .15s" }}>
                 <span className="cc-emoji" style={{ fontSize: 20 }}>{c.emoji}</span>
@@ -15034,8 +15034,8 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
                   )}
                 </div>
                 <div style={{ width: 22, height: 22, borderRadius: 6,
-                  border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                  background: isOn ? "#5B6EE8" : "transparent",
+                  border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                  background: isOn ? "#1E6FE0" : "transparent",
                   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   {isOn && (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -15051,7 +15051,7 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
 
         <button style={{ width: "100%", padding: 14, fontSize: 14.5, fontWeight: 600,
           fontFamily: "inherit", borderRadius: 14, border: "none",
-          background: "#5B6EE8", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
+          background: "#1E6FE0", color: "#fff", cursor: "pointer", letterSpacing: "-.01em" }}
           onClick={save}>Guardar</button>
       </div>
     </div>,
@@ -15122,7 +15122,7 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
     styleSheet(wsRes, [
       { cell: "A1", style: titleStyle },
       { cell: "A3", style: boldStyle }, { cell: "A4", style: boldStyle }, { cell: "A5", style: boldStyle },
-      { cell: "A7", style: { font: { bold: true, sz: 12, color: { rgb: "5B6EE8" } } } },
+      { cell: "A7", style: { font: { bold: true, sz: 12, color: { rgb: "1E6FE0" } } } },
       { cell: "A8", style: boldStyle }, { cell: "B8", style: { ...mxnStyle, ...incStyle } },
       { cell: "A9", style: boldStyle }, { cell: "B9", style: { ...mxnStyle, ...expStyle } },
       { cell: "A10", style: boldStyle }, { cell: "B10", style: { ...mxnStyle, ...netStyle } },
@@ -15402,7 +15402,7 @@ Genera el análisis financiero ahora.`;
   body{font-family:'Inter',-apple-system,sans-serif;color:#111827;background:#fff;padding:36px 32px;max-width:820px;margin:0 auto;font-size:13px;line-height:1.5;}
   .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111827;}
   .brand{font-size:30px;font-weight:200;letter-spacing:-.05em;color:#111827;font-family:Georgia,serif;}
-  .brand b{color:#5B6EE8;font-weight:200;}
+  .brand b{color:#1E6FE0;font-weight:200;}
   .meta{text-align:right;}
   .meta-row{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9CA3AF;margin-bottom:2px;}
   .meta-val{font-size:14px;font-weight:600;color:#111827;margin-bottom:8px;}
@@ -15428,10 +15428,10 @@ Genera el análisis financiero ahora.`;
   .acc-col{color:#9CA3AF;font-size:11.5px;}
   .total-row td{font-weight:700;border-top:1.5px solid #E5E7EB!important;background:#F9FAFB;padding-top:10px;}
   .foot{margin-top:36px;padding-top:14px;border-top:1px solid #F3F4F6;display:flex;justify-content:space-between;font-size:10.5px;color:#9CA3AF;}
-  .print-btn{position:fixed;top:16px;right:16px;padding:10px 18px;background:#5B6EE8;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(91,110,232,.35);}
+  .print-btn{position:fixed;top:16px;right:16px;padding:10px 18px;background:#1E6FE0;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(30,111,224,.35);}
   /* ── Análisis IA ── */
-  .analysis-section{margin:28px 0;background:linear-gradient(135deg,#F0F4FF 0%,#F5F0FF 100%);border-radius:16px;overflow:hidden;border:1px solid rgba(91,110,232,.15);}
-  .analysis-header{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid rgba(91,110,232,.12);background:rgba(91,110,232,.06);}
+  .analysis-section{margin:28px 0;background:linear-gradient(135deg,#F0F4FF 0%,#F5F0FF 100%);border-radius:16px;overflow:hidden;border:1px solid rgba(30,111,224,.15);}
+  .analysis-header{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid rgba(30,111,224,.12);background:rgba(30,111,224,.06);}
   .analysis-icon{font-size:24px;flex-shrink:0;}
   .analysis-title{font-size:15px;font-weight:700;color:#1B2230;letter-spacing:-.01em;}
   .analysis-sub{font-size:11px;color:#6B7585;margin-top:2px;}
@@ -15493,8 +15493,8 @@ ${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})<
       {/* Meta visible: periodo + cuenta */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12,
         fontFamily: "'Montserrat', sans-serif" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
-          background: "rgba(91,110,232,.1)", padding: "3px 9px", borderRadius: 99,
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1E6FE0",
+          background: "rgba(30,111,224,.1)", padding: "3px 9px", borderRadius: 99,
           letterSpacing: ".01em" }}>{rangeName}</span>
         <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-soft)",
           background: "var(--surface)", padding: "3px 9px", borderRadius: 99,
@@ -15553,7 +15553,7 @@ ${allTxs.length?`<div class="section-title">📋 Movimientos (${allTxs.length})<
         </button>
 
         <button onClick={() => setSankeyOpen(true)} className="cc-report-btn">
-          <span className="cc-report-icon" style={{ background: "rgba(91,110,232,.12)", color: "#5B6EE8" }}>
+          <span className="cc-report-icon" style={{ background: "rgba(30,111,224,.12)", color: "#1E6FE0" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 4c8 0 8 5 16 5" />
@@ -15767,7 +15767,7 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
               <button onClick={resetAll} style={{
                 background: "transparent", border: "none", padding: "4px 8px",
                 borderRadius: 6, cursor: "pointer",
-                fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
+                fontSize: 11.5, fontWeight: 600, color: "#1E6FE0",
                 fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap",
               }}>
                 Restablecer
@@ -15780,10 +15780,10 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
             {accView === "all" && visibleAccounts.length > 1 && (
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#5B6EE8",
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#1E6FE0",
                     display: "inline-block" }} />
                   <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                    letterSpacing: ".06em", color: "#5B6EE8", fontFamily: "'Montserrat', sans-serif" }}>
+                    letterSpacing: ".06em", color: "#1E6FE0", fontFamily: "'Montserrat', sans-serif" }}>
                     Cuentas
                   </span>
                   <span style={{ fontSize: 11, color: "var(--ink-faint)", fontFamily: "'Montserrat', sans-serif" }}>
@@ -15796,8 +15796,8 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                     return (
                       <button key={a.id} onClick={() => toggleAcc(a.id)}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                          border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
+                          borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                           cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
                           width: "100%" }}>
                         <span style={{ fontSize: 18 }}>🏦</span>
@@ -15808,8 +15808,8 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                           {fmtBare(accAmounts[a.id] || 0)} <span style={{ fontSize: 9.5, color: "var(--ink-faint)" }}>mxn</span>
                         </div>
                         <div style={{ width: 20, height: 20, borderRadius: 5,
-                          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                          background: isOn ? "#5B6EE8" : "transparent",
+                          border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                          background: isOn ? "#1E6FE0" : "transparent",
                           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           {isOn && (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -15911,8 +15911,8 @@ function CatListGroup({ label, color, cats, selected, onToggle, amounts, last })
           return (
             <button key={c.id} onClick={() => onToggle(c.id)}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-                borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
+                borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
                 width: "100%" }}>
               <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
@@ -15925,8 +15925,8 @@ function CatListGroup({ label, color, cats, selected, onToggle, amounts, last })
                 </div>
               )}
               <div style={{ width: 20, height: 20, borderRadius: 5,
-                border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                background: isOn ? "#5B6EE8" : "transparent",
+                border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                background: isOn ? "#1E6FE0" : "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 {isOn && (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -15979,7 +15979,7 @@ function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, 
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-          background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+          background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
           borderRadius: 99, fontSize: 11.5, fontWeight: 600,
           fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
           🏦 Configuración para {lbl}
@@ -16003,9 +16003,9 @@ function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, 
             return (
               <button key={a.id} onClick={() => toggle(a.id)}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-                  border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
+                  border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
                   borderRadius: 12,
-                  background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+                  background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   transition: "all .15s" }}>
                 <span className="cc-emoji" style={{ fontSize: 20 }}>🏦</span>
@@ -16014,8 +16014,8 @@ function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, 
                     fontFamily: "'Montserrat', sans-serif" }}>{a.name}</div>
                 </div>
                 <div style={{ width: 22, height: 22, borderRadius: 6,
-                  border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-                  background: isOn ? "#5B6EE8" : "transparent",
+                  border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+                  background: isOn ? "#1E6FE0" : "transparent",
                   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   {isOn && (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -16078,16 +16078,16 @@ function IncVsExpCatsModal({ config, accView, incHidden, expHidden, onClose, onS
     return (
       <button onClick={() => onToggle(cat.id)}
         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-          border: `1px solid ${isOn ? "rgba(91,110,232,.35)" : "var(--line)"}`,
-          borderRadius: 10, background: isOn ? "rgba(91,110,232,.08)" : "var(--paper)",
+          border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
+          borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
           cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
           width: "100%" }}>
         <span style={{ fontSize: 18 }}>{cat.emoji || "📂"}</span>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
           fontFamily: "'Montserrat', sans-serif" }}>{cat.name}</div>
         <div style={{ width: 20, height: 20, borderRadius: 5,
-          border: `2px solid ${isOn ? "#5B6EE8" : "var(--line)"}`,
-          background: isOn ? "#5B6EE8" : "transparent",
+          border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
+          background: isOn ? "#1E6FE0" : "transparent",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {isOn && (
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
@@ -16109,7 +16109,7 @@ function IncVsExpCatsModal({ config, accView, incHidden, expHidden, onClose, onS
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-          background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+          background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
           borderRadius: 99, fontSize: 11.5, fontWeight: 600,
           fontFamily: "'Montserrat', sans-serif", marginBottom: 12, letterSpacing: ".01em" }}>
           🏦 {lbl}
@@ -16301,7 +16301,7 @@ function ReportFilterModal({ config, incRowsAll, expRowsAll, accView, onClose, o
           const lbl = acc ? acc.name : "todas las cuentas";
           return (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(91,110,232,.1)", color: "#5B6EE8", padding: "5px 11px",
+              background: "rgba(30,111,224,.1)", color: "#1E6FE0", padding: "5px 11px",
               borderRadius: 99, fontSize: 11.5, fontWeight: 600,
               fontFamily: "'Montserrat', sans-serif", marginBottom: 10, letterSpacing: ".01em" }}>
               🏦 Configuración para {lbl}
@@ -16557,7 +16557,7 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
     const totalH = PDF_H + headerH + 20;
     const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PDF_W} ${totalH}" width="${PDF_W}" height="${totalH}">
       <rect width="${PDF_W}" height="${totalH}" fill="#F8F9FB" />
-      <text x="18" y="22" font-size="20" font-weight="300" font-family="Georgia,serif" fill="#1B2230">zafi<tspan fill="#5B6EE8">.</tspan></text>
+      <text x="18" y="22" font-size="20" font-weight="300" font-family="Georgia,serif" fill="#1B2230">zafi<tspan fill="#1E6FE0">.</tspan></text>
       <text x="18" y="38" font-size="11" font-family="-apple-system,sans-serif" fill="#9CA3AF">Flujo de dinero · ${escapeHtml(rangeName)} · ${escapeHtml(accountLabel || "Todas las cuentas")}</text>
       <line x1="18" y1="46" x2="${PDF_W - 18}" y2="46" stroke="#E5E7EB" stroke-width="1" />
       <g transform="translate(0,${headerH})">${svgPaths2}${svgNodes2}</g>
@@ -16691,14 +16691,14 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
   .summary-card { border: 1px solid #E5E7EB; border-radius: 10px; padding: 12px; }
   .summary-card .l { font-size: 10.5px; color: #6B7280; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
   .summary-card .v { font-size: 18px; font-weight: 600; }
-  .green { color: #10B981; } .red { color: #EF4444; } .blue { color: #5B6EE8; }
+  .green { color: #10B981; } .red { color: #EF4444; } .blue { color: #1E6FE0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
   td { padding: 8px 10px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
   td:first-child { width: 30px; text-align: center; }
   .total-row td { border-top: 2px solid #1B2230; border-bottom: none; padding-top: 12px; font-weight: 700; }
-  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #5B6EE8;
+  .print-btn { position: fixed; top: 16px; right: 16px; padding: 10px 18px; background: #1E6FE0;
     color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
-    box-shadow: 0 4px 12px rgba(91,110,232,.3); font-family: inherit; }
+    box-shadow: 0 4px 12px rgba(30,111,224,.3); font-family: inherit; }
   @media print { .print-btn { display: none; } }
   .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   @media (max-width: 600px) { .tables { grid-template-columns: 1fr; } }
@@ -16754,8 +16754,8 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
         {/* Chips de meta: periodo + cuenta */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -2, marginBottom: 10,
           fontFamily: "'Montserrat', sans-serif" }}>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#5B6EE8",
-            background: "rgba(91,110,232,.1)", padding: "3px 9px", borderRadius: 99 }}>📅 {rangeName}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1E6FE0",
+            background: "rgba(30,111,224,.1)", padding: "3px 9px", borderRadius: 99 }}>📅 {rangeName}</span>
           {accountLabel && (
             <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-soft)",
               background: "var(--surface)", padding: "3px 9px", borderRadius: 99 }}>🏦 {accountLabel}</span>
@@ -16893,10 +16893,10 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
           </button>
           <button onClick={downloadPdf}
             style={{ padding: "10px 16px", borderRadius: 12, border: "none",
-              background: "#5B6EE8", color: "#fff", cursor: "pointer",
+              background: "#1E6FE0", color: "#fff", cursor: "pointer",
               fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 600,
               display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "-.01em",
-              boxShadow: "0 4px 10px rgba(91,110,232,.3)" }}>
+              boxShadow: "0 4px 10px rgba(30,111,224,.3)" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -18228,7 +18228,7 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
                 )}
                 {d.recurringMatch && !isDup && (
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: "#3B4FCF",
-                    background: "rgba(91,110,232,.12)", padding: "3px 8px", borderRadius: 6,
+                    background: "rgba(30,111,224,.12)", padding: "3px 8px", borderRadius: 6,
                     display: "inline-flex", alignItems: "center", gap: 5,
                     marginBottom: 8, letterSpacing: ".02em" }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
