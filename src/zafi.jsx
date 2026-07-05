@@ -9172,26 +9172,39 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
           hiddenIncNames.length  ? `Categorías de ingreso excluidas: ${hiddenIncNames.join(", ")}` : "",
         ].filter(Boolean).join("\n");
 
-        const prompt = `Eres un asesor financiero personal. Analiza esta situación financiera REAL y genera 3 observaciones o consejos MUY ESPECÍFICOS basados en los datos concretos (menciona categorías, montos o hábitos específicos que ves). Máximo 30 palabras cada uno. En español, tono directo y útil.
+        // Desglose de métricas para que la IA sepa exactamente qué está fallando
+        const flujo = baseData.totalIn - baseData.totalOut;
+        const deficit = baseData.totalIn > 0 ? Math.abs(flujo) / baseData.totalIn : 0;
+        const savePct = baseData.totalIn > 0 ? Math.max(0, flujo / baseData.totalIn) : 0;
+        const topCatPct = baseData.topExpCats[0]?.pct || 0;
+        const incPerMonth = baseData.spanDays > 0 ? (baseData.incCount / Math.max(baseData.spanDays, 1)) * 30 : 0;
 
-DATOS DEL PERÍODO (${baseData.spanDays} días):
-- Ingresos: ${fmtMxn(baseData.totalIn)} (${baseData.incCount} movimientos)
-- Gastos: ${fmtMxn(baseData.totalOut)} (${baseData.expCount} movimientos)
-- % gastado del ingreso: ${baseData.spendRatio}%
-- Gasto promedio por transacción: ${fmtMxn(baseData.avgExpTx)}
-- Frecuencia de gastos: ~${baseData.txPerWeek} transacciones/semana
-- Sin categorizar: ${baseData.uncatPct}% del gasto total
-${filtroStr ? `\nFILTRO ACTIVO (estos datos NO están incluidos en el análisis):\n${filtroStr}` : ""}
-TOP CATEGORÍAS DE GASTO:
-${topExpStr}
+        const metricasStr = [
+          `• Flujo neto: ${flujo >= 0 ? "+" : ""}${fmtMxn(flujo)} (${flujo < 0 ? `DÉFICIT de ${Math.round(deficit * 100)}% del ingreso — PRINCIPAL problema` : `ahorras ${Math.round(savePct * 100)}% de tus ingresos`})`,
+          `• Concentración de gasto: categoría "${baseData.topExpCats[0]?.name || "N/A"}" representa el ${topCatPct}% del gasto total${topCatPct > 55 ? " — muy concentrado" : topCatPct > 40 ? " — algo concentrado" : " — bien diversificado"}`,
+          `• Frecuencia de ingresos: ${incPerMonth.toFixed(1)} ingresos/mes${incPerMonth < 1 ? " — muy esporádico" : incPerMonth < 2 ? " — regular" : " — bien"}`,
+        ].join("\n");
 
-FUENTES DE INGRESO:
-${topIncStr}
+        const prompt = `Eres un coach financiero directo y honesto. El usuario tiene una calificación de ${localScore}/100 (${localStatus}). Tu trabajo es decirle EXACTAMENTE qué debe hacer para SUBIR su calificación, basándote en sus métricas reales.
 
-CALIFICACIÓN: ${localScore}/100 (${localStatus})
+MÉTRICAS DE CALIFICACIÓN (esto es lo que determina su score):
+${metricasStr}
 
-Instrucciones: Sé específico — menciona las categorías reales por nombre, señala si algo está muy alto o muy bien. Si hay filtros activos, menciona que el análisis es parcial. NO des consejos genéricos tipo "ahorra más". Responde SOLO con JSON válido sin markdown:
-{"analyses": ["observación1", "observación2", "observación3"]}`;
+DATOS ADICIONALES:
+- Período: ${baseData.spanDays} días
+- Top gastos: ${topExpStr}
+- Fuentes de ingreso: ${topIncStr}
+${filtroStr ? `- Filtro activo: ${filtroStr}` : ""}
+
+INSTRUCCIONES CRÍTICAS:
+- Cada consejo debe atacar directamente una métrica baja
+- Menciona montos y categorías específicas por nombre
+- Di cuánto necesita mejorar: "Necesitas reducir X categoría $Y para salir de déficit"
+- Tono: directo, sin rodeos, como un coach que quiere resultados
+- Máximo 32 palabras por consejo
+- NO des consejos que no impacten su calificación
+- Responde SOLO con JSON válido sin markdown:
+{"analyses": ["consejo1", "consejo2", "consejo3"]}`;
 
         const res = await fetch("/api/claude", {
           method: "POST",
@@ -9204,23 +9217,33 @@ Instrucciones: Sé específico — menciona las categorías reales por nombre, s
         const parsed = JSON.parse(text);
         setData({ ...parsed, score: localScore, status: localStatus });
       } catch {
-        // Fallback también personalizado con los datos que tenemos
+        // Fallback personalizado orientado a subir el score
+        const flujoFallback = baseData.totalIn - baseData.totalOut;
         const topCat = baseData.topExpCats[0];
-        const fallback = topCat
-          ? [
-              `Tu mayor gasto es ${topCat.name} con ${fmtMxn(topCat.amount)} (${topCat.pct}% del total).`,
-              baseData.spendRatio > 80
-                ? `Estás gastando el ${baseData.spendRatio}% de tus ingresos — intenta reducirlo a menos del 80%.`
-                : `Gastas el ${baseData.spendRatio}% de tus ingresos, lo cual es un buen margen.`,
-              baseData.uncatPct > 15
-                ? `El ${baseData.uncatPct}% de tus gastos no tiene categoría — categorizarlos te dará mejor visibilidad.`
-                : "Mantén el hábito de registrar y categorizar cada movimiento.",
-            ]
-          : [
-              "Registra tus gastos por categoría para obtener análisis más precisos.",
-              "Mantén tus gastos por debajo del 80% de tus ingresos.",
-              "Un fondo de emergencia equivale a 3 meses de gastos fijos.",
-            ];
+        const fallback = [];
+
+        if (flujoFallback < 0) {
+          const deficit = Math.abs(flujoFallback);
+          fallback.push(`Tu mayor problema es el déficit de ${fmtMxn(deficit)} — necesitas reducir gastos o aumentar ingresos para salir de números rojos.`);
+        } else {
+          fallback.push(`Vas bien con flujo positivo de ${fmtMxn(flujoFallback)} — intenta llevarlo al 20% de tus ingresos para subir tu calificación.`);
+        }
+
+        if (topCat && topCat.pct > 50) {
+          fallback.push(`${topCat.name} representa el ${topCat.pct}% de tus gastos — diversifica para no depender tanto de una sola categoría.`);
+        } else if (topCat) {
+          fallback.push(`Tu gasto en ${topCat.name} (${fmtMxn(topCat.amount)}) es tu categoría principal — revisa si hay oportunidades de reducción.`);
+        } else {
+          fallback.push("Categoriza todos tus gastos para identificar dónde recortar y mejorar tu calificación.");
+        }
+
+        const incPerMonthFallback = baseData.spanDays > 0 ? (baseData.incCount / Math.max(baseData.spanDays, 1)) * 30 : 0;
+        if (incPerMonthFallback < 2) {
+          fallback.push("Registrar ingresos con más frecuencia o diversificar fuentes de ingreso mejora tu calificación directamente.");
+        } else {
+          fallback.push("Mantén el flujo de ingresos y enfócate en reducir la categoría de gasto más alta para subir tu score.");
+        }
+
         setData({ score: localScore, status: localStatus, analyses: fallback });
       } finally {
         setLoading(false);
