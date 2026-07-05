@@ -7401,8 +7401,6 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("lang"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
               {ROW(IconBell, t("notifications"), notifPrefsSummary(config), () => setSection("notifications"))}
-              {ROW(() => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,
-                "Registro automático", null, () => setSection("autotrack"))}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
@@ -7736,75 +7734,6 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   )}
                 </div>
               )}
-            </div>
-          </>
-        )}
-
-        {section === "autotrack" && (
-          <>
-            {BACK("Registro automático")}
-            <div style={{ minHeight: 200 }}>
-              <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55, marginBottom: 20 }}>
-                Registra tus pagos con Apple Pay <b>automáticamente</b>, sin abrir Zafi — usando una
-                Automatización de la app <b>Atajos</b> de iOS. Se categoriza solo, con el mismo
-                sistema que usa el resto de la app.
-              </div>
-
-              {[
-                { n: 1, title: "Abre la app Atajos", desc: "Ve a la pestaña Automatización (abajo) y toca \"+\" para crear una nueva." },
-                { n: 2, title: "Elige \"Transacción de Apple Pay\"", desc: "Selecciona la tarjeta que corresponde a la cuenta que quieres registrar automáticamente." },
-                { n: 3, title: "Agrega la acción \"Abrir URLs\"", desc: "Busca la acción \"Abrir URLs\" (Open URLs) y pega la URL de tu cuenta (abajo)." },
-                { n: 4, title: "Desactiva \"Preguntar antes de ejecutar\"", desc: "Así se registra en segundo plano, sin pedirte confirmación cada vez." },
-              ].map((step) => (
-                <div key={step.n} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#5B6EE8",
-                    color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {step.n}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", marginBottom: 2 }}>{step.title}</div>
-                    <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>{step.desc}</div>
-                  </div>
-                </div>
-              ))}
-
-              <div className="cc-label" style={{ marginTop: 20, marginBottom: 8 }}>
-                Tu URL — una por cuenta
-              </div>
-              {config.accounts.map((a) => {
-                const url = `zafi://addtx?amount=[Amount]&merchant=[Merchant]&acc=${encodeURIComponent(a.name)}&type=expense`;
-                return (
-                  <div key={a.id} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{a.name}</div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <div style={{ flex: 1, padding: "9px 10px", borderRadius: 8,
-                        border: "1px solid var(--line)", background: "var(--paper)",
-                        fontSize: 11, fontFamily: "monospace", color: "var(--ink-soft)",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {url}
-                      </div>
-                      <button onClick={() => {
-                        navigator.clipboard?.writeText(url);
-                        showToast("URL copiada");
-                      }}
-                        style={{ padding: "9px 12px", borderRadius: 8, border: "none",
-                          background: "#5B6EE8", color: "#fff", fontSize: 12, fontWeight: 600,
-                          cursor: "pointer", flexShrink: 0 }}>
-                        Copiar
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 10,
-                background: "rgba(91,110,232,.08)", border: "1px solid rgba(91,110,232,.15)",
-                fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.55 }}>
-                💡 En la acción "Abrir URLs" de Atajos, reemplaza <b>[Amount]</b> con la variable
-                mágica "Cantidad" y <b>[Merchant]</b> con "Comercio" (aparecen al tocar el
-                campo de texto — son datos que la Automatización de Apple Pay ya trae).
-              </div>
             </div>
           </>
         )}
@@ -8903,24 +8832,28 @@ function ScorePillIndicator({ targetScore, dark }) {
   const pct = Math.round(displayed);
 
   const getState = (v) => {
-    if (v < 35) return {
+    if (v < 30) return {
       grad:    "linear-gradient(90deg, #B32020 0%, #D93232 55%, #E84545 100%)",
-      glowCol: "rgba(200,40,40,0.22)",
       label:   "Atención",
     };
-    if (v < 65) return {
+    if (v < 45) return {
       grad:    "linear-gradient(90deg, #C47000 0%, #E08010 55%, #F09828 100%)",
-      glowCol: "rgba(210,120,10,0.22)",
       label:   "Regular",
     };
-    if (v < 90) return {
+    if (v < 65) return {
+      grad:    "linear-gradient(90deg, #C47000 0%, #D4900A 55%, #E8AA20 100%)",
+      label:   "Bueno",
+    };
+    if (v < 80) return {
       grad:    "linear-gradient(90deg, #1A9040 0%, #28B050 55%, #38C860 100%)",
-      glowCol: "rgba(35,165,70,0.22)",
       label:   "Muy bien",
+    };
+    if (v < 90) return {
+      grad:    "linear-gradient(90deg, #1A8840 0%, #22A050 50%, #34B860 100%)",
+      label:   "Excelente",
     };
     return {
       grad:    "linear-gradient(90deg, #1A8040 0%, #22A050 40%, #34C060 75%, #80D878 100%)",
-      glowCol: "rgba(40,175,80,0.22)",
       label:   "Perfecto",
     };
   };
@@ -9104,10 +9037,84 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const catIds = (config.categories || []).map((c) => c.id).sort().join(",");
   const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
-  // Cálculo determinista del score — siempre igual para los mismos datos
-  const _ratio = baseData.totalIn > 0 ? baseData.totalIn / Math.max(baseData.totalOut, 1) : 0;
-  const localScore  = Math.max(0, Math.min(100, Math.round(_ratio * 55)));
-  const localStatus = localScore >= 65 ? "Excelente" : localScore >= 35 ? "Regular" : "Crítico";
+  // ── Calificación financiera: 5 métricas ponderadas ──────────────────────
+  const _score = (() => {
+    const { totalIn, totalOut, txCount, expCount, incCount,
+            topExpCats, uncatPct, spanDays, txPerWeek } = baseData;
+
+    if (txCount === 0) return 0;
+
+    // 1. RATIO AHORRO (35pts) — qué tan por debajo de tus ingresos son tus gastos
+    //    100% si gastas ≤60% de ingresos, 0% si gastas ≥150%
+    let savingsScore = 0;
+    if (totalIn > 0) {
+      const spendPct = totalOut / totalIn; // 1.0 = gastas exactamente lo que ganas
+      if (spendPct <= 0.60)       savingsScore = 35;
+      else if (spendPct <= 0.80)  savingsScore = 35 - ((spendPct - 0.60) / 0.20) * 10; // 35→25
+      else if (spendPct <= 1.00)  savingsScore = 25 - ((spendPct - 0.80) / 0.20) * 10; // 25→15
+      else if (spendPct <= 1.30)  savingsScore = 15 - ((spendPct - 1.00) / 0.30) * 12; // 15→3
+      else                         savingsScore = Math.max(0, 3 - ((spendPct - 1.30) / 0.30) * 3);
+    } else if (totalOut === 0) {
+      savingsScore = 15; // sin datos suficientes
+    }
+
+    // 2. CONSISTENCIA DE REGISTRO (20pts) — frecuencia con que se registran movimientos
+    //    Ideal: al menos 1 tx por día en el período. Penaliza períodos vacíos.
+    let consistencyScore = 0;
+    if (spanDays > 0 && txCount > 0) {
+      const txPerDay = txCount / Math.max(spanDays, 1);
+      if (txPerDay >= 1.0)       consistencyScore = 20;
+      else if (txPerDay >= 0.5)  consistencyScore = 20 - ((1.0 - txPerDay) / 0.5) * 6;  // 20→14
+      else if (txPerDay >= 0.2)  consistencyScore = 14 - ((0.5 - txPerDay) / 0.3) * 6;  // 14→8
+      else if (txPerDay >= 0.07) consistencyScore = 8  - ((0.2 - txPerDay) / 0.13) * 4; // 8→4
+      else                        consistencyScore = Math.max(2, txPerDay * 28);
+    }
+
+    // 3. DIVERSIFICACIÓN DE GASTOS (15pts) — que no todo el gasto esté en una sola categoría
+    //    Ideal: ninguna cat > 40% del total. Penaliza concentración.
+    let diversScore = 15;
+    if (topExpCats.length > 0 && totalOut > 0) {
+      const topPct = topExpCats[0].pct / 100; // proporción de la categoría más grande
+      if (topPct <= 0.35)      diversScore = 15;
+      else if (topPct <= 0.50) diversScore = 15 - ((topPct - 0.35) / 0.15) * 5;  // 15→10
+      else if (topPct <= 0.70) diversScore = 10 - ((topPct - 0.50) / 0.20) * 5;  // 10→5
+      else                      diversScore = Math.max(2, 5 - ((topPct - 0.70) / 0.30) * 3);
+    }
+
+    // 4. FRECUENCIA DE INGRESOS (15pts) — tener ingresos regulares
+    //    Ideal: al menos 1 ingreso por cada 15 días. Penaliza ingresos esporádicos.
+    let incomeScore = 0;
+    if (incCount > 0 && spanDays > 0) {
+      const incPerMonth = (incCount / Math.max(spanDays, 1)) * 30;
+      if (incPerMonth >= 2.0)      incomeScore = 15;
+      else if (incPerMonth >= 1.0) incomeScore = 15 - ((2.0 - incPerMonth) / 1.0) * 4; // 15→11
+      else if (incPerMonth >= 0.5) incomeScore = 11 - ((1.0 - incPerMonth) / 0.5) * 4; // 11→7
+      else                          incomeScore = Math.max(3, incPerMonth * 14);
+    }
+
+    // 5. CATEGORIZACIÓN (15pts) — % de transacciones bien categorizadas
+    //    uncatPct ya nos dice qué % del gasto no tiene categoría
+    let catScore = 0;
+    if (txCount > 0) {
+      // Combinamos sin categorizar en gastos e ingresos
+      const totalCatPct = 100 - uncatPct; // % categorizado en gastos
+      if (totalCatPct >= 90)      catScore = 15;
+      else if (totalCatPct >= 70) catScore = 15 - ((90 - totalCatPct) / 20) * 5;  // 15→10
+      else if (totalCatPct >= 50) catScore = 10 - ((70 - totalCatPct) / 20) * 4;  // 10→6
+      else                         catScore = Math.max(2, totalCatPct / 50 * 6);
+    }
+
+    const raw = savingsScore + consistencyScore + diversScore + incomeScore + catScore;
+    return Math.max(0, Math.min(100, Math.round(raw)));
+  })();
+
+  const localScore  = _score;
+  const localStatus = localScore >= 90 ? "Perfecto"
+    : localScore >= 80 ? "Excelente"
+    : localScore >= 65 ? "Muy bien"
+    : localScore >= 45 ? "Bueno"
+    : localScore >= 30 ? "Regular"
+    : "Atención";
 
   useEffect(() => {
     if (baseData.txCount === 0) {
