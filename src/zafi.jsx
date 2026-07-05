@@ -402,8 +402,6 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
 .cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
-  border:1px solid rgba(255,255,255,.3);
-  box-shadow:inset -6px -8px 16px rgba(40,30,90,.15), inset 6px 6px 14px rgba(255,255,255,.12);
   animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
   background:radial-gradient(circle, rgba(30,111,224,.55) 0%, rgba(91,155,255,.25) 45%, rgba(30,111,224,0) 70%);
@@ -5133,40 +5131,34 @@ function OrbCanvas({ size = 78, dark = false }) {
 
     const drawFrame = () => {
       ctx.clearRect(0, 0, size * DPR, size * DPR);
-      ctx.save();
-      // Clip circular
-      ctx.beginPath();
-      ctx.arc(CX, CY, size * DPR / 2 - DPR, 0, Math.PI * 2);
-      ctx.clip();
+      // Sin clip — las partículas se desvanecen naturalmente hacia los bordes
 
-      // Fondo transparente — sin relleno
-
-      const span = size * DPR * 0.92;
+      const span = size * DPR * 0.82;
       const proj = [];
       let sumY = 0, count = 0;
       for (const pt of parts) {
         const dist = Math.sqrt(pt.gx * pt.gx + pt.gy * pt.gy);
-        // Ondas concéntricas expandiéndose desde el centro
-        const wave = Math.sin(dist * 14 - t * 2.5) * 0.10;
-        // Desvanecimiento hacia los bordes (olas del mar)
-        const fade = Math.max(0, 1 - dist * 1.6);
+        // Ondas concéntricas — amplitud aumentada para olas más marcadas
+        const wave = Math.sin(dist * 15 - t * 2.5) * 0.16;
+        // Desvanecimiento gaussiano hacia los bordes — sin corte de borde
+        const fade = Math.max(0, Math.pow(1 - Math.min(1, dist * 2.2), 2.0));
         let x = pt.gx * span;
         let y = pt.gy * span;
         let z = wave * span * 0.6;
         const y2 = y * Math.cos(rx) - z * Math.sin(rx);
         const z2 = y * Math.sin(rx) + z * Math.cos(rx);
         y = y2; z = z2;
-        if (fade > 0.02) { sumY += y; count++; }
+        if (fade > 0.01) { sumY += y; count++; }
         proj.push({ x, y, z, dist, wave, fade });
       }
-      // Compensar para centrar la onda en el círculo
+      // Compensar para centrar la onda
       const offsetY = count > 0 ? sumY / count : 0;
 
       proj.sort((a, b) => a.z - b.z);
       for (const pt of proj) {
-        if (pt.fade <= 0.02) continue;
+        if (pt.fade <= 0.01) continue;
         const d = Math.max(0, Math.min(1, (pt.z + span * 0.3) / (span * 0.6)));
-        const color = colorAt(0.5 + pt.wave * 4);
+        const color = colorAt(0.5 + pt.wave * 3);
         const px = CX + pt.x;
         const py = CY + pt.y - offsetY;
         const psize = (0.4 + d * 1.3) * DPR;
@@ -5185,7 +5177,6 @@ function OrbCanvas({ size = 78, dark = false }) {
         ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
         ctx.fill();
       }
-      ctx.restore();
 
       t += 0.014;
       rafRef.current = requestAnimationFrame(drawFrame);
@@ -15750,14 +15741,19 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
   // Montos SIN categoría (o con categoría del tipo equivocado), por tipo —
   // corresponden a la fila "Sin categoría" filtrable como cualquier otra.
   const uncatAmounts = useMemo(() => {
-    let inc = 0, exp = 0;
+    let inc = 0, exp = 0, initialInc = 0, initialExp = 0;
     scopedRangeTxs.forEach((t) => {
+      const isInitial = t.synthetic && String(t.id).startsWith("__initial_");
+      if (isInitial) {
+        if (t.type === "income") initialInc += t.amount; else initialExp += t.amount;
+        return;
+      }
       const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
       const isValid = cat && cat.type === t.type;
       if (isValid) return;
       if (t.type === "income") inc += t.amount; else exp += t.amount;
     });
-    return { income: inc, expense: exp };
+    return { income: inc, expense: exp, initialIncome: initialInc, initialExpense: initialExp };
   }, [scopedRangeTxs, config.categories]);
   // Saldo actual de cada cuenta (no depende del periodo — es el saldo real)
   const accAmounts = useMemo(() => {
@@ -15957,28 +15953,42 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                     paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
                     <span style={{ fontSize: 14 }}>❔</span>
                     <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
-                      fontFamily: "'Montserrat', sans-serif" }}>Sin categoría (todas las cuentas)</span>
+                      fontFamily: "'Montserrat', sans-serif" }}>Otros (todas las cuentas)</span>
                   </div>
                   <CatListGroup label="Ingresos" color="var(--green)"
-                    cats={[{ id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
-                    selected={incSelected} onToggle={toggleUncatInc}
-                    amounts={{ [UNCAT_ID]: uncatAmounts.income }} />
+                    cats={[
+                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
+                      ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                    ]}
+                    selected={new Set([...incSelected, "__initial__"])} onToggle={(id) => id === "__initial__" ? null : toggleUncatInc()}
+                    amounts={{ [UNCAT_ID]: uncatAmounts.income, "__initial__": uncatAmounts.initialIncome }} />
                   <CatListGroup label="Gastos" color="var(--coral)"
-                    cats={[{ id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
-                    selected={expSelected} onToggle={toggleUncatExp}
-                    amounts={{ [UNCAT_ID]: uncatAmounts.expense }} last />
+                    cats={[
+                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
+                      ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                    ]}
+                    selected={new Set([...expSelected, "__initial__"])} onToggle={(id) => id === "__initial__" ? null : toggleUncatExp()}
+                    amounts={{ [UNCAT_ID]: uncatAmounts.expense, "__initial__": uncatAmounts.initialExpense }} last />
                 </div>
               </>
             ) : (
               <>
                 <CatListGroup label="Ingresos" color="var(--green)"
-                  cats={[...incomeCats, { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
-                  selected={incSelected} onToggle={(id) => id === UNCAT_ID ? toggleUncatInc() : toggleInc(id)}
-                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.income }} />
+                  cats={[
+                    ...incomeCats,
+                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
+                    ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                  ]}
+                  selected={new Set([...incSelected, "__initial__"])} onToggle={(id) => id === UNCAT_ID ? toggleUncatInc() : id === "__initial__" ? null : toggleInc(id)}
+                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.income, "__initial__": uncatAmounts.initialIncome }} />
                 <CatListGroup label="Gastos" color="var(--coral)"
-                  cats={[...expenseCats, { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" }]}
-                  selected={expSelected} onToggle={(id) => id === UNCAT_ID ? toggleUncatExp() : toggleExp(id)}
-                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.expense }} last />
+                  cats={[
+                    ...expenseCats,
+                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
+                    ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                  ]}
+                  selected={new Set([...expSelected, "__initial__"])} onToggle={(id) => id === UNCAT_ID ? toggleUncatExp() : id === "__initial__" ? null : toggleExp(id)}
+                  amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.expense, "__initial__": uncatAmounts.initialExpense }} last />
               </>
             )}
           </div>
