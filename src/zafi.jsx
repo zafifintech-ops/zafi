@@ -8955,21 +8955,22 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     try { localStorage.setItem("zafi_score_style", s); } catch {}
   };
 
-  // El score SIEMPRE se calcula sobre "todas las cuentas" — es una calificación
-  // global de tus finanzas, no de una cuenta específica.
-  const scoreAccView = "all";
+  // El score respeta la vista actual (accView) y sus filtros de "Personalizar vista".
+  // Así, las categorías que desmarcaste (Ingresos de Paso, BRONCO, etc.) se excluyen.
+  const scoreAccView = accView;
 
-  // Filtros globales — siempre sobre "todas las cuentas"
+  // Filtros de la vista actual
   const accHidden = getPersonalize(config, "globalAccountsHidden", scoreAccView) || [];
   const incCatsHidden = getPersonalize(config, "globalIncCatsHidden", scoreAccView) || [];
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", scoreAccView) || [];
 
   const baseData = (() => {
-    // statTxs excluye los pass-through (ingresos/gastos de paso, dinero de terceros)
-    // que no deben contar en la calificación financiera.
+    // statTxs excluye los pass-through reales (con flag passThrough) que se cancelan
     let filtered = statTxs(txsInRange(txs, dateRange)).all;
-    // Siempre "all" — quitamos solo cuentas ocultas en la vista global
-    if (accHidden.length > 0) {
+    // Filtro por cuenta según la vista
+    if (scoreAccView !== "all") {
+      filtered = filtered.filter(t => t.accountId === scoreAccView);
+    } else if (accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
     }
     filtered = filtered.filter((t) => {
