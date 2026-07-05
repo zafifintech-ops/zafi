@@ -397,14 +397,14 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-orb-slot{flex:0 0 78px;display:flex;align-items:center;justify-content:center;position:relative;height:100%;}
 .cc-orb-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   width:78px;height:78px;border-radius:50%;border:none;cursor:pointer;
+  background:transparent;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-lg);
-  transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, opacity .2s ease;}
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1), opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
 .cc-orb{width:78px;height:78px;border-radius:50%;position:relative;
   animation:ccOrbBreathe 4s ease-in-out infinite;}
-.cc-orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;z-index:-1;
-  background:radial-gradient(circle, rgba(30,111,224,.55) 0%, rgba(91,155,255,.25) 45%, rgba(30,111,224,0) 70%);
+.cc-orb::after{content:"";position:absolute;inset:2px;border-radius:50%;z-index:-1;
+  background:radial-gradient(circle, rgba(30,111,224,.18) 0%, rgba(91,155,255,.08) 45%, rgba(30,111,224,0) 70%);
   animation:ccOrbGlow 4s ease-in-out infinite;}
 @keyframes ccOrbBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
 @keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
@@ -5138,8 +5138,8 @@ function OrbCanvas({ size = 78, dark = false }) {
       let sumY = 0, count = 0;
       for (const pt of parts) {
         const dist = Math.sqrt(pt.gx * pt.gx + pt.gy * pt.gy);
-        // Ondas concéntricas — amplitud aumentada para olas más marcadas
-        const wave = Math.sin(dist * 15 - t * 2.5) * 0.16;
+        // Ondas más grandes (menor frecuencia) y más lentas (menor velocidad)
+        const wave = Math.sin(dist * 9 - t * 1.4) * 0.22;
         // Desvanecimiento gaussiano hacia los bordes — sin corte de borde
         const fade = Math.max(0, Math.pow(1 - Math.min(1, dist * 2.2), 2.0));
         let x = pt.gx * span;
@@ -5178,7 +5178,7 @@ function OrbCanvas({ size = 78, dark = false }) {
         ctx.fill();
       }
 
-      t += 0.014;
+      t += 0.009;
       rafRef.current = requestAnimationFrame(drawFrame);
     };
 
