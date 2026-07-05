@@ -319,8 +319,8 @@ body{
 @keyframes ccUp{from{opacity:0;}to{opacity:1;}}
 
 /* Page transitions */
-.cc-page{animation:ccPageIn .2s cubic-bezier(.16,1,.3,1) both;}
-@keyframes ccPageIn{from{transform:translateY(6px);}to{transform:none;}}
+.cc-page{animation:ccPageIn .32s cubic-bezier(.16,1,.3,1) both;}
+@keyframes ccPageIn{from{transform:translateY(10px);opacity:0;}to{transform:none;opacity:1;}}
 
 /* Staggered card entrance */
 .cc-card{animation:ccCardIn .25s cubic-bezier(.16,1,.3,1) both;}
@@ -396,12 +396,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 /* Orb central de IA — protruye arriba y abajo de la barra, centrado */
 .cc-orb-slot{flex:0 0 78px;display:flex;align-items:center;justify-content:center;position:relative;height:100%;}
 .cc-orb-btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:92px;height:92px;border-radius:50%;border:none;cursor:pointer;
+  width:112px;height:112px;border-radius:50%;border:none;cursor:pointer;
   background:transparent;
   display:flex;align-items:center;justify-content:center;
   transition:transform .2s cubic-bezier(.34,1.56,.64,1), opacity .2s ease;}
 .cc-orb-btn:active{transform:translate(-50%,-50%) scale(.93);}
-.cc-orb{width:92px;height:92px;border-radius:50%;position:relative;
+.cc-orb{width:112px;height:112px;border-radius:50%;position:relative;
   animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:2px;border-radius:50%;z-index:-1;
   background:radial-gradient(circle, rgba(30,111,224,.18) 0%, rgba(91,155,255,.08) 45%, rgba(30,111,224,0) 70%);
@@ -673,6 +673,8 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-overlay.is-closing .cc-sheet{animation:ccSheetOut .25s cubic-bezier(.4,0,.6,1) both;}
 @keyframes ccSlideInRight{from{transform:translateX(8%);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes ccSlideInLeft{from{transform:translateX(-8%);opacity:0;}to{transform:none;opacity:1;}}
+@keyframes ccAuthSwitch{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.cc-auth-form{animation:ccAuthSwitch .35s cubic-bezier(.2,.8,.3,1) both;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:12px auto 16px;cursor:grab;flex-shrink:0;}
@@ -4779,6 +4781,7 @@ function AuthScreen() {
           )}
         </div>
 
+        <div className="cc-auth-form" key={showForgot ? "forgot" : tab}>
         {showForgot ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <p style={{ fontSize: 13.5, color: "rgba(26,24,21,.55)", lineHeight: 1.6,
@@ -4914,6 +4917,7 @@ function AuthScreen() {
             </p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -6913,7 +6917,7 @@ function BottomNav({ tab, setTab, onOpenAssistant, hidden }) {
             onMouseDown={onOrbDown} onMouseUp={onOrbUp} onMouseLeave={onOrbUp}
             onTouchStart={onOrbDown} onTouchEnd={onOrbUp}
             aria-label="Asistente Zafi (mantén presionado para hablar)">
-            <OrbCanvas size={92} />
+            <OrbCanvas size={112} />
           </button>
         </div>
 
