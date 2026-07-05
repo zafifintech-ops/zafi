@@ -9040,72 +9040,72 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   // ── Calificación financiera: 5 métricas ponderadas ──────────────────────
   const _score = (() => {
     const { totalIn, totalOut, txCount, expCount, incCount,
-            topExpCats, uncatPct, spanDays, txPerWeek } = baseData;
+            topExpCats, uncatPct, spanDays } = baseData;
 
     if (txCount === 0) return 0;
 
-    // 1. RATIO AHORRO (35pts) — qué tan por debajo de tus ingresos son tus gastos
-    //    100% si gastas ≤60% de ingresos, 0% si gastas ≥150%
+    // 1. RATIO AHORRO (50pts) — criterio principal y dominante
+    //    Si gastas más de lo que ganas, el score no puede ser alto sin importar lo demás
     let savingsScore = 0;
     if (totalIn > 0) {
-      const spendPct = totalOut / totalIn; // 1.0 = gastas exactamente lo que ganas
-      if (spendPct <= 0.60)       savingsScore = 35;
-      else if (spendPct <= 0.80)  savingsScore = 35 - ((spendPct - 0.60) / 0.20) * 10; // 35→25
-      else if (spendPct <= 1.00)  savingsScore = 25 - ((spendPct - 0.80) / 0.20) * 10; // 25→15
-      else if (spendPct <= 1.30)  savingsScore = 15 - ((spendPct - 1.00) / 0.30) * 12; // 15→3
-      else                         savingsScore = Math.max(0, 3 - ((spendPct - 1.30) / 0.30) * 3);
+      const spendPct = totalOut / totalIn;
+      if (spendPct <= 0.50)       savingsScore = 50;                                          // ahorra >50%
+      else if (spendPct <= 0.70)  savingsScore = 50 - ((spendPct - 0.50) / 0.20) * 8;        // 50→42
+      else if (spendPct <= 0.85)  savingsScore = 42 - ((spendPct - 0.70) / 0.15) * 10;       // 42→32
+      else if (spendPct <= 1.00)  savingsScore = 32 - ((spendPct - 0.85) / 0.15) * 14;       // 32→18
+      else if (spendPct <= 1.20)  savingsScore = 18 - ((spendPct - 1.00) / 0.20) * 12;       // 18→6  (flujo negativo)
+      else if (spendPct <= 1.50)  savingsScore = 6  - ((spendPct - 1.20) / 0.30) * 5;        // 6→1
+      else                         savingsScore = 0;                                           // gasta 150%+ → 0
     } else if (totalOut === 0) {
-      savingsScore = 15; // sin datos suficientes
+      savingsScore = 20; // sin transacciones suficientes
     }
 
-    // 2. CONSISTENCIA DE REGISTRO (20pts) — frecuencia con que se registran movimientos
-    //    Ideal: al menos 1 tx por día en el período. Penaliza períodos vacíos.
+    // TECHO DURO: si el flujo es negativo, el score total no puede pasar de 55
+    const flujoCap = (totalIn > 0 && totalOut > totalIn) ? 55 : 100;
+
+    // 2. CONSISTENCIA DE REGISTRO (20pts)
     let consistencyScore = 0;
     if (spanDays > 0 && txCount > 0) {
       const txPerDay = txCount / Math.max(spanDays, 1);
       if (txPerDay >= 1.0)       consistencyScore = 20;
-      else if (txPerDay >= 0.5)  consistencyScore = 20 - ((1.0 - txPerDay) / 0.5) * 6;  // 20→14
-      else if (txPerDay >= 0.2)  consistencyScore = 14 - ((0.5 - txPerDay) / 0.3) * 6;  // 14→8
-      else if (txPerDay >= 0.07) consistencyScore = 8  - ((0.2 - txPerDay) / 0.13) * 4; // 8→4
-      else                        consistencyScore = Math.max(2, txPerDay * 28);
+      else if (txPerDay >= 0.5)  consistencyScore = 14 + ((txPerDay - 0.5) / 0.5) * 6;
+      else if (txPerDay >= 0.2)  consistencyScore = 8  + ((txPerDay - 0.2) / 0.3) * 6;
+      else if (txPerDay >= 0.07) consistencyScore = 4  + ((txPerDay - 0.07) / 0.13) * 4;
+      else                        consistencyScore = Math.max(1, txPerDay * 57);
     }
 
-    // 3. DIVERSIFICACIÓN DE GASTOS (15pts) — que no todo el gasto esté en una sola categoría
-    //    Ideal: ninguna cat > 40% del total. Penaliza concentración.
-    let diversScore = 15;
+    // 3. DIVERSIFICACIÓN DE GASTOS (10pts)
+    let diversScore = 10;
     if (topExpCats.length > 0 && totalOut > 0) {
-      const topPct = topExpCats[0].pct / 100; // proporción de la categoría más grande
-      if (topPct <= 0.35)      diversScore = 15;
-      else if (topPct <= 0.50) diversScore = 15 - ((topPct - 0.35) / 0.15) * 5;  // 15→10
-      else if (topPct <= 0.70) diversScore = 10 - ((topPct - 0.50) / 0.20) * 5;  // 10→5
-      else                      diversScore = Math.max(2, 5 - ((topPct - 0.70) / 0.30) * 3);
+      const topPct = topExpCats[0].pct / 100;
+      if (topPct <= 0.40)      diversScore = 10;
+      else if (topPct <= 0.60) diversScore = 10 - ((topPct - 0.40) / 0.20) * 4;
+      else if (topPct <= 0.80) diversScore = 6  - ((topPct - 0.60) / 0.20) * 4;
+      else                      diversScore = Math.max(1, 2 - ((topPct - 0.80) / 0.20) * 1);
     }
 
-    // 4. FRECUENCIA DE INGRESOS (15pts) — tener ingresos regulares
-    //    Ideal: al menos 1 ingreso por cada 15 días. Penaliza ingresos esporádicos.
+    // 4. FRECUENCIA DE INGRESOS (10pts)
     let incomeScore = 0;
     if (incCount > 0 && spanDays > 0) {
       const incPerMonth = (incCount / Math.max(spanDays, 1)) * 30;
-      if (incPerMonth >= 2.0)      incomeScore = 15;
-      else if (incPerMonth >= 1.0) incomeScore = 15 - ((2.0 - incPerMonth) / 1.0) * 4; // 15→11
-      else if (incPerMonth >= 0.5) incomeScore = 11 - ((1.0 - incPerMonth) / 0.5) * 4; // 11→7
-      else                          incomeScore = Math.max(3, incPerMonth * 14);
+      if (incPerMonth >= 2.0)      incomeScore = 10;
+      else if (incPerMonth >= 1.0) incomeScore = 7 + ((incPerMonth - 1.0)) * 3;
+      else if (incPerMonth >= 0.5) incomeScore = 4 + ((incPerMonth - 0.5) / 0.5) * 3;
+      else                          incomeScore = Math.max(1, incPerMonth * 8);
     }
 
-    // 5. CATEGORIZACIÓN (15pts) — % de transacciones bien categorizadas
-    //    uncatPct ya nos dice qué % del gasto no tiene categoría
+    // 5. CATEGORIZACIÓN (10pts)
     let catScore = 0;
     if (txCount > 0) {
-      // Combinamos sin categorizar en gastos e ingresos
-      const totalCatPct = 100 - uncatPct; // % categorizado en gastos
-      if (totalCatPct >= 90)      catScore = 15;
-      else if (totalCatPct >= 70) catScore = 15 - ((90 - totalCatPct) / 20) * 5;  // 15→10
-      else if (totalCatPct >= 50) catScore = 10 - ((70 - totalCatPct) / 20) * 4;  // 10→6
-      else                         catScore = Math.max(2, totalCatPct / 50 * 6);
+      const catPct = 100 - uncatPct;
+      if (catPct >= 90)      catScore = 10;
+      else if (catPct >= 70) catScore = 10 - ((90 - catPct) / 20) * 4;
+      else if (catPct >= 50) catScore = 6  - ((70 - catPct) / 20) * 3;
+      else                    catScore = Math.max(1, catPct / 50 * 3);
     }
 
     const raw = savingsScore + consistencyScore + diversScore + incomeScore + catScore;
-    return Math.max(0, Math.min(100, Math.round(raw)));
+    return Math.max(0, Math.min(flujoCap, Math.round(raw)));
   })();
 
   const localScore  = _score;
