@@ -404,7 +404,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-orb{width:112px;height:112px;border-radius:50%;position:relative;
   animation:ccOrbBreathe 4s ease-in-out infinite;}
 .cc-orb::after{content:"";position:absolute;inset:2px;border-radius:50%;z-index:-1;
-  background:radial-gradient(circle, rgba(30,111,224,.18) 0%, rgba(91,155,255,.08) 45%, rgba(30,111,224,0) 70%);
+  background:radial-gradient(circle, rgba(30,111,224,.32) 0%, rgba(91,155,255,.15) 45%, rgba(30,111,224,0) 70%);
   animation:ccOrbGlow 4s ease-in-out infinite;}
 @keyframes ccOrbBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
 @keyframes ccOrbGlow{0%,100%{opacity:.6;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
@@ -673,8 +673,11 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-overlay.is-closing .cc-sheet{animation:ccSheetOut .25s cubic-bezier(.4,0,.6,1) both;}
 @keyframes ccSlideInRight{from{transform:translateX(8%);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes ccSlideInLeft{from{transform:translateX(-8%);opacity:0;}to{transform:none;opacity:1;}}
-@keyframes ccAuthSwitch{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-.cc-auth-form{animation:ccAuthSwitch .35s cubic-bezier(.2,.8,.3,1) both;}
+@keyframes ccAuthSwitch{from{opacity:0;transform:translateX(24px);}to{opacity:1;transform:translateX(0);}}
+@keyframes ccAuthSwitchBack{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:translateX(0);}}
+.cc-auth-form{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;}
+.cc-auth-form.back{animation:ccAuthSwitchBack .4s cubic-bezier(.2,.8,.3,1) both;}
+.cc-auth-title{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;display:inline-block;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:12px auto 16px;cursor:grab;flex-shrink:0;}
@@ -4769,7 +4772,8 @@ function AuthScreen() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
           justifyContent: "space-between", marginBottom: 20 }}>
-          <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
+          <span key={showForgot ? "forgot" : tab} className="cc-auth-title"
+            style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
             fontSize: 22, letterSpacing: "-.02em", color: "#1A1815" }}>
             {showForgot ? "Olvidé mi contraseña" : tab === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </span>
@@ -4781,7 +4785,7 @@ function AuthScreen() {
           )}
         </div>
 
-        <div className="cc-auth-form" key={showForgot ? "forgot" : tab}>
+        <div className={`cc-auth-form ${tab === "login" && !showForgot ? "back" : ""}`} key={showForgot ? "forgot" : tab}>
         {showForgot ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <p style={{ fontSize: 13.5, color: "rgba(26,24,21,.55)", lineHeight: 1.6,
@@ -5165,13 +5169,13 @@ function OrbCanvas({ size = 78, dark = false }) {
         const color = colorAt(0.5 + pt.wave * 3);
         const px = CX + pt.x;
         const py = CY + pt.y - offsetY;
-        const psize = (0.4 + d * 1.3) * DPR;
-        const alpha = (0.25 + d * 0.75) * pt.fade;
-        if (d > 0.65 && pt.fade > 0.4) {
+        const psize = (0.6 + d * 1.6) * DPR;
+        const alpha = (0.45 + d * 0.55) * pt.fade;
+        if (d > 0.55 && pt.fade > 0.3) {
           ctx.beginPath();
-          ctx.arc(px, py, psize * 2.5, 0, Math.PI * 2);
-          const g = ctx.createRadialGradient(px, py, 0, px, py, psize * 2.5);
-          g.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.3})`);
+          ctx.arc(px, py, psize * 2.8, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(px, py, 0, px, py, psize * 2.8);
+          g.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.4})`);
           g.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0)`);
           ctx.fillStyle = g;
           ctx.fill();
