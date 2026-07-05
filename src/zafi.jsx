@@ -8965,7 +8965,9 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", scoreAccView) || [];
 
   const baseData = (() => {
-    let filtered = txsInRange(txs, dateRange);
+    // statTxs excluye los pass-through (ingresos/gastos de paso, dinero de terceros)
+    // que no deben contar en la calificación financiera.
+    let filtered = statTxs(txsInRange(txs, dateRange)).all;
     // Siempre "all" — quitamos solo cuentas ocultas en la vista global
     if (accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
@@ -14343,6 +14345,10 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const incByCat = {};
   let uncategorizedExp = 0, uncategorizedInc = 0;
   rangeStat.forEach((t) => {
+    // Las transacciones synthetic (netos de pass-through generados por statTxs)
+    // no tienen categoría real y no existen en la lista de movimientos —
+    // no deben contarse como "Sin categoría" o generan datos fantasma.
+    if (t.synthetic) return;
     const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
     if (t.type === "expense") {
       if (cat && cat.type === "expense") expByCat[t.categoryId] = (expByCat[t.categoryId] || 0) + t.amount;
