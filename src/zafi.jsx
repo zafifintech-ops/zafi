@@ -5373,6 +5373,65 @@ const GOAL_ESTIMATORS = {
       ]},
     ],
   },
+  inversion: {
+    emoji: "📈", name: "Empezar a invertir",
+    fields: [
+      { key: "tipo", label: "¿Cuánto quieres invertir?", options: [
+        { v: "inicio", label: "Para empezar", base: 10000 },
+        { v: "medio", label: "Capital medio", base: 50000 },
+        { v: "serio", label: "En serio", base: 150000 },
+        { v: "fuerte", label: "Fuerte", base: 500000 },
+      ]},
+      { key: "plazo", label: "¿En cuánto tiempo lo juntas?", options: [
+        { v: "6", label: "6 meses", months: 6 },
+        { v: "12", label: "1 año", months: 12 },
+        { v: "24", label: "2 años", months: 24 },
+      ]},
+    ],
+  },
+  retiro: {
+    emoji: "🌴", name: "Ahorro para el retiro",
+    fields: [
+      { key: "tipo", label: "¿Qué tan cómodo lo quieres?", options: [
+        { v: "basico", label: "Básico", base: 1500000 },
+        { v: "comodo", label: "Cómodo", base: 3000000 },
+        { v: "holgado", label: "Holgado", base: 6000000 },
+      ]},
+      { key: "plazo", label: "¿En cuántos años?", options: [
+        { v: "120", label: "10 años", months: 120 },
+        { v: "240", label: "20 años", months: 240 },
+        { v: "360", label: "30 años", months: 360 },
+      ]},
+    ],
+  },
+  educacion: {
+    emoji: "🎓", name: "Educación",
+    fields: [
+      { key: "tipo", label: "¿Para qué nivel?", options: [
+        { v: "curso", label: "Curso / diplomado", base: 40000 },
+        { v: "licenciatura", label: "Licenciatura", base: 300000 },
+        { v: "maestria", label: "Maestría", base: 250000 },
+        { v: "posgrado", label: "Posgrado / extranjero", base: 800000 },
+      ]},
+      { key: "plazo", label: "¿Para cuándo?", options: [
+        { v: "12", label: "1 año", months: 12 },
+        { v: "24", label: "2 años", months: 24 },
+        { v: "48", label: "4 años", months: 48 },
+      ]},
+    ],
+  },
+  otro: {
+    emoji: "🎯", name: "Otro objetivo",
+    custom: true,
+    fields: [
+      { key: "plazo", label: "¿Para cuándo?", options: [
+        { v: "6", label: "6 meses", months: 6 },
+        { v: "12", label: "1 año", months: 12 },
+        { v: "24", label: "2 años", months: 24 },
+        { v: "36", label: "3 años", months: 36 },
+      ]},
+    ],
+  },
 };
 
 // Calcula el monto objetivo y el ahorro mensual según las selecciones
@@ -5382,7 +5441,12 @@ function computeGoal(goalType, selections, ctx) {
   let target = 0;
   let months = 12;
 
-  if (est.dynamic && goalType === "emergencias") {
+  if (est.custom) {
+    // Objetivo personalizado — el usuario escribe el monto
+    target = Math.round(ctx.customTarget || 0);
+    const plazoOpt = est.fields.find((f) => f.key === "plazo")?.options.find((o) => o.v === selections.plazo);
+    months = plazoOpt?.months || 12;
+  } else if (est.dynamic && goalType === "emergencias") {
     // Fondo de emergencia = gastos mensuales × N meses
     const mesesField = selections.meses;
     const mult = est.fields[0].options.find((o) => o.v === mesesField)?.mult || 6;
@@ -5390,12 +5454,13 @@ function computeGoal(goalType, selections, ctx) {
     const plazoOpt = est.fields[1].options.find((o) => o.v === selections.plazo);
     months = plazoOpt?.months || 12;
   } else {
-    // Casa/Auto/Viaje: base × factor de zona × multiplicadores
+    // Base × factor de zona × multiplicadores
+    // (retiro/inversión/educación no dependen tanto de zona, pero aplicamos suave)
+    const applyZone = (goalType === "casa" || goalType === "auto" || goalType === "viaje");
     const tipoField = est.fields.find((f) => f.key === "tipo");
-    const tipoOpt = tipoField.options.find((o) => o.v === selections.tipo);
-    let base = (tipoOpt?.base || 0) * zf;
+    const tipoOpt = tipoField?.options.find((o) => o.v === selections.tipo);
+    let base = (tipoOpt?.base || 0) * (applyZone ? zf : 1);
 
-    // Multiplicadores (modo/personas)
     est.fields.forEach((f) => {
       if (f.key === "tipo" || f.key === "plazo") return;
       const opt = f.options.find((o) => o.v === selections[f.key]);
@@ -5419,6 +5484,7 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
   const [goalType, setGoalType] = useState(null);
   const [selections, setSelections] = useState({});
   const [customName, setCustomName] = useState("");
+  const [customTarget, setCustomTarget] = useState("");
   const [result, setResult] = useState(null);
   const [closing, setClosing] = useState(false);
 
@@ -5430,14 +5496,26 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
 
   const close = () => { setClosing(true); setTimeout(onClose, 250); };
 
-  const GOALS = [
+  // Objetivos "que deberías tener" (responsables) y "específicos" (deseos)
+  const GOALS_RECOMMENDED = [
+    { type: "emergencias", emoji: "🛡️", name: "Fondo de emergencia", desc: "Protégete ante cualquier imprevisto." },
+    { type: "inversion", emoji: "📈", name: "Empezar a invertir", desc: "Haz crecer tu dinero, no lo dejes quieto." },
+    { type: "retiro", emoji: "🌴", name: "Ahorro para el retiro", desc: "Disfruta el mañana con tranquilidad." },
+  ];
+  const GOALS_SPECIFIC = [
+    { type: "_gasto", emoji: "🏠", name: "Gasto importante", desc: "Casa, auto o tus próximas vacaciones." },
+    { type: "educacion", emoji: "🎓", name: "Educación", desc: "Una maestría o la escuela de tus hijos." },
+    { type: "otro", emoji: "🎯", name: "Tengo otro objetivo", desc: "Define tu propia meta a tu manera." },
+  ];
+  // Sub-opciones del "Gasto importante"
+  const GASTO_SUBTYPES = [
     { type: "casa", emoji: "🏠", name: "Casa", desc: "Enganche o compra" },
     { type: "auto", emoji: "🚗", name: "Auto", desc: "Nuevo o usado" },
     { type: "viaje", emoji: "✈️", name: "Viaje", desc: "Vacaciones" },
-    { type: "emergencias", emoji: "🛡️", name: "Emergencias", desc: "Fondo de respaldo" },
   ];
 
   const pickGoal = (type) => {
+    if (type === "_gasto") { setStage("gastoPick"); return; }
     setGoalType(type);
     setSelections({});
     setStage("quote");
@@ -5445,43 +5523,84 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
 
   const canCalculate = () => {
     const est = GOAL_ESTIMATORS[goalType];
+    if (est.custom && !(parseFloat(customTarget) > 0)) return false;
     return est.fields.every((f) => selections[f.key]);
   };
 
   const calculate = () => {
-    const r = computeGoal(goalType, selections, { city, monthlyExpenses });
+    const r = computeGoal(goalType, selections, { city, monthlyExpenses, customTarget: parseFloat(customTarget) || 0 });
     setResult(r);
     setStage("result");
   };
 
   const est = goalType ? GOAL_ESTIMATORS[goalType] : null;
 
+  // Ícono SVG de flecha para las filas
+  const ArrowIcon = () => (
+    <div style={{ width: 34, height: 34, borderRadius: "50%", background: dark ? "#F5F5F7" : "#16181D",
+      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: dark ? "#0E0F13" : "#EDEEF1", strokeWidth: 2.4, fill: "none" }}>
+        <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+
+  // Fila de objetivo estilo lista
+  const GoalRow = ({ g }) => (
+    <button onClick={() => pickGoal(g.type)}
+      style={{ width: "100%", background: dark ? "#1A1C22" : "#fff", border: "none", borderRadius: 18,
+        padding: 16, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
+        {g.emoji}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: ink, letterSpacing: "-.01em" }}>{g.name}</div>
+        <div style={{ fontSize: 12.5, color: inkSoft, marginTop: 3, lineHeight: 1.4 }}>{g.desc}</div>
+      </div>
+      <ArrowIcon />
+    </button>
+  );
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
         <div className="cc-grip" />
 
-        {/* ─── PICK: elegir meta ─── */}
+        {/* ─── PICK: elegir meta (dos secciones) ─── */}
         {stage === "pick" && (
           <div className="cc-onboard-step">
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
-              Planea tu futuro
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 27, fontWeight: 500, color: ink, marginBottom: 18, lineHeight: 1.15 }}>
+              ¿Qué quieres lograr?
+            </div>
+            <div style={{ height: 1, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.08)", marginBottom: 20 }} />
+
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: inkSoft, marginBottom: 12, fontFamily: FONT }}>
+              Objetivos que deberías tener
+            </div>
+            {GOALS_RECOMMENDED.map((g) => <GoalRow key={g.type} g={g} />)}
+
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: inkSoft, marginBottom: 12, marginTop: 22, fontFamily: FONT }}>
+              Objetivos específicos
+            </div>
+            {GOALS_SPECIFIC.map((g) => <GoalRow key={g.type} g={g} />)}
+          </div>
+        )}
+
+        {/* ─── GASTO PICK: sub-tipo de gasto importante ─── */}
+        {stage === "gastoPick" && (
+          <div className="cc-onboard-step">
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 27, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+              Gasto importante
             </div>
             <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
-              Elige una meta y te ayudo a calcular cuánto ahorrar y en cuánto tiempo la logras.
+              ¿Qué quieres comprar o pagar?
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
-              {GOALS.map((g) => (
-                <button key={g.type} onClick={() => pickGoal(g.type)}
-                  style={{ background: cardBg, border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.6)"}`,
-                    borderRadius: 16, padding: "18px 12px", textAlign: "center", cursor: "pointer",
-                    fontFamily: FONT, transition: ".2s" }}>
-                  <div style={{ fontSize: 32 }}>{g.emoji}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 6 }}>{g.name}</div>
-                  <div style={{ fontSize: 10.5, color: inkFaint, marginTop: 2 }}>{g.desc}</div>
-                </button>
-              ))}
-            </div>
+            {GASTO_SUBTYPES.map((g) => <GoalRow key={g.type} g={g} />)}
+            <button onClick={() => setStage("pick")}
+              style={{ marginTop: 8, background: "none", border: "none", color: inkSoft, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT }}>
+              ← Volver
+            </button>
           </div>
         )}
 
@@ -5492,8 +5611,32 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
               {est.emoji} {est.name}
             </div>
             <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
-              {city ? `Estimando para ${city}. ` : ""}Responde para calcular tu plan.
+              {city && (goalType === "casa" || goalType === "auto" || goalType === "viaje") ? `Estimando para ${city}. ` : ""}Responde para calcular tu plan.
             </p>
+            {est.custom && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                  ¿Cuánto necesitas juntar?
+                </label>
+                <input value={customTarget}
+                  onChange={(e) => setCustomTarget(e.target.value.replace(/[^\d.,]/g, ""))}
+                  inputMode="decimal" placeholder="$0.00"
+                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                    background: dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)",
+                    fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, margin: "14px 0 8px", display: "block", fontFamily: FONT }}>
+                  ¿Cómo se llama tu meta?
+                </label>
+                <input value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder="Ej: Boda, Moto, Compu nueva" maxLength={30}
+                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                    background: dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)",
+                    fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+              </div>
+            )}
             {est.fields.map((f) => (
               <div key={f.key} style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
@@ -5609,7 +5752,8 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
             ].map((opt) => (
               <button key={opt.mode}
                 onClick={() => onCreateGoal({
-                  type: goalType, emoji: est.emoji, name: est.name,
+                  type: goalType, emoji: est.emoji,
+                  name: est.custom && customName.trim() ? customName.trim() : est.name,
                   target: result.target, monthly: result.monthly, months: result.months,
                   trackingMode: opt.mode, selections, createdAt: Date.now(), saved: 0,
                 })}
