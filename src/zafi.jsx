@@ -5609,7 +5609,7 @@ function computeGoal(goalType, selections, ctx) {
 }
 
 /* Modal principal del planeador de metas */
-function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavings, onClose, onCreateGoal }) {
+function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavings, accounts, currentAccView, onClose, onCreateGoal }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
   const [stage, setStage] = useState("pick"); // pick | quote | result | tracking
@@ -5638,6 +5638,8 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
   const [wizPlanMonths, setWizPlanMonths] = useState(null);
   const [wizPlanText, setWizPlanText] = useState("");
   const [wizAlready, setWizAlready] = useState("");
+  // Cuenta asignada a la meta — default "general" (si estás en una cuenta, presel. general igual)
+  const [goalAccount, setGoalAccount] = useState("general");
   const [closing, setClosing] = useState(false);
 
   const city = config.userCity || config.userCountry || "";
@@ -5764,6 +5766,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
       type: "emergencias", emoji: "🛡️", name: "Fondo de emergencia",
       target: efTarget, monthly: plan.perMonth, months: plan.months,
       trackingMode: "manual",
+      accountId: goalAccount,
       selections: { freq: efFreq, coverType: efCoverType, months: efMonths, plan: plan.id },
       createdAt: Date.now(), saved: efAlreadyNum,
     });
@@ -5825,6 +5828,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
       name: goalType === "otro" && wizName.trim() ? wizName.trim() : (wiz?.name || "Meta"),
       target: wizTarget, monthly: plan.perMonth, months: plan.months,
       trackingMode: "manual",
+      accountId: goalAccount,
       selections: { ...selections, freq: wizFreq, plan: plan.id },
       createdAt: Date.now(), saved: wizAlreadyNum,
     });
@@ -5838,6 +5842,36 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
     // Avanzar al siguiente paso de definición o a ingreso
     if (stepIdx < wizDefSteps - 1) setWizStep(stepIdx + 1);
     else setWizStep(wizDefSteps); // primer paso común: ingreso
+  };
+
+  // Selector de cuenta para la meta (default general)
+  const AccountSelector = () => {
+    if (!accounts || accounts.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+          ¿A qué cuenta pertenece?
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setGoalAccount("general")}
+            style={{ padding: "9px 14px", borderRadius: 11,
+              border: `1px solid ${goalAccount === "general" ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+              background: goalAccount === "general" ? "rgba(30,111,224,.08)" : (dark ? "rgba(255,255,255,.05)" : "#fff"),
+              color: goalAccount === "general" ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+            General
+          </button>
+          {accounts.map((a) => (
+            <button key={a.id} onClick={() => setGoalAccount(a.id)}
+              style={{ padding: "9px 14px", borderRadius: 11,
+                border: `1px solid ${goalAccount === a.id ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                background: goalAccount === a.id ? "rgba(30,111,224,.08)" : (dark ? "rgba(255,255,255,.05)" : "#fff"),
+                color: goalAccount === a.id ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+              {a.name}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
 
@@ -6206,6 +6240,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
                     ))}
                   </div>
 
+                  <AccountSelector />
                   <button onClick={() => createEmergencyGoal(plan)}
                     style={{ width: "100%", padding: 14, borderRadius: 14, background: "#1E6FE0", color: "#fff",
                       fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: FONT }}>
@@ -6454,6 +6489,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
                       </div>
                     ))}
                   </div>
+                  <AccountSelector />
                   <button onClick={() => createWizardGoal(plan)}
                     style={{ width: "100%", padding: 14, borderRadius: 14, background: "#1E6FE0", color: "#fff",
                       fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: FONT }}>
@@ -6674,7 +6710,7 @@ const DEBT_TYPE_INFO = {
 };
 
 // Ícono para tipos de deuda (reusa GoalTypeIcon)
-function DebtWizard({ debt, onClose, onSave }) {
+function DebtWizard({ debt, accounts, onClose, onSave }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
   const [closing, setClosing] = useState(false);
@@ -6688,6 +6724,7 @@ function DebtWizard({ debt, onClose, onSave }) {
   const [rateKnown, setRateKnown] = useState(debt?.rate ? "yes" : null); // yes | no
   const [rate, setRate] = useState(debt?.rate ? String(debt.rate) : "");
   const [minPayment, setMinPayment] = useState(debt?.minPayment ? String(debt.minPayment) : "");
+  const [debtAccount, setDebtAccount] = useState(debt?.accountId || "general");
 
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -6713,6 +6750,7 @@ function DebtWizard({ debt, onClose, onSave }) {
       rate: finalRate,
       rateEstimated: rateKnown === "no",
       minPayment: parseFloat(String(minPayment).replace(/[^\d]/g, "")) || 0,
+      accountId: debtAccount,
       createdAt: debt?.createdAt || Date.now(),
     });
   };
@@ -6874,6 +6912,33 @@ function DebtWizard({ debt, onClose, onSave }) {
                 </div>
               ))}
             </div>
+
+            {/* Selector de cuenta */}
+            {accounts && accounts.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                  ¿A qué cuenta pertenece?
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button onClick={() => setDebtAccount("general")}
+                    style={{ padding: "9px 14px", borderRadius: 11,
+                      border: `1px solid ${debtAccount === "general" ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                      background: debtAccount === "general" ? "rgba(30,111,224,.08)" : (dark ? "rgba(255,255,255,.05)" : "#fff"),
+                      color: debtAccount === "general" ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                    General
+                  </button>
+                  {accounts.map((a) => (
+                    <button key={a.id} onClick={() => setDebtAccount(a.id)}
+                      style={{ padding: "9px 14px", borderRadius: 11,
+                        border: `1px solid ${debtAccount === a.id ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                        background: debtAccount === a.id ? "rgba(30,111,224,.08)" : (dark ? "rgba(255,255,255,.05)" : "#fff"),
+                        color: debtAccount === a.id ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                      {a.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button onClick={doSave}
               style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: "#1E6FE0",
@@ -10980,8 +11045,13 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
 
     // PENALIZACIÓN POR DEUDAS — si el pago mínimo mensual de deudas supera
     // cierto % del ingreso mensual, se resta al score (la deuda pesa).
+    // Respeta la cuenta activa: generales + las de esa cuenta.
     let debtPenalty = 0;
-    const debts = config.debts || [];
+    const debts = (config.debts || []).filter((d) => {
+      const acc = d.accountId || "general";
+      if (scoreAccView === "all") return true;
+      return acc === "general" || acc === scoreAccView;
+    });
     if (debts.length > 0 && spanDays > 0 && totalIn > 0) {
       const totalMinPayment = debts.reduce((s, d) => s + (d.minPayment || 0), 0);
       const monthlyIncome = (totalIn / Math.max(spanDays, 1)) * 30;
@@ -11578,10 +11648,16 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
 
 // Detecta oportunidades analizando las transacciones del periodo.
 // Todo local (sin IA) — funciona para cualquier plan.
-function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
+function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView) {
   const opps = [];
   const expTxs = txs.filter((t) => t.type === "expense" && !t.synthetic);
   const resolved = config.resolvedOpportunities || {};
+  // Filtro por cuenta: generales + las de la cuenta activa
+  const inAccView = (item) => {
+    const acc = item.accountId || "general";
+    if (!accView || accView === "all") return true;
+    return acc === "general" || acc === accView;
+  };
 
   // 1. SUSCRIPCIONES — cargos recurrentes con mismo monto y descripción similar
   const byDescAmount = {};
@@ -11657,7 +11733,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   }
 
   // 6. DEUDAS — priorizar pago si hay deudas con interés alto
-  const debts = config.debts || [];
+  const debts = (config.debts || []).filter(inAccView);
   if (debts.length > 0) {
     // La deuda con mayor tasa
     const worst = [...debts].sort((a, b) => (b.rate || 0) - (a.rate || 0))[0];
@@ -11691,7 +11767,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   }
 
   // 8. SIN FONDO DE EMERGENCIA — la base de todo
-  const hasEmergencyFund = (config.goals || []).some((g) => g.type === "emergencias");
+  const hasEmergencyFund = (config.goals || []).filter(inAccView).some((g) => g.type === "emergencias");
   if (!hasEmergencyFund && flujo > 0 && debts.length === 0) {
     opps.push({
       id: "crea_fondo", icon: "🛡️", tone: "green",
@@ -12124,51 +12200,63 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   );
 }
 
-function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark }) {
+function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [updatingGoal, setUpdatingGoal] = useState(null);
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState(null);
   const [debtMethod, setDebtMethod] = useState(config.debtMethod || "avalanche");
-  const goals = config.goals || [];
-  const debts = config.debts || [];
+  const allGoals = config.goals || [];
+  const allDebts = config.debts || [];
+
+  // Filtrar por cuenta activa:
+  // - Vista "all": todas (etiquetadas con su cuenta)
+  // - Vista de una cuenta: las generales + las de esa cuenta
+  const accName = (id) => (accounts || []).find((a) => a.id === id)?.name || "";
+  const inView = (item) => {
+    const acc = item.accountId || "general";
+    if (accView === "all") return true;
+    return acc === "general" || acc === accView;
+  };
+  const goals = allGoals.filter(inView);
+  const debts = allDebts.filter(inView);
 
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
   const createGoal = (goal) => {
-    const newGoals = [...goals, { ...goal, id: `goal_${Date.now()}` }];
+    const newGoals = [...allGoals, { ...goal, id: `goal_${Date.now()}` }];
     saveConfig({ ...config, goals: newGoals });
     setPlannerOpen(false);
   };
 
   const updateSaved = (goalId, amount) => {
-    const newGoals = goals.map((g) => g.id === goalId ? { ...g, saved: Math.max(0, amount) } : g);
+    const newGoals = allGoals.map((g) => g.id === goalId ? { ...g, saved: Math.max(0, amount) } : g);
     saveConfig({ ...config, goals: newGoals });
   };
 
   const deleteGoal = (goalId) => {
-    saveConfig({ ...config, goals: goals.filter((g) => g.id !== goalId) });
+    saveConfig({ ...config, goals: allGoals.filter((g) => g.id !== goalId) });
   };
 
   // ─── Deudas ───
   const saveDebt = (debt) => {
-    const exists = debts.some((d) => d.id === debt.id);
-    const newDebts = exists ? debts.map((d) => d.id === debt.id ? debt : d) : [...debts, debt];
+    const exists = allDebts.some((d) => d.id === debt.id);
+    const newDebts = exists ? allDebts.map((d) => d.id === debt.id ? debt : d) : [...allDebts, debt];
     saveConfig({ ...config, debts: newDebts });
     setDebtModalOpen(false);
     setEditingDebt(null);
   };
 
   const updateDebtBalance = (debtId, newBalance) => {
-    const newDebts = debts.map((d) => d.id === debtId ? { ...d, balance: Math.max(0, newBalance) } : d);
+    const newDebts = allDebts.map((d) => d.id === debtId ? { ...d, balance: Math.max(0, newBalance) } : d);
     saveConfig({ ...config, debts: newDebts });
   };
 
   const deleteDebt = (debtId) => {
-    saveConfig({ ...config, debts: debts.filter((d) => d.id !== debtId) });
+    saveConfig({ ...config, debts: allDebts.filter((d) => d.id !== debtId) });
   };
 
   const setMethod = (m) => {
@@ -12224,7 +12312,12 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                     <GoalTypeIcon type={g.type} size={22} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>{g.name}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      {g.name}
+                      {accView === "all" && g.accountId && g.accountId !== "general" && (
+                        <span style={{ fontSize: 9, fontWeight: 700, background: dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(g.accountId)}</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 11, color: inkFaint, fontFamily: FONT }}>
                       {fmtMxn(g.saved)} de {fmtMxn(g.target)}
                     </div>
@@ -12329,6 +12422,9 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                             <span style={{ fontSize: 8.5, fontWeight: 700, background: "#E08010", color: "#fff",
                               padding: "2px 6px", borderRadius: 5, letterSpacing: ".03em" }}>PAGAR 1RO</span>
                           )}
+                          {accView === "all" && d.accountId && d.accountId !== "general" && (
+                            <span style={{ fontSize: 8.5, fontWeight: 700, background: dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(d.accountId)}</span>
+                          )}
                         </div>
                         <div style={{ fontSize: 10.5, color: inkSoft, marginTop: 2, fontFamily: FONT }}>
                           {d.rate > 0 ? `${d.rate}% anual${d.rateEstimated ? " (est.)" : ""}` : "Sin tasa"}{d.minPayment > 0 ? ` · Mín ${fmtMxn(d.minPayment)}/mes` : ""}
@@ -12378,6 +12474,8 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           monthlyExpenses={monthlyExpenses}
           monthlyIncome={monthlyIncome}
           currentSavings={currentSavings}
+          accounts={accounts}
+          currentAccView={accView}
           onClose={() => setPlannerOpen(false)}
           onCreateGoal={createGoal}
         />
@@ -12385,6 +12483,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
       {debtModalOpen && (
         <DebtModal
           debt={editingDebt}
+          accounts={accounts}
           onClose={() => { setDebtModalOpen(false); setEditingDebt(null); }}
           onSave={saveDebt}
         />
@@ -12948,9 +13047,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "opportunities") {
+          const goalsInView = (config.goals || []).filter((g) => {
+            const acc = g.accountId || "general";
+            return accView === "all" || acc === "general" || acc === accView;
+          });
           const opps = detectOpportunities(
             statTxs(txsInRange(scopedTxs, dateRange)).all,
-            config, dateRange, inc, exp, (config.goals || []).length > 0
+            config, dateRange, inc, exp, goalsInView.length > 0, accView
           );
           if (opps.length === 0) return null;
           return <OpportunitiesCard key={s.id} config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />;
@@ -12968,19 +13071,24 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           const realTxs = scopedTxs.filter((t) => !t.synthetic);
           const lastTxDate = realTxs.length ? realTxs.reduce((m, t) => t.date > m ? t.date : m, realTxs[0].date) : today();
           const daysSince = Math.round((new Date(today()) - new Date(lastTxDate)) / 86400000);
-          const debtsList = config.debts || [];
+          const inAcc = (item) => {
+            const acc = item.accountId || "general";
+            return accView === "all" || acc === "general" || acc === accView;
+          };
+          const debtsList = (config.debts || []).filter(inAcc);
+          const goalsInAcc = (config.goals || []).filter(inAcc);
           const worstDebt = debtsList.length ? [...debtsList].sort((a, b) => (b.rate || 0) - (a.rate || 0))[0] : null;
           const actionCtx = {
             topExpCat: topExp ? topExp[0] : null,
             topExpPct: topExp && exp > 0 ? Math.round((topExp[1] / exp) * 100) : 0,
             spendRatio: inc > 0 ? Math.round((exp / inc) * 100) : 0,
             uncatPct: 0,
-            hasGoal: (config.goals || []).length > 0,
+            hasGoal: goalsInAcc.length > 0,
             daysSinceLastTx: Math.max(0, daysSince),
             hasDebt: debtsList.length > 0,
             worstDebtName: worstDebt ? worstDebt.name : "",
             worstDebtRate: worstDebt ? worstDebt.rate : 0,
-            hasEmergencyFund: (config.goals || []).some((g) => g.type === "emergencias"),
+            hasEmergencyFund: goalsInAcc.some((g) => g.type === "emergencias"),
             positiveFlow: (inc - exp) > 0,
           };
           return (
@@ -12992,7 +13100,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         if (s.id === "goals") {
           return (
             <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
-              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark} />
+              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
+              accView={accView} accounts={config.accounts || []} />
           );
         }
 
