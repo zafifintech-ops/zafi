@@ -5207,6 +5207,378 @@ function OrbCanvas({ size = 78, dark = false }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   MÓDULO DE METAS — cotizadores de Casa, Auto, Viaje, Emergencias
+   con estimación de precios por zona (México).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Factor de costo de vida por zona (1.0 = promedio nacional).
+// Se usa para ajustar estimaciones de casa/auto/viaje según dónde vive.
+const ZONE_FACTORS = {
+  "tijuana": 1.25, "mexicali": 1.05, "ensenada": 1.1,
+  "cdmx": 1.35, "ciudad de méxico": 1.35, "monterrey": 1.3, "guadalajara": 1.2,
+  "querétaro": 1.15, "puebla": 1.0, "mérida": 1.05, "cancún": 1.2,
+  "playa del carmen": 1.25, "los cabos": 1.4, "san josé del cabo": 1.4,
+  "toluca": 1.05, "león": 0.95, "juárez": 1.1, "chihuahua": 1.0,
+  "hermosillo": 1.05, "culiacán": 0.95, "veracruz": 0.9, "oaxaca": 0.85,
+  "san luis potosí": 1.0, "aguascalientes": 1.0, "morelia": 0.95,
+};
+
+function zoneFactor(city) {
+  if (!city) return 1.0;
+  const key = city.trim().toLowerCase();
+  // Coincidencia exacta o parcial
+  if (ZONE_FACTORS[key]) return ZONE_FACTORS[key];
+  for (const [zone, factor] of Object.entries(ZONE_FACTORS)) {
+    if (key.includes(zone) || zone.includes(key)) return factor;
+  }
+  return 1.0;
+}
+
+// Estimadores de costo por meta (montos base nacionales en MXN)
+const GOAL_ESTIMATORS = {
+  casa: {
+    emoji: "🏠", name: "Casa",
+    // opciones que se le preguntan al usuario
+    fields: [
+      { key: "tipo", label: "¿Qué tipo de vivienda?", options: [
+        { v: "depto_pequeno", label: "Depto pequeño", base: 1400000 },
+        { v: "depto_medio", label: "Depto mediano", base: 2200000 },
+        { v: "casa", label: "Casa", base: 3200000 },
+        { v: "casa_grande", label: "Casa grande", base: 5000000 },
+      ]},
+      { key: "modo", label: "¿Comprar o enganche?", options: [
+        { v: "enganche", label: "Solo enganche (20%)", mult: 0.20 },
+        { v: "contado", label: "De contado", mult: 1.0 },
+      ]},
+      { key: "plazo", label: "¿Para cuándo?", options: [
+        { v: "12", label: "1 año", months: 12 },
+        { v: "24", label: "2 años", months: 24 },
+        { v: "36", label: "3 años", months: 36 },
+        { v: "60", label: "5 años", months: 60 },
+      ]},
+    ],
+  },
+  auto: {
+    emoji: "🚗", name: "Auto",
+    fields: [
+      { key: "tipo", label: "¿Qué tipo de auto?", options: [
+        { v: "usado", label: "Usado económico", base: 180000 },
+        { v: "seminuevo", label: "Seminuevo", base: 320000 },
+        { v: "nuevo", label: "Nuevo", base: 480000 },
+        { v: "premium", label: "Premium", base: 750000 },
+      ]},
+      { key: "modo", label: "¿Cómo lo comprarás?", options: [
+        { v: "enganche", label: "Enganche (25%)", mult: 0.25 },
+        { v: "contado", label: "De contado", mult: 1.0 },
+      ]},
+      { key: "plazo", label: "¿Para cuándo?", options: [
+        { v: "6", label: "6 meses", months: 6 },
+        { v: "12", label: "1 año", months: 12 },
+        { v: "24", label: "2 años", months: 24 },
+      ]},
+    ],
+  },
+  viaje: {
+    emoji: "✈️", name: "Viaje",
+    fields: [
+      { key: "tipo", label: "¿Qué tipo de viaje?", options: [
+        { v: "nacional", label: "Nacional", base: 15000 },
+        { v: "playa", label: "Playa / resort", base: 30000 },
+        { v: "usa", label: "Estados Unidos", base: 45000 },
+        { v: "internacional", label: "Internacional", base: 80000 },
+      ]},
+      { key: "personas", label: "¿Cuántas personas?", options: [
+        { v: "1", label: "Solo yo", mult: 1.0 },
+        { v: "2", label: "2 personas", mult: 1.9 },
+        { v: "4", label: "Familia (4)", mult: 3.5 },
+      ]},
+      { key: "plazo", label: "¿Para cuándo?", options: [
+        { v: "3", label: "3 meses", months: 3 },
+        { v: "6", label: "6 meses", months: 6 },
+        { v: "12", label: "1 año", months: 12 },
+      ]},
+    ],
+  },
+  emergencias: {
+    emoji: "🛡️", name: "Fondo de emergencia",
+    // El fondo se calcula sobre los gastos mensuales reales del usuario
+    dynamic: true,
+    fields: [
+      { key: "meses", label: "¿Cuántos meses de gastos?", options: [
+        { v: "3", label: "3 meses", mult: 3 },
+        { v: "6", label: "6 meses (recomendado)", mult: 6 },
+        { v: "12", label: "12 meses", mult: 12 },
+      ]},
+      { key: "plazo", label: "¿En cuánto tiempo lo juntas?", options: [
+        { v: "6", label: "6 meses", months: 6 },
+        { v: "12", label: "1 año", months: 12 },
+        { v: "18", label: "18 meses", months: 18 },
+      ]},
+    ],
+  },
+};
+
+// Calcula el monto objetivo y el ahorro mensual según las selecciones
+function computeGoal(goalType, selections, ctx) {
+  const est = GOAL_ESTIMATORS[goalType];
+  const zf = zoneFactor(ctx.city);
+  let target = 0;
+  let months = 12;
+
+  if (est.dynamic && goalType === "emergencias") {
+    // Fondo de emergencia = gastos mensuales × N meses
+    const mesesField = selections.meses;
+    const mult = est.fields[0].options.find((o) => o.v === mesesField)?.mult || 6;
+    target = Math.round((ctx.monthlyExpenses || 0) * mult);
+    const plazoOpt = est.fields[1].options.find((o) => o.v === selections.plazo);
+    months = plazoOpt?.months || 12;
+  } else {
+    // Casa/Auto/Viaje: base × factor de zona × multiplicadores
+    const tipoField = est.fields.find((f) => f.key === "tipo");
+    const tipoOpt = tipoField.options.find((o) => o.v === selections.tipo);
+    let base = (tipoOpt?.base || 0) * zf;
+
+    // Multiplicadores (modo/personas)
+    est.fields.forEach((f) => {
+      if (f.key === "tipo" || f.key === "plazo") return;
+      const opt = f.options.find((o) => o.v === selections[f.key]);
+      if (opt?.mult) base *= opt.mult;
+    });
+    target = Math.round(base);
+
+    const plazoOpt = est.fields.find((f) => f.key === "plazo")?.options.find((o) => o.v === selections.plazo);
+    months = plazoOpt?.months || 12;
+  }
+
+  const monthly = Math.round(target / months);
+  return { target, months, monthly };
+}
+
+/* Modal principal del planeador de metas */
+function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, onCreateGoal }) {
+  const dark = useDarkMode();
+  const FONT = "'Montserrat', sans-serif";
+  const [stage, setStage] = useState("pick"); // pick | quote | result | tracking
+  const [goalType, setGoalType] = useState(null);
+  const [selections, setSelections] = useState({});
+  const [customName, setCustomName] = useState("");
+  const [result, setResult] = useState(null);
+  const [closing, setClosing] = useState(false);
+
+  const city = config.userCity || config.userCountry || "";
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+  const cardBg = dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)";
+
+  const close = () => { setClosing(true); setTimeout(onClose, 250); };
+
+  const GOALS = [
+    { type: "casa", emoji: "🏠", name: "Casa", desc: "Enganche o compra" },
+    { type: "auto", emoji: "🚗", name: "Auto", desc: "Nuevo o usado" },
+    { type: "viaje", emoji: "✈️", name: "Viaje", desc: "Vacaciones" },
+    { type: "emergencias", emoji: "🛡️", name: "Emergencias", desc: "Fondo de respaldo" },
+  ];
+
+  const pickGoal = (type) => {
+    setGoalType(type);
+    setSelections({});
+    setStage("quote");
+  };
+
+  const canCalculate = () => {
+    const est = GOAL_ESTIMATORS[goalType];
+    return est.fields.every((f) => selections[f.key]);
+  };
+
+  const calculate = () => {
+    const r = computeGoal(goalType, selections, { city, monthlyExpenses });
+    setResult(r);
+    setStage("result");
+  };
+
+  const est = goalType ? GOAL_ESTIMATORS[goalType] : null;
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+        <div className="cc-grip" />
+
+        {/* ─── PICK: elegir meta ─── */}
+        {stage === "pick" && (
+          <div className="cc-onboard-step">
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
+              Planea tu futuro
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
+              Elige una meta y te ayudo a calcular cuánto ahorrar y en cuánto tiempo la logras.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
+              {GOALS.map((g) => (
+                <button key={g.type} onClick={() => pickGoal(g.type)}
+                  style={{ background: cardBg, border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.6)"}`,
+                    borderRadius: 16, padding: "18px 12px", textAlign: "center", cursor: "pointer",
+                    fontFamily: FONT, transition: ".2s" }}>
+                  <div style={{ fontSize: 32 }}>{g.emoji}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 6 }}>{g.name}</div>
+                  <div style={{ fontSize: 10.5, color: inkFaint, marginTop: 2 }}>{g.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── QUOTE: cotizador ─── */}
+        {stage === "quote" && est && (
+          <div className="cc-onboard-step">
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
+              {est.emoji} {est.name}
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
+              {city ? `Estimando para ${city}. ` : ""}Responde para calcular tu plan.
+            </p>
+            {est.fields.map((f) => (
+              <div key={f.key} style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                  {f.label}
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {f.options.map((o) => {
+                    const on = selections[f.key] === o.v;
+                    return (
+                      <button key={o.v} onClick={() => setSelections((p) => ({ ...p, [f.key]: o.v }))}
+                        style={{ padding: "9px 14px", borderRadius: 12,
+                          border: `1px solid ${on ? "#1E6FE0" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)")}`,
+                          background: on ? "#1E6FE0" : (dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.5)"),
+                          fontSize: 13, fontWeight: 500, color: on ? "#fff" : inkSoft, cursor: "pointer", fontFamily: FONT }}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button onClick={() => setStage("pick")}
+                style={{ flex: "0 0 auto", padding: "14px 18px", borderRadius: 12,
+                  border: `1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"}`,
+                  background: "transparent", color: ink, fontSize: 14, fontWeight: 500, fontFamily: FONT, cursor: "pointer" }}>
+                Atrás
+              </button>
+              <button onClick={calculate} disabled={!canCalculate()}
+                style={{ flex: 1, padding: 14, borderRadius: 12, border: "none",
+                  background: canCalculate() ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                  color: canCalculate() ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+                  cursor: canCalculate() ? "pointer" : "default" }}>
+                Calcular mi plan →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── RESULT: plan ─── */}
+        {stage === "result" && result && est && (
+          <div className="cc-onboard-step">
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
+              Tu plan · {est.name}
+            </div>
+            <p style={{ fontSize: 12.5, color: inkSoft, marginBottom: 18, fontFamily: FONT }}>
+              Meta de {fmtMxn(result.target)} en {result.months} {result.months === 1 ? "mes" : "meses"}
+            </p>
+
+            <div style={{ background: "linear-gradient(140deg,#1E6FE0,#1550B0)", borderRadius: 18, padding: 20, marginBottom: 12, color: "#fff" }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+                Necesitas ahorrar
+              </div>
+              <div style={{ fontSize: 30, fontWeight: 700, margin: "6px 0", letterSpacing: "-.02em", fontFamily: FONT }}>
+                {fmtMxn(result.monthly)} <span style={{ fontSize: 15, fontWeight: 400, opacity: .7 }}>/ mes</span>
+              </div>
+              {currentSavings > 0 && (
+                <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 10, fontFamily: FONT, lineHeight: 1.5 }}>
+                  {currentSavings >= result.monthly
+                    ? `✅ Con tu ahorro actual de ${fmtMxn(currentSavings)}/mes, ¡lo logras sin ajustes!`
+                    : `💡 Con tu ahorro actual de ${fmtMxn(currentSavings)}/mes, te faltan ${fmtMxn(result.monthly - currentSavings)}/mes.`}
+                </div>
+              )}
+            </div>
+
+            {currentSavings < result.monthly && (
+              <div style={{ background: cardBg, borderRadius: 16, padding: 16, marginBottom: 12,
+                border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.6)"}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: inkFaint, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10, fontFamily: FONT }}>
+                  Cómo llegar
+                </div>
+                {[
+                  { lbl: `Extender a ${result.months * 2} meses`, val: `${fmtMxn(Math.round(result.target / (result.months * 2)))}/mes` },
+                  { lbl: "Reducir gastos 20%", val: `+${fmtMxn(Math.round(monthlyExpenses * 0.2))}/mes` },
+                  { lbl: "Ingreso extra sugerido", val: "+$5,000/mes" },
+                ].map((row, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0",
+                    borderBottom: i < 2 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none", fontSize: 13, fontFamily: FONT }}>
+                    <span style={{ color: inkSoft }}>{row.lbl}</span>
+                    <span style={{ color: ink, fontWeight: 600 }}>{row.val}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={() => setStage("tracking")}
+              style={{ width: "100%", padding: 14, borderRadius: 14, background: "#1E6FE0", color: "#fff",
+                fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
+              Crear esta meta 🎯
+            </button>
+            <button onClick={() => setStage("quote")}
+              style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent",
+                border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.12)"}`, color: ink,
+                fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginTop: 8 }}>
+              Ajustar parámetros
+            </button>
+          </div>
+        )}
+
+        {/* ─── TRACKING: elegir seguimiento ─── */}
+        {stage === "tracking" && result && est && (
+          <div className="cc-onboard-step">
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
+              ¿Cómo llevamos tu ahorro?
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
+              Elige cómo registrar tu progreso hacia {est.name.toLowerCase()}.
+            </p>
+            {[
+              { mode: "dedicated", emoji: "🏦", title: "Cuenta de ahorro dedicada", desc: "Creo una alcancía separada. Cada abono que registres suma a tu meta." },
+              { mode: "manual", emoji: "✍️", title: "Manual", desc: "Tú actualizas cuánto llevas ahorrado cuando quieras." },
+              { mode: "linked", emoji: "🔗", title: "Vincular a una cuenta", desc: "El saldo de una cuenta existente cuenta como tu progreso." },
+            ].map((opt) => (
+              <button key={opt.mode}
+                onClick={() => onCreateGoal({
+                  type: goalType, emoji: est.emoji, name: est.name,
+                  target: result.target, monthly: result.monthly, months: result.months,
+                  trackingMode: opt.mode, selections, createdAt: Date.now(), saved: 0,
+                })}
+                style={{ width: "100%", background: cardBg, border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(255,255,255,.6)"}`,
+                  borderRadius: 16, padding: 16, marginBottom: 10, cursor: "pointer", textAlign: "left", fontFamily: FONT }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ fontSize: 26 }}>{opt.emoji}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>{opt.title}</div>
+                    <div style={{ fontSize: 12, color: inkSoft, marginTop: 3, lineHeight: 1.4 }}>{opt.desc}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button className="cc-sheet-close" onClick={close}
+          style={{ position: "absolute", top: 16, right: 16 }}>×</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -8150,6 +8522,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
+  { id: "goals", label: "Metas y planes", on: true },
   { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
@@ -8158,6 +8531,7 @@ const DEFAULT_SECTIONS = [
 // Mapa de plan requerido por cada sección del dashboard
 const HOME_SECTION_PLANS = {
   balance: "free",
+  goals: "free",
   kpis: "pro",
   financialScore: "pro",
   financialTips: "pro",
@@ -8173,14 +8547,14 @@ function adaptiveSectionOrder(score, allSections) {
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: claridad y guía primero
-    order = ["financialScore", "financialTips", "kpis", "balance"];
+    // Rescate: claridad y guía primero, metas al final
+    order = ["financialScore", "financialTips", "kpis", "balance", "goals"];
   } else if (score < 65) {
     // Mejora
-    order = ["financialScore", "kpis", "balance", "financialTips"];
+    order = ["financialScore", "kpis", "goals", "balance", "financialTips"];
   } else {
-    // Crecimiento: motivación primero
-    order = ["balance", "kpis", "financialScore", "financialTips"];
+    // Crecimiento: motivación primero — metas arriba
+    order = ["goals", "balance", "kpis", "financialScore", "financialTips"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -9829,10 +10203,125 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
 }
 
 /* ============================= DASHBOARD ================================= */
+/* Tarjeta de Metas en el Dashboard — muestra metas activas o invita a crear una */
+function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }) {
+  const FONT = "'Montserrat', sans-serif";
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const goals = config.goals || [];
+
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+
+  const createGoal = (goal) => {
+    const newGoals = [...goals, { ...goal, id: `goal_${Date.now()}` }];
+    saveConfig({ ...config, goals: newGoals });
+    setPlannerOpen(false);
+  };
+
+  const updateSaved = (goalId, amount) => {
+    const newGoals = goals.map((g) => g.id === goalId ? { ...g, saved: Math.max(0, amount) } : g);
+    saveConfig({ ...config, goals: newGoals });
+  };
+
+  const deleteGoal = (goalId) => {
+    saveConfig({ ...config, goals: goals.filter((g) => g.id !== goalId) });
+  };
+
+  return (
+    <div className="cc-card" style={{ padding: "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: goals.length ? 14 : 8 }}>
+        <div className="cc-label" style={{ margin: 0 }}>✨ Metas y planes</div>
+        {goals.length > 0 && (
+          <button onClick={() => setPlannerOpen(true)}
+            style={{ background: "none", border: "none", color: "#1E6FE0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+            + Nueva
+          </button>
+        )}
+      </div>
+
+      {goals.length === 0 ? (
+        <button onClick={() => setPlannerOpen(true)}
+          style={{ width: "100%", textAlign: "left", cursor: "pointer", border: "none",
+            background: "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
+            borderRadius: 14, padding: 16, fontFamily: FONT }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 30 }}>🎯</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>Crea tu primera meta</div>
+              <div style={{ fontSize: 12, color: inkSoft, marginTop: 2, lineHeight: 1.4 }}>
+                Casa, auto, viaje o fondo de emergencia — te calculo el plan.
+              </div>
+            </div>
+          </div>
+        </button>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {goals.map((g) => {
+            const pct = g.target > 0 ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0;
+            const remaining = Math.max(0, g.target - g.saved);
+            const monthsLeft = g.monthly > 0 ? Math.ceil(remaining / g.monthly) : 0;
+            return (
+              <div key={g.id} style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
+                borderRadius: 14, padding: 14, border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ fontSize: 22 }}>{g.emoji}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>{g.name}</div>
+                    <div style={{ fontSize: 11, color: inkFaint, fontFamily: FONT }}>
+                      {fmtMxn(g.saved)} de {fmtMxn(g.target)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1E6FE0", fontFamily: FONT }}>{pct}%</div>
+                </div>
+                {/* Barra de progreso */}
+                <div style={{ height: 8, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginBottom: 8 }}>
+                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99,
+                    background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
+                    {pct >= 100 ? "🎉 ¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
+                  </div>
+                  {/* Botón para abonar (modo manual/dedicated) */}
+                  {g.trackingMode !== "linked" && pct < 100 && (
+                    <button onClick={() => {
+                      const val = prompt(`¿Cuánto llevas ahorrado para ${g.name}?`, String(g.saved));
+                      if (val !== null) {
+                        const num = parseFloat(val.replace(/[^\d.]/g, ""));
+                        if (!isNaN(num)) updateSaved(g.id, num);
+                      }
+                    }}
+                      style={{ background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
+                        fontSize: 11.5, fontWeight: 600, padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
+                      Actualizar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {plannerOpen && (
+        <GoalPlannerModal
+          config={config}
+          monthlyExpenses={monthlyExpenses}
+          currentSavings={currentSavings}
+          onClose={() => setPlannerOpen(false)}
+          onCreateGoal={createGoal}
+        />
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView }) {
   // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
   const view = accView;
   const setView = setAccView;
+  const dark = useDarkMode();
   const [configuring, setConfiguring] = useState(false);
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   const [globalCustomizeOpen, setGlobalCustomizeOpen] = useState(false);
@@ -10374,10 +10863,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           );
         }
 
+        if (s.id === "goals") {
+          return (
+            <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
+              monthlyExpenses={exp} currentSavings={Math.max(0, inc - exp)} dark={dark} />
+          );
+        }
+
         return null;
       })}
-
-      {/* Banner Free removido — las secciones bloqueadas en el dashboard ya muestran la opción de Lite */}
 
       {configuring && (
         <HomeConfigModal
@@ -10558,33 +11052,8 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
     apply(next);
   };
   const reset = () => {
-    // Reset al default según plan del usuario
-    const userPlan = config ? getUserPlan(config) : "free";
-    let defaults;
-    if (userPlan === "pro") {
-      defaults = [
-        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
-        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "kpis", on: true },
-        { id: "topExpenses", on: false }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
-      ];
-    } else if (userPlan === "lite") {
-      defaults = [
-        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
-        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "topExpenses", on: false },
-        { id: "kpis", on: true }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
-      ];
-    } else {
-      defaults = [
-        { id: "balance", on: true }, { id: "recent", on: true }, { id: "byCategory", on: true },
-        { id: "trend", on: true }, { id: "incVsExp", on: true }, { id: "kpis", on: true },
-        { id: "topExpenses", on: false }, { id: "financialScore", on: true }, { id: "financialTips", on: false },
-      ];
-    }
-    // Adjuntar labels
-    const withLabels = defaults.map((d) => {
-      const def = DEFAULT_SECTIONS.find((x) => x.id === d.id);
-      return { ...d, label: def?.label || d.id };
-    });
+    // Reset al default actual (todas las secciones disponibles)
+    const withLabels = DEFAULT_SECTIONS.map((d) => ({ ...d }));
     apply(withLabels);
   };
 
@@ -10606,20 +11075,13 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
         )}
         <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45,
           fontFamily: "'Montserrat', sans-serif" }}>
-          Activa o desactiva secciones, y arrastra para reordenarlas.
+          Activa o desactiva secciones. El orden se ajusta solo según tu situación financiera.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
           {items.map((s, i) => (
             <div key={s.id}
-              {...getItemProps(i)}
-              className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}
-              style={{ ...getItemStyle(i) }}>
-              <span className="cc-grip-dots" aria-hidden="true"
-                {...getGripProps(i)}
-                style={{ ...getGripProps(i).style, color: dragIdx === i ? "var(--gold)" : undefined }}>
-                <span /><span />
-              </span>
+              className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontWeight: 500, fontSize: 14.5,
                   color: s.on ? "var(--ink)" : "var(--ink-faint)",
@@ -10642,16 +11104,6 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
                   return null;
                 })()}
               </div>
-              <button className="cc-row-arrow" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Subir">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="18 15 12 9 6 15"/>
-                </svg>
-              </button>
-              <button className="cc-row-arrow" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label="Bajar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
               <label className={`cc-switch ${s.on ? "on" : ""}`}>
                 <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
                 <span className="cc-switch-track" />
