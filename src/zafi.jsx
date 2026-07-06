@@ -11656,6 +11656,51 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
     });
   }
 
+  // 6. DEUDAS — priorizar pago si hay deudas con interés alto
+  const debts = config.debts || [];
+  if (debts.length > 0) {
+    // La deuda con mayor tasa
+    const worst = [...debts].sort((a, b) => (b.rate || 0) - (a.rate || 0))[0];
+    const monthlyInterest = debts.reduce((s, d) => s + (d.balance || 0) * ((d.rate || 0) / 100 / 12), 0);
+    if (worst && worst.rate >= 40 && monthlyInterest > 0) {
+      opps.push({
+        id: "deuda_cara", icon: "🔥", tone: "red",
+        title: `Tu deuda "${worst.name}" te cuesta cara`,
+        detail: `Con ${worst.rate}% de interés, pagas ~${fmtMxn(Math.round(monthlyInterest))}/mes en intereses. Abonar extra aquí te ahorra más que ahorrar.`,
+        save: Math.round(monthlyInterest),
+        action: "debt",
+      });
+    } else if (flujo > 0 && monthlyInterest > 0) {
+      opps.push({
+        id: "abona_deuda", icon: "💳", tone: "amber",
+        title: "Abona a tu deuda",
+        detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abonarlo a tus deudas reduce lo que pagas en intereses.`,
+        action: "debt",
+      });
+    }
+  }
+
+  // 7. SIN METAS NI DEUDAS — invitar a crear una meta
+  if (!hasGoal && debts.length === 0 && flujo > 0) {
+    opps.push({
+      id: "crea_meta", icon: "✨", tone: "blue",
+      title: "Ponle un destino a tu dinero",
+      detail: `Ahorras ${fmtMxn(flujo)} al periodo pero sin una meta. Crea una (fondo de emergencia, un viaje, lo que sea) y avanza con propósito.`,
+      action: "goal",
+    });
+  }
+
+  // 8. SIN FONDO DE EMERGENCIA — la base de todo
+  const hasEmergencyFund = (config.goals || []).some((g) => g.type === "emergencias");
+  if (!hasEmergencyFund && flujo > 0 && debts.length === 0) {
+    opps.push({
+      id: "crea_fondo", icon: "🛡️", tone: "green",
+      title: "Empieza tu fondo de emergencia",
+      detail: "Es la base de toda salud financiera. Te protege si algo sale mal, antes de pensar en otras metas.",
+      action: "goal",
+    });
+  }
+
   // Filtrar las que el usuario marcó como resueltas este periodo.
   // Se resuelven por 30 días — después reaparecen por si el patrón sigue.
   const now = Date.now();
@@ -11746,8 +11791,16 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark }) {
 
 // Pool curado de acciones para Free/Lite — se elige según datos del usuario
 function pickPooledAction(ctx) {
-  const { topExpCat, topExpPct, spendRatio, uncatPct, hasGoal, daysSinceLastTx } = ctx;
+  const { topExpCat, topExpPct, spendRatio, uncatPct, hasGoal, daysSinceLastTx,
+    hasDebt, worstDebtName, worstDebtRate, hasEmergencyFund, positiveFlow } = ctx;
   const pool = [];
+
+  // Prioridad alta: deudas caras
+  if (hasDebt && worstDebtRate >= 40) {
+    pool.push(`Tu deuda "${worstDebtName}" tiene ${worstDebtRate}% de interés. Abona lo que puedas hoy, aunque sea poco.`);
+  } else if (hasDebt && positiveFlow) {
+    pool.push(`Hoy abona algo extra a tus deudas. Reducir el saldo baja los intereses que pagas.`);
+  }
 
   if (daysSinceLastTx >= 2) {
     pool.push(`Llevas ${daysSinceLastTx} días sin registrar. Anota tus gastos de hoy para no perder el control.`);
@@ -11761,9 +11814,19 @@ function pickPooledAction(ctx) {
   if (uncatPct > 20) {
     pool.push(`Tienes ${uncatPct}% de gastos sin categoría. Ordénalos para ver a dónde va tu dinero.`);
   }
+
+  // Sin fondo de emergencia y sin deudas → invitar a crearlo
+  if (!hasEmergencyFund && !hasDebt && positiveFlow) {
+    pool.push(`¿Ya tienes fondo de emergencia? Es la base de todo. Créalo hoy en Metas y planes.`);
+  }
+  // Sin metas ni deudas → crear una meta
+  if (!hasGoal && !hasDebt && positiveFlow) {
+    pool.push(`Dale rumbo a tu ahorro: crea una meta hoy (un viaje, un fondo, lo que quieras).`);
+  }
   if (hasGoal) {
     pool.push(`Abona lo que puedas a tu meta hoy, aunque sea poco. Cada peso cuenta.`);
   }
+
   // Acciones genéricas de respaldo
   pool.push(
     "Antes de tu próxima compra, pregúntate: ¿lo necesito o lo quiero?",
@@ -11812,8 +11875,11 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro }) {
 - % de ingresos gastado: ${actionCtx.spendRatio || 0}%
 - Días sin registrar: ${actionCtx.daysSinceLastTx || 0}
 - Tiene meta activa: ${actionCtx.hasGoal ? "sí" : "no"}
+- Tiene fondo de emergencia: ${actionCtx.hasEmergencyFund ? "sí" : "no"}
+- Tiene deudas: ${actionCtx.hasDebt ? `sí (la más cara: "${actionCtx.worstDebtName}" al ${actionCtx.worstDebtRate}% anual)` : "no"}
+- Flujo positivo este periodo: ${actionCtx.positiveFlow ? "sí" : "no"}
 
-La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+Prioridades: si tiene deudas caras (≥40%), sugiere abonar a ellas (ahorra más que invertir). Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
 
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -12902,6 +12968,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           const realTxs = scopedTxs.filter((t) => !t.synthetic);
           const lastTxDate = realTxs.length ? realTxs.reduce((m, t) => t.date > m ? t.date : m, realTxs[0].date) : today();
           const daysSince = Math.round((new Date(today()) - new Date(lastTxDate)) / 86400000);
+          const debtsList = config.debts || [];
+          const worstDebt = debtsList.length ? [...debtsList].sort((a, b) => (b.rate || 0) - (a.rate || 0))[0] : null;
           const actionCtx = {
             topExpCat: topExp ? topExp[0] : null,
             topExpPct: topExp && exp > 0 ? Math.round((topExp[1] / exp) * 100) : 0,
@@ -12909,6 +12977,11 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             uncatPct: 0,
             hasGoal: (config.goals || []).length > 0,
             daysSinceLastTx: Math.max(0, daysSince),
+            hasDebt: debtsList.length > 0,
+            worstDebtName: worstDebt ? worstDebt.name : "",
+            worstDebtRate: worstDebt ? worstDebt.rate : 0,
+            hasEmergencyFund: (config.goals || []).some((g) => g.type === "emergencias"),
+            positiveFlow: (inc - exp) > 0,
           };
           return (
             <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
