@@ -5477,7 +5477,7 @@ function computeGoal(goalType, selections, ctx) {
 }
 
 /* Modal principal del planeador de metas */
-function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, onCreateGoal }) {
+function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavings, onClose, onCreateGoal }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
   const [stage, setStage] = useState("pick"); // pick | quote | result | tracking
@@ -5486,6 +5486,12 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
   const [customName, setCustomName] = useState("");
   const [customTarget, setCustomTarget] = useState("");
   const [result, setResult] = useState(null);
+  // Wizard del Fondo de emergencia (5 pasos)
+  const [efStep, setEfStep] = useState(0);
+  const [efFreq, setEfFreq] = useState(null);        // semanal | quincenal | mensual | variable
+  const [efIncome, setEfIncome] = useState("");       // ingreso en el periodo elegido
+  const [efMonths, setEfMonths] = useState(6);        // meses de gastos a ahorrar
+  const [efPlan, setEfPlan] = useState(null);         // intensivo | equilibrado | tranquilo
   const [closing, setClosing] = useState(false);
 
   const city = config.userCity || config.userCountry || "";
@@ -5496,26 +5502,47 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
 
   const close = () => { setClosing(true); setTimeout(onClose, 250); };
 
+  // Íconos SVG de línea para cada objetivo (estilo zafiro)
+  const GoalIcon = ({ type }) => {
+    const paths = {
+      emergencias: <><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 9v4M10 11h4" strokeLinecap="round"/></>,
+      inversion: <><path d="M3 17l5-5 4 3 8-8"/><path d="M16 4h4v4"/></>,
+      retiro: <><path d="M4 13c0-4 3.5-7 8-7s8 3 8 7M2 13h20M6 13v5M18 13v5"/></>,
+      _gasto: <><path d="M3 9l9-6 9 6v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 20v-6h6v6"/></>,
+      educacion: <><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V15c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-4.5"/></>,
+      otro: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/></>,
+      casa: <><path d="M3 9l9-6 9 6v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 20v-6h6v6"/></>,
+      auto: <><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11h14v5a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1H8v1a1 1 0 01-1 1H6a1 1 0 01-1-1z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/></>,
+      viaje: <><path d="M10 3l1 8 7-4 2 2-6 5 2 6-2 1-3-5-4 4v3l-2 1-1-4-4-1 1-2h3l4-4-5-3 2-2z"/></>,
+    };
+    return (
+      <svg viewBox="0 0 24 24" style={{ width: 26, height: 26, stroke: "#1E6FE0", fill: "none", strokeWidth: 1.6, strokeLinejoin: "round" }}>
+        {paths[type] || paths.otro}
+      </svg>
+    );
+  };
+
   // Objetivos "que deberías tener" (responsables) y "específicos" (deseos)
   const GOALS_RECOMMENDED = [
-    { type: "emergencias", emoji: "🛡️", name: "Fondo de emergencia", desc: "Protégete ante cualquier imprevisto." },
-    { type: "inversion", emoji: "📈", name: "Empezar a invertir", desc: "Haz crecer tu dinero, no lo dejes quieto." },
-    { type: "retiro", emoji: "🌴", name: "Ahorro para el retiro", desc: "Disfruta el mañana con tranquilidad." },
+    { type: "emergencias", name: "Fondo de emergencia", desc: "Protégete ante cualquier imprevisto." },
+    { type: "inversion", name: "Empezar a invertir", desc: "Haz crecer tu dinero, no lo dejes quieto." },
+    { type: "retiro", name: "Ahorro para el retiro", desc: "Disfruta el mañana con tranquilidad." },
   ];
   const GOALS_SPECIFIC = [
-    { type: "_gasto", emoji: "🏠", name: "Gasto importante", desc: "Casa, auto o tus próximas vacaciones." },
-    { type: "educacion", emoji: "🎓", name: "Educación", desc: "Una maestría o la escuela de tus hijos." },
-    { type: "otro", emoji: "🎯", name: "Tengo otro objetivo", desc: "Define tu propia meta a tu manera." },
+    { type: "_gasto", name: "Gasto importante", desc: "Casa, auto o tus próximas vacaciones." },
+    { type: "educacion", name: "Educación", desc: "Una maestría o la escuela de tus hijos." },
+    { type: "otro", name: "Tengo otro objetivo", desc: "Define tu propia meta a tu manera." },
   ];
   // Sub-opciones del "Gasto importante"
   const GASTO_SUBTYPES = [
-    { type: "casa", emoji: "🏠", name: "Casa", desc: "Enganche o compra" },
-    { type: "auto", emoji: "🚗", name: "Auto", desc: "Nuevo o usado" },
-    { type: "viaje", emoji: "✈️", name: "Viaje", desc: "Vacaciones" },
+    { type: "casa", name: "Casa", desc: "Enganche o compra" },
+    { type: "auto", name: "Auto", desc: "Nuevo o usado" },
+    { type: "viaje", name: "Viaje", desc: "Vacaciones" },
   ];
 
   const pickGoal = (type) => {
     if (type === "_gasto") { setStage("gastoPick"); return; }
+    if (type === "emergencias") { setGoalType(type); setSelections({}); setStage("efStep"); setEfStep(0); return; }
     setGoalType(type);
     setSelections({});
     setStage("quote");
@@ -5535,6 +5562,50 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
 
   const est = goalType ? GOAL_ESTIMATORS[goalType] : null;
 
+  // ─── Lógica del Fondo de emergencia ───
+  // Convierte un monto de un periodo a mensual (para cálculos internos)
+  const FREQ_TO_MONTHLY = { semanal: 4.33, quincenal: 2, mensual: 1, variable: 1 };
+  const FREQ_LABEL = { semanal: "a la semana", quincenal: "a la quincena", mensual: "al mes", variable: "al mes" };
+  const FREQ_NOUN = { semanal: "semana", quincenal: "quincena", mensual: "mes", variable: "mes" };
+
+  // Ingreso detectado, mostrado en el periodo que el usuario eligió
+  const detectedMonthly = monthlyIncome || 0;
+  const detectedInFreq = efFreq ? Math.round(detectedMonthly / FREQ_TO_MONTHLY[efFreq]) : 0;
+
+  // Ingreso efectivo mensual (lo que el usuario confirmó o escribió)
+  const efIncomeMonthly = (() => {
+    const val = parseFloat(String(efIncome).replace(/[^\d.]/g, "")) || 0;
+    if (!efFreq) return 0;
+    return Math.round(val * FREQ_TO_MONTHLY[efFreq]);
+  })();
+
+  // Meta del fondo = gastos mensuales × meses elegidos
+  const efTarget = Math.round((monthlyExpenses || 0) * efMonths);
+
+  // Planes de plazo con su ahorro por periodo
+  const efPlans = (() => {
+    const plans = [
+      { id: "intensivo", label: "Intensivo", months: 6 },
+      { id: "equilibrado", label: "Equilibrado", months: 12 },
+      { id: "tranquilo", label: "Tranquilo", months: 18 },
+    ];
+    return plans.map((p) => {
+      const perMonth = p.months > 0 ? efTarget / p.months : 0;
+      const perPeriod = efFreq ? Math.round(perMonth / FREQ_TO_MONTHLY[efFreq]) : Math.round(perMonth);
+      return { ...p, perMonth: Math.round(perMonth), perPeriod };
+    });
+  })();
+
+  const createEmergencyGoal = (plan) => {
+    onCreateGoal({
+      type: "emergencias", emoji: "🛡️", name: "Fondo de emergencia",
+      target: efTarget, monthly: plan.perMonth, months: plan.months,
+      trackingMode: "manual",
+      selections: { freq: efFreq, months: efMonths, plan: plan.id },
+      createdAt: Date.now(), saved: 0,
+    });
+  };
+
   // Ícono SVG de flecha para las filas
   const ArrowIcon = () => (
     <div style={{ width: 34, height: 34, borderRadius: "50%", background: dark ? "#F5F5F7" : "#16181D",
@@ -5551,8 +5622,8 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
       style={{ width: "100%", background: dark ? "#1A1C22" : "#fff", border: "none", borderRadius: 18,
         padding: 16, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}>
       <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
-        {g.emoji}
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <GoalIcon type={g.type} />
       </div>
       <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: ink, letterSpacing: "-.01em" }}>{g.name}</div>
@@ -5601,6 +5672,242 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
               style={{ marginTop: 8, background: "none", border: "none", color: inkSoft, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT }}>
               ← Volver
             </button>
+          </div>
+        )}
+
+        {/* ─── WIZARD FONDO DE EMERGENCIA (5 pasos) ─── */}
+        {stage === "efStep" && (
+          <div className="cc-onboard-step" key={efStep}>
+            {/* Indicador de paso */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <button onClick={() => efStep === 0 ? setStage("pick") : setEfStep(efStep - 1)}
+                style={{ background: "none", border: "none", color: inkSoft, fontSize: 20, cursor: "pointer", padding: 0, lineHeight: 1 }}>←</button>
+              <div style={{ flex: 1, display: "flex", gap: 4 }}>
+                {[0,1,2,3,4].map((i) => (
+                  <div key={i} style={{ flex: 1, height: 4, borderRadius: 99,
+                    background: i <= efStep ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)") }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: inkFaint, fontFamily: FONT }}>Paso {efStep + 1} de 5</span>
+            </div>
+
+            {/* PASO 1: frecuencia de ingreso */}
+            {efStep === 0 && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿Cada cuánto recibes tu ingreso?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
+                  Así te hablo en tu mismo idioma de dinero.
+                </p>
+                {[
+                  { v: "semanal", label: "Cada semana", desc: "Me pagan por semana" },
+                  { v: "quincenal", label: "Cada quincena", desc: "Me pagan cada 15 días" },
+                  { v: "mensual", label: "Cada mes", desc: "Me pagan mensual" },
+                  { v: "variable", label: "Es variable", desc: "Cambia mes con mes" },
+                ].map((o) => (
+                  <button key={o.v} onClick={() => { setEfFreq(o.v); setEfStep(1); }}
+                    style={{ width: "100%", background: efFreq === o.v ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                      border: `1px solid ${efFreq === o.v ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                      display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer",
+                      fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>{o.label}</div>
+                      <div style={{ fontSize: 12, color: inkSoft, marginTop: 2 }}>{o.desc}</div>
+                    </div>
+                    <ArrowIcon />
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* PASO 2: cuánto ganas */}
+            {efStep === 1 && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿Cuánto ganas?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+                  {detectedMonthly > 0
+                    ? "Detectamos esto de tus movimientos. Ajústalo si no es correcto — a veces entra dinero que solo pasa por tu cuenta."
+                    : "Dinos cuánto ganas para calcular tu plan."}
+                </p>
+
+                {detectedMonthly > 0 && (
+                  <button onClick={() => setEfIncome(String(detectedInFreq))}
+                    style={{ width: "100%", background: dark ? "rgba(30,111,224,.12)" : "rgba(30,111,224,.06)",
+                      border: `1px solid ${String(detectedInFreq) === String(efIncome) ? "#1E6FE0" : "transparent"}`,
+                      borderRadius: 14, padding: 14, marginBottom: 14, cursor: "pointer", textAlign: "left", fontFamily: FONT }}>
+                    <div style={{ fontSize: 11, color: "#1E6FE0", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                      Detectado
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink, marginTop: 3 }}>
+                      {fmtMxn(detectedInFreq)} <span style={{ fontSize: 13, fontWeight: 400, color: inkSoft }}>{FREQ_LABEL[efFreq]}</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: inkSoft, marginTop: 2 }}>
+                      ≈ {fmtMxn(detectedMonthly)} al mes · toca para usar este monto
+                    </div>
+                  </button>
+                )}
+
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                  {detectedMonthly > 0 ? "O escribe tu ingreso real" : `¿Cuánto ganas ${FREQ_LABEL[efFreq]}?`}
+                </label>
+                <input value={efIncome}
+                  onChange={(e) => setEfIncome(e.target.value.replace(/[^\d.,]/g, ""))}
+                  inputMode="decimal" placeholder={`Monto ${FREQ_LABEL[efFreq]}`}
+                  style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                    background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontFamily: FONT, color: ink, outline: "none" }} />
+                {efIncomeMonthly > 0 && efFreq !== "mensual" && (
+                  <div style={{ fontSize: 12, color: inkSoft, marginTop: 8, fontFamily: FONT }}>
+                    Equivale a ≈ {fmtMxn(efIncomeMonthly)} al mes
+                  </div>
+                )}
+
+                <button onClick={() => setEfStep(2)} disabled={efIncomeMonthly <= 0}
+                  style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 20,
+                    background: efIncomeMonthly > 0 ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                    color: efIncomeMonthly > 0 ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+                    cursor: efIncomeMonthly > 0 ? "pointer" : "default" }}>
+                  Continuar →
+                </button>
+              </>
+            )}
+
+            {/* PASO 3: cuántos meses de gastos */}
+            {efStep === 2 && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿Cuántos meses quieres cubrir?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+                  Tu fondo debe cubrir tus gastos si dejas de recibir ingresos. Tus gastos son ~{fmtMxn(monthlyExpenses || 0)}/mes.
+                </p>
+                {[
+                  { m: 3, label: "3 meses", tag: "" },
+                  { m: 6, label: "6 meses", tag: "Recomendado" },
+                  { m: 12, label: "12 meses", tag: "" },
+                ].map((o) => (
+                  <button key={o.m} onClick={() => setEfMonths(o.m)}
+                    style={{ width: "100%", background: efMonths === o.m ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                      border: `1px solid ${efMonths === o.m ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                      display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer",
+                      fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>
+                        {o.label}
+                        {o.tag && <span style={{ fontSize: 10, fontWeight: 700, background: "#1E6FE0", color: "#fff", padding: "2px 7px", borderRadius: 6, marginLeft: 8 }}>{o.tag}</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: inkSoft, marginTop: 3 }}>Meta: {fmtMxn((monthlyExpenses || 0) * o.m)}</div>
+                    </div>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${efMonths === o.m ? "#1E6FE0" : (dark ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.15)")}`,
+                      background: efMonths === o.m ? "#1E6FE0" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {efMonths === o.m && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                    </div>
+                  </button>
+                ))}
+                {/* Custom */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6, marginBottom: 4 }}>
+                  <input value={![3,6,12].includes(efMonths) ? efMonths : ""}
+                    onChange={(e) => { const n = parseInt(e.target.value.replace(/[^\d]/g, "")) || 0; if (n > 0) setEfMonths(n); }}
+                    inputMode="numeric" placeholder="Otro"
+                    style={{ width: 90, padding: "10px 12px", borderRadius: 10,
+                      border: `1px solid ${![3,6,12].includes(efMonths) ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                      background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 14, fontFamily: FONT, color: ink, outline: "none" }} />
+                  <span style={{ fontSize: 13, color: inkSoft, fontFamily: FONT }}>
+                    meses = {fmtMxn(efTarget)}
+                  </span>
+                </div>
+
+                <button onClick={() => setEfStep(3)}
+                  style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 18,
+                    background: "#1E6FE0", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
+                  Continuar →
+                </button>
+              </>
+            )}
+
+            {/* PASO 4: en cuánto tiempo (con cálculo) */}
+            {efStep === 3 && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿En cuánto tiempo lo juntas?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+                  Meta: {fmtMxn(efTarget)}. Elige tu ritmo — te digo cuánto guardar {FREQ_LABEL[efFreq]}.
+                </p>
+                {efPlans.map((p) => {
+                  const pctOfIncome = efIncomeMonthly > 0 ? Math.round((p.perMonth / efIncomeMonthly) * 100) : 0;
+                  return (
+                    <button key={p.id} onClick={() => { setEfPlan(p.id); setEfStep(4); }}
+                      style={{ width: "100%", background: dark ? "#1A1C22" : "#fff",
+                        border: `1px solid ${efPlan === p.id ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                        cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>{p.label}</div>
+                        <div style={{ fontSize: 12, color: inkSoft }}>{p.months} meses</div>
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#1E6FE0", marginTop: 6 }}>
+                        {fmtMxn(p.perPeriod)} <span style={{ fontSize: 13, fontWeight: 400, color: inkSoft }}>{FREQ_LABEL[efFreq]}</span>
+                      </div>
+                      {pctOfIncome > 0 && (
+                        <div style={{ fontSize: 11.5, color: pctOfIncome > 40 ? "#E08010" : inkSoft, marginTop: 3 }}>
+                          {pctOfIncome}% de tu ingreso{pctOfIncome > 40 ? " · puede ser exigente" : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            )}
+
+            {/* PASO 5: resumen + sugerencias */}
+            {efStep === 4 && efPlan && (() => {
+              const plan = efPlans.find((p) => p.id === efPlan);
+              // Detectar gastos hormiga para sugerencia
+              const smallSaving = Math.round((monthlyExpenses || 0) * 0.08);
+              return (
+                <>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                    Tu plan está listo
+                  </div>
+                  <div style={{ background: "linear-gradient(140deg,#1E6FE0,#1550B0)", borderRadius: 18, padding: 20, margin: "16px 0", color: "#fff" }}>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+                      Guarda {FREQ_LABEL[efFreq]}
+                    </div>
+                    <div style={{ fontSize: 32, fontWeight: 700, margin: "6px 0", fontFamily: FONT }}>{fmtMxn(plan.perPeriod)}</div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", fontFamily: FONT, lineHeight: 1.5 }}>
+                      Para juntar {fmtMxn(efTarget)} en {plan.months} meses. ¡Tendrás {efMonths} {efMonths === 1 ? "mes" : "meses"} de respaldo!
+                    </div>
+                  </div>
+
+                  {/* Sugerencias para llegar */}
+                  <div style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)", borderRadius: 16, padding: 16, marginBottom: 14,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.6)"}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: inkFaint, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10, fontFamily: FONT }}>
+                      Cómo llegar más fácil
+                    </div>
+                    {[
+                      `Aparta el dinero apenas recibas tu ingreso, no al final.`,
+                      smallSaving > 0 ? `Reduciendo gastos hormiga podrías liberar ~${fmtMxn(smallSaving)}/mes.` : null,
+                      `Usa una cuenta separada para no gastarlo sin querer.`,
+                    ].filter(Boolean).map((tip, i) => (
+                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, fontSize: 12.5, color: inkSoft, lineHeight: 1.45, fontFamily: FONT }}>
+                        <span style={{ color: "#1E6FE0", fontWeight: 700 }}>·</span>
+                        <span>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button onClick={() => createEmergencyGoal(plan)}
+                    style={{ width: "100%", padding: 14, borderRadius: 14, background: "#1E6FE0", color: "#fff",
+                      fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: FONT }}>
+                    Crear mi fondo de emergencia
+                  </button>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -10942,7 +11249,7 @@ La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabr
 }
 
 /* Tarjeta de Metas en el Dashboard — muestra metas activas o invita a crear una */
-function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }) {
+function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [debtModalOpen, setDebtModalOpen] = useState(false);
@@ -11196,6 +11503,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }
         <GoalPlannerModal
           config={config}
           monthlyExpenses={monthlyExpenses}
+          monthlyIncome={monthlyIncome}
           currentSavings={currentSavings}
           onClose={() => setPlannerOpen(false)}
           onCreateGoal={createGoal}
@@ -11796,7 +12104,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         if (s.id === "goals") {
           return (
             <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
-              monthlyExpenses={exp} currentSavings={Math.max(0, inc - exp)} dark={dark} />
+              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark} />
           );
         }
 
