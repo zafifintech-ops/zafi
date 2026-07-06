@@ -10430,6 +10430,7 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
 function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   const opps = [];
   const expTxs = txs.filter((t) => t.type === "expense" && !t.synthetic);
+  const resolved = config.resolvedOpportunities || {};
 
   // 1. SUSCRIPCIONES — cargos recurrentes con mismo monto y descripción similar
   const byDescAmount = {};
@@ -10442,7 +10443,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   if (subs.length > 0) {
     const totalSubs = subs.reduce((s, g) => s + g[0].amount, 0);
     opps.push({
-      icon: "🔁", tone: "red",
+      id: "subs", icon: "🔁", tone: "red",
       title: `${subs.length} ${subs.length === 1 ? "cargo recurrente" : "cargos recurrentes"} detectados`,
       detail: `${subs.map((g) => g[0].description || "Sin nombre").slice(0, 3).join(", ")} por ${fmtMxn(totalSubs)}. Revisa si los usas todos.`,
       save: totalSubs,
@@ -10454,7 +10455,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   if (smallTxs.length >= 15) {
     const totalSmall = smallTxs.reduce((s, t) => s + t.amount, 0);
     opps.push({
-      icon: "🐜", tone: "amber",
+      id: "hormiga", icon: "🐜", tone: "amber",
       title: "Gastos hormiga",
       detail: `${smallTxs.length} compras pequeñas suman ${fmtMxn(totalSmall)} este periodo.`,
       save: Math.round(totalSmall * 0.5),
@@ -10471,8 +10472,9 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   const dups = Object.values(byDayAmount).filter((g) => g.length >= 2 && g[0].amount > 100);
   if (dups.length > 0) {
     const d = dups[0];
+    // ID específico para este duplicado (fecha+monto) para no reaparecer si ya se revisó
     opps.push({
-      icon: "📅", tone: "amber",
+      id: `dup_${d[0].date}_${Math.round(d[0].amount)}`, icon: "📅", tone: "amber",
       title: "Posible cargo duplicado",
       detail: `${d.length} cargos idénticos de ${fmtMxn(d[0].amount)} el mismo día. ¿Fue un error?`,
     });
@@ -10486,7 +10488,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   });
   if (flujo > 0 && inc > 0 && (flujo / inc) >= 0.20 && !hasInvestment) {
     opps.push({
-      icon: "📈", tone: "blue",
+      id: "ocioso", icon: "📈", tone: "blue",
       title: "Tienes dinero que podría crecer",
       detail: `Ahorras ${fmtMxn(flujo)} al periodo sin invertirlo. Ese dinero podría generar rendimientos.`,
       action: "invest",
@@ -10496,19 +10498,28 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
   // 5. OPORTUNIDAD HACIA META
   if (hasGoal && flujo > 0) {
     opps.push({
-      icon: "🎯", tone: "green",
+      id: "meta", icon: "🎯", tone: "green",
       title: "Adelanta tu meta",
       detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abónalo a tu meta y llega antes.`,
       action: "goal",
     });
   }
 
+  // Filtrar las que el usuario marcó como resueltas este periodo.
+  // Se resuelven por 30 días — después reaparecen por si el patrón sigue.
+  const now = Date.now();
+  const active = opps.filter((o) => {
+    const resolvedAt = resolved[o.id];
+    if (!resolvedAt) return true;
+    return (now - resolvedAt) > 30 * 86400000; // 30 días
+  });
+
   // Ordenar: primero las que tienen ahorro cuantificado, mayor a menor
-  opps.sort((a, b) => (b.save || 0) - (a.save || 0));
-  return opps.slice(0, 4); // máximo 4
+  active.sort((a, b) => (b.save || 0) - (a.save || 0));
+  return active.slice(0, 4); // máximo 4
 }
 
-function OpportunitiesCard({ config, opportunities, dark }) {
+function OpportunitiesCard({ config, saveConfig, opportunities, dark }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -10521,6 +10532,11 @@ function OpportunitiesCard({ config, opportunities, dark }) {
   const toneBg = {
     red: "rgba(226,53,53,.12)", amber: "rgba(230,140,20,.12)",
     green: "rgba(60,190,96,.12)", blue: "rgba(30,111,224,.12)",
+  };
+
+  const markResolved = (oppId) => {
+    const resolved = { ...(config.resolvedOpportunities || {}), [oppId]: Date.now() };
+    saveConfig({ ...config, resolvedOpportunities: resolved });
   };
 
   return (
@@ -10542,7 +10558,7 @@ function OpportunitiesCard({ config, opportunities, dark }) {
       <div style={{ padding: 16 }}>
         <div className="cc-label" style={{ margin: 0, marginBottom: 14 }}>💡 Áreas de oportunidad</div>
         {opportunities.map((o, i) => (
-          <div key={i} style={{ display: "flex", gap: 12, padding: "12px 0",
+          <div key={o.id || i} style={{ display: "flex", gap: 12, padding: "12px 0",
             borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
             paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: toneBg[o.tone] || toneBg.blue,
@@ -10557,6 +10573,13 @@ function OpportunitiesCard({ config, opportunities, dark }) {
                   Ahorro posible: {fmtMxn(o.save)}
                 </div>
               )}
+              <button onClick={() => markResolved(o.id)}
+                style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
+                  background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)", border: "none",
+                  color: inkSoft, fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
+                  cursor: "pointer", fontFamily: FONT }}>
+                ✓ Resuelto
+              </button>
             </div>
           </div>
         ))}
@@ -11597,7 +11620,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             config, dateRange, inc, exp, (config.goals || []).length > 0
           );
           if (opps.length === 0) return null;
-          return <OpportunitiesCard key={s.id} config={config} opportunities={opps} dark={dark} />;
+          return <OpportunitiesCard key={s.id} config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />;
         }
 
         if (s.id === "dailyAction") {
