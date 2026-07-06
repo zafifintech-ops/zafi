@@ -8522,6 +8522,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
+  { id: "dailyAction", label: "Acción de hoy", on: true },
   { id: "goals", label: "Metas y planes", on: true },
   { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
@@ -8531,6 +8532,7 @@ const DEFAULT_SECTIONS = [
 // Mapa de plan requerido por cada sección del dashboard
 const HOME_SECTION_PLANS = {
   balance: "free",
+  dailyAction: "free",
   goals: "free",
   kpis: "pro",
   financialScore: "pro",
@@ -8547,14 +8549,14 @@ function adaptiveSectionOrder(score, allSections) {
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: claridad y guía primero, metas al final
-    order = ["financialScore", "financialTips", "kpis", "balance", "goals"];
+    // Rescate: acción de hoy primero (qué hacer YA), luego claridad
+    order = ["dailyAction", "financialScore", "financialTips", "kpis", "balance", "goals"];
   } else if (score < 65) {
-    // Mejora
-    order = ["financialScore", "kpis", "goals", "balance", "financialTips"];
+    // Mejora: acción arriba, balance de claridad y motivación
+    order = ["dailyAction", "financialScore", "kpis", "goals", "balance", "financialTips"];
   } else {
-    // Crecimiento: motivación primero — metas arriba
-    order = ["goals", "balance", "kpis", "financialScore", "financialTips"];
+    // Crecimiento: motivación primero (metas), luego la acción del día
+    order = ["goals", "dailyAction", "balance", "kpis", "financialScore", "financialTips"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -10203,6 +10205,215 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
 }
 
 /* ============================= DASHBOARD ================================= */
+/* ═══════════════════════════════════════════════════════════════════════
+   ACCIÓN DE HOY — reto diario con racha
+   IA (Pro) o pool curado (Free/Lite)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Pool curado de acciones para Free/Lite — se elige según datos del usuario
+function pickPooledAction(ctx) {
+  const { topExpCat, topExpPct, spendRatio, uncatPct, hasGoal, daysSinceLastTx } = ctx;
+  const pool = [];
+
+  if (daysSinceLastTx >= 2) {
+    pool.push(`Llevas ${daysSinceLastTx} días sin registrar. Anota tus gastos de hoy para no perder el control.`);
+  }
+  if (topExpCat && topExpPct > 40) {
+    pool.push(`${topExpCat} es el ${topExpPct}% de tus gastos. Hoy intenta no gastar en esa categoría.`);
+  }
+  if (spendRatio > 90) {
+    pool.push(`Estás gastando el ${spendRatio}% de tus ingresos. Busca un gasto que puedas evitar hoy.`);
+  }
+  if (uncatPct > 20) {
+    pool.push(`Tienes ${uncatPct}% de gastos sin categoría. Ordénalos para ver a dónde va tu dinero.`);
+  }
+  if (hasGoal) {
+    pool.push(`Abona lo que puedas a tu meta hoy, aunque sea poco. Cada peso cuenta.`);
+  }
+  // Acciones genéricas de respaldo
+  pool.push(
+    "Antes de tu próxima compra, pregúntate: ¿lo necesito o lo quiero?",
+    "Revisa tus suscripciones activas. ¿Usas todas las que pagas?",
+    "Registra cada gasto de hoy, por pequeño que sea.",
+    "Guarda el cambio de hoy: redondea tus compras y ahorra la diferencia.",
+    "Revisa tu saldo antes de dormir. Conocer tu número te da control.",
+  );
+
+  // Elegir de forma determinista según el día (misma acción todo el día)
+  const seed = today().split("-").join("");
+  const idx = parseInt(seed, 10) % pool.length;
+  return pool[idx];
+}
+
+function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro }) {
+  const FONT = "'Montserrat', sans-serif";
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+
+  const streak = config.actionStreak || { current: 0, best: 0, lastDone: null, doneToday: false, lastDate: null };
+  const todayK = today();
+
+  // Determinar si la acción de hoy ya fue completada
+  const doneToday = streak.lastDone === todayK;
+
+  // Acción del día (IA para Pro con caché diario, pool para Free/Lite)
+  const [aiAction, setAiAction] = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const pooledAction = pickPooledAction(actionCtx);
+
+  useEffect(() => {
+    if (!isPro) return;
+    // Caché diario: si ya generamos la acción de IA hoy, usarla
+    const cached = config.dailyActionCache;
+    if (cached && cached.date === todayK && cached.text) {
+      setAiAction(cached.text);
+      return;
+    }
+    // Generar nueva acción con IA
+    setLoadingAi(true);
+    const prompt = `Eres un coach financiero. Genera UNA sola acción concreta y sencilla que el usuario pueda hacer HOY para mejorar sus finanzas, basada en sus datos:
+- Gasto principal: ${actionCtx.topExpCat || "N/A"} (${actionCtx.topExpPct || 0}% del total)
+- % de ingresos gastado: ${actionCtx.spendRatio || 0}%
+- Días sin registrar: ${actionCtx.daysSinceLastTx || 0}
+- Tiene meta activa: ${actionCtx.hasGoal ? "sí" : "no"}
+
+La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 100,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const text = data.content?.filter((i) => i.type === "text").map((i) => i.text).join(" ").trim();
+        if (text) {
+          setAiAction(text);
+          saveConfig({ ...config, dailyActionCache: { date: todayK, text } });
+        } else {
+          setAiAction(pooledAction);
+        }
+      })
+      .catch(() => setAiAction(pooledAction))
+      .finally(() => setLoadingAi(false));
+  }, [isPro, todayK]);
+
+  const actionText = isPro ? (aiAction || pooledAction) : pooledAction;
+
+  const markDone = () => {
+    const yesterday = dateKeyDaysAfter(todayK, -1);
+    let newCurrent;
+    if (streak.lastDone === yesterday) {
+      newCurrent = (streak.current || 0) + 1; // racha continúa
+    } else if (streak.lastDone === todayK) {
+      return; // ya estaba hecho
+    } else {
+      newCurrent = 1; // racha reinicia
+    }
+    const newBest = Math.max(streak.best || 0, newCurrent);
+    saveConfig({
+      ...config,
+      actionStreak: { current: newCurrent, best: newBest, lastDone: todayK },
+    });
+  };
+
+  // Días de la semana para el mini-calendario
+  const weekDays = (() => {
+    const now = new Date(todayK + "T12:00:00");
+    const dow = now.getDay(); // 0=domingo
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + mondayOffset + i);
+      const dk = d.toISOString().slice(0, 10);
+      const letter = ["L", "M", "M", "J", "V", "S", "D"][i];
+      let state;
+      if (dk === todayK) state = doneToday ? "done" : "today";
+      else if (dk < todayK) {
+        // ¿Fue completado? Aproximamos: si está dentro de la racha actual
+        const daysAgo = Math.round((new Date(todayK) - new Date(dk)) / 86400000);
+        state = (streak.lastDone === todayK || streak.lastDone === dateKeyDaysAfter(todayK, -1)) && daysAgo < (streak.current || 0) ? "done" : "past";
+      } else state = "future";
+      days.push({ letter, state, dk });
+    }
+    return days;
+  })();
+
+  return (
+    <div className="cc-card" style={{
+      padding: 16,
+      background: doneToday
+        ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
+        : "linear-gradient(135deg, rgba(245,160,40,.14), rgba(245,120,40,.06))",
+      border: `1px solid ${doneToday ? "rgba(60,190,96,.25)" : "rgba(245,140,40,.22)"}`,
+    }}>
+      <div className="cc-label" style={{ margin: 0, marginBottom: 12, color: doneToday ? "#2A8A40" : "#C47000" }}>
+        {doneToday ? "✓ Acción de hoy" : "⚡ Acción de hoy"}
+      </div>
+
+      {doneToday ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#3CBE60", color: "#fff",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>✓</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>
+              {streak.current >= 7 ? `¡Racha de ${streak.current} días! 🔥` : "¡Bien hecho!"}
+            </div>
+            <div style={{ fontSize: 12, color: inkSoft, marginTop: 1, fontFamily: FONT }}>
+              Vuelve mañana por tu siguiente acción
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 14.5, fontWeight: 600, color: ink, lineHeight: 1.45, marginBottom: 12, fontFamily: FONT }}>
+            {loadingAi ? "Generando tu acción del día…" : actionText}
+          </div>
+          <button onClick={markDone}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
+              color: "#fff", background: "#E08010", padding: "9px 16px", borderRadius: 11, border: "none",
+              cursor: "pointer", fontFamily: FONT }}>
+            ✓ Marcar como hecho
+          </button>
+        </>
+      )}
+
+      {/* Racha */}
+      {(streak.current > 0 || doneToday) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12,
+          borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+          <span style={{ fontSize: 22 }}>🔥</span>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: ink, fontFamily: FONT, lineHeight: 1 }}>
+              {streak.current} {streak.current === 1 ? "día" : "días"}
+            </div>
+            <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT, marginTop: 2 }}>
+              {streak.best > streak.current ? `tu mejor racha: ${streak.best}` : "de racha"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 5, marginLeft: "auto" }}>
+            {weekDays.map((d, i) => (
+              <div key={i} style={{
+                width: 22, height: 22, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 9, fontWeight: 600, fontFamily: FONT,
+                background: d.state === "done" ? "#3CBE60" : d.state === "today" ? "#E08010" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"),
+                color: d.state === "done" || d.state === "today" ? "#fff" : inkFaint,
+              }}>{d.letter}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Tarjeta de Metas en el Dashboard — muestra metas activas o invita a crear una */
 function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }) {
   const FONT = "'Montserrat', sans-serif";
@@ -10860,6 +11071,32 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           return (
             <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
               saveConfig={saveConfig} />
+          );
+        }
+
+        if (s.id === "dailyAction") {
+          // Contexto para generar la acción del día
+          const expByCatMap = {};
+          monthStat.filter((t) => t.type === "expense").forEach((t) => {
+            const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+            const name = (cat && cat.type === "expense") ? cat.name : "Sin categoría";
+            expByCatMap[name] = (expByCatMap[name] || 0) + t.amount;
+          });
+          const topExp = Object.entries(expByCatMap).sort((a, b) => b[1] - a[1])[0];
+          const realTxs = scopedTxs.filter((t) => !t.synthetic);
+          const lastTxDate = realTxs.length ? realTxs.reduce((m, t) => t.date > m ? t.date : m, realTxs[0].date) : today();
+          const daysSince = Math.round((new Date(today()) - new Date(lastTxDate)) / 86400000);
+          const actionCtx = {
+            topExpCat: topExp ? topExp[0] : null,
+            topExpPct: topExp && exp > 0 ? Math.round((topExp[1] / exp) * 100) : 0,
+            spendRatio: inc > 0 ? Math.round((exp / inc) * 100) : 0,
+            uncatPct: 0,
+            hasGoal: (config.goals || []).length > 0,
+            daysSinceLastTx: Math.max(0, daysSince),
+          };
+          return (
+            <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
+              actionCtx={actionCtx} dark={dark} isPro={getUserPlan(config) === "pro"} />
           );
         }
 
