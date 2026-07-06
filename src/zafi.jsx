@@ -8150,7 +8150,6 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
-  { id: "recent", label: "Movimientos recientes", on: true },
   { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
@@ -8159,11 +8158,42 @@ const DEFAULT_SECTIONS = [
 // Mapa de plan requerido por cada sección del dashboard
 const HOME_SECTION_PLANS = {
   balance: "free",
-  recent: "free",
   kpis: "pro",
   financialScore: "pro",
   financialTips: "pro",
 };
+
+// Orden adaptativo del Dashboard según la salud financiera del usuario.
+// - Modo rescate (score < 45): primero entender y corregir → calificación,
+//   consejos, KPIs, y al final el saldo.
+// - Modo mejora (45-65): balance entre claridad y motivación.
+// - Modo crecimiento (score > 65): primero motivación → saldo/metas arriba,
+//   calificación como refuerzo.
+function adaptiveSectionOrder(score, allSections) {
+  const byId = (id) => allSections.find((s) => s.id === id);
+  let order;
+  if (score < 45) {
+    // Rescate: claridad y guía primero
+    order = ["financialScore", "financialTips", "kpis", "balance"];
+  } else if (score < 65) {
+    // Mejora
+    order = ["financialScore", "kpis", "balance", "financialTips"];
+  } else {
+    // Crecimiento: motivación primero
+    order = ["balance", "kpis", "financialScore", "financialTips"];
+  }
+  // Construir la lista respetando el on/off de cada sección
+  const result = [];
+  order.forEach((id) => {
+    const s = byId(id);
+    if (s && s.on) result.push(s);
+  });
+  // Agregar cualquier sección activa que no esté en el orden (por si acaso)
+  allSections.forEach((s) => {
+    if (s.on && !result.some((r) => r.id === s.id)) result.push(s);
+  });
+  return result;
+}
 
 function loadSections(config, accView) {
   const saved = getPersonalize(config, "homeSections", accView);
@@ -9808,7 +9838,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const [globalCustomizeOpen, setGlobalCustomizeOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   useEffect(() => { if (onConfiguringChange) onConfiguringChange(configuring); }, [configuring, onConfiguringChange]);
-  const sections = loadSections(config, accView);
+  const rawSections = loadSections(config, accView);
 
   // Filtro GLOBAL (cuentas + categorías) — afecta TODO en Dashboard: saldo
   // destacado, gráfica de saldo (30d), ingresos/gastos del periodo, gastos
@@ -9855,6 +9885,22 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const monthStat = statTxs(rangeTxs).all;
   const inc = monthStat.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const exp = monthStat.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+
+  // Score aproximado para el ORDEN adaptativo del dashboard (rescate/mejora/crecimiento)
+  const adaptiveScore = (() => {
+    if (monthStat.length === 0 || inc === 0) return 50;
+    const flujo = inc - exp;
+    if (flujo < 0) {
+      const deficit = Math.abs(flujo) / inc;
+      return deficit > 0.15 ? 20 : 40;
+    }
+    const savePct = flujo / inc;
+    if (savePct >= 0.30) return 85;
+    if (savePct >= 0.15) return 70;
+    if (savePct >= 0.05) return 55;
+    return 48;
+  })();
+  const sections = adaptiveSectionOrder(adaptiveScore, rawSections);
 
   // Saldo destacado: ahora es el FLUJO NETO del periodo seleccionado
   // (ingresos − gastos, ya filtrado por cuentas/categorías) — NO el saldo
