@@ -6663,114 +6663,257 @@ function computeDebtStrategy(debts, method = "avalanche") {
 }
 
 // Modal para agregar/editar una deuda
-function DebtModal({ debt, onClose, onSave }) {
+// Tasas de interés típicas del mercado mexicano (CAT aproximado anual)
+const DEBT_TYPE_INFO = {
+  card_dept: { icon: "card", label: "Tarjeta departamental", hint: "Coppel, Liverpool, Elektra, Palacio", typicalRate: 70, rateRange: "60-80%" },
+  card_bank: { icon: "card", label: "Tarjeta bancaria", hint: "BBVA, Santander, Banamex, etc.", typicalRate: 50, rateRange: "40-60%" },
+  loan_personal: { icon: "loan", label: "Préstamo personal", hint: "Crédito de nómina o personal", typicalRate: 35, rateRange: "25-45%" },
+  financing_auto: { icon: "auto", label: "Financiamiento de auto", hint: "Crédito automotriz", typicalRate: 15, rateRange: "12-18%" },
+  mortgage: { icon: "casa", label: "Hipoteca", hint: "Crédito de vivienda", typicalRate: 12, rateRange: "10-13%" },
+  other: { icon: "otro", label: "Otra deuda", hint: "Cualquier otro tipo", typicalRate: 40, rateRange: "varía" },
+};
+
+// Ícono para tipos de deuda (reusa GoalTypeIcon)
+function DebtWizard({ debt, onClose, onSave }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
   const [closing, setClosing] = useState(false);
-  const [type, setType] = useState(debt?.debtType || "card");
+  const editing = !!debt;
+
+  // Si edita, arranca en un solo formulario compacto; si es nuevo, wizard
+  const [step, setStep] = useState(0);
+  const [debtKey, setDebtKey] = useState(debt?.debtKey || null); // card_dept, card_bank, etc
   const [name, setName] = useState(debt?.name || "");
   const [balance, setBalance] = useState(debt?.balance ? String(debt.balance) : "");
+  const [rateKnown, setRateKnown] = useState(debt?.rate ? "yes" : null); // yes | no
   const [rate, setRate] = useState(debt?.rate ? String(debt.rate) : "");
   const [minPayment, setMinPayment] = useState(debt?.minPayment ? String(debt.minPayment) : "");
-  const [original, setOriginal] = useState(debt?.original ? String(debt.original) : "");
 
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
-  const cardBg = dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
   const close = () => { setClosing(true); setTimeout(onClose, 250); };
+  const info = debtKey ? DEBT_TYPE_INFO[debtKey] : null;
 
-  const TYPES = [
-    { v: "card", emoji: "💳", label: "Tarjeta" },
-    { v: "loan", emoji: "🏦", label: "Préstamo" },
-    { v: "financing", emoji: "🚗", label: "Financiamiento" },
-    { v: "other", emoji: "📄", label: "Otro" },
-  ];
+  const TOTAL = 4; // tipo, saldo+nombre, tasa, pago mínimo
+  const balNum = parseFloat(String(balance).replace(/[^\d]/g, "")) || 0;
+  const rateNum = parseFloat(String(rate).replace(/[^\d.]/g, "")) || 0;
 
-  const canSave = name.trim() && parseFloat(balance) > 0;
+  const finalRate = rateKnown === "no" ? (info?.typicalRate || 40) : rateNum;
 
-  const save = () => {
-    if (!canSave) return;
-    const bal = parseFloat(balance.replace(/[^\d.]/g, "")) || 0;
+  const doSave = () => {
     onSave({
       id: debt?.id || `debt_${Date.now()}`,
-      debtType: type,
-      name: name.trim(),
-      balance: bal,
-      original: parseFloat(original.replace(/[^\d.]/g, "")) || bal,
-      rate: parseFloat(rate.replace(/[^\d.]/g, "")) || 0,
-      minPayment: parseFloat(minPayment.replace(/[^\d.]/g, "")) || 0,
+      debtKey,
+      debtType: info?.icon === "card" ? "card" : info?.icon === "loan" ? "loan" : info?.icon === "auto" || info?.icon === "casa" ? "financing" : "other",
+      name: name.trim() || info?.label || "Deuda",
+      balance: balNum,
+      original: debt?.original || balNum,
+      rate: finalRate,
+      rateEstimated: rateKnown === "no",
+      minPayment: parseFloat(String(minPayment).replace(/[^\d]/g, "")) || 0,
       createdAt: debt?.createdAt || Date.now(),
     });
   };
 
-  const inp = {
-    width: "100%", padding: "12px 14px", borderRadius: 12,
-    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
-    background: dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)",
-    fontSize: 15, fontFamily: FONT, color: ink, outline: "none",
-  };
-  const lbl = { fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT };
+  const inp = (val, setter, ph, money) => (
+    <input value={money && val ? `$${Number(String(val).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : val}
+      onChange={(e) => setter(e.target.value.replace(money ? /[^\d]/g : /[^\d.]/g, ""))}
+      inputMode={money ? "numeric" : "decimal"} placeholder={ph}
+      style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+        border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+        background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontFamily: FONT, color: ink, outline: "none" }} />
+  );
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
         <div className="cc-grip" />
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: ink, marginBottom: 16 }}>
-          {debt ? "Editar deuda" : "Nueva deuda"}
-        </div>
 
-        <label style={lbl}>Tipo</label>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-          {TYPES.map((t) => (
-            <button key={t.v} onClick={() => setType(t.v)}
-              style={{ padding: "8px 12px", borderRadius: 10,
-                background: type === t.v ? "rgba(30,111,224,.1)" : cardBg,
-                border: `1px solid ${type === t.v ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
-                color: type === t.v ? "#1E6FE0" : inkSoft, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
-              {t.emoji} {t.label}
+        {/* Indicador de paso (solo si es nueva) */}
+        {!editing && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <button onClick={() => step === 0 ? close() : setStep(step - 1)}
+              style={{ background: "none", border: "none", color: inkSoft, fontSize: 20, cursor: "pointer", padding: 0, lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, display: "flex", gap: 4 }}>
+              {Array.from({ length: TOTAL }).map((_, i) => (
+                <div key={i} style={{ flex: 1, height: 4, borderRadius: 99,
+                  background: i <= step ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)") }} />
+              ))}
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: inkFaint, fontFamily: FONT }}>Paso {step + 1} de {TOTAL}</span>
+          </div>
+        )}
+
+        {/* PASO 1: tipo de deuda */}
+        {(!editing && step === 0) && (
+          <>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+              ¿Qué tipo de deuda es?
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+              Esto nos ayuda a estimar tu tasa de interés.
+            </p>
+            {Object.entries(DEBT_TYPE_INFO).map(([key, i]) => (
+              <button key={key} onClick={() => { setDebtKey(key); setStep(1); }}
+                style={{ width: "100%", background: debtKey === key ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                  border: `1px solid ${debtKey === key ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 14,
+                  display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <GoalTypeIcon type={i.icon} size={22} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 600, color: ink }}>{i.label}</div>
+                  <div style={{ fontSize: 11.5, color: inkSoft, marginTop: 2 }}>{i.hint}</div>
+                </div>
+              </button>
+            ))}
+          </>
+        )}
+
+        {/* PASO 2: nombre + saldo */}
+        {(!editing && step === 1) && (
+          <>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+              ¿Cuánto debes?
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+              El saldo que te falta por pagar de tu {info?.label.toLowerCase()}.
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>Ponle un nombre</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Ej: ${info?.hint.split(",")[0] || "Mi deuda"}`} maxLength={40}
+              style={{ width: "100%", padding: "13px 14px", borderRadius: 12, marginBottom: 14,
+                border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontFamily: FONT, color: ink, outline: "none" }} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>Saldo actual</label>
+            {inp(balance, setBalance, "$0", true)}
+            <button onClick={() => setStep(2)} disabled={balNum <= 0}
+              style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 20,
+                background: balNum > 0 ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                color: balNum > 0 ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: balNum > 0 ? "pointer" : "default" }}>
+              Continuar →
             </button>
-          ))}
-        </div>
+          </>
+        )}
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Nombre</label>
-          <input style={inp} value={name} onChange={(e) => setName(e.target.value)}
-            placeholder='Ej: "Banamex", "Bronco", "Crédito Coppel"' maxLength={40} />
-        </div>
+        {/* PASO 3: tasa de interés */}
+        {(!editing && step === 2) && (
+          <>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+              ¿Conoces tu tasa de interés?
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+              Una {info?.label.toLowerCase()} suele tener {info?.rateRange} anual.
+            </p>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Saldo actual (lo que debes)</label>
-          <input style={inp} value={balance} onChange={(e) => setBalance(e.target.value.replace(/[^\d.,]/g, ""))}
-            inputMode="decimal" placeholder="$0.00" />
-        </div>
+            <button onClick={() => setRateKnown("yes")}
+              style={{ width: "100%", background: rateKnown === "yes" ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                border: `1px solid ${rateKnown === "yes" ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>Sí, la conozco</div>
+              <div style={{ fontSize: 12, color: inkSoft, marginTop: 2 }}>La escribo yo</div>
+            </button>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
-            <label style={lbl}>Tasa % anual</label>
-            <input style={inp} value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ""))}
-              inputMode="decimal" placeholder="Ej: 45" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={lbl}>Pago mínimo</label>
-            <input style={inp} value={minPayment} onChange={(e) => setMinPayment(e.target.value.replace(/[^\d.,]/g, ""))}
-              inputMode="decimal" placeholder="$0" />
-          </div>
-        </div>
+            {rateKnown === "yes" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>Tasa % anual (CAT)</label>
+                {inp(rate, setRate, `Ej: ${info?.typicalRate}`, false)}
+                <div style={{ fontSize: 11, color: inkFaint, marginTop: 8, lineHeight: 1.5, fontFamily: FONT }}>
+                  💡 La encuentras en tu estado de cuenta como "CAT" o "tasa de interés anual". Todos los bancos deben mostrarla.
+                </div>
+              </div>
+            )}
 
-        <div style={{ marginBottom: 20 }}>
-          <label style={lbl}>Monto original <span style={{ color: inkSoft, fontWeight: 400 }}>(opcional, para el progreso)</span></label>
-          <input style={inp} value={original} onChange={(e) => setOriginal(e.target.value.replace(/[^\d.,]/g, ""))}
-            inputMode="decimal" placeholder="Cuánto era al inicio" />
-        </div>
+            <button onClick={() => setRateKnown("no")}
+              style={{ width: "100%", background: rateKnown === "no" ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                border: `1px solid ${rateKnown === "no" ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>No la sé</div>
+              <div style={{ fontSize: 12, color: inkSoft, marginTop: 2 }}>Usa una estimación de ~{info?.typicalRate}% para este tipo</div>
+            </button>
 
-        <button onClick={save} disabled={!canSave}
-          style={{ width: "100%", padding: 14, borderRadius: 14, border: "none",
-            background: canSave ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
-            color: canSave ? "#fff" : inkSoft, fontSize: 14, fontWeight: 600, fontFamily: FONT,
-            cursor: canSave ? "pointer" : "default" }}>
-          {debt ? "Guardar cambios" : "Agregar deuda"}
-        </button>
+            {rateKnown && (
+              <button onClick={() => setStep(3)} disabled={rateKnown === "yes" && rateNum <= 0}
+                style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 10,
+                  background: (rateKnown === "no" || rateNum > 0) ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                  color: (rateKnown === "no" || rateNum > 0) ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+                  cursor: (rateKnown === "no" || rateNum > 0) ? "pointer" : "default" }}>
+                Continuar →
+              </button>
+            )}
+          </>
+        )}
+
+        {/* PASO 4: pago mínimo + resumen */}
+        {(!editing && step === 3) && (
+          <>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+              ¿Cuál es tu pago mínimo?
+            </div>
+            <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>
+              Lo mínimo que pagas al mes. Lo encuentras en tu estado de cuenta.
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>Pago mínimo mensual</label>
+            {inp(minPayment, setMinPayment, "$0", true)}
+
+            {/* Resumen */}
+            <div style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)", borderRadius: 16, padding: 16, margin: "18px 0",
+              border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.6)"}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: inkFaint, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10, fontFamily: FONT }}>Resumen</div>
+              {[
+                ["Deuda", name.trim() || info?.label],
+                ["Saldo", fmtMxn(balNum)],
+                ["Tasa", `${finalRate}%${rateKnown === "no" ? " (estimada)" : ""}`],
+                ["Interés al mes", fmtMxn(Math.round(balNum * (finalRate / 100 / 12)))],
+              ].map(([k, v], i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13, fontFamily: FONT }}>
+                  <span style={{ color: inkSoft }}>{k}</span>
+                  <span style={{ color: ink, fontWeight: 600 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={doSave}
+              style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: "#1E6FE0",
+                color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
+              Agregar deuda
+            </button>
+          </>
+        )}
+
+        {/* MODO EDICIÓN: formulario compacto */}
+        {editing && (
+          <>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: ink, marginBottom: 16 }}>Editar deuda</div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Nombre</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 12, marginBottom: 14,
+                border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Saldo actual</label>
+              {inp(balance, setBalance, "$0", true)}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Tasa % anual</label>
+                {inp(rate, setRate, "45", false)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Pago mínimo</label>
+                {inp(minPayment, setMinPayment, "$0", true)}
+              </div>
+            </div>
+            <button onClick={doSave} disabled={balNum <= 0}
+              style={{ width: "100%", padding: 14, borderRadius: 14, border: "none",
+                background: balNum > 0 ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                color: balNum > 0 ? "#fff" : inkSoft, fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: balNum > 0 ? "pointer" : "default" }}>
+              Guardar cambios
+            </button>
+          </>
+        )}
 
         <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
       </div>
@@ -6778,6 +6921,9 @@ function DebtModal({ debt, onClose, onSave }) {
     document.body
   );
 }
+
+// Alias para compatibilidad
+function DebtModal(props) { return <DebtWizard {...props} />; }
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -12119,7 +12265,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                           )}
                         </div>
                         <div style={{ fontSize: 10.5, color: inkSoft, marginTop: 2, fontFamily: FONT }}>
-                          {d.rate > 0 ? `${d.rate}% anual` : "Sin tasa"}{d.minPayment > 0 ? ` · Mín ${fmtMxn(d.minPayment)}/mes` : ""}
+                          {d.rate > 0 ? `${d.rate}% anual${d.rateEstimated ? " (est.)" : ""}` : "Sin tasa"}{d.minPayment > 0 ? ` · Mín ${fmtMxn(d.minPayment)}/mes` : ""}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
