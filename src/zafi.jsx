@@ -5579,6 +5579,145 @@ function GoalPlannerModal({ config, monthlyExpenses, currentSavings, onClose, on
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   MÓDULO DE DEUDAS — dentro de Metas
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Calcula la estrategia de pago y ordena las deudas por prioridad.
+// method: "avalanche" (mayor tasa primero) | "snowball" (menor saldo primero)
+function computeDebtStrategy(debts, method = "avalanche") {
+  if (!debts || debts.length === 0) return { ordered: [], totalDebt: 0, monthlyInterest: 0, totalMin: 0 };
+
+  const totalDebt = debts.reduce((s, d) => s + (d.balance || 0), 0);
+  // Interés mensual aproximado = saldo × (tasa anual / 12)
+  const monthlyInterest = debts.reduce((s, d) => s + (d.balance || 0) * ((d.rate || 0) / 100 / 12), 0);
+  const totalMin = debts.reduce((s, d) => s + (d.minPayment || 0), 0);
+
+  const ordered = [...debts].sort((a, b) => {
+    if (method === "avalanche") return (b.rate || 0) - (a.rate || 0);
+    return (a.balance || 0) - (b.balance || 0); // snowball
+  });
+
+  return { ordered, totalDebt, monthlyInterest, totalMin };
+}
+
+// Modal para agregar/editar una deuda
+function DebtModal({ debt, onClose, onSave }) {
+  const dark = useDarkMode();
+  const FONT = "'Montserrat', sans-serif";
+  const [closing, setClosing] = useState(false);
+  const [type, setType] = useState(debt?.debtType || "card");
+  const [name, setName] = useState(debt?.name || "");
+  const [balance, setBalance] = useState(debt?.balance ? String(debt.balance) : "");
+  const [rate, setRate] = useState(debt?.rate ? String(debt.rate) : "");
+  const [minPayment, setMinPayment] = useState(debt?.minPayment ? String(debt.minPayment) : "");
+  const [original, setOriginal] = useState(debt?.original ? String(debt.original) : "");
+
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const cardBg = dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)";
+
+  const close = () => { setClosing(true); setTimeout(onClose, 250); };
+
+  const TYPES = [
+    { v: "card", emoji: "💳", label: "Tarjeta" },
+    { v: "loan", emoji: "🏦", label: "Préstamo" },
+    { v: "financing", emoji: "🚗", label: "Financiamiento" },
+    { v: "other", emoji: "📄", label: "Otro" },
+  ];
+
+  const canSave = name.trim() && parseFloat(balance) > 0;
+
+  const save = () => {
+    if (!canSave) return;
+    const bal = parseFloat(balance.replace(/[^\d.]/g, "")) || 0;
+    onSave({
+      id: debt?.id || `debt_${Date.now()}`,
+      debtType: type,
+      name: name.trim(),
+      balance: bal,
+      original: parseFloat(original.replace(/[^\d.]/g, "")) || bal,
+      rate: parseFloat(rate.replace(/[^\d.]/g, "")) || 0,
+      minPayment: parseFloat(minPayment.replace(/[^\d.]/g, "")) || 0,
+      createdAt: debt?.createdAt || Date.now(),
+    });
+  };
+
+  const inp = {
+    width: "100%", padding: "12px 14px", borderRadius: 12,
+    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+    background: dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.6)",
+    fontSize: 15, fontFamily: FONT, color: ink, outline: "none",
+  };
+  const lbl = { fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT };
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+        <div className="cc-grip" />
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: ink, marginBottom: 16 }}>
+          {debt ? "Editar deuda" : "Nueva deuda"}
+        </div>
+
+        <label style={lbl}>Tipo</label>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+          {TYPES.map((t) => (
+            <button key={t.v} onClick={() => setType(t.v)}
+              style={{ padding: "8px 12px", borderRadius: 10,
+                background: type === t.v ? "rgba(30,111,224,.1)" : cardBg,
+                border: `1px solid ${type === t.v ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                color: type === t.v ? "#1E6FE0" : inkSoft, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+              {t.emoji} {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={lbl}>Nombre</label>
+          <input style={inp} value={name} onChange={(e) => setName(e.target.value)}
+            placeholder='Ej: "Banamex", "Bronco", "Crédito Coppel"' maxLength={40} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={lbl}>Saldo actual (lo que debes)</label>
+          <input style={inp} value={balance} onChange={(e) => setBalance(e.target.value.replace(/[^\d.,]/g, ""))}
+            inputMode="decimal" placeholder="$0.00" />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Tasa % anual</label>
+            <input style={inp} value={rate} onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ""))}
+              inputMode="decimal" placeholder="Ej: 45" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Pago mínimo</label>
+            <input style={inp} value={minPayment} onChange={(e) => setMinPayment(e.target.value.replace(/[^\d.,]/g, ""))}
+              inputMode="decimal" placeholder="$0" />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={lbl}>Monto original <span style={{ color: inkSoft, fontWeight: 400 }}>(opcional, para el progreso)</span></label>
+          <input style={inp} value={original} onChange={(e) => setOriginal(e.target.value.replace(/[^\d.,]/g, ""))}
+            inputMode="decimal" placeholder="Cuánto era al inicio" />
+        </div>
+
+        <button onClick={save} disabled={!canSave}
+          style={{ width: "100%", padding: 14, borderRadius: 14, border: "none",
+            background: canSave ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+            color: canSave ? "#fff" : inkSoft, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+            cursor: canSave ? "pointer" : "default" }}>
+          {debt ? "Guardar cambios" : "Agregar deuda"}
+        </button>
+
+        <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -8523,6 +8662,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
   { id: "dailyAction", label: "Acción de hoy", on: true },
+  { id: "opportunities", label: "Áreas de oportunidad", on: true },
   { id: "goals", label: "Metas y planes", on: true },
   { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
@@ -8533,6 +8673,7 @@ const DEFAULT_SECTIONS = [
 const HOME_SECTION_PLANS = {
   balance: "free",
   dailyAction: "free",
+  opportunities: "free",
   goals: "free",
   kpis: "pro",
   financialScore: "pro",
@@ -8549,14 +8690,14 @@ function adaptiveSectionOrder(score, allSections) {
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: acción de hoy primero (qué hacer YA), luego claridad
-    order = ["dailyAction", "financialScore", "financialTips", "kpis", "balance", "goals"];
+    // Rescate: acción, oportunidades (dónde recortar), claridad
+    order = ["dailyAction", "opportunities", "financialScore", "financialTips", "kpis", "balance", "goals"];
   } else if (score < 65) {
-    // Mejora: acción arriba, balance de claridad y motivación
-    order = ["dailyAction", "financialScore", "kpis", "goals", "balance", "financialTips"];
+    // Mejora
+    order = ["dailyAction", "opportunities", "financialScore", "kpis", "goals", "balance", "financialTips"];
   } else {
-    // Crecimiento: motivación primero (metas), luego la acción del día
-    order = ["goals", "dailyAction", "balance", "kpis", "financialScore", "financialTips"];
+    // Crecimiento: motivación primero, oportunidades después
+    order = ["goals", "dailyAction", "balance", "opportunities", "kpis", "financialScore", "financialTips"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -9628,7 +9769,25 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     }
 
     const raw = flowScore + savingsScore + diversScore + incomeScore;
-    return Math.max(0, Math.min(100, Math.round(raw)));
+
+    // PENALIZACIÓN POR DEUDAS — si el pago mínimo mensual de deudas supera
+    // cierto % del ingreso mensual, se resta al score (la deuda pesa).
+    let debtPenalty = 0;
+    const debts = config.debts || [];
+    if (debts.length > 0 && spanDays > 0 && totalIn > 0) {
+      const totalMinPayment = debts.reduce((s, d) => s + (d.minPayment || 0), 0);
+      const monthlyIncome = (totalIn / Math.max(spanDays, 1)) * 30;
+      if (monthlyIncome > 0) {
+        const debtRatio = totalMinPayment / monthlyIncome;
+        // Umbral: 30% del ingreso en pagos mínimos empieza a penalizar
+        if (debtRatio > 0.30) {
+          // Penalización progresiva: hasta -20 pts si los pagos son ≥60% del ingreso
+          debtPenalty = Math.min(20, ((debtRatio - 0.30) / 0.30) * 20);
+        }
+      }
+    }
+
+    return Math.max(0, Math.min(100, Math.round(raw - debtPenalty)));
   })();
 
   const localScore  = _score;
@@ -10206,6 +10365,150 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
 
 /* ============================= DASHBOARD ================================= */
 /* ═══════════════════════════════════════════════════════════════════════
+   ÁREAS DE OPORTUNIDAD — detección local de patrones + tarjeta
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Detecta oportunidades analizando las transacciones del periodo.
+// Todo local (sin IA) — funciona para cualquier plan.
+function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal) {
+  const opps = [];
+  const expTxs = txs.filter((t) => t.type === "expense" && !t.synthetic);
+
+  // 1. SUSCRIPCIONES — cargos recurrentes con mismo monto y descripción similar
+  const byDescAmount = {};
+  expTxs.forEach((t) => {
+    const key = `${(t.description || "").toLowerCase().trim().slice(0, 20)}|${Math.round(t.amount)}`;
+    if (!byDescAmount[key]) byDescAmount[key] = [];
+    byDescAmount[key].push(t);
+  });
+  const subs = Object.values(byDescAmount).filter((g) => g.length >= 2 && g[0].amount > 0);
+  if (subs.length > 0) {
+    const totalSubs = subs.reduce((s, g) => s + g[0].amount, 0);
+    opps.push({
+      icon: "🔁", tone: "red",
+      title: `${subs.length} ${subs.length === 1 ? "cargo recurrente" : "cargos recurrentes"} detectados`,
+      detail: `${subs.map((g) => g[0].description || "Sin nombre").slice(0, 3).join(", ")} por ${fmtMxn(totalSubs)}. Revisa si los usas todos.`,
+      save: totalSubs,
+    });
+  }
+
+  // 2. GASTOS HORMIGA — muchas compras pequeñas
+  const smallTxs = expTxs.filter((t) => t.amount > 0 && t.amount <= 200);
+  if (smallTxs.length >= 15) {
+    const totalSmall = smallTxs.reduce((s, t) => s + t.amount, 0);
+    opps.push({
+      icon: "🐜", tone: "amber",
+      title: "Gastos hormiga",
+      detail: `${smallTxs.length} compras pequeñas suman ${fmtMxn(totalSmall)} este periodo.`,
+      save: Math.round(totalSmall * 0.5),
+    });
+  }
+
+  // 3. CARGOS DUPLICADOS — mismo monto, mismo día
+  const byDayAmount = {};
+  expTxs.forEach((t) => {
+    const key = `${t.date}|${Math.round(t.amount)}`;
+    if (!byDayAmount[key]) byDayAmount[key] = [];
+    byDayAmount[key].push(t);
+  });
+  const dups = Object.values(byDayAmount).filter((g) => g.length >= 2 && g[0].amount > 100);
+  if (dups.length > 0) {
+    const d = dups[0];
+    opps.push({
+      icon: "📅", tone: "amber",
+      title: "Posible cargo duplicado",
+      detail: `${d.length} cargos idénticos de ${fmtMxn(d[0].amount)} el mismo día. ¿Fue un error?`,
+    });
+  }
+
+  // 4. DINERO OCIOSO — flujo positivo alto sin inversión
+  const flujo = inc - exp;
+  const hasInvestment = expTxs.some((t) => {
+    const cat = config.categories.find((c) => c.id === t.categoryId);
+    return cat && /inversión|inversion|invest/i.test(cat.name);
+  });
+  if (flujo > 0 && inc > 0 && (flujo / inc) >= 0.20 && !hasInvestment) {
+    opps.push({
+      icon: "📈", tone: "blue",
+      title: "Tienes dinero que podría crecer",
+      detail: `Ahorras ${fmtMxn(flujo)} al periodo sin invertirlo. Ese dinero podría generar rendimientos.`,
+      action: "invest",
+    });
+  }
+
+  // 5. OPORTUNIDAD HACIA META
+  if (hasGoal && flujo > 0) {
+    opps.push({
+      icon: "🎯", tone: "green",
+      title: "Adelanta tu meta",
+      detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abónalo a tu meta y llega antes.`,
+      action: "goal",
+    });
+  }
+
+  // Ordenar: primero las que tienen ahorro cuantificado, mayor a menor
+  opps.sort((a, b) => (b.save || 0) - (a.save || 0));
+  return opps.slice(0, 4); // máximo 4
+}
+
+function OpportunitiesCard({ config, opportunities, dark }) {
+  const FONT = "'Montserrat', sans-serif";
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+
+  if (!opportunities || opportunities.length === 0) return null;
+
+  const totalSave = opportunities.reduce((s, o) => s + (o.save || 0), 0);
+
+  const toneBg = {
+    red: "rgba(226,53,53,.12)", amber: "rgba(230,140,20,.12)",
+    green: "rgba(60,190,96,.12)", blue: "rgba(30,111,224,.12)",
+  };
+
+  return (
+    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
+      {totalSave > 0 && (
+        <div style={{ background: "linear-gradient(140deg,#3CBE60,#2A9048)", padding: 16, color: "#fff" }}>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+            💰 Ahorro potencial detectado
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, margin: "4px 0", fontFamily: FONT }}>
+            {fmtMxn(totalSave)}
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,.8)", fontFamily: FONT }}>
+            Si aplicas las oportunidades de abajo
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: 16 }}>
+        <div className="cc-label" style={{ margin: 0, marginBottom: 14 }}>💡 Áreas de oportunidad</div>
+        {opportunities.map((o, i) => (
+          <div key={i} style={{ display: "flex", gap: 12, padding: "12px 0",
+            borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
+            paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: toneBg[o.tone] || toneBg.blue,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+              {o.icon}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, lineHeight: 1.4, fontFamily: FONT }}>{o.title}</div>
+              <div style={{ fontSize: 12, color: inkSoft, marginTop: 3, lineHeight: 1.45, fontFamily: FONT }}>{o.detail}</div>
+              {o.save > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#3CBE60", marginTop: 5, fontFamily: FONT }}>
+                  Ahorro posible: {fmtMxn(o.save)}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    ACCIÓN DE HOY — reto diario con racha
    IA (Pro) o pool curado (Free/Lite)
    ═══════════════════════════════════════════════════════════════════════ */
@@ -10418,7 +10721,11 @@ La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabr
 function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [debtModalOpen, setDebtModalOpen] = useState(false);
+  const [editingDebt, setEditingDebt] = useState(null);
+  const [debtMethod, setDebtMethod] = useState(config.debtMethod || "avalanche");
   const goals = config.goals || [];
+  const debts = config.debts || [];
 
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -10438,6 +10745,35 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }
   const deleteGoal = (goalId) => {
     saveConfig({ ...config, goals: goals.filter((g) => g.id !== goalId) });
   };
+
+  // ─── Deudas ───
+  const saveDebt = (debt) => {
+    const exists = debts.some((d) => d.id === debt.id);
+    const newDebts = exists ? debts.map((d) => d.id === debt.id ? debt : d) : [...debts, debt];
+    saveConfig({ ...config, debts: newDebts });
+    setDebtModalOpen(false);
+    setEditingDebt(null);
+  };
+
+  const updateDebtBalance = (debtId, newBalance) => {
+    const newDebts = debts.map((d) => d.id === debtId ? { ...d, balance: Math.max(0, newBalance) } : d);
+    saveConfig({ ...config, debts: newDebts });
+  };
+
+  const deleteDebt = (debtId) => {
+    saveConfig({ ...config, debts: debts.filter((d) => d.id !== debtId) });
+  };
+
+  const setMethod = (m) => {
+    setDebtMethod(m);
+    saveConfig({ ...config, debtMethod: m });
+  };
+
+  const strategy = computeDebtStrategy(debts, debtMethod);
+  const monthsToFree = strategy.totalMin > strategy.monthlyInterest && strategy.totalMin > 0
+    ? Math.ceil(strategy.totalDebt / (strategy.totalMin - strategy.monthlyInterest))
+    : 0;
+  const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
 
   return (
     <div className="cc-card" style={{ padding: "16px 18px" }}>
@@ -10515,6 +10851,123 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }
         </div>
       )}
 
+      {/* ─── DEUDAS ─── */}
+      <div style={{ marginTop: goals.length || true ? 18 : 0, paddingTop: 16,
+        borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: debts.length ? 12 : 8 }}>
+          <div className="cc-label" style={{ margin: 0 }}>💳 Deudas</div>
+          {debts.length > 0 && (
+            <button onClick={() => { setEditingDebt(null); setDebtModalOpen(true); }}
+              style={{ background: "none", border: "none", color: "#1E6FE0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+              + Agregar
+            </button>
+          )}
+        </div>
+
+        {debts.length === 0 ? (
+          <button onClick={() => { setEditingDebt(null); setDebtModalOpen(true); }}
+            style={{ width: "100%", textAlign: "center", cursor: "pointer", border: "none",
+              background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
+              borderRadius: 14, padding: 18, fontFamily: FONT }}>
+            <div style={{ fontSize: 30 }}>🎉</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 6 }}>Sin deudas registradas</div>
+            <div style={{ fontSize: 12, color: inkSoft, marginTop: 4, lineHeight: 1.5 }}>
+              Si tienes tarjetas, préstamos o financiamientos, regístralos y te ayudo a pagarlos de forma inteligente.
+            </div>
+          </button>
+        ) : (
+          <>
+            {/* Banner deuda total */}
+            <div style={{ background: "linear-gradient(140deg,#E23535,#B32020)", borderRadius: 14, padding: 16, color: "#fff", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+                Deuda total
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 700, margin: "4px 0", fontFamily: FONT }}>{fmtMxn(strategy.totalDebt)}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.85)", lineHeight: 1.5, fontFamily: FONT }}>
+                Pagas ~{fmtMxn(Math.round(strategy.monthlyInterest))}/mes en intereses.
+                {monthsToFree > 0 ? ` Libre en ~${monthsToFree} meses al ritmo actual.` : ""}
+              </div>
+            </div>
+
+            {/* Selector de método */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {[
+                { v: "avalanche", name: "Avalancha", desc: "Mayor interés · ahorra más" },
+                { v: "snowball", name: "Bola de nieve", desc: "Menor saldo · más motivación" },
+              ].map((m) => (
+                <button key={m.v} onClick={() => setMethod(m.v)}
+                  style={{ flex: 1, padding: 11, borderRadius: 12,
+                    border: `1px solid ${debtMethod === m.v ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                    background: debtMethod === m.v ? "rgba(30,111,224,.08)" : (dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)"),
+                    cursor: "pointer", fontFamily: FONT }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: ink }}>{m.name}</div>
+                  <div style={{ fontSize: 9.5, color: inkSoft, marginTop: 2 }}>{m.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Lista de deudas por prioridad */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {strategy.ordered.map((d, i) => {
+                const pct = d.original > 0 ? Math.min(100, Math.round((1 - d.balance / d.original) * 100)) : 0;
+                return (
+                  <div key={d.id} style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
+                    borderRadius: 12, padding: 12, border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(226,53,53,.1)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                        {debtTypeEmoji[d.debtType] || "💳"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, fontFamily: FONT, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                          {d.name}
+                          {i === 0 && debts.length > 1 && (
+                            <span style={{ fontSize: 8.5, fontWeight: 700, background: "#E08010", color: "#fff",
+                              padding: "2px 6px", borderRadius: 5, letterSpacing: ".03em" }}>PAGAR 1RO</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: inkSoft, marginTop: 2, fontFamily: FONT }}>
+                          {d.rate > 0 ? `${d.rate}% anual` : "Sin tasa"}{d.minPayment > 0 ? ` · Mín ${fmtMxn(d.minPayment)}/mes` : ""}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#E23535", fontFamily: FONT }}>{fmtMxn(d.balance)}</div>
+                        {d.original > d.balance && (
+                          <div style={{ fontSize: 10, color: inkFaint, fontFamily: FONT }}>de {fmtMxn(d.original)}</div>
+                        )}
+                      </div>
+                    </div>
+                    {d.original > 0 && (
+                      <div style={{ height: 6, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginTop: 8 }}>
+                        <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: "linear-gradient(90deg,#3CBE60,#5dd980)", transition: "width .6s ease" }} />
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button onClick={() => {
+                        const val = prompt(`Nuevo saldo de ${d.name}:`, String(d.balance));
+                        if (val !== null) {
+                          const num = parseFloat(val.replace(/[^\d.]/g, ""));
+                          if (!isNaN(num)) updateDebtBalance(d.id, num);
+                        }
+                      }}
+                        style={{ flex: 1, background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
+                          fontSize: 11.5, fontWeight: 600, padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
+                        Actualizar saldo
+                      </button>
+                      <button onClick={() => { setEditingDebt(d); setDebtModalOpen(true); }}
+                        style={{ background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)", border: "none", color: inkSoft,
+                          fontSize: 11.5, fontWeight: 600, padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
+                        Editar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
       {plannerOpen && (
         <GoalPlannerModal
           config={config}
@@ -10522,6 +10975,13 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, currentSavings, dark }
           currentSavings={currentSavings}
           onClose={() => setPlannerOpen(false)}
           onCreateGoal={createGoal}
+        />
+      )}
+      {debtModalOpen && (
+        <DebtModal
+          debt={editingDebt}
+          onClose={() => { setDebtModalOpen(false); setEditingDebt(null); }}
+          onSave={saveDebt}
         />
       )}
     </div>
@@ -11072,6 +11532,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             <FinancialTipsCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
               saveConfig={saveConfig} />
           );
+        }
+
+        if (s.id === "opportunities") {
+          const opps = detectOpportunities(
+            statTxs(txsInRange(scopedTxs, dateRange)).all,
+            config, dateRange, inc, exp, (config.goals || []).length > 0
+          );
+          if (opps.length === 0) return null;
+          return <OpportunitiesCard key={s.id} config={config} opportunities={opps} dark={dark} />;
         }
 
         if (s.id === "dailyAction") {
