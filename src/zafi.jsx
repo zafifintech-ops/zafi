@@ -2995,6 +2995,43 @@ const NOTIF_ID_WEEKLY = 2000;
 const NOTIF_ID_NO_ACTIVITY = 3000;
 const NOTIF_ID_SCORE = 4000;
 const NOTIF_ID_TIP = 5000;
+const NOTIF_ID_EXTRA_INCOME = 6000;
+
+// Ideas de ingreso extra por zona (México). Se rotan en notificaciones.
+const EXTRA_INCOME_IDEAS = {
+  general: [
+    "Vende lo que ya no usas en Marketplace o Mercado Libre.",
+    "Ofrece un servicio con lo que sabes hacer: clases, asesorías, reparaciones.",
+    "Renta un cuarto, cajón de estacionamiento o bodega que no uses.",
+    "Conviértete en repartidor por horas en tu tiempo libre.",
+    "Freelance en línea: diseño, redacción, traducción o soporte.",
+    "Revende productos: compra al mayoreo y vende con margen.",
+  ],
+  frontera: [
+    "Aprovecha la frontera: cruza compras por encargo con comisión.",
+    "Ofrece servicios en dólares a clientes del otro lado.",
+    "Renta tu SENTRI o servicios de cruce a quien lo necesite.",
+    "Vende productos americanos por encargo en tu zona.",
+  ],
+  turistica: [
+    "Ofrece tours o experiencias locales a turistas.",
+    "Renta tu espacio en Airbnb los fines de semana.",
+    "Vende artesanía o productos locales a visitantes.",
+  ],
+};
+
+// Elige ideas según la zona del usuario
+function extraIncomeIdeasFor(city) {
+  const key = (city || "").toLowerCase();
+  const ideas = [...EXTRA_INCOME_IDEAS.general];
+  if (/tijuana|mexicali|juárez|juarez|nogales|reynosa|matamoros|frontera/.test(key)) {
+    ideas.unshift(...EXTRA_INCOME_IDEAS.frontera);
+  }
+  if (/cancún|cancun|los cabos|playa|vallarta|tulum|cabo/.test(key)) {
+    ideas.unshift(...EXTRA_INCOME_IDEAS.turistica);
+  }
+  return ideas;
+}
 
 // Pool de consejos financieros genéricos para notificaciones — se usan cuando
 // no hay un consejo generado por IA en caché reciente. Rotan de forma
@@ -3139,6 +3176,25 @@ async function scheduleAllNotifications(config, txs) {
       title: "💡 Consejo del día",
       body: tipText,
       schedule: { at },
+    });
+  }
+
+  // 5. Ideas de ingreso extra — Lite+ (personalizada por zona)
+  idsToCancel.push(NOTIF_ID_EXTRA_INCOME);
+  if (isLite && prefs.extraIncome !== false) {
+    const city = config.userCity || config.userCountry || "";
+    const ideas = extraIncomeIdeasFor(city);
+    // Rotar según el día del año para variar la idea
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+    const idea = ideas[dayOfYear % ideas.length];
+    const at = new Date();
+    at.setDate(at.getDate() + 5);
+    at.setHours(10, 30, 0, 0);
+    notifications.push({
+      id: NOTIF_ID_EXTRA_INCOME,
+      title: "🚀 Idea para ganar más",
+      body: idea,
+      schedule: { at, every: "week" },
     });
   }
 
@@ -8301,6 +8357,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   { key: "recurringReminders", title: "Pagos recurrentes",     desc: "Un día antes de que se registre un pago automático.", allowed: true,    badge: null },
                   { key: "noActivityReminder", title: "Sin actividad",          desc: "Si llevas varios días sin registrar movimientos.",    allowed: true,    badge: null },
                   { key: "weeklySummary",       title: "Resumen semanal",        desc: "Cada lunes por la mañana, ingresos y gastos de la semana.", allowed: isLite, badge: "Lite" },
+                  { key: "extraIncome",         title: "Ideas de ingreso extra", desc: "Cada semana, una idea para ganar más según tu zona.", allowed: isLite, badge: "Lite" },
                   { key: "scoreChange",         title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja.",     allowed: isPro,   badge: "Pro" },
                   { key: "tips",                title: "Consejos financieros",   desc: "Un consejo cada 3 días, basado en tus finanzas.",    allowed: isPro,   badge: "Pro" },
                 ].map((item) => {
