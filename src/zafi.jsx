@@ -5292,6 +5292,118 @@ function zoneFactor(city) {
 }
 
 // Estimadores de costo por meta (montos base nacionales en MXN)
+// ─── Configuración de wizards por meta ───
+// Cada meta define sus preguntas de "definición" (qué determina el monto objetivo).
+// Luego el wizard agrega pasos comunes: ingreso, plazo, resultado.
+const GOAL_WIZARDS = {
+  inversion: {
+    icon: "inversion", name: "Empezar a invertir",
+    intro: "Definamos cuánto quieres invertir y en cuánto tiempo lo juntas.",
+    steps: [
+      { key: "monto", question: "¿Cuánto quieres invertir?", hint: "Elige un capital inicial o escribe el tuyo.",
+        options: [
+          { v: "10000", label: "Para empezar", sub: "$10,000", amount: 10000 },
+          { v: "50000", label: "Capital medio", sub: "$50,000", amount: 50000 },
+          { v: "150000", label: "En serio", sub: "$150,000", amount: 150000 },
+          { v: "500000", label: "Fuerte", sub: "$500,000", amount: 500000 },
+        ], allowCustom: true, customLabel: "Otro monto" },
+    ],
+  },
+  retiro: {
+    icon: "retiro", name: "Ahorro para el retiro",
+    intro: "Planeemos tu retiro. Entre antes empieces, menos necesitas guardar cada mes.",
+    steps: [
+      { key: "nivel", question: "¿Qué tan cómodo lo quieres?", hint: "Esto define el monto total que buscas juntar.",
+        options: [
+          { v: "basico", label: "Básico", sub: "$1,500,000", amount: 1500000 },
+          { v: "comodo", label: "Cómodo", sub: "$3,000,000", amount: 3000000 },
+          { v: "holgado", label: "Holgado", sub: "$6,000,000", amount: 6000000 },
+        ], allowCustom: true, customLabel: "Otro monto" },
+    ],
+    plazoOptions: [
+      { id: "10a", label: "En 10 años", months: 120 },
+      { id: "20a", label: "En 20 años", months: 240 },
+      { id: "30a", label: "En 30 años", months: 360 },
+    ],
+  },
+  educacion: {
+    icon: "educacion", name: "Educación",
+    intro: "Planeemos cuánto necesitas para estudiar (tú o tus hijos).",
+    steps: [
+      { key: "nivel", question: "¿Para qué nivel?", hint: "Estimamos el costo típico en México.",
+        options: [
+          { v: "curso", label: "Curso o diplomado", sub: "~$40,000", amount: 40000 },
+          { v: "licenciatura", label: "Licenciatura", sub: "~$300,000", amount: 300000 },
+          { v: "maestria", label: "Maestría", sub: "~$250,000", amount: 250000 },
+          { v: "posgrado", label: "Posgrado / extranjero", sub: "~$800,000", amount: 800000 },
+        ], allowCustom: true, customLabel: "Otro monto" },
+    ],
+  },
+  casa: {
+    icon: "casa", name: "Casa", useZone: true,
+    intro: "Planeemos tu casa. Ajustamos el precio a tu zona.",
+    steps: [
+      { key: "tipo", question: "¿Qué tipo de vivienda?", hint: "",
+        options: [
+          { v: "depto_p", label: "Depto pequeño", sub: "~$1.4M", amount: 1400000 },
+          { v: "depto_m", label: "Depto mediano", sub: "~$2.2M", amount: 2200000 },
+          { v: "casa", label: "Casa", sub: "~$3.2M", amount: 3200000 },
+          { v: "casa_g", label: "Casa grande", sub: "~$5M", amount: 5000000 },
+        ], allowCustom: true, customLabel: "Otro precio" },
+      { key: "modo", question: "¿Comprar completa o solo el enganche?", hint: "",
+        options: [
+          { v: "enganche", label: "Solo enganche", sub: "20% del valor", mult: 0.20 },
+          { v: "contado", label: "Precio completo", sub: "100%", mult: 1.0 },
+        ] },
+    ],
+  },
+  auto: {
+    icon: "auto", name: "Auto", useZone: true,
+    intro: "Planeemos tu auto.",
+    steps: [
+      { key: "tipo", question: "¿Qué tipo de auto?", hint: "",
+        options: [
+          { v: "usado", label: "Usado económico", sub: "~$180k", amount: 180000 },
+          { v: "seminuevo", label: "Seminuevo", sub: "~$320k", amount: 320000 },
+          { v: "nuevo", label: "Nuevo", sub: "~$480k", amount: 480000 },
+          { v: "premium", label: "Premium", sub: "~$750k", amount: 750000 },
+        ], allowCustom: true, customLabel: "Otro precio" },
+      { key: "modo", question: "¿Cómo lo comprarás?", hint: "",
+        options: [
+          { v: "enganche", label: "Enganche", sub: "25% del valor", mult: 0.25 },
+          { v: "contado", label: "De contado", sub: "100%", mult: 1.0 },
+        ] },
+    ],
+  },
+  viaje: {
+    icon: "viaje", name: "Viaje",
+    intro: "Planeemos tu viaje.",
+    steps: [
+      { key: "tipo", question: "¿A dónde quieres ir?", hint: "",
+        options: [
+          { v: "nacional", label: "Nacional", sub: "~$15k", amount: 15000 },
+          { v: "playa", label: "Playa / resort", sub: "~$30k", amount: 30000 },
+          { v: "usa", label: "Estados Unidos", sub: "~$45k", amount: 45000 },
+          { v: "intl", label: "Internacional", sub: "~$80k", amount: 80000 },
+        ], allowCustom: true, customLabel: "Otro monto" },
+      { key: "personas", question: "¿Cuántas personas van?", hint: "",
+        options: [
+          { v: "1", label: "Solo yo", sub: "", mult: 1.0 },
+          { v: "2", label: "2 personas", sub: "", mult: 1.9 },
+          { v: "4", label: "Familia (4)", sub: "", mult: 3.5 },
+        ] },
+    ],
+  },
+  otro: {
+    icon: "otro", name: "Tu meta",
+    intro: "Define tu meta a tu manera.",
+    steps: [
+      { key: "monto", question: "¿Cuánto necesitas juntar?", hint: "Escribe el monto de tu meta.",
+        options: [], allowCustom: true, customLabel: "Monto", customOnly: true, askName: true },
+    ],
+  },
+};
+
 const GOAL_ESTIMATORS = {
   casa: {
     emoji: "🏠", name: "Casa",
@@ -5434,6 +5546,26 @@ const GOAL_ESTIMATORS = {
   },
 };
 
+// Ícono SVG por tipo de meta (reutilizable en picker y tarjetas)
+function GoalTypeIcon({ type, size = 26, color = "#1E6FE0" }) {
+  const paths = {
+    emergencias: <><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 9v4M10 11h4" strokeLinecap="round"/></>,
+    inversion: <><path d="M3 17l5-5 4 3 8-8"/><path d="M16 4h4v4"/></>,
+    retiro: <><path d="M4 13c0-4 3.5-7 8-7s8 3 8 7M2 13h20M6 13v5M18 13v5"/></>,
+    _gasto: <><path d="M3 9l9-6 9 6v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 20v-6h6v6"/></>,
+    educacion: <><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V15c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-4.5"/></>,
+    otro: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M9 14l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/></>,
+    casa: <><path d="M3 9l9-6 9 6v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M9 20v-6h6v6"/></>,
+    auto: <><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11h14v5a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1H8v1a1 1 0 01-1 1H6a1 1 0 01-1-1z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/></>,
+    viaje: <><path d="M10 3l1 8 7-4 2 2-6 5 2 6-2 1-3-5-4 4v3l-2 1-1-4-4-1 1-2h3l4-4-5-3 2-2z"/></>,
+  };
+  return (
+    <svg viewBox="0 0 24 24" style={{ width: size, height: size, stroke: color, fill: "none", strokeWidth: 1.6, strokeLinejoin: "round" }}>
+      {paths[type] || paths.otro}
+    </svg>
+  );
+}
+
 // Calcula el monto objetivo y el ahorro mensual según las selecciones
 function computeGoal(goalType, selections, ctx) {
   const est = GOAL_ESTIMATORS[goalType];
@@ -5496,6 +5628,16 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
   const [efPlanMonths, setEfPlanMonths] = useState(null); // plazo elegido en meses
   const [efPlanText, setEfPlanText] = useState("");   // input libre de plazo (paso 4)
   const [efAlreadySaved, setEfAlreadySaved] = useState(""); // cuánto ya lleva
+  // Wizard genérico (otras metas)
+  const [wizStep, setWizStep] = useState(0);
+  const [wizAmount, setWizAmount] = useState(0);      // monto base acumulado de los pasos de definición
+  const [wizCustom, setWizCustom] = useState("");     // monto custom si aplica
+  const [wizName, setWizName] = useState("");         // nombre para meta "otro"
+  const [wizIncome, setWizIncome] = useState("");
+  const [wizFreq, setWizFreq] = useState(null);
+  const [wizPlanMonths, setWizPlanMonths] = useState(null);
+  const [wizPlanText, setWizPlanText] = useState("");
+  const [wizAlready, setWizAlready] = useState("");
   const [closing, setClosing] = useState(false);
 
   const city = config.userCity || config.userCountry || "";
@@ -5547,9 +5689,18 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
   const pickGoal = (type) => {
     if (type === "_gasto") { setStage("gastoPick"); return; }
     if (type === "emergencias") { setGoalType(type); setSelections({}); setStage("efStep"); setEfStep(0); return; }
+    // Todas las demás usan el wizard genérico
     setGoalType(type);
     setSelections({});
-    setStage("quote");
+    setWizStep(0);
+    setWizAmount(0);
+    setWizCustom("");
+    setWizName("");
+    setWizIncome("");
+    setWizFreq(null);
+    setWizPlanMonths(null);
+    setWizAlready("");
+    setStage("wizard");
   };
 
   const canCalculate = () => {
@@ -5617,6 +5768,78 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
       createdAt: Date.now(), saved: efAlreadyNum,
     });
   };
+
+  // ─── Lógica del wizard genérico ───
+  const wiz = goalType ? GOAL_WIZARDS[goalType] : null;
+  const wizDefSteps = wiz ? wiz.steps.length : 0;
+  // Total de pasos: definición + ingreso + plazo + resultado
+  const wizTotalSteps = wizDefSteps + 3;
+
+  // Monto objetivo del wizard (aplica multiplicadores y zona)
+  const wizTarget = (() => {
+    if (!wiz) return 0;
+    let base = wizAmount || 0;
+    // Custom sobrescribe el monto base si el paso lo permitió
+    const custom = parseFloat(String(wizCustom).replace(/[^\d]/g, "")) || 0;
+    if (custom > 0) base = custom;
+    // Multiplicadores de pasos tipo modo/personas
+    wiz.steps.forEach((st) => {
+      const sel = selections[st.key];
+      if (!sel) return;
+      const opt = st.options.find((o) => o.v === sel);
+      if (opt?.mult) base *= opt.mult;
+    });
+    if (wiz.useZone) base *= zoneFactor(city);
+    return Math.round(base);
+  })();
+
+  const wizIncomeMonthly = (() => {
+    const val = parseFloat(String(wizIncome).replace(/[^\d.]/g, "")) || 0;
+    if (!wizFreq) return 0;
+    return Math.round(val * FREQ_TO_MONTHLY[wizFreq]);
+  })();
+  const wizDetectedInFreq = wizFreq ? Math.round(detectedMonthly / FREQ_TO_MONTHLY[wizFreq]) : 0;
+  const wizAlreadyNum = parseFloat(String(wizAlready).replace(/[^\d]/g, "")) || 0;
+  const wizRemaining = Math.max(0, wizTarget - wizAlreadyNum);
+
+  const wizPlans = (() => {
+    const base = wiz && wiz.plazoOptions ? wiz.plazoOptions : [
+      { id: "intensivo", label: "Intensivo", months: 6 },
+      { id: "equilibrado", label: "Equilibrado", months: 12 },
+      { id: "tranquilo", label: "Tranquilo", months: 24 },
+    ];
+    const plans = [...base];
+    const cm = parseInt(String(wizPlanText).replace(/[^\d]/g, "")) || 0;
+    if (cm > 0 && !plans.some((p) => p.months === cm)) plans.push({ id: "custom", label: "Personalizado", months: cm });
+    return plans.map((p) => {
+      const perMonth = p.months > 0 ? wizRemaining / p.months : 0;
+      const perPeriod = wizFreq ? Math.round(perMonth / FREQ_TO_MONTHLY[wizFreq]) : Math.round(perMonth);
+      return { ...p, perMonth: Math.round(perMonth), perPeriod };
+    });
+  })();
+
+  const createWizardGoal = (plan) => {
+    const est = GOAL_ESTIMATORS[goalType];
+    onCreateGoal({
+      type: goalType, emoji: est?.emoji || "🎯",
+      name: goalType === "otro" && wizName.trim() ? wizName.trim() : (wiz?.name || "Meta"),
+      target: wizTarget, monthly: plan.perMonth, months: plan.months,
+      trackingMode: "manual",
+      selections: { ...selections, freq: wizFreq, plan: plan.id },
+      createdAt: Date.now(), saved: wizAlreadyNum,
+    });
+  };
+
+  // Avanza en los pasos de definición, guardando el monto base al elegir
+  const wizPickOption = (stepIdx, opt) => {
+    const st = wiz.steps[stepIdx];
+    setSelections((p) => ({ ...p, [st.key]: opt.v }));
+    if (opt.amount) setWizAmount(opt.amount);
+    // Avanzar al siguiente paso de definición o a ingreso
+    if (stepIdx < wizDefSteps - 1) setWizStep(stepIdx + 1);
+    else setWizStep(wizDefSteps); // primer paso común: ingreso
+  };
+
 
   // Ícono SVG de flecha para las filas
   const ArrowIcon = () => (
@@ -5862,9 +6085,9 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
                   <label style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
                     ¿Ya tienes algo ahorrado para esto?
                   </label>
-                  <input value={efAlreadySaved}
-                    onChange={(e) => setEfAlreadySaved(e.target.value.replace(/[^\d.,]/g, ""))}
-                    inputMode="decimal" placeholder="$0 · opcional"
+                  <input value={efAlreadySaved ? `$${Number(String(efAlreadySaved).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+                    onChange={(e) => setEfAlreadySaved(e.target.value.replace(/[^\d]/g, ""))}
+                    inputMode="numeric" placeholder="$0 · opcional"
                     style={{ width: "100%", padding: "11px 13px", borderRadius: 10,
                       border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
                       background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
@@ -5994,7 +6217,255 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
           </div>
         )}
 
-        {/* ─── QUOTE: cotizador ─── */}
+        {/* ─── WIZARD GENÉRICO (inversión, retiro, educación, casa, auto, viaje, otro) ─── */}
+        {stage === "wizard" && wiz && (
+          <div className="cc-onboard-step" key={wizStep}>
+            {/* Indicador de paso */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <button onClick={() => wizStep === 0 ? setStage(goalType === "casa" || goalType === "auto" || goalType === "viaje" ? "gastoPick" : "pick") : setWizStep(wizStep - 1)}
+                style={{ background: "none", border: "none", color: inkSoft, fontSize: 20, cursor: "pointer", padding: 0, lineHeight: 1 }}>←</button>
+              <div style={{ flex: 1, display: "flex", gap: 4 }}>
+                {Array.from({ length: wizTotalSteps }).map((_, i) => (
+                  <div key={i} style={{ flex: 1, height: 4, borderRadius: 99,
+                    background: i <= wizStep ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)") }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: inkFaint, fontFamily: FONT }}>Paso {wizStep + 1} de {wizTotalSteps}</span>
+            </div>
+
+            {/* PASOS DE DEFINICIÓN */}
+            {wizStep < wizDefSteps && (() => {
+              const st = wiz.steps[wizStep];
+              return (
+                <>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                    {st.question}
+                  </div>
+                  {st.hint && <p style={{ fontSize: 13, color: inkSoft, marginBottom: 18, lineHeight: 1.5, fontFamily: FONT }}>{st.hint}</p>}
+                  {!st.hint && <div style={{ height: 6 }} />}
+
+                  {/* Nombre para meta "otro" */}
+                  {st.askName && (
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>¿Cómo se llama tu meta?</label>
+                      <input value={wizName} onChange={(e) => setWizName(e.target.value)}
+                        placeholder="Ej: Boda, Moto, Compu" maxLength={30}
+                        style={{ width: "100%", padding: "12px 14px", borderRadius: 12,
+                          border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                          background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+                    </div>
+                  )}
+
+                  {st.options.map((o) => {
+                    const on = selections[st.key] === o.v;
+                    return (
+                      <button key={o.v} onClick={() => wizPickOption(wizStep, o)}
+                        style={{ width: "100%", background: on ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                          border: `1px solid ${on ? "#1E6FE0" : "transparent"}`, borderRadius: 16, padding: 16,
+                          display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer",
+                          fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>{o.label}</div>
+                          {o.sub && <div style={{ fontSize: 12, color: inkSoft, marginTop: 2 }}>{o.sub}</div>}
+                        </div>
+                        <ArrowIcon />
+                      </button>
+                    );
+                  })}
+
+                  {/* Monto custom */}
+                  {st.allowCustom && (
+                    <div style={{ marginTop: st.customOnly ? 0 : 6 }}>
+                      {!st.customOnly && <div style={{ fontSize: 11, color: inkFaint, textAlign: "center", margin: "4px 0 10px", fontFamily: FONT }}>o</div>}
+                      <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>{st.customLabel}</label>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <input value={wizCustom ? `$${Number(String(wizCustom).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+                          onChange={(e) => setWizCustom(e.target.value.replace(/[^\d]/g, ""))}
+                          inputMode="numeric" placeholder="$0"
+                          style={{ flex: 1, padding: "12px 14px", borderRadius: 12,
+                            border: `1px solid ${wizCustom ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                            background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontWeight: 600, fontFamily: FONT, color: ink, outline: "none" }} />
+                        <button onClick={() => {
+                          const c = parseFloat(String(wizCustom).replace(/[^\d]/g, "")) || 0;
+                          if (c <= 0) return;
+                          if (st.askName && !wizName.trim()) return;
+                          setSelections((p) => ({ ...p, [st.key]: "custom" }));
+                          if (wizStep < wizDefSteps - 1) setWizStep(wizStep + 1); else setWizStep(wizDefSteps);
+                        }}
+                          disabled={!(parseFloat(String(wizCustom).replace(/[^\d]/g, "")) > 0) || (st.askName && !wizName.trim())}
+                          style={{ padding: "0 18px", borderRadius: 12, border: "none",
+                            background: (parseFloat(String(wizCustom).replace(/[^\d]/g, "")) > 0 && (!st.askName || wizName.trim())) ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                            color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>→</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* PASO INGRESO */}
+            {wizStep === wizDefSteps && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿Cada cuánto y cuánto ganas?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 16, lineHeight: 1.5, fontFamily: FONT }}>
+                  Para calcular cuánto puedes guardar.
+                </p>
+                {!wizFreq ? (
+                  [
+                    { v: "semanal", label: "Cada semana" },
+                    { v: "quincenal", label: "Cada quincena" },
+                    { v: "mensual", label: "Cada mes" },
+                    { v: "variable", label: "Es variable" },
+                  ].map((o) => (
+                    <button key={o.v} onClick={() => setWizFreq(o.v)}
+                      style={{ width: "100%", background: dark ? "#1A1C22" : "#fff", border: "1px solid transparent",
+                        borderRadius: 16, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between",
+                        cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: ink }}>{o.label}</span>
+                      <ArrowIcon />
+                    </button>
+                  ))
+                ) : (
+                  <>
+                    {detectedMonthly > 0 && (
+                      <button onClick={() => setWizIncome(String(wizDetectedInFreq))}
+                        style={{ width: "100%", background: dark ? "rgba(30,111,224,.12)" : "rgba(30,111,224,.06)",
+                          border: `1px solid ${String(wizDetectedInFreq) === String(wizIncome) ? "#1E6FE0" : "transparent"}`,
+                          borderRadius: 14, padding: 14, marginBottom: 14, cursor: "pointer", textAlign: "left", fontFamily: FONT }}>
+                        <div style={{ fontSize: 11, color: "#1E6FE0", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Detectado</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: ink, marginTop: 3 }}>
+                          {fmtMxn(wizDetectedInFreq)} <span style={{ fontSize: 13, fontWeight: 400, color: inkSoft }}>{FREQ_LABEL[wizFreq]}</span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: inkSoft, marginTop: 2 }}>Toca para usar este monto</div>
+                      </button>
+                    )}
+                    <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                      Ganas {FREQ_LABEL[wizFreq]}
+                    </label>
+                    <input value={wizIncome ? `$${Number(String(wizIncome).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+                      onChange={(e) => setWizIncome(e.target.value.replace(/[^\d]/g, ""))}
+                      inputMode="numeric" placeholder="$0"
+                      style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+                        border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                        background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontFamily: FONT, color: ink, outline: "none" }} />
+                    <button onClick={() => setWizStep(wizDefSteps + 1)} disabled={wizIncomeMonthly <= 0}
+                      style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 20,
+                        background: wizIncomeMonthly > 0 ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                        color: wizIncomeMonthly > 0 ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+                        cursor: wizIncomeMonthly > 0 ? "pointer" : "default" }}>Continuar →</button>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* PASO PLAZO */}
+            {wizStep === wizDefSteps + 1 && (
+              <>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                  ¿En cuánto tiempo lo juntas?
+                </div>
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 8, lineHeight: 1.5, fontFamily: FONT }}>
+                  Meta: {fmtMxn(wizTarget)}{wizAlreadyNum > 0 ? ` · te faltan ${fmtMxn(wizRemaining)}` : ""}.
+                </p>
+
+                {/* ¿Ya tienes algo? */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>¿Ya tienes algo ahorrado? (opcional)</label>
+                  <input value={wizAlready ? `$${Number(String(wizAlready).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+                    onChange={(e) => setWizAlready(e.target.value.replace(/[^\d]/g, ""))}
+                    inputMode="numeric" placeholder="$0"
+                    style={{ width: "100%", padding: "11px 13px", borderRadius: 10,
+                      border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                      background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+                </div>
+
+                {wizPlans.map((p) => {
+                  const pct = wizIncomeMonthly > 0 ? Math.round((p.perMonth / wizIncomeMonthly) * 100) : 0;
+                  return (
+                    <button key={p.id} onClick={() => { setWizPlanMonths(p.months); setWizStep(wizDefSteps + 2); }}
+                      style={{ width: "100%", background: dark ? "#1A1C22" : "#fff", border: "1px solid transparent",
+                        borderRadius: 16, padding: 16, cursor: "pointer", fontFamily: FONT, marginBottom: 10, textAlign: "left" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>{p.label}</div>
+                        <div style={{ fontSize: 12, color: inkSoft }}>{p.months} meses</div>
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#1E6FE0", marginTop: 6 }}>
+                        {fmtMxn(p.perPeriod)} <span style={{ fontSize: 13, fontWeight: 400, color: inkSoft }}>{FREQ_LABEL[wizFreq]}</span>
+                      </div>
+                      {pct > 0 && (
+                        <div style={{ fontSize: 11.5, color: pct > 40 ? "#E08010" : inkSoft, marginTop: 3 }}>
+                          {pct}% de tu ingreso{pct > 40 ? " · puede ser exigente" : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+                {/* Plazo custom */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+                  <input value={wizPlanText} onChange={(e) => setWizPlanText(e.target.value.replace(/[^\d]/g, ""))}
+                    inputMode="numeric" placeholder="Otro"
+                    style={{ width: 90, padding: "10px 12px", borderRadius: 10,
+                      border: `1px solid ${wizPlanText ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                      background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 14, fontFamily: FONT, color: ink, outline: "none" }} />
+                  <span style={{ fontSize: 13, color: inkSoft, fontFamily: FONT }}>meses</span>
+                </div>
+                {parseInt(wizPlanText) > 0 && (
+                  <button onClick={() => { setWizPlanMonths(parseInt(wizPlanText)); setWizStep(wizDefSteps + 2); }}
+                    style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 16,
+                      background: "#1E6FE0", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
+                    Usar {wizPlanText} meses →
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* PASO RESULTADO */}
+            {wizStep === wizDefSteps + 2 && wizPlanMonths && (() => {
+              const perMonth = wizPlanMonths > 0 ? wizRemaining / wizPlanMonths : 0;
+              const perPeriod = wizFreq ? Math.round(perMonth / FREQ_TO_MONTHLY[wizFreq]) : Math.round(perMonth);
+              const plan = { months: wizPlanMonths, perMonth: Math.round(perMonth), perPeriod, id: "custom" };
+              const smallSaving = Math.round((monthlyExpenses || 0) * 0.08);
+              return (
+                <>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
+                    Tu plan está listo
+                  </div>
+                  <div style={{ background: "linear-gradient(140deg,#1E6FE0,#1550B0)", borderRadius: 18, padding: 20, margin: "16px 0", color: "#fff" }}>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+                      Guarda {FREQ_LABEL[wizFreq]}
+                    </div>
+                    <div style={{ fontSize: 32, fontWeight: 700, margin: "6px 0", fontFamily: FONT }}>{fmtMxn(plan.perPeriod)}</div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", fontFamily: FONT, lineHeight: 1.5 }}>
+                      Para juntar {fmtMxn(wizTarget)} en {plan.months} meses.
+                    </div>
+                  </div>
+                  <div style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)", borderRadius: 16, padding: 16, marginBottom: 14,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.6)"}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: inkFaint, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10, fontFamily: FONT }}>Cómo llegar más fácil</div>
+                    {[
+                      "Aparta el dinero apenas recibas tu ingreso.",
+                      smallSaving > 0 ? `Reduciendo gastos hormiga liberarías ~${fmtMxn(smallSaving)}/mes.` : null,
+                      "Automatiza una transferencia para no olvidarlo.",
+                    ].filter(Boolean).map((tip, i) => (
+                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, fontSize: 12.5, color: inkSoft, lineHeight: 1.45, fontFamily: FONT }}>
+                        <span style={{ color: "#1E6FE0", fontWeight: 700 }}>·</span><span>{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => createWizardGoal(plan)}
+                    style={{ width: "100%", padding: 14, borderRadius: 14, background: "#1E6FE0", color: "#fff",
+                      fontSize: 14, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: FONT }}>
+                    Crear mi meta
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ─── QUOTE: cotizador (legacy, sin uso) ─── */}
         {stage === "quote" && est && (
           <div className="cc-onboard-step">
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
@@ -11332,9 +11803,119 @@ La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabr
 }
 
 /* Tarjeta de Metas en el Dashboard — muestra metas activas o invita a crear una */
+/* Modal para actualizar el ahorro de una meta — agregar o retirar dinero */
+function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
+  const dark = useDarkMode();
+  const FONT = "'Montserrat', sans-serif";
+  const [closing, setClosing] = useState(false);
+  const [mode, setMode] = useState("add"); // add | withdraw | set
+  const [amount, setAmount] = useState("");
+
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+
+  const close = () => { setClosing(true); setTimeout(onClose, 250); };
+  const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
+
+  const newSaved = (() => {
+    if (mode === "add") return goal.saved + num;
+    if (mode === "withdraw") return Math.max(0, goal.saved - num);
+    return num; // set
+  })();
+
+  const pct = goal.target > 0 ? Math.min(100, Math.round((newSaved / goal.target) * 100)) : 0;
+
+  const apply = () => {
+    if (mode !== "set" && num <= 0) return;
+    onApply(newSaved);
+  };
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+        <div className="cc-grip" />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <GoalTypeIcon type={goal.type} size={24} />
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 500, color: ink }}>{goal.name}</div>
+            <div style={{ fontSize: 12, color: inkSoft, fontFamily: FONT }}>
+              {fmtMxn(goal.saved)} de {fmtMxn(goal.target)}
+            </div>
+          </div>
+        </div>
+
+        {/* Selector de acción */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {[
+            { v: "add", label: "Agregué" },
+            { v: "withdraw", label: "Retiré" },
+            { v: "set", label: "Corregir total" },
+          ].map((o) => (
+            <button key={o.v} onClick={() => { setMode(o.v); setAmount(""); }}
+              style={{ flex: 1, padding: 11, borderRadius: 12,
+                border: `1px solid ${mode === o.v ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                background: mode === o.v ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                color: mode === o.v ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+          {mode === "add" ? "¿Cuánto agregaste?" : mode === "withdraw" ? "¿Cuánto retiraste?" : "¿Cuánto llevas en total?"}
+        </label>
+        <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+          onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+          inputMode="numeric" placeholder="$0" autoFocus
+          style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+            border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+            background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 18, fontWeight: 600, fontFamily: FONT, color: ink, outline: "none" }} />
+
+        {/* Vista previa del resultado */}
+        {(num > 0 || mode === "set") && (
+          <div style={{ marginTop: 16, padding: 14, borderRadius: 14,
+            background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT }}>Nuevo total</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: ink, fontFamily: FONT }}>{fmtMxn(newSaved)}</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .4s ease" }} />
+            </div>
+            <div style={{ fontSize: 11, color: inkFaint, marginTop: 6, fontFamily: FONT, textAlign: "right" }}>{pct}% de tu meta</div>
+          </div>
+        )}
+
+        <button onClick={apply} disabled={mode !== "set" && num <= 0}
+          style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 18,
+            background: (mode === "set" || num > 0) ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+            color: (mode === "set" || num > 0) ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
+            cursor: (mode === "set" || num > 0) ? "pointer" : "default" }}>
+          Guardar
+        </button>
+
+        <button onClick={() => { if (confirm(`¿Eliminar la meta "${goal.name}"?`)) onDelete(); }}
+          style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: "none",
+            color: "#E23535", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginTop: 6 }}>
+          Eliminar meta
+        </button>
+
+        <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [updatingGoal, setUpdatingGoal] = useState(null);
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState(null);
   const [debtMethod, setDebtMethod] = useState(config.debtMethod || "avalanche");
@@ -11426,7 +12007,10 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
               <div key={g.id} style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
                 borderRadius: 14, padding: 14, border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ fontSize: 22 }}>{g.emoji}</div>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <GoalTypeIcon type={g.type} size={22} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>{g.name}</div>
                     <div style={{ fontSize: 11, color: inkFaint, fontFamily: FONT }}>
@@ -11444,15 +12028,9 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                   <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
                     {pct >= 100 ? "🎉 ¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
                   </div>
-                  {/* Botón para abonar (modo manual/dedicated) */}
-                  {g.trackingMode !== "linked" && pct < 100 && (
-                    <button onClick={() => {
-                      const val = prompt(`¿Cuánto llevas ahorrado para ${g.name}?`, String(g.saved));
-                      if (val !== null) {
-                        const num = parseFloat(val.replace(/[^\d.]/g, ""));
-                        if (!isNaN(num)) updateSaved(g.id, num);
-                      }
-                    }}
+                  {/* Botón para abonar/retirar (modo manual/dedicated) */}
+                  {g.trackingMode !== "linked" && (
+                    <button onClick={() => setUpdatingGoal(g)}
                       style={{ background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
                         fontSize: 11.5, fontWeight: 600, padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
                       Actualizar
@@ -11597,6 +12175,14 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           debt={editingDebt}
           onClose={() => { setDebtModalOpen(false); setEditingDebt(null); }}
           onSave={saveDebt}
+        />
+      )}
+      {updatingGoal && (
+        <GoalUpdateModal
+          goal={updatingGoal}
+          onClose={() => setUpdatingGoal(null)}
+          onApply={(newSaved) => { updateSaved(updatingGoal.id, newSaved); setUpdatingGoal(null); }}
+          onDelete={() => { deleteGoal(updatingGoal.id); setUpdatingGoal(null); }}
         />
       )}
     </div>
