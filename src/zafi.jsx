@@ -8151,11 +8151,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
   { id: "recent", label: "Movimientos recientes", on: true },
-  { id: "byCategory", label: "Gastos por categoría", on: true },
-  { id: "trend", label: "Mini gráfica de saldo (30d)", on: true },
-  { id: "incVsExp", label: "Ingresos vs gastos", on: true },
   { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
-  { id: "topExpenses", label: "Gastos más grandes del periodo", on: false },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
@@ -8164,10 +8160,6 @@ const DEFAULT_SECTIONS = [
 const HOME_SECTION_PLANS = {
   balance: "free",
   recent: "free",
-  byCategory: "free",
-  trend: "lite",
-  incVsExp: "lite",
-  topExpenses: "lite",
   kpis: "pro",
   financialScore: "pro",
   financialTips: "pro",
