@@ -332,7 +332,7 @@ body{
   backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);}
 .cc-dark .cc-lvl-top{background:rgba(38,40,46,.62);border-color:rgba(255,255,255,.14);
   box-shadow:0 10px 34px rgba(0,0,0,.34);
-  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);}
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
 /* Nivel medio: glass estándar. */
 .cc-lvl-mid{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.7);box-shadow:0 4px 18px rgba(0,0,0,.05);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
@@ -5235,26 +5235,27 @@ function BtnSpinner() {
 }
 
 function SplashScreen({ onDone }) {
+  const isDark = detectEarlyDark();
+
+  // Pintar el fondo del documento SÍNCRONAMENTE (antes del primer paint) para
+  // que no haya destello blanco detrás del splash en iOS. Se hace en el cuerpo
+  // del componente, no en useEffect, para que ocurra antes de renderizar.
+  if (typeof document !== "undefined") {
+    const bg = isDark ? "#0D0F14" : "#DCE1E8";
+    document.body.style.backgroundColor = bg;
+    document.documentElement.style.backgroundColor = bg;
+  }
+
   useEffect(() => {
     const t = setTimeout(onDone, 1100);
     return () => clearTimeout(t);
   }, [onDone]);
 
-  const isDark = detectEarlyDark();
-
-  // Pintar el fondo del documento de inmediato para que no haya destello blanco
-  // detrás del splash (iOS muestra el color del body antes de renderizar el div).
-  useEffect(() => {
-    const bg = isDark ? "#1c1e22" : "#ffffff";
-    document.body.style.backgroundColor = bg;
-    document.documentElement.style.backgroundColor = bg;
-  }, [isDark]);
-
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 99999,
       display: "flex", alignItems: "center", justifyContent: "center",
-      background: isDark ? "#1c1e22" : "#ffffff",
+      background: isDark ? "#0D0F14" : "#DCE1E8",
       animation: "ccSplashOut .4s ease 0.9s forwards",
     }}>
       <style>{STYLE}</style>
@@ -7406,12 +7407,22 @@ export default function App() {
   const lightVideoFile = lightVideo === "auth" ? "zafi-auth.mp4" : "zafi-bg.mp4";
   const bgVideoSrc = (isDarkTheme ? `${videoBase}/zafi-bg-dark.mp4` : `${videoBase}/${lightVideoFile}`) + "?v=3";
 
-  // Body background para tema oscuro/claro
+  // Body background para tema oscuro/claro. Se aplica también SÍNCRONAMENTE
+  // (abajo, en el cuerpo) para evitar destellos entre pantallas de carga.
   useEffect(() => {
     const bg = isDarkTheme ? "#0D0F14" : "#DCE1E8";
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
   }, [isDarkTheme]);
+  // Síncrono: garantiza que el fondo esté pintado antes del primer paint de
+  // cualquier loader, así no aparece un "cuadrado" de otro color un instante.
+  if (typeof document !== "undefined") {
+    const bg = isDarkTheme ? "#0D0F14" : "#DCE1E8";
+    if (document.body.style.backgroundColor !== bg) {
+      document.body.style.backgroundColor = bg;
+      document.documentElement.style.backgroundColor = bg;
+    }
+  }
 
   // Splash de bienvenida — siempre primero al abrir la app
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
@@ -7459,14 +7470,10 @@ export default function App() {
 
   if (!loaded)
     return (
-      <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+      <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh",
+          background: isDarkTheme ? "#0D0F14" : "#DCE1E8" }}>
         <style>{STYLE}</style>
-        {showVideo && <div className="cc-video-bg">
-          <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" key={bgVideoSrc}
-            ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }}
-          />
-        </div>}
-        {!showVideo && <div className="cc-solid-bg" />}
         <ZafiLoader />
       </div>
     );
@@ -7764,9 +7771,15 @@ function ManualOnboarding({ onDone }) {
 
           {/* Indicador de paso */}
           <div style={{ display:"flex", gap:6, marginBottom:18 }}>
-            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 0 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
-            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 1 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
-            <div style={{ flex:1, height:3, borderRadius:99, background: step >= 2 ? "#1B2230" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)") }} />
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ flex:1, height:4, borderRadius:99, overflow:"hidden",
+                background: dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)" }}>
+                <div style={{ height:"100%", borderRadius:99,
+                  width: step >= i ? "100%" : "0%",
+                  background: "#1E6FE0",
+                  transition: "width .45s cubic-bezier(.3,.8,.3,1)" }} />
+              </div>
+            ))}
           </div>
 
           <div key={step} className="cc-onboard-step" style={{ display:"flex", flexDirection:"column", flex:1, minHeight:0 }}>
@@ -7867,13 +7880,13 @@ function ManualOnboarding({ onDone }) {
           {/* Botones */}
           <div style={{ display:"flex", gap:10, paddingTop:8, borderTop:`1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"}` }}>
             {step > 0 && (
-              <button onClick={() => setStep(step - 1)}
+              <button onClick={() => setStep(step - 1)} className="cc-press"
                 style={{ flex:1, padding:14, borderRadius:12, border:`1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"}`,
                   background:"transparent", color:inkColor, fontSize:14, fontWeight:500, fontFamily:FONT, cursor:"pointer" }}>
                 Atrás
               </button>
             )}
-            <button
+            <button className="cc-press"
               onClick={() => {
                 if (step === 0) {
                   // Validar nombre de cuenta
@@ -22572,30 +22585,34 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
     <LockedSection label="Resumen mensual detallado" icon="📊" plan="pro" onUpgrade={onUpgrade || (() => {})} />
   );
   const inner = <>
-    <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
+    <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
       {showIn && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-            textTransform: "uppercase", letterSpacing: ".06em" }}>Ingresos</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--ink)" }}>{fmt(totalIn)}</div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".05em" }}>Ingresos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500, color: "var(--ink)", lineHeight: 1.1, wordBreak: "break-word" }}>
+            {fmtBare(totalIn)}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          </div>
         </div>
       )}
       {showOut && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-          paddingLeft: showIn ? 12 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-            textTransform: "uppercase", letterSpacing: ".06em" }}>Gastos</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500, color: "var(--coral)" }}>{fmt(totalOut)}</div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2,
+          paddingLeft: showIn ? 10 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".05em" }}>Gastos</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500, color: "var(--coral)", lineHeight: 1.1, wordBreak: "break-word" }}>
+            {fmtBare(totalOut)}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          </div>
         </div>
       )}
       {filter === "all" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2,
-          paddingLeft: 12, borderLeft: "1px solid var(--line-soft)" }}>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--ink-faint)",
-            textTransform: "uppercase", letterSpacing: ".06em" }}>Flujo neto</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 20, fontWeight: 500,
-            color: net >= 0 ? "var(--ink)" : "var(--coral)" }}>
-            {net >= 0 ? "+" : "−"}{fmt(Math.abs(net))}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2,
+          paddingLeft: 10, borderLeft: "1px solid var(--line-soft)" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
+            textTransform: "uppercase", letterSpacing: ".05em" }}>Flujo neto</div>
+          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
+            color: net >= 0 ? "var(--ink)" : "var(--coral)", lineHeight: 1.1, wordBreak: "break-word" }}>
+            {net >= 0 ? "+" : "−"}{fmtBare(Math.abs(net))}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
           </div>
         </div>
       )}
