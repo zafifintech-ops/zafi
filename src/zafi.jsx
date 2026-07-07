@@ -311,26 +311,22 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
-/* Brillo animado tipo vidrio para las secciones protagonistas */
-@keyframes ccSheen {
-  0%   { transform: translateX(-120%) skewX(-18deg); }
-  100% { transform: translateX(320%) skewX(-18deg); }
-}
+/* Brillo sutil tipo vidrio para las secciones protagonistas — un reflejo
+   diagonal suave y estático en la esquina superior, como luz sobre cristal. */
 .cc-sheen{position:relative;overflow:hidden;}
-.cc-sheen::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;
-  background:linear-gradient(100deg, transparent 0%, rgba(255,255,255,.14) 45%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.14) 55%, transparent 100%);
-  transform:translateX(-120%) skewX(-18deg);
-  animation:ccSheen 5.5s ease-in-out infinite;
-  animation-delay:1.2s;
-  pointer-events:none;z-index:3;}
-.cc-lvl-top-blue{background:#FFFFFF;border-color:rgba(30,111,224,.3);box-shadow:0 8px 30px rgba(30,111,224,.14);}
-.cc-dark .cc-lvl-top-blue{background:rgba(255,255,255,.13);border-color:rgba(91,155,255,.35);box-shadow:0 8px 30px rgba(30,111,224,.22);}
-.cc-lvl-top-red{background:#FFFFFF;border-color:rgba(226,53,53,.3);box-shadow:0 8px 30px rgba(226,53,53,.16);}
-.cc-dark .cc-lvl-top-red{background:rgba(255,255,255,.13);border-color:rgba(232,80,80,.38);box-shadow:0 8px 30px rgba(226,53,53,.26);}
-.cc-lvl-top-green{background:#FFFFFF;border-color:rgba(60,190,96,.32);box-shadow:0 8px 30px rgba(60,190,96,.16);}
-.cc-dark .cc-lvl-top-green{background:rgba(255,255,255,.13);border-color:rgba(80,210,120,.38);box-shadow:0 8px 30px rgba(60,190,96,.24);}
-.cc-lvl-top-amber{background:#FFFFFF;border-color:rgba(230,140,20,.32);box-shadow:0 8px 30px rgba(230,140,20,.16);}
-.cc-dark .cc-lvl-top-amber{background:rgba(255,255,255,.13);border-color:rgba(240,160,40,.38);box-shadow:0 8px 30px rgba(230,140,20,.24);}
+.cc-sheen::before{content:"";position:absolute;top:0;left:0;right:0;height:55%;
+  background:linear-gradient(160deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,.12) 35%, transparent 70%);
+  border-radius:20px 20px 0 0;
+  pointer-events:none;z-index:2;opacity:.7;}
+.cc-dark .cc-sheen::before{background:linear-gradient(160deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.04) 35%, transparent 70%);}
+.cc-lvl-top-blue{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
+.cc-dark .cc-lvl-top-blue{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-red{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
+.cc-dark .cc-lvl-top-red{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-green{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
+.cc-dark .cc-lvl-top-green{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-amber{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
+.cc-dark .cc-lvl-top-amber{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
@@ -12101,7 +12097,7 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
   const heroAction = isHero && !doneToday;
   return (
-    <div className={`cc-card ${heroAction ? "cc-lvl-self cc-sheen" : doneToday ? "cc-lvl-self" : ""}`} style={{
+    <div className={`cc-card ${heroAction ? "cc-lvl-self cc-sheen" : doneToday ? `cc-lvl-self ${className}` : className}`} style={{
       padding: heroAction ? 20 : 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
