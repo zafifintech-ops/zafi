@@ -10770,29 +10770,21 @@ function ScorePillIndicator({ targetScore, dark }) {
   const pct = Math.round(displayed);
 
   const getState = (v) => {
-    if (v < 30) return {
-      grad:    "linear-gradient(90deg, #B32020 0%, #D93232 55%, #E84545 100%)",
-      label:   "Atención",
-    };
     if (v < 45) return {
-      grad:    "linear-gradient(90deg, #C47000 0%, #E08010 55%, #F09828 100%)",
-      label:   "Regular",
+      grad:    "linear-gradient(90deg, #B32020 0%, #D93232 55%, #E84545 100%)",
+      label:   "Crítico",
     };
     if (v < 65) return {
-      grad:    "linear-gradient(90deg, #C47000 0%, #D4900A 55%, #E8AA20 100%)",
-      label:   "Bueno",
+      grad:    "linear-gradient(90deg, #C47000 0%, #E08010 55%, #F09828 100%)",
+      label:   "En riesgo",
     };
     if (v < 80) return {
       grad:    "linear-gradient(90deg, #1A9040 0%, #28B050 55%, #38C860 100%)",
-      label:   "Muy bien",
-    };
-    if (v < 90) return {
-      grad:    "linear-gradient(90deg, #1A8840 0%, #22A050 50%, #34B860 100%)",
-      label:   "Excelente",
+      label:   "Bien",
     };
     return {
       grad:    "linear-gradient(90deg, #1A8040 0%, #22A050 40%, #34C060 75%, #80D878 100%)",
-      label:   "Perfecto",
+      label:   "Excelente",
     };
   };
 
@@ -10862,9 +10854,9 @@ function ScorePillIndicator({ targetScore, dark }) {
       {/* Etiquetas de tramos */}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 9.5,
         color: dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
-        <span>Atención</span>
-        <span>Regular</span>
-        <span>Bueno</span>
+        <span>Crítico</span>
+        <span>En riesgo</span>
+        <span>Bien</span>
         <span>Excelente</span>
       </div>
     </div>
@@ -11080,12 +11072,10 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   })();
 
   const localScore  = _score;
-  const localStatus = localScore >= 90 ? "Perfecto"
-    : localScore >= 78 ? "Excelente"
-    : localScore >= 62 ? "Muy bien"
-    : localScore >= 44 ? "Bueno"
-    : localScore >= 25 ? "Regular"
-    : "Atención";
+  const localStatus = localScore >= 80 ? "Excelente"
+    : localScore >= 65 ? "Bien"
+    : localScore >= 45 ? "En riesgo"
+    : "Crítico";
 
   useEffect(() => {
     if (baseData.txCount === 0) {
@@ -12586,12 +12576,53 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   );
 }
 
+/* Línea colapsada para secciones vacías o de buenas noticias.
+   Muestra un resumen en una sola línea; al tocar, expande el contenido completo. */
+function CollapsedSection({ icon, iconTone = "green", text, subtext, dark, expanded, onToggle, className = "" }) {
+  const FONT = "'Montserrat', sans-serif";
+  const ink = dark ? "#F5F5F7" : "#16181D";
+  const inkSoft = dark ? "rgba(245,245,247,.55)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+  const toneColor = { green: "#2A9048", blue: "#1E6FE0", amber: "#C47000", faint: inkFaint }[iconTone] || "#2A9048";
+  const toneBg = {
+    green: dark ? "rgba(60,190,96,.16)" : "rgba(60,190,96,.14)",
+    blue: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
+    amber: dark ? "rgba(230,140,20,.16)" : "rgba(230,140,20,.12)",
+    faint: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)",
+  }[iconTone] || "rgba(60,190,96,.14)";
+
+  return (
+    <button onClick={onToggle}
+      className={className}
+      style={{ width: "100%", border: "none", cursor: "pointer", textAlign: "left",
+        borderRadius: 14, padding: "12px 15px", display: "flex", alignItems: "center", gap: 11, fontFamily: FONT,
+        background: "transparent" }}>
+      <div style={{ width: 28, height: 28, borderRadius: 9, background: toneBg, flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 13, color: inkSoft }}>
+          <b style={{ color: ink, fontWeight: 600 }}>{text}</b>{subtext ? ` · ${subtext}` : ""}
+        </span>
+      </div>
+      <span style={{ color: inkFaint, fontSize: 17, transform: expanded ? "rotate(90deg)" : "none", transition: "transform .25s ease" }}>›</span>
+    </button>
+  );
+}
+
 function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView }) {
   // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
   const view = accView;
   const setView = setAccView;
   const dark = useDarkMode();
   const [configuring, setConfiguring] = useState(false);
+  const [expandedSections, setExpandedSections] = useState(() => new Set());
+  const toggleExpanded = (id) => setExpandedSections((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
   const [globalCustomizeOpen, setGlobalCustomizeOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
@@ -13197,6 +13228,17 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             statTxs(txsInRange(scopedTxs, dateRange)).all,
             config, dateRange, inc, exp, goalsInView.length > 0, accView
           );
+          // Colapsar cuando no hay oportunidades (buena noticia) y no está expandido
+          if (opps.length === 0 && !expandedSections.has("opportunities")) {
+            return (
+              <div key={s.id} className="cc-card cc-lvl-faint">
+                <CollapsedSection dark={dark} iconTone="green" expanded={false}
+                  onToggle={() => toggleExpanded("opportunities")}
+                  icon={<svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: "#2A9048", fill: "none", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }}><path d="M20 6L9 17l-5-5" /></svg>}
+                  text="Sin áreas de oportunidad" subtext="todo en orden" />
+              </div>
+            );
+          }
           return <OpportunitiesCard key={s.id} config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />;
         }
 
@@ -13240,6 +13282,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "goals") {
+          const goalsHere = (config.goals || []).filter((g) => {
+            const acc = g.accountId || "general";
+            return accView === "all" || acc === "general" || acc === accView;
+          });
+          if (goalsHere.length === 0 && !expandedSections.has("goals")) {
+            return (
+              <div key={s.id} className="cc-card cc-lvl-faint">
+                <CollapsedSection dark={dark} iconTone="blue" expanded={false}
+                  onToggle={() => toggleExpanded("goals")}
+                  icon={<GoalTypeIcon type="otro" size={15} />}
+                  text="Sin metas aún" subtext="crea una cuando quieras" />
+              </div>
+            );
+          }
           return (
             <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
               monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
@@ -13248,6 +13304,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         if (s.id === "debts") {
+          const debtsHere = (config.debts || []).filter((d) => {
+            const acc = d.accountId || "general";
+            return accView === "all" || acc === "general" || acc === accView;
+          });
+          if (debtsHere.length === 0 && !expandedSections.has("debts")) {
+            return (
+              <div key={s.id} className="cc-card cc-lvl-faint">
+                <CollapsedSection dark={dark} iconTone="green" expanded={false}
+                  onToggle={() => toggleExpanded("debts")}
+                  icon={<svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: "#2A9048", fill: "none", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }}><path d="M20 6L9 17l-5-5" /></svg>}
+                  text="Sin deudas" subtext="vas muy bien" />
+              </div>
+            );
+          }
           return (
             <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
               monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
