@@ -4859,6 +4859,7 @@ function AuthScreen() {
       padding: "24px 20px",
       paddingTop: "calc(24px + env(safe-area-inset-top))",
       paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
+      gap: 32,
     }}>
       {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
@@ -4870,27 +4871,24 @@ function AuthScreen() {
         <source src={videoSrc} type="video/mp4" />
       </video>
 
-      {/* Logo arriba */}
-      <div style={{ position: "fixed", top: "calc(60px + env(safe-area-inset-top))",
-        left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 2,
-        pointerEvents: "none" }}>
+      {/* Logo — en flow normal para que el card se centre debajo */}
+      <div style={{ position: "relative", zIndex: 2, pointerEvents: "none" }}>
         <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400,
-          fontSize: 52, letterSpacing: "-.05em", color: "#1A1815",
+          fontSize: 48, letterSpacing: "-.05em", color: "#1A1815",
           lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
 
-      {/* Card flotante centrada */}
+      {/* Card flotante */}
       <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
-        width: "100%", maxWidth: 380,
+        width: "100%", maxWidth: 340,
         background: "rgba(220,225,232,.15)",
         backdropFilter: "blur(6px) saturate(120%)",
         WebkitBackdropFilter: "blur(6px) saturate(120%)",
         borderRadius: 24,
-        padding: "22px 20px 20px",
+        padding: "20px 18px 18px",
         border: "1px solid rgba(255,255,255,.5)",
         boxShadow: "0 4px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6)",
-        marginTop: "calc(120px + env(safe-area-inset-top))",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
