@@ -5177,16 +5177,37 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
 }
 
 /* ===================== SPLASH SCREEN ==================================== */
+// Detecta si debe usarse tema oscuro en las pantallas tempranas (splash/carga),
+// ANTES de que monte el árbol principal. En iOS WKWebView, prefers-color-scheme
+// puede fallar en el primer render, así que combinamos varias señales y lo
+// leemos de la forma más tolerante posible.
+function detectEarlyDark() {
+  if (typeof window === "undefined") return false;
+  let savedTheme = null;
+  try { savedTheme = localStorage.getItem("zafi_theme"); } catch (_) {}
+  let sysDark = false;
+  try { sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches; } catch (_) {}
+  // Explícito gana; auto o sin preferencia → según el sistema.
+  if (savedTheme === "dark") return true;
+  if (savedTheme === "light") return false;
+  return sysDark; // "auto" o sin preferencia
+}
+
 function SplashScreen({ onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 1100);
     return () => clearTimeout(t);
   }, [onDone]);
 
-  // Detectar tema: claro/oscuro explícito → eso. Auto/sin preferencia → según SO
-  const savedTheme = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
-  const sysDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const isDark = savedTheme === "dark" || (savedTheme === "auto" && sysDark) || (!savedTheme && sysDark);
+  const isDark = detectEarlyDark();
+
+  // Pintar el fondo del documento de inmediato para que no haya destello blanco
+  // detrás del splash (iOS muestra el color del body antes de renderizar el div).
+  useEffect(() => {
+    const bg = isDark ? "#1c1e22" : "#ffffff";
+    document.body.style.backgroundColor = bg;
+    document.documentElement.style.backgroundColor = bg;
+  }, [isDark]);
 
   return (
     <div style={{
@@ -7355,11 +7376,8 @@ export default function App() {
   if (!splashDone) return <SplashScreen onDone={() => setSplashDone(true)} />;
 
 
-  // Pantalla de carga — inline styles. Si no hay preferencia guardada, usar SO solo si está en auto
-  const savedThemeLoad = typeof window !== "undefined" ? localStorage.getItem("zafi_theme") : null;
-  const sysDarkLoad = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  // Si el usuario eligió explícitamente claro → claro. Oscuro → oscuro. Auto/sin preferencia → según SO
-  const isLoadDark = savedThemeLoad === "dark" || (savedThemeLoad === "auto" && sysDarkLoad) || (!savedThemeLoad && sysDarkLoad);
+  // Pantalla de carga — usa la misma detección robusta que el splash.
+  const isLoadDark = detectEarlyDark();
   if (user === undefined) return (
     <div className={`cc-loading${isLoadDark ? " cc-dark" : " cc-light"}`}>
       <style>{STYLE}</style>
