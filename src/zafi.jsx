@@ -314,10 +314,14 @@ body{
    El color NUNCA es fondo de tarjeta — la jerarquía se logra con presencia
    (opacidad del glass, sombra, borde). El color vive en números, badges,
    barras e íconos dentro de la tarjeta, no en su fondo. */
-/* Protagonista: glass presente pero translúcido (conserva el blur del fondo),
-   diferenciado por una sombra un poco más marcada, no por opacidad total. */
-.cc-lvl-top{background:rgba(255,255,255,.55);border-color:rgba(255,255,255,.7);box-shadow:0 8px 30px rgba(0,0,0,.1);}
-.cc-dark .cc-lvl-top{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);box-shadow:0 8px 30px rgba(0,0,0,.3);}
+/* Protagonista: glass presente pero translúcido. Blur más fuerte + saturación
+   para que el efecto cristal se note incluso sobre fondos planos. */
+.cc-lvl-top{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.75);
+  box-shadow:0 10px 34px rgba(0,0,0,.11);
+  backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);}
+.cc-dark .cc-lvl-top{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);
+  box-shadow:0 10px 34px rgba(0,0,0,.32);
+  backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);}
 /* Nivel medio: glass estándar. */
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
@@ -530,7 +534,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   transition:.2s;}
 .cc-acc-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);}
 .cc-acc-name{font-weight:600;font-size:13px;margin:2px 0 7px;letter-spacing:-.012em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;}
-.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:19px;letter-spacing:-.03em;line-height:1.05;}
+.cc-acc-bal{font-family:'Fraunces',serif;font-weight:500;font-size:18px;letter-spacing:-.03em;line-height:1.1;white-space:nowrap;}
 .cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-fill-color:transparent;}
 .cc-acc-sub{font-size:10.5px;color:var(--ink-soft);margin-top:4px;font-variant-numeric:tabular-nums;font-weight:500;}
@@ -11871,24 +11875,28 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
   };
 
   return (
-    <div className={`cc-card ${className}`} style={{ padding: 0, overflow: "hidden", isolation: "isolate" }}>
+    <div className={`cc-card ${className}`} style={{ padding: "16px 18px", isolation: "isolate" }}>
+      <div className="cc-label" style={{ margin: 0, marginBottom: totalSave > 0 ? 12 : 14, display: "flex", alignItems: "center", gap: 7 }}>
+        <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "#C47000", fill: "none", strokeWidth: 1.8 }}>
+          <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.5.5 1 1.2 1 2h6c0-.8.5-1.5 1-2A6 6 0 0 0 12 3z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Áreas de oportunidad
+      </div>
       {totalSave > 0 && (
-        <div style={{ background: "linear-gradient(140deg,#3CBE60,#2A9048)", padding: 16, color: "#fff",
-          borderRadius: "20px 20px 0 0" }}>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
-            💰 Ahorro potencial detectado
+        <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+          <div style={{ fontSize: 10.5, color: inkFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
+            Ahorro potencial detectado
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, margin: "4px 0", fontFamily: FONT }}>
+          <div style={{ fontSize: 26, fontWeight: 700, margin: "3px 0 2px", fontFamily: FONT, color: "#2A9048" }}>
             {fmtMxn(totalSave)}
           </div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,.8)", fontFamily: FONT }}>
+          <div style={{ fontSize: 12, color: inkSoft, fontFamily: FONT }}>
             Si aplicas las oportunidades de abajo
           </div>
         </div>
       )}
 
-      <div style={{ padding: 16 }}>
-        <div className="cc-label" style={{ margin: 0, marginBottom: 14 }}>💡 Áreas de oportunidad</div>
+      <div>
         {opportunities.map((o, i) => (
           <div key={o.id || i} style={{ display: "flex", gap: 12, padding: "12px 0",
             borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
@@ -12059,6 +12067,11 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
   const actionText = isPro ? (aiAction || pooledAction) : pooledAction;
 
+  // ¿La acción invita a escribir/anotar algo? Si es así, mostramos un campo
+  // para que el usuario lo haga ahí mismo (más accionable que solo leer).
+  const isWriteAction = /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
+  const [writeText, setWriteText] = useState("");
+
   const markDone = () => {
     const yesterday = dateKeyDaysAfter(todayK, -1);
     let newCurrent;
@@ -12132,12 +12145,27 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
             lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
             {loadingAi ? "Generando tu acción del día…" : actionText}
           </div>
+          {isWriteAction && !loadingAi && (
+            <textarea
+              value={writeText}
+              onChange={(e) => setWriteText(e.target.value)}
+              placeholder="Escríbelo aquí…"
+              rows={2}
+              style={{ width: "100%", resize: "none", borderRadius: 12, padding: "11px 13px",
+                border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)",
+                color: ink, fontSize: 13.5, fontFamily: FONT, lineHeight: 1.4, marginBottom: 12,
+                outline: "none", boxSizing: "border-box" }}
+            />
+          )}
           <button onClick={markDone}
+            disabled={isWriteAction && !writeText.trim()}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: "#fff", background: "#E08010",
+              color: "#fff", background: (isWriteAction && !writeText.trim()) ? (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)") : "#E08010",
               padding: "10px 18px", borderRadius: 11, border: "none",
-              cursor: "pointer", fontFamily: FONT }}>
-            ✓ Marcar como hecho
+              cursor: (isWriteAction && !writeText.trim()) ? "default" : "pointer", fontFamily: FONT,
+              transition: "background .2s ease" }}>
+            {isWriteAction ? "✓ Guardar" : "✓ Marcar como hecho"}
           </button>
         </>
       )}
@@ -13005,7 +13033,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <div className="cc-acc-label">Total</div>
                 <div className="cc-acc-name">General</div>
                 <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
-                  {fmt(balance)}
+                  {fmtBare(balance)} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 }}>mxn</span>
                 </div>
                 <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
               </button>
@@ -13025,10 +13053,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
                   <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : "var(--ink)" }}>
-                    {fmt(b)}
-                  </div>
-                  <div className="cc-acc-sub" style={{ color: rangeFlow < 0 ? "var(--coral)" : undefined }}>
-                    {rangeFlow >= 0 ? "▲" : "▼"} {fmt(Math.abs(rangeFlow))} en el periodo
+                    {fmtBare(b)} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 }}>mxn</span>
                   </div>
                 </button>
               );
