@@ -11713,8 +11713,20 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: `Gastas ${deficitPct}% más de lo que ganas`,
       detail: `Tu déficit es de ${fmtMxn(Math.abs(flujoNeto))} este periodo. Revisa tus gastos más grandes y busca dónde recortar cuanto antes.`,
       save: Math.abs(flujoNeto),
-      saveIsEstimate: false, // es un dato real: el déficit exacto del periodo
-      why: `Este número es exacto, no una estimación: es la diferencia entre lo que ganaste (${fmtMxn(inc)}) y lo que gastaste (${fmtMxn(exp)}) este periodo.\n\nUn déficit sostenido significa que estás consumiendo ahorros o sumando deuda para cubrir el día a día. Cerrarlo es la prioridad #1 de cualquier salud financiera: mientras exista, cualquier meta de ahorro o inversión se construye sobre terreno inestable.\n\nEl camino más rápido no es ganar más (eso toma tiempo), sino identificar 2 o 3 gastos grandes y recortarlos hoy. Pequeños ajustes sostenidos cierran la brecha más rápido de lo que parece.`,
+      saveIsEstimate: false,
+      explain: {
+        viz: { type: "compare", label: "Este periodo",
+          bars: [
+            { label: "Ganaste", value: inc, color: "#3CBE60" },
+            { label: "Gastaste", value: exp, color: "#E23535" },
+          ] },
+        badge: { text: "Dato exacto", tone: "green" },
+        points: [
+          { b: "No es estimación.", t: `Es la diferencia real entre lo que ganaste (${fmtMxn(inc)}) y lo que gastaste (${fmtMxn(exp)}).` },
+          { b: "Es la prioridad #1.", t: "Un déficit sostenido consume tus ahorros o suma deuda. Cualquier meta se construye sobre terreno inestable mientras exista." },
+          { b: "El camino más rápido:", t: "no es ganar más (toma tiempo), sino recortar 2 o 3 gastos grandes hoy. Los ajustes pequeños cierran la brecha antes de lo que crees." },
+        ],
+      },
     });
   }
 
@@ -11735,8 +11747,18 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
         title: `${topCat[0]} es el ${catPct}% de tus gastos`,
         detail: `Gastaste ${fmtMxn(topCat[1])} en ${topCat[0]}. Es tu mayor salida — revisa si puedes reducirla.`,
         save: estSave,
-        saveIsEstimate: true, // es una estimación, no un dato duro
-        why: `Este ${fmtMxn(estSave)} es una estimación, no un dato exacto: asume que podrías recortar un 10% de lo que gastas en ${topCat[0]} (${fmtMxn(topCat[1])}) sin afectar tu calidad de vida.\n\n¿Por qué el 10%? Cuando una sola categoría concentra el ${catPct}% de tus gastos, casi siempre hay margen: compras por impulso, versiones más caras de lo necesario, o gastos repetidos que pasan desapercibidos. El 10% es un objetivo conservador y alcanzable — no te pide sacrificarte, solo estar atento.\n\nLo importante no es el número exacto, sino el hábito: al ser tu mayor salida, cada peso que optimizas aquí rinde más que en cualquier otra categoría. Empieza revisando tus 3 compras más grandes en ${topCat[0]} este periodo.`,
+        saveIsEstimate: true,
+        explain: {
+          viz: { type: "donut", label: `${topCat[0]} vs. el resto`,
+            pct: catPct, color: "#E08010",
+            centerTop: `${catPct}%`, centerBot: topCat[0] },
+          badge: { text: "Estimación (10%)", tone: "amber" },
+          points: [
+            { b: `${fmtMxn(estSave)} es una estimación.`, t: `Asume recortar un 10% de lo que gastas en ${topCat[0]} (${fmtMxn(topCat[1])}) sin afectar tu vida.` },
+            { b: "¿Por qué el 10%?", t: `Cuando una categoría concentra el ${catPct}% del gasto, casi siempre hay margen: impulsos, versiones caras, o repeticiones que pasan desapercibidas.` },
+            { b: "Rinde más que en otras.", t: "Al ser tu mayor salida, cada peso que optimizas aquí pesa más. Empieza revisando tus 3 compras más grandes." },
+          ],
+        },
       });
     }
   }
@@ -11756,8 +11778,16 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: `${subs.length} ${subs.length === 1 ? "cargo recurrente" : "cargos recurrentes"} detectados`,
       detail: `${subs.map((g) => g[0].description || "Sin nombre").slice(0, 3).join(", ")} por ${fmtMxn(totalSubs)}. Revisa si los usas todos.`,
       save: totalSubs,
-      saveIsEstimate: false, // suma real de los cargos recurrentes detectados
-      why: `Este ${fmtMxn(totalSubs)} es real: es la suma de los cargos que se repiten con el mismo monto y nombre, señal de suscripciones o servicios recurrentes.\n\nLas suscripciones son la fuga silenciosa más común: se cobran solas, dejas de usarlas pero las sigues pagando mes con mes. Un servicio de $199 que no usas son casi $2,400 al año que podrías dirigir a tu meta.\n\nEs de las oportunidades más fáciles de capturar: no requiere disciplina diaria, solo una decisión única de cancelar lo que no aprovechas. Revisa la lista y pregúntate honestamente cuál usaste de verdad este mes.`,
+      saveIsEstimate: false,
+      explain: {
+        viz: { type: "stat", big: fmtMxn(totalSubs * 12), sub: "al año si no los usas", color: "#D42F2F" },
+        badge: { text: "Suma real", tone: "red" },
+        points: [
+          { b: "Dato real.", t: `Es la suma de ${subs.length} ${subs.length === 1 ? "cargo que se repite" : "cargos que se repiten"} con mismo monto y nombre — señal de suscripción o servicio recurrente.` },
+          { b: "La fuga más silenciosa.", t: "Se cobran solas. Dejas de usarlas pero las sigues pagando. Un servicio de $199 sin usar son casi $2,400 al año." },
+          { b: "Fácil de capturar.", t: "No requiere disciplina diaria, solo una decisión: cancelar lo que no aprovechas. Revisa cuál usaste de verdad este mes." },
+        ],
+      },
     });
   }
 
@@ -11770,8 +11800,16 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Gastos hormiga",
       detail: `${smallTxs.length} compras pequeñas suman ${fmtMxn(totalSmall)} este periodo.`,
       save: Math.round(totalSmall * 0.5),
-      saveIsEstimate: true, // estimación: asume recortar la mitad de los gastos hormiga
-      why: `Este ${fmtMxn(Math.round(totalSmall * 0.5))} es una estimación: asume que podrías evitar la mitad de tus ${smallTxs.length} compras pequeñas (que juntas suman ${fmtMxn(totalSmall)}).\n\nLos gastos hormiga engañan porque cada uno se siente insignificante — un café, un antojo, un envío. Pero al sumarlos revelan un patrón: son ${smallTxs.length} decisiones pequeñas que, juntas, pesan tanto como un gasto grande.\n\n¿Por qué la mitad? No se trata de eliminarlos todos (algunos valen la pena), sino de volverte consciente. Estudios de comportamiento muestran que solo con registrar y ver estos gastos, la gente reduce naturalmente cerca de la mitad. El simple hecho de notarlos ya cambia la conducta.`,
+      saveIsEstimate: true,
+      explain: {
+        viz: { type: "ants", count: smallTxs.length, total: fmtMxn(totalSmall) },
+        badge: { text: "Estimación (50%)", tone: "amber" },
+        points: [
+          { b: `${smallTxs.length} compras pequeñas`, t: `suman ${fmtMxn(totalSmall)}. Cada una se siente insignificante — un café, un antojo — pero juntas pesan como un gasto grande.` },
+          { b: "¿Por qué la mitad?", t: "No se trata de eliminarlas todas (algunas valen la pena), sino de volverte consciente." },
+          { b: "Notarlas ya las reduce.", t: "Estudios de comportamiento muestran que solo con ver estos gastos, la gente los baja cerca de la mitad de forma natural." },
+        ],
+      },
     });
   }
 
@@ -11790,6 +11828,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       id: `dup_${d[0].date}_${Math.round(d[0].amount)}`, icon: "📅", tone: "amber",
       title: "Posible cargo duplicado",
       detail: `${d.length} cargos idénticos de ${fmtMxn(d[0].amount)} el mismo día. ¿Fue un error?`,
+      explain: {
+        viz: { type: "stat", big: fmtMxn(d[0].amount * (d.length - 1)), sub: "podrías recuperar", color: "#C47000" },
+        badge: { text: "Por revisar", tone: "amber" },
+        points: [
+          { b: `${d.length} cargos idénticos`, t: `de ${fmtMxn(d[0].amount)} el mismo día (${d[0].date}). Podría ser un cobro doble por error.` },
+          { b: "Pasa más de lo que crees.", t: "Fallas de conexión al pagar, reintentos automáticos, o errores del comercio generan cargos repetidos." },
+          { b: "Vale la pena revisar.", t: "Si fue un error, muchos bancos y comercios lo reembolsan si lo reportas a tiempo. Revisa tu estado de cuenta." },
+        ],
+      },
     });
   }
 
@@ -11805,7 +11852,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Tienes dinero que podría crecer",
       detail: `Ahorras ${fmtMxn(flujo)} al periodo sin invertirlo. Ese dinero podría generar rendimientos.`,
       action: "invest",
-      why: `Ahorrar es el primer paso, pero el dinero quieto pierde valor: con la inflación, ${fmtMxn(flujo)} guardados bajo el colchón valen menos cada año.\n\nLo bueno de tu situación es que ya tienes el hábito de generar excedente (ahorras el ${Math.round((flujo/inc)*100)}% de tus ingresos). Ese es el paso difícil. Falta ponerlo a trabajar.\n\nInstrumentos de bajo riesgo como CETES o un fondo de inversión pueden dar rendimientos que al menos igualen la inflación, protegiendo tu poder de compra. No necesitas ser experto ni arriesgar: solo dejar de perder valor con el tiempo. Considera empezar con una parte pequeña para tomar confianza.`,
+      explain: {
+        viz: { type: "growth", base: flujo },
+        badge: { text: "Oportunidad", tone: "blue" },
+        points: [
+          { b: "El dinero quieto pierde.", t: `Con la inflación, ${fmtMxn(flujo)} guardados valen menos cada año. Ahorrar es el primer paso, pero no el último.` },
+          { b: "Ya hiciste lo difícil.", t: `Ahorras el ${Math.round((flujo/inc)*100)}% de tus ingresos. Generar excedente es el hábito complicado — falta ponerlo a trabajar.` },
+          { b: "Sin ser experto.", t: "Instrumentos de bajo riesgo (CETES, fondos) pueden igualar la inflación y proteger tu poder de compra. Empieza con una parte pequeña." },
+        ],
+      },
     });
   }
 
@@ -11816,7 +11871,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Adelanta tu meta",
       detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abónalo a tu meta y llega antes.`,
       action: "goal",
-      why: `Tienes ${fmtMxn(flujo)} de excedente este periodo. Cada peso que abones de más a tu meta la acerca — no de forma lineal, sino acelerada.\n\nEl motivo es psicológico y práctico: cuando ves tu meta avanzar más rápido de lo esperado, es más probable que sigas aportando (el progreso engancha). Y entre más pronto la cumplas, antes puedes empezar la siguiente.\n\nNo tiene que ser todo el excedente. Incluso abonar una parte hoy, mientras tienes el dinero disponible y la intención fresca, evita que se diluya en gastos pequeños durante el mes.`,
+      explain: {
+        viz: { type: "stat", big: fmtMxn(flujo), sub: "de excedente disponible hoy", color: "#2A9048" },
+        badge: { text: "A tu favor", tone: "green" },
+        points: [
+          { b: "El progreso engancha.", t: "Cuando ves tu meta avanzar más rápido de lo esperado, es más probable que sigas aportando." },
+          { b: "Antes = mejor.", t: "Entre más pronto cumplas esta meta, antes puedes empezar la siguiente." },
+          { b: "No tiene que ser todo.", t: "Abonar una parte hoy, con el dinero disponible y la intención fresca, evita que se diluya en gastos pequeños del mes." },
+        ],
+      },
     });
   }
 
@@ -11832,9 +11895,21 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
         title: `Tu deuda "${worst.name}" te cuesta cara`,
         detail: `Con ${worst.rate}% de interés, pagas ~${fmtMxn(Math.round(monthlyInterest))}/mes en intereses. Abonar extra aquí te ahorra más que ahorrar.`,
         save: Math.round(monthlyInterest),
-        saveIsEstimate: false, // interés mensual real según saldo y tasa
+        saveIsEstimate: false,
         action: "debt",
-        why: `Este ${fmtMxn(Math.round(monthlyInterest))} es real: es lo que pagas cada mes SOLO en intereses, calculado con el saldo y la tasa de ${worst.rate}% de tus deudas. Ese dinero no reduce lo que debes — se lo lleva el banco.\n\nPor eso abonar a una deuda cara rinde más que ahorrar: si un ahorro te da 10% al año pero tu deuda cobra ${worst.rate}%, cada peso que abonas a la deuda te "gana" ${worst.rate}% garantizado. Es la mejor inversión posible, sin riesgo.\n\nLa estrategia más eficiente es atacar primero la deuda de mayor tasa (esta), aunque no sea la más grande. Cada abono extra reduce el saldo sobre el que se calcula el interés, así que el efecto se acelera mes con mes.`,
+        explain: {
+          viz: { type: "compare", label: "Rendimiento anual",
+            bars: [
+              { label: "Un ahorro típico", value: 10, color: "#8B95A6", suffix: "%" },
+              { label: `Abonar a "${worst.name}"`, value: worst.rate, color: "#D42F2F", suffix: "%" },
+            ] },
+          badge: { text: "Interés real", tone: "red" },
+          points: [
+            { b: `${fmtMxn(Math.round(monthlyInterest))} al mes`, t: `es lo que pagas SOLO en intereses (${worst.rate}% de tasa). Ese dinero no baja lo que debes — se lo lleva el banco.` },
+            { b: "Rinde más que ahorrar.", t: `Un ahorro da ~10% al año. Tu deuda cobra ${worst.rate}%. Cada peso que abonas te "gana" ${worst.rate}% garantizado, sin riesgo.` },
+            { b: "Ataca la de mayor tasa.", t: "Aunque no sea la más grande. Cada abono reduce el saldo sobre el que se calcula el interés, y el efecto se acelera." },
+          ],
+        },
       });
     } else if (flujo > 0 && monthlyInterest > 0) {
       opps.push({
@@ -11842,6 +11917,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
         title: "Abona a tu deuda",
         detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abonarlo a tus deudas reduce lo que pagas en intereses.`,
         action: "debt",
+        explain: {
+          viz: { type: "stat", big: fmtMxn(flujo), sub: "de flujo positivo para abonar", color: "#C47000" },
+          badge: { text: "A tu favor", tone: "amber" },
+          points: [
+            { b: "Reduce el interés.", t: "Cada abono baja el saldo sobre el que se calcula el interés, así que pagas menos mes con mes." },
+            { b: "Efecto acelerado.", t: "Mientras más pronto abonas, menos interés se acumula. El tiempo juega a tu favor si actúas ya." },
+            { b: "Tienes el excedente hoy.", t: `Aprovecha estos ${fmtMxn(flujo)} disponibles antes de que se diluyan en gastos del mes.` },
+          ],
+        },
       });
     }
   }
@@ -11853,6 +11937,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Ponle un destino a tu dinero",
       detail: `Ahorras ${fmtMxn(flujo)} al periodo pero sin una meta. Crea una (fondo de emergencia, un viaje, lo que sea) y avanza con propósito.`,
       action: "goal",
+      explain: {
+        viz: { type: "stat", big: fmtMxn(flujo), sub: "ahorras, pero sin rumbo", color: "#1E6FE0" },
+        badge: { text: "Sugerencia", tone: "blue" },
+        points: [
+          { b: "Ahorrar sin meta se diluye.", t: "El dinero sin propósito tiende a gastarse. Una meta le da dirección y te ayuda a no tocarlo." },
+          { b: "Una meta motiva.", t: "Ver el progreso hacia algo concreto (un viaje, un fondo) hace que ahorrar deje de sentirse como sacrificio." },
+          { b: "Zafi calcula por ti.", t: "Al crear una meta, te digo cuánto ahorrar al mes y en cuánto tiempo la logras. Empieza cuando quieras." },
+        ],
+      },
     });
   }
 
@@ -11864,6 +11957,15 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Empieza tu fondo de emergencia",
       detail: "Es la base de toda salud financiera. Te protege si algo sale mal, antes de pensar en otras metas.",
       action: "goal",
+      explain: {
+        viz: { type: "growth", base: Math.round(exp * 3) },
+        badge: { text: "La base", tone: "green" },
+        points: [
+          { b: "Es tu red de seguridad.", t: "Cubre imprevistos (una reparación, perder ingresos) sin recurrir a deuda cara ni tocar otras metas." },
+          { b: "La meta típica: 3 meses.", t: `Se recomienda ahorrar 3 a 6 meses de gastos. En tu caso, ~${fmtMxn(Math.round(exp * 3))} sería un buen primer objetivo.` },
+          { b: "Va antes que invertir.", t: "Sin fondo, cualquier emergencia te obliga a vender inversiones o endeudarte. Constrúyelo primero, con calma." },
+        ],
+      },
     });
   }
 
@@ -11987,8 +12089,8 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
       <div>
         {opportunities.map((o, i) => (
           <button key={o.id || i}
-            onClick={() => o.why && setDetailOpp(o)}
-            style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: o.why ? "pointer" : "default",
+            onClick={() => o.explain && setDetailOpp(o)}
+            style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: o.explain ? "pointer" : "default",
               display: "flex", gap: 12, padding: "12px 0", fontFamily: FONT,
               borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
               paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
@@ -12005,7 +12107,7 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
                 </div>
               )}
             </div>
-            {o.why && (
+            {o.explain && (
               <div style={{ display: "flex", alignItems: "center", flexShrink: 0, alignSelf: "center",
                 color: dark ? "rgba(255,255,255,.3)" : "rgba(0,0,0,.25)" }}>
                 <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" }}>
@@ -12025,19 +12127,23 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
   );
 }
 
-// Hoja inferior con la explicación detallada de una oportunidad — el "porqué"
-// que da contexto, transparencia sobre el cálculo, y motiva a actuar.
+// Hoja inferior con la explicación VISUAL de una oportunidad — una mini
+// visualización arriba + puntos cortos con palabras destacadas. Convence sin
+// abrumar con texto.
 function OpportunityDetailSheet({ opp, dark, toneColor, toneBg, onClose }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.65)" : "#5A6472";
   const [closing, close] = useSheetClose(onClose);
   const color = toneColor[opp.tone] || "#1E6FE0";
+  const ex = opp.explain;
+  const badgeTone = { green: "#2A9048", amber: "#C47000", red: "#D42F2F", blue: "#1E6FE0" };
+
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "82vh", overflowY: "auto" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "86vh", overflowY: "auto" }}>
         <div className="cc-grip" />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <div style={{ width: 44, height: 44, borderRadius: 13, background: toneBg[opp.tone] || "rgba(30,111,224,.12)",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <OppIcon id={opp.id} tone={opp.tone} />
@@ -12048,21 +12154,45 @@ function OpportunityDetailSheet({ opp, dark, toneColor, toneBg, onClose }) {
           <button className="cc-sheet-close" onClick={close}>×</button>
         </div>
 
-        {opp.save > 0 && (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "12px 14px", borderRadius: 14,
-            background: toneBg[opp.tone] || "rgba(60,190,96,.1)", marginBottom: 16 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: FONT }}>
-              {opp.saveIsEstimate ? "~" : ""}{fmtMxn(opp.save)}
-            </div>
-            <div style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT }}>
-              {opp.saveIsEstimate ? "ahorro estimado" : "ahorro real"}
-            </div>
+        {/* Visualización */}
+        {ex && ex.viz && (
+          <div style={{ borderRadius: 16, padding: "18px 16px", marginBottom: 16,
+            background: dark ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.025)",
+            border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"}` }}>
+            <OppViz viz={ex.viz} dark={dark} ink={ink} inkSoft={inkSoft} />
           </div>
         )}
 
-        <div style={{ fontSize: 14, color: ink, lineHeight: 1.6, fontFamily: FONT, whiteSpace: "pre-line", marginBottom: 20 }}>
-          {opp.why}
-        </div>
+        {/* Badge de dato real / estimación */}
+        {ex && ex.badge && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16,
+            padding: "5px 11px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, fontFamily: FONT,
+            background: `${badgeTone[ex.badge.tone]}1a`, color: badgeTone[ex.badge.tone] }}>
+            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, fill: "none", stroke: "currentColor", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }}>
+              <path d="M12 16v-4M12 8h.01" /><circle cx="12" cy="12" r="9" />
+            </svg>
+            {ex.badge.text}
+          </div>
+        )}
+
+        {/* Puntos con palabras destacadas */}
+        {ex && ex.points && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 22 }}>
+            {ex.points.map((p, i) => (
+              <div key={i} style={{ display: "flex", gap: 11 }}>
+                <div style={{ width: 6, height: 6, borderRadius: 99, background: color, marginTop: 7, flexShrink: 0 }} />
+                <div style={{ fontSize: 14, lineHeight: 1.5, fontFamily: FONT, color: inkSoft }}>
+                  <span style={{ fontWeight: 700, color: ink }}>{p.b}</span> {p.t}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Fallback si no hay explicación estructurada */}
+        {(!ex || (!ex.points && !ex.viz)) && opp.detail && (
+          <div style={{ fontSize: 14, color: ink, lineHeight: 1.6, fontFamily: FONT, marginBottom: 22 }}>{opp.detail}</div>
+        )}
 
         <button onClick={close}
           style={{ width: "100%", padding: 14, borderRadius: 13, border: "none", background: color, color: "#fff",
@@ -12073,6 +12203,107 @@ function OpportunityDetailSheet({ opp, dark, toneColor, toneBg, onClose }) {
     </div>,
     document.body
   );
+}
+
+// Mini-visualizaciones para el detalle de oportunidad
+function OppViz({ viz, dark, ink, inkSoft }) {
+  const FONT = "'Montserrat', sans-serif";
+  if (viz.type === "compare") {
+    const max = Math.max(...viz.bars.map((b) => b.value)) || 1;
+    return (
+      <div>
+        {viz.label && <div style={{ fontSize: 11, fontWeight: 600, color: inkSoft, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 12, fontFamily: FONT }}>{viz.label}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {viz.bars.map((b, i) => (
+            <div key={i}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: ink, fontFamily: FONT }}>{b.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: b.color, fontFamily: FONT }}>
+                  {b.suffix === "%" ? `${b.value}%` : fmtMxn(b.value)}
+                </span>
+              </div>
+              <div style={{ height: 10, borderRadius: 99, background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.max(6, (b.value / max) * 100)}%`, borderRadius: 99,
+                  background: b.color, transition: "width .5s ease" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (viz.type === "donut") {
+    const R = 46, C = 2 * Math.PI * R;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+        <div style={{ position: "relative", width: 116, height: 116, flexShrink: 0 }}>
+          <svg viewBox="0 0 116 116" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="58" cy="58" r={R} fill="none" strokeWidth="14" stroke={dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"} />
+            <circle cx="58" cy="58" r={R} fill="none" strokeWidth="14" strokeLinecap="round"
+              stroke={viz.color} strokeDasharray={C} strokeDashoffset={C * (1 - viz.pct / 100)}
+              style={{ transition: "stroke-dashoffset .6s ease" }} />
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: viz.color, fontFamily: FONT, lineHeight: 1 }}>{viz.centerTop}</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: viz.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: ink, fontFamily: FONT }}>{viz.centerBot} · {viz.pct}%</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)", flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: inkSoft, fontFamily: FONT }}>El resto · {100 - viz.pct}%</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (viz.type === "stat") {
+    return (
+      <div style={{ textAlign: "center", padding: "4px 0" }}>
+        <div style={{ fontSize: 34, fontWeight: 700, color: viz.color, fontFamily: FONT, letterSpacing: "-.02em", lineHeight: 1 }}>{viz.big}</div>
+        <div style={{ fontSize: 13, color: inkSoft, marginTop: 6, fontFamily: FONT }}>{viz.sub}</div>
+      </div>
+    );
+  }
+  if (viz.type === "ants") {
+    // Cuadrícula de puntos que representa las compras pequeñas
+    const dots = Math.min(viz.count, 40);
+    return (
+      <div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12, justifyContent: "center" }}>
+          {Array.from({ length: dots }).map((_, i) => (
+            <div key={i} style={{ width: 9, height: 9, borderRadius: 99,
+              background: i < dots / 2 ? "#E08010" : (dark ? "rgba(230,140,20,.3)" : "rgba(230,140,20,.35)") }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#C47000", fontFamily: FONT }}>{viz.count}</span>
+          <span style={{ fontSize: 13, color: inkSoft, fontFamily: FONT }}> compras = {viz.total}</span>
+        </div>
+      </div>
+    );
+  }
+  if (viz.type === "growth") {
+    // Barras ascendentes representando crecimiento
+    const heights = [30, 42, 56, 72, 92];
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 8, height: 100, marginBottom: 10 }}>
+          {heights.map((h, i) => (
+            <div key={i} style={{ width: 26, height: `${h}%`, borderRadius: "6px 6px 0 0",
+              background: `linear-gradient(180deg, #5B9BFF, #1E6FE0)`, opacity: 0.4 + (i * 0.15) }} />
+          ))}
+        </div>
+        <div style={{ textAlign: "center", fontSize: 13, color: inkSoft, fontFamily: FONT }}>
+          <span style={{ fontWeight: 700, color: "#1E6FE0" }}>{fmtMxn(viz.base)}</span> podrían crecer con el tiempo
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
