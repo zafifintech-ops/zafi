@@ -742,10 +742,10 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-sheet-close:hover{background:var(--surface-2);color:var(--ink);}
 
 /* monto grande centrado — estilo "Nueva transacción" */
-.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:6px;
+.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:2px;
   padding:18px 0;margin-bottom:6px;width:100%;}
-.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--ink-soft);opacity:.45;flex-shrink:0;}
-.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:16px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;}
+.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--ink-soft);opacity:.45;flex-shrink:0;margin-right:4px;}
+.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:14px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;margin-left:6px;}
 /* "00" gris que aparece después del número cuando no hay punto */
 .cc-amount-decimal-hint{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   color:var(--ink);opacity:.25;pointer-events:none;font-feature-settings:"tnum";flex-shrink:0;}
