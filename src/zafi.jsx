@@ -9936,8 +9936,8 @@ const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
   { id: "dailyAction", label: "Acción de hoy", on: true },
   { id: "opportunities", label: "Áreas de oportunidad", on: true },
+  { id: "debts", label: "Deudas", on: true },
   { id: "goals", label: "Metas y planes", on: true },
-  { id: "kpis", label: "Ingresos y gastos del periodo", on: true },
   { id: "financialScore", label: "Calificación financiera (IA)", on: true },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
@@ -9947,8 +9947,8 @@ const HOME_SECTION_PLANS = {
   balance: "free",
   dailyAction: "free",
   opportunities: "free",
+  debts: "free",
   goals: "free",
-  kpis: "pro",
   financialScore: "pro",
   financialTips: "pro",
 };
@@ -9963,14 +9963,14 @@ function adaptiveSectionOrder(score, allSections) {
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: acción, oportunidades (dónde recortar), claridad
-    order = ["dailyAction", "opportunities", "financialScore", "financialTips", "kpis", "balance", "goals"];
+    // Rescate: acción, deudas (lo más urgente si las hay), oportunidades, claridad
+    order = ["dailyAction", "debts", "opportunities", "financialScore", "financialTips", "balance", "goals"];
   } else if (score < 65) {
-    // Mejora
-    order = ["dailyAction", "opportunities", "financialScore", "kpis", "goals", "balance", "financialTips"];
+    // Mejora: acción, deudas, oportunidades, luego metas
+    order = ["dailyAction", "debts", "opportunities", "financialScore", "goals", "balance", "financialTips"];
   } else {
-    // Crecimiento: motivación primero, oportunidades después
-    order = ["goals", "dailyAction", "balance", "opportunities", "kpis", "financialScore", "financialTips"];
+    // Crecimiento: motivación primero → metas arriba, deudas más abajo
+    order = ["goals", "dailyAction", "balance", "opportunities", "debts", "financialScore", "financialTips"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -12200,7 +12200,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   );
 }
 
-function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts }) {
+function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts, mode = "both" }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [updatingGoal, setUpdatingGoal] = useState(null);
@@ -12272,8 +12272,11 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
 
   return (
     <div className="cc-card" style={{ padding: "16px 18px" }}>
+      {mode !== "debts" && (<>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: goals.length ? 14 : 8 }}>
-        <div className="cc-label" style={{ margin: 0 }}>✨ Metas y planes</div>
+        <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
+          <GoalTypeIcon type="otro" size={15} /> Metas y planes
+        </div>
         {goals.length > 0 && (
           <button onClick={() => setPlannerOpen(true)}
             style={{ background: "none", border: "none", color: "#1E6FE0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
@@ -12286,13 +12289,16 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
         <button onClick={() => setPlannerOpen(true)}
           style={{ width: "100%", textAlign: "left", cursor: "pointer", border: "none",
             background: "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
-            borderRadius: 14, padding: 16, fontFamily: FONT }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ fontSize: 30 }}>🎯</div>
+            borderRadius: 14, padding: 18, fontFamily: FONT }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <GoalTypeIcon type="otro" size={26} />
+            </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>Crea tu primera meta</div>
-              <div style={{ fontSize: 12, color: inkSoft, marginTop: 2, lineHeight: 1.4 }}>
-                Casa, auto, viaje o fondo de emergencia — te calculo el plan.
+              <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>Ponle rumbo a tu dinero</div>
+              <div style={{ fontSize: 12.5, color: inkSoft, marginTop: 3, lineHeight: 1.45 }}>
+                Crea tu primera meta — un fondo, un viaje, una casa. Te calculo cuánto ahorrar y en cuánto tiempo.
               </div>
             </div>
           </div>
@@ -12331,7 +12337,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
-                    {pct >= 100 ? "🎉 ¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
+                    {pct >= 100 ? "¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
                   </div>
                   {/* Botón para abonar/retirar (modo manual/dedicated) */}
                   {g.trackingMode !== "linked" && (
@@ -12347,12 +12353,16 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           })}
         </div>
       )}
+      </>)}
 
       {/* ─── DEUDAS ─── */}
-      <div style={{ marginTop: goals.length || true ? 18 : 0, paddingTop: 16,
-        borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+      {mode !== "goals" && (
+      <div style={{ marginTop: mode === "both" ? 18 : 0, paddingTop: mode === "both" ? 16 : 0,
+        borderTop: mode === "both" ? `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` : "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: debts.length ? 12 : 8 }}>
-          <div className="cc-label" style={{ margin: 0 }}>💳 Deudas</div>
+          <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
+            <GoalTypeIcon type="card" size={15} /> Deudas
+          </div>
           {debts.length > 0 && (
             <button onClick={() => { setEditingDebt(null); setDebtModalOpen(true); }}
               style={{ background: "none", border: "none", color: "#1E6FE0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
@@ -12362,16 +12372,25 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
         </div>
 
         {debts.length === 0 ? (
-          <button onClick={() => { setEditingDebt(null); setDebtModalOpen(true); }}
-            style={{ width: "100%", textAlign: "center", cursor: "pointer", border: "none",
-              background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
-              borderRadius: 14, padding: 18, fontFamily: FONT }}>
-            <div style={{ fontSize: 30 }}>🎉</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 6 }}>Sin deudas registradas</div>
-            <div style={{ fontSize: 12, color: inkSoft, marginTop: 4, lineHeight: 1.5 }}>
-              Si tienes tarjetas, préstamos o financiamientos, regístralos y te ayudo a pagarlos de forma inteligente.
+          <div style={{ background: "linear-gradient(140deg, rgba(60,190,96,.12), rgba(60,190,96,.04))",
+            borderRadius: 14, padding: 20, textAlign: "center" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", margin: "0 auto 10px",
+              background: dark ? "rgba(60,190,96,.2)" : "rgba(60,190,96,.15)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, stroke: "#2A9048", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
             </div>
-          </button>
+            <div style={{ fontSize: 16, fontWeight: 700, color: ink, fontFamily: FONT }}>¡Vas sin deudas!</div>
+            <div style={{ fontSize: 12.5, color: inkSoft, marginTop: 5, lineHeight: 1.5, fontFamily: FONT }}>
+              Estás en una posición envidiable. Aprovecha para hacer crecer tu dinero con metas de ahorro e inversión.
+            </div>
+            <button onClick={() => { setEditingDebt(null); setDebtModalOpen(true); }}
+              style={{ marginTop: 14, background: "none", border: "none", color: inkFaint,
+                fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, textDecoration: "underline" }}>
+              ¿Tienes una deuda? Regístrala aquí
+            </button>
+          </div>
         ) : (
           <>
             {/* Banner deuda total */}
@@ -12467,6 +12486,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           </>
         )}
       </div>
+      )}
 
       {plannerOpen && (
         <GoalPlannerModal
@@ -13101,7 +13121,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           return (
             <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
               monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
-              accView={accView} accounts={config.accounts || []} />
+              accView={accView} accounts={config.accounts || []} mode="goals" />
+          );
+        }
+
+        if (s.id === "debts") {
+          return (
+            <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
+              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
+              accView={accView} accounts={config.accounts || []} mode="debts" />
           );
         }
 
