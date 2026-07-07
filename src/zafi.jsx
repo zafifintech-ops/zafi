@@ -311,6 +311,18 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
+/* Brillo animado tipo vidrio para las secciones protagonistas */
+@keyframes ccSheen {
+  0%   { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(320%) skewX(-18deg); }
+}
+.cc-sheen{position:relative;overflow:hidden;}
+.cc-sheen::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;
+  background:linear-gradient(100deg, transparent 0%, rgba(255,255,255,.14) 45%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.14) 55%, transparent 100%);
+  transform:translateX(-120%) skewX(-18deg);
+  animation:ccSheen 5.5s ease-in-out infinite;
+  animation-delay:1.2s;
+  pointer-events:none;z-index:3;}
 .cc-lvl-top-blue{background:#FFFFFF;border-color:rgba(30,111,224,.3);box-shadow:0 8px 30px rgba(30,111,224,.14);}
 .cc-dark .cc-lvl-top-blue{background:rgba(255,255,255,.13);border-color:rgba(91,155,255,.35);box-shadow:0 8px 30px rgba(30,111,224,.22);}
 .cc-lvl-top-red{background:#FFFFFF;border-color:rgba(226,53,53,.3);box-shadow:0 8px 30px rgba(226,53,53,.16);}
@@ -8430,7 +8442,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={loaded} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
           {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfigWrapped} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfigWrapped} accView={accView} setAccView={setAccView} />}
@@ -10870,7 +10882,7 @@ function ScorePillIndicator({ targetScore, dark }) {
   );
 }
 
-function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
+function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, dataLoaded = true }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -11085,6 +11097,13 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     : "Crítico";
 
   useEffect(() => {
+    // No calcular hasta que los datos estén completamente cargados —
+    // evita un score falso-alto (ej. 96) en el primer render cuando txs
+    // aún no está listo y solo se ve el saldo inicial como ingreso.
+    if (!dataLoaded) {
+      setLoading(true);
+      return;
+    }
     if (baseData.txCount === 0) {
       setData({ score: 0, status: "Sin datos", analyses: ["Agrega transacciones para ver tu calificación financiera."] });
       setLoading(false);
@@ -11207,7 +11226,7 @@ INSTRUCCIONES CRÍTICAS:
       }
     };
     callAI();
-  }, [dataKey]);
+  }, [dataKey, dataLoaded]);
 
   useEffect(() => {
     if (!data?.analyses || data.analyses.length < 2) return;
@@ -11859,9 +11878,10 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
   };
 
   return (
-    <div className={`cc-card ${className}`} style={{ padding: 0, overflow: "hidden" }}>
+    <div className={`cc-card ${className}`} style={{ padding: 0, overflow: "hidden", isolation: "isolate" }}>
       {totalSave > 0 && (
-        <div style={{ background: "linear-gradient(140deg,#3CBE60,#2A9048)", padding: 16, color: "#fff" }}>
+        <div style={{ background: "linear-gradient(140deg,#3CBE60,#2A9048)", padding: 16, color: "#fff",
+          borderRadius: "20px 20px 0 0" }}>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
             💰 Ahorro potencial detectado
           </div>
@@ -12079,7 +12099,7 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
   })();
 
   return (
-    <div className="cc-card cc-lvl-self" style={{
+    <div className={`cc-card cc-lvl-self ${isHero && !doneToday ? "cc-sheen" : ""}`} style={{
       padding: isHero && !doneToday ? 20 : 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
@@ -12621,7 +12641,7 @@ function CollapsedSection({ icon, iconTone = "green", text, subtext, dark, expan
   );
 }
 
-function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView }) {
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView, dataLoaded = true }) {
   // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
   const view = accView;
   const setView = setAccView;
@@ -12967,7 +12987,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           balance: "cc-lvl-top-blue", financialTips: "cc-lvl-top-amber",
         };
         const lvlClass = idx === 0
-          ? (topTintById[s.id] || "cc-lvl-top-blue")
+          ? `${topTintById[s.id] || "cc-lvl-top-blue"} cc-sheen`
           : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
         const applyLvl = (node) => {
           if (!node || !node.props) return node;
@@ -13251,7 +13271,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           );
           return (
             <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
-              saveConfig={saveConfig} />
+              saveConfig={saveConfig} dataLoaded={dataLoaded} />
           );
         }
 
