@@ -50,6 +50,9 @@ html,body{min-height:100vh;}
 body{
   background-color:var(--bg)!important;
 }
+/* Ocultar scrollbars en toda la app — iOS/WebKit y Firefox */
+*{scrollbar-width:none;}
+*::-webkit-scrollbar{display:none;}
 /* ── chart animations ───────────────────────────────────── */
 @keyframes ccBarRise{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 @keyframes ccLineDraw{from{stroke-dashoffset:2000}to{stroke-dashoffset:0}}
@@ -4852,9 +4855,10 @@ function AuthScreen() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "flex-end", position: "relative",
-      padding: "0 16px",
-      paddingBottom: "calc(32px + env(safe-area-inset-bottom))",
+      alignItems: "center", justifyContent: "center", position: "relative",
+      padding: "24px 20px",
+      paddingTop: "calc(24px + env(safe-area-inset-top))",
+      paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
     }}>
       {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
@@ -4875,17 +4879,17 @@ function AuthScreen() {
           lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
 
-      {/* Card flotante — ancla abajo como iOS sheet */}
+      {/* Card flotante centrada */}
       <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
-        width: "100%", maxWidth: 480,
-        background: "rgba(245,246,248,.88)",
-        backdropFilter: "blur(24px) saturate(160%)",
-        WebkitBackdropFilter: "blur(24px) saturate(160%)",
-        borderRadius: 28,
+        width: "100%", maxWidth: 400,
+        background: "rgba(220,225,232,.15)",
+        backdropFilter: "blur(6px) saturate(120%)",
+        WebkitBackdropFilter: "blur(6px) saturate(120%)",
+        borderRadius: 24,
         padding: "28px 22px 24px",
-        border: "1px solid rgba(255,255,255,.75)",
-        boxShadow: "0 8px 40px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.8)",
+        border: "1px solid rgba(255,255,255,.5)",
+        boxShadow: "0 4px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6)",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
