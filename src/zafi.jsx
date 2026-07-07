@@ -4590,14 +4590,14 @@ function AuthInput({ icon, type, placeholder, value, onChange, right, contentTyp
       display: "flex", alignItems: "center", gap: 10,
       background: focused ? "rgba(255,255,255,.45)" : "rgba(255,255,255,.2)",
       border: `1px solid ${focused ? "rgba(255,255,255,.8)" : "rgba(255,255,255,.4)"}`,
-      borderRadius: 12, padding: "13px 15px",
+      borderRadius: 12, padding: "11px 14px",
       transition: "all .2s",
     }}>
       <span style={{ color: "rgba(26,24,21,.35)", flexShrink: 0, display: "flex", alignItems: "center" }}>{icon}</span>
       <input type={type} placeholder={placeholder} value={value} onChange={onChange}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{ flex: 1, border: "none", background: "transparent", outline: "none",
-          fontSize: 15, color: "#1A1815", fontFamily: "'Montserrat', sans-serif",
+          fontSize: 14, color: "#1A1815", fontFamily: "'Montserrat', sans-serif",
           fontWeight: 300, letterSpacing: "-.01em" }}
         autoCapitalize="off" autoCorrect="off" spellCheck={false}
         autoComplete={autoComplete || (type === "email" ? "email" : type === "password" ? "current-password" : "off")} />
@@ -4841,7 +4841,7 @@ function AuthScreen() {
   const videoSrc = isCapacitor ? "./zafi-auth.mp4" : "/zafi-auth.mp4";
 
   const btnMain = {
-    width: "100%", padding: "15px", borderRadius: 12, border: "none",
+    width: "100%", padding: "13px", borderRadius: 12, border: "none",
     background: "rgba(26,24,21,.82)", color: "#fff",
     fontSize: 14, fontWeight: 400, fontFamily: "'Montserrat', sans-serif",
     cursor: busy ? "not-allowed" : "pointer", opacity: busy ? .65 : 1,
@@ -4882,26 +4882,27 @@ function AuthScreen() {
       {/* Card flotante centrada */}
       <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
-        width: "100%", maxWidth: 400,
+        width: "100%", maxWidth: 380,
         background: "rgba(220,225,232,.15)",
         backdropFilter: "blur(6px) saturate(120%)",
         WebkitBackdropFilter: "blur(6px) saturate(120%)",
         borderRadius: 24,
-        padding: "28px 22px 24px",
+        padding: "22px 20px 20px",
         border: "1px solid rgba(255,255,255,.5)",
         boxShadow: "0 4px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6)",
+        marginTop: "calc(120px + env(safe-area-inset-top))",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
-          justifyContent: "space-between", marginBottom: 20 }}>
+          justifyContent: "space-between", marginBottom: 14 }}>
           <span key={showForgot ? "forgot" : tab} className="cc-auth-title"
             style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
-            fontSize: 22, letterSpacing: "-.02em", color: "#1A1815" }}>
+            fontSize: 19, letterSpacing: "-.02em", color: "#1A1815" }}>
             {showForgot ? "Olvidé mi contraseña" : tab === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </span>
           {!showForgot && (
             <button onClick={() => switchTab(tab === "login" ? "register" : "login")}
-              style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 14 }}>
+              style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 13 }}>
               {tab === "login" ? "Registrarse" : "Iniciar sesión"}
             </button>
           )}
@@ -4960,15 +4961,15 @@ function AuthScreen() {
                 Iniciar sesión →
               </button>
             )}
-            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"6px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
-              <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
+              <span style={{ fontSize:11, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
             </div>
-            <div style={{ display:"flex", gap:10, marginTop:4 }}>
+            <div style={{ display:"flex", gap:10, marginTop:6 }}>
               {/* Google */}
               <button onClick={doGoogleSignIn} disabled={busy} className="cc-press"
-                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                style={{ flex:1, padding:"11px 10px", borderRadius:12,
                   border:"1px solid rgba(26,24,21,.15)",
                   background:"rgba(255,255,255,.55)", cursor:"pointer",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
@@ -4982,9 +4983,9 @@ function AuthScreen() {
                 </svg>
                 Google
               </button>
-              {/* Apple — disponible cuando tengas cuenta de Apple Developer */}
+              {/* Apple */}
               <button disabled
-                style={{ flex:1, padding:"13px 10px", borderRadius:12,
+                style={{ flex:1, padding:"11px 10px", borderRadius:12,
                   border:"1px solid rgba(26,24,21,.15)",
                   background:"rgba(26,24,21,.08)", cursor:"not-allowed",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
