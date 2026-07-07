@@ -12067,6 +12067,29 @@ function pickPooledAction(ctx) {
     pool.push(`Escribe qué te llevó a gastar tanto en ${topExpCat} este periodo.`);
   }
 
+  // ── Acciones de CONTADOR (interactivas) ──
+  // Formato: [[contar:N]] al inicio. DailyActionCard muestra un contador táctil.
+  // La razón financiera va incluida — es un gesto para fijar conciencia o hábito.
+  if (deficitPct > 0) {
+    pool.push(`[[contar:10]] Toca 10 veces para grabártelo: este mes gastas ${deficitPct}% más de lo que ganas. Hoy frénalo.`);
+  }
+  if (topExpCat) {
+    pool.push(`[[contar:5]] Toca 5 veces, una por cada vez que revisarás si de verdad necesitas gastar en ${topExpCat} hoy.`);
+  }
+  if (hasDebt && worstDebtName) {
+    pool.push(`[[contar:7]] Toca 7 veces recordando tu meta: quedar libre de "${worstDebtName}". Hoy no sumes deuda.`);
+  }
+  if (hasGoal) {
+    pool.push(`[[contar:8]] Toca 8 veces visualizando tu meta cumplida. Ese impulso te ayuda a no gastar de más hoy.`);
+  }
+  if (deficitPct === 0 && !hasDebt) {
+    pool.push(
+      `[[contar:12]] Toca 12 veces, una por cada mes del año, comprometiéndote a ahorrar algo cada uno.`,
+      `[[contar:5]] Antes de tu próxima compra, toca 5 veces y pregúntate en cada una: ¿lo necesito?`,
+      `[[contar:3]] Toca 3 veces y nombra en tu mente 3 gastos que puedes evitar esta semana.`,
+    );
+  }
+
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
   if (pool.length === 0) {
     pool.push("Registra cada gasto de hoy, por pequeño que sea.");
@@ -12152,9 +12175,17 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
   const actionText = isPro ? (aiAction || pooledAction) : pooledAction;
 
+  // ¿Acción de CONTADOR? Formato [[contar:N]] al inicio. Mostramos un botón
+  // táctil que el usuario toca N veces para completar la acción.
+  const counterMatch = (actionText || "").match(/^\s*\[\[contar:(\d+)\]\]\s*/);
+  const isCounterAction = !!counterMatch;
+  const counterTarget = counterMatch ? parseInt(counterMatch[1], 10) : 0;
+  const cleanActionText = isCounterAction ? actionText.replace(/^\s*\[\[contar:\d+\]\]\s*/, "") : actionText;
+  const [counterCount, setCounterCount] = useState(0);
+
   // ¿La acción invita a escribir/anotar algo? Si es así, mostramos un campo
   // para que el usuario lo haga ahí mismo (más accionable que solo leer).
-  const isWriteAction = /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
+  const isWriteAction = !isCounterAction && /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
   const [writeText, setWriteText] = useState("");
 
   const markDone = () => {
@@ -12228,8 +12259,38 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         <>
           <div style={{ fontSize: 14.5, fontWeight: 600, color: ink,
             lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
-            {loadingAi ? "Generando tu acción del día…" : actionText}
+            {loadingAi ? "Generando tu acción del día…" : cleanActionText}
           </div>
+          {isCounterAction && !loadingAi && (
+            <div style={{ marginBottom: 14 }}>
+              <button
+                onClick={() => { if (counterCount < counterTarget) setCounterCount((c) => c + 1); }}
+                disabled={counterCount >= counterTarget}
+                style={{ width: "100%", padding: "16px", borderRadius: 14, border: "none",
+                  background: counterCount >= counterTarget ? "#3CBE60" : "#E08010",
+                  color: "#fff", fontFamily: FONT, cursor: counterCount >= counterTarget ? "default" : "pointer",
+                  transition: "background .2s ease, transform .1s ease", position: "relative", overflow: "hidden" }}
+                onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.98)"; }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.98)"; }}
+                onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}>
+                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+                  {counterCount >= counterTarget ? "✓" : `${counterCount} / ${counterTarget}`}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4, opacity: .9 }}>
+                  {counterCount >= counterTarget ? "¡Listo! Buen gesto." : "Toca aquí"}
+                </div>
+              </button>
+              {/* Puntitos de progreso */}
+              <div style={{ display: "flex", gap: 5, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
+                {Array.from({ length: counterTarget }).map((_, i) => (
+                  <span key={i} style={{ width: 7, height: 7, borderRadius: 99,
+                    background: i < counterCount ? "#E08010" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"),
+                    transition: "background .2s ease" }} />
+                ))}
+              </div>
+            </div>
+          )}
           {isWriteAction && !loadingAi && (
             <textarea
               value={writeText}
@@ -12244,11 +12305,11 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
             />
           )}
           <button onClick={markDone}
-            disabled={isWriteAction && !writeText.trim()}
+            disabled={(isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: "#fff", background: (isWriteAction && !writeText.trim()) ? (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)") : "#E08010",
+              color: "#fff", background: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)) ? (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)") : "#E08010",
               padding: "10px 18px", borderRadius: 11, border: "none",
-              cursor: (isWriteAction && !writeText.trim()) ? "default" : "pointer", fontFamily: FONT,
+              cursor: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)) ? "default" : "pointer", fontFamily: FONT,
               transition: "background .2s ease" }}>
             {isWriteAction ? "✓ Guardar" : "✓ Marcar como hecho"}
           </button>
