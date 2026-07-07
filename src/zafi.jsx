@@ -309,22 +309,27 @@ body{
 .cc-card{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
-  transition:.2s ease;}
+  transition:.2s ease;
+  /* Forzar capa propia de composición en iOS WKWebView: evita que el contenido
+     se renderice "quemado"/fantasma cuando hay backdrop-filter sobre el video. */
+  transform:translateZ(0);-webkit-transform:translateZ(0);}
 /* Jerarquía de presencia visual en el dashboard.
    El color NUNCA es fondo de tarjeta — la jerarquía se logra con presencia
    (opacidad del glass, sombra, borde). El color vive en números, badges,
-   barras e íconos dentro de la tarjeta, no en su fondo. */
-/* Protagonista: glass presente pero translúcido. Blur más fuerte + saturación
-   para que el efecto cristal se note incluso sobre fondos planos. */
-.cc-lvl-top{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.75);
-  box-shadow:0 10px 34px rgba(0,0,0,.11);
-  backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);}
-.cc-dark .cc-lvl-top{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);
-  box-shadow:0 10px 34px rgba(0,0,0,.32);
-  backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);}
+   barras e íconos dentro de la tarjeta, no en su fondo.
+   NOTA iOS: el fondo del protagonista es suficientemente opaco para garantizar
+   legibilidad del texto incluso cuando el WKWebView apila mal los backdrop-filter
+   sobre el video de fondo. El glass se logra con el blur del fondo, no con
+   transparencia extrema de la tarjeta. */
+.cc-lvl-top{background:rgba(255,255,255,.82);border-color:rgba(255,255,255,.9);
+  box-shadow:0 10px 34px rgba(0,0,0,.1);
+  backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);}
+.cc-dark .cc-lvl-top{background:rgba(28,30,34,.8);border-color:rgba(255,255,255,.14);
+  box-shadow:0 10px 34px rgba(0,0,0,.34);
+  backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);}
 /* Nivel medio: glass estándar. */
-.cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
-.cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+.cc-lvl-mid{background:rgba(255,255,255,.78);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
+.cc-dark .cc-lvl-mid{background:rgba(28,30,34,.66);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 /* Nivel tenue: glass sutil, casi fundido con el fondo. */
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
 .cc-dark .cc-lvl-faint{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.05);box-shadow:none;}
