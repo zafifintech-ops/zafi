@@ -556,17 +556,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   scroll-padding-left:2px;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
 .cc-scroll-x > *{scroll-snap-align:start;}
-/* Desvanece suavemente los bordes para insinuar que hay más contenido y
-   evitar el corte seco cuando hay muchas cuentas. Muy sutil.
-   Nota: el gradiente va de color solido a ese MISMO color con alpha 0
-   (no a transparent, que en WebKit interpola hacia negro y ensucia). */
 .cc-scroll-fade{position:relative;}
-.cc-scroll-fade::before,.cc-scroll-fade::after{content:"";position:absolute;top:0;bottom:10px;
-  width:36px;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s ease;}
-.cc-scroll-fade::before{left:0;background:linear-gradient(90deg,var(--page-fade),var(--page-fade-0));}
-.cc-scroll-fade::after{right:0;background:linear-gradient(270deg,var(--page-fade),var(--page-fade-0));}
-.cc-scroll-fade.fade-left::before{opacity:.85;}
-.cc-scroll-fade.fade-right::after{opacity:.85;}
 
 /* configurar */
 .cc-gear{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
@@ -5211,32 +5201,12 @@ function ZafiLoader() {
   );
 }
 
-// Fila con scroll horizontal que muestra un desvanecido suave en los bordes
-// cuando hay más contenido fuera de vista — evita el "corte seco" de las
-// tarjetas. Detecta la posición del scroll y activa el fade izquierdo/derecho.
+// Fila con scroll horizontal con scroll-snap suave para que las tarjetas se
+// alineen bonito al deslizar. (Sin degradado de bordes — se veía sucio en iOS.)
 function ScrollFadeRow({ children, className = "" }) {
-  const ref = useRef(null);
-  const [fade, setFade] = useState({ left: false, right: false });
-  const update = () => {
-    const el = ref.current;
-    if (!el) return;
-    const left = el.scrollLeft > 4;
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-    setFade((f) => (f.left === left && f.right === right) ? f : { left, right });
-  };
-  useEffect(() => {
-    update();
-    const el = ref.current;
-    if (!el) return;
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    // Recalcular tras un pequeño delay por si el contenido monta después.
-    const t = setTimeout(update, 100);
-    return () => { el.removeEventListener("scroll", update); window.removeEventListener("resize", update); clearTimeout(t); };
-  }, [children]);
   return (
-    <div className={`cc-scroll-fade ${fade.left ? "fade-left" : ""} ${fade.right ? "fade-right" : ""}`}>
-      <div className={`cc-scroll-x ${className}`} ref={ref}>
+    <div className="cc-scroll-fade">
+      <div className={`cc-scroll-x ${className}`}>
         {children}
       </div>
     </div>
@@ -10208,15 +10178,6 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       placement: "top",
       waitForAction: false,
       cta: "Siguiente",
-    },
-    {
-      id: "delete",
-      title: "¿Era de prueba?",
-      body: "Desliza el movimiento hacia la izquierda para borrarlo, o tócalo para editarlo. Puedes hacerlo con cualquier movimiento.",
-      targetSelector: '[data-tour="recent-section"]',
-      placement: "top",
-      waitForAction: false,
-      cta: "Entendido, continuar",
     },
     {
       id: "stats",
