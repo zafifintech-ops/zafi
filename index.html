@@ -1,21 +1,56 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-    <title>Zafi · Finanzas personales con IA</title>
-    <meta name="description" content="Zafi — Finanzas personales con IA. Lleva el control de tu dinero de forma simple e inteligente." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter+Tight:wght@300..700&display=swap" rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <title>Zafi</title>
+
+    <!--
+      FIX DEL PARPADEO BLANCO:
+      Antes de que cargue React, el WebView de iOS pinta el fondo del <html>/<body>.
+      Si es blanco, se ve un destello al abrir la app en modo oscuro.
+      Este bloque aplica el color correcto ANTES de renderizar nada, leyendo:
+      1. El tema guardado en localStorage ("zafi_theme")
+      2. Si no hay, el modo oscuro del sistema (prefers-color-scheme)
+    -->
     <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body, #root { height: 100%; width: 100%; }
-      body { background: #ffffff; }
+      /* Fallback por media query — cubre el primer instante antes del script */
+      html, body {
+        margin: 0;
+        background-color: #DCE1E8; /* claro por defecto */
+      }
+      @media (prefers-color-scheme: dark) {
+        html, body { background-color: #0D0F14; }
+      }
+      /* Clases que el script de abajo puede forzar */
+      html.zafi-dark, html.zafi-dark body { background-color: #0D0F14 !important; }
+      html.zafi-light, html.zafi-light body { background-color: #DCE1E8 !important; }
+      #root { min-height: 100vh; }
     </style>
+
+    <script>
+      /* Se ejecuta ANTES de React: decide el color de fondo inicial. */
+      (function () {
+        try {
+          var saved = null;
+          try { saved = localStorage.getItem("zafi_theme"); } catch (e) {}
+          var sysDark = false;
+          try { sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches; } catch (e) {}
+          var isDark;
+          if (saved === "dark") isDark = true;
+          else if (saved === "light") isDark = false;
+          else isDark = sysDark; /* "auto" o sin preferencia */
+          document.documentElement.classList.add(isDark ? "zafi-dark" : "zafi-light");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      IMPORTANTE: mantén la ruta de tu script tal como la tenías en tu index.html
+      original. Esta línea normalmente la pone Vite automáticamente:
+    -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
