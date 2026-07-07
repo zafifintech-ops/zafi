@@ -115,6 +115,7 @@ body{
   --glass:rgba(255,255,255,.5);
   --glass-border:rgba(255,255,255,.65);
   --blur:blur(14px);
+  --page-fade:#DCE1E8;
 }
 
 /* Dark theme override */
@@ -157,6 +158,7 @@ body{
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.1);
   --glass:rgba(38,40,46,.5);
   --glass-border:rgba(255,255,255,.1);
+  --page-fade:#0D0F14;
 }
 .cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border-top:1px solid rgba(255,255,255,.08);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
@@ -547,8 +549,20 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-grad-text{background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;
   color:transparent;-webkit-text-fill-color:transparent;}
 .cc-acc-sub{font-size:10.5px;color:var(--ink-soft);margin-top:4px;font-variant-numeric:tabular-nums;font-weight:500;}
-.cc-scroll-x{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;}
+.cc-scroll-x{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+  scroll-padding-left:2px;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
+.cc-scroll-x > *{scroll-snap-align:start;}
+/* Desvanece suavemente los bordes para insinuar que hay más contenido y
+   evitar el "corte seco" cuando hay muchas cuentas. */
+.cc-scroll-fade{position:relative;}
+.cc-scroll-fade::before,.cc-scroll-fade::after{content:"";position:absolute;top:0;bottom:10px;
+  width:24px;pointer-events:none;z-index:2;opacity:0;transition:opacity .2s ease;}
+.cc-scroll-fade::before{left:0;background:linear-gradient(90deg,var(--page-fade),transparent);}
+.cc-scroll-fade::after{right:0;background:linear-gradient(270deg,var(--page-fade),transparent);}
+.cc-scroll-fade.fade-left::before{opacity:1;}
+.cc-scroll-fade.fade-right::after{opacity:1;}
 
 /* configurar */
 .cc-gear{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
@@ -5189,6 +5203,38 @@ function ZafiLoader() {
       <svg viewBox="0 0 56 56" width="56" height="56">
         <circle className="cc-zafi-arc" cx="28" cy="28" r="22" />
       </svg>
+    </div>
+  );
+}
+
+// Fila con scroll horizontal que muestra un desvanecido suave en los bordes
+// cuando hay más contenido fuera de vista — evita el "corte seco" de las
+// tarjetas. Detecta la posición del scroll y activa el fade izquierdo/derecho.
+function ScrollFadeRow({ children, className = "" }) {
+  const ref = useRef(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setFade((f) => (f.left === left && f.right === right) ? f : { left, right });
+  };
+  useEffect(() => {
+    update();
+    const el = ref.current;
+    if (!el) return;
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    // Recalcular tras un pequeño delay por si el contenido monta después.
+    const t = setTimeout(update, 100);
+    return () => { el.removeEventListener("scroll", update); window.removeEventListener("resize", update); clearTimeout(t); };
+  }, [children]);
+  return (
+    <div className={`cc-scroll-fade ${fade.left ? "fade-left" : ""} ${fade.right ? "fade-right" : ""}`}>
+      <div className={`cc-scroll-x ${className}`} ref={ref}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -13695,7 +13741,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               <button className="cc-gear" onClick={() => setConfiguring(true)} data-tour="personalize-btn"><IconGear /> Personalizar</button>
             </div>
           </div>
-          {!config.hideAccountCards && <div className="cc-scroll-x">
+          {!config.hideAccountCards && <ScrollFadeRow>
             {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
             {config.accounts.length > 1 && !(config.hiddenAccountCards || []).includes("all") && (
               <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
@@ -13766,7 +13812,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 </button>
               );
             })()}
-          </div>}
+          </ScrollFadeRow>}
         </div>
       )}
 
