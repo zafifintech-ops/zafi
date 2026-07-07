@@ -311,27 +311,25 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
-/* Brillo sutil animado tipo vidrio para las secciones protagonistas.
-   Un reflejo diagonal suave que respira lentamente, como luz sobre cristal. */
+/* Brillo tipo barrido lento para las secciones protagonistas —
+   una franja de luz que cruza diagonalmente cada cierto tiempo. */
 @keyframes ccSheen {
-  0%, 100% { opacity: .45; transform: translateX(-8%); }
-  50%      { opacity: .85; transform: translateX(8%); }
+  0%   { transform: translateX(-140%) skewX(-20deg); }
+  100% { transform: translateX(360%) skewX(-20deg); }
 }
 .cc-sheen{position:relative;overflow:hidden;}
-.cc-sheen::before{content:"";position:absolute;top:0;left:-10%;right:-10%;height:60%;
-  background:linear-gradient(155deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.14) 32%, transparent 68%);
-  border-radius:20px 20px 0 0;
+.cc-sheen::after{content:"";position:absolute;top:0;bottom:0;left:0;width:35%;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,.25), transparent);
+  transform:translateX(-140%) skewX(-20deg);
   pointer-events:none;z-index:2;
-  animation:ccSheen 6s ease-in-out infinite;}
-.cc-dark .cc-sheen::before{background:linear-gradient(155deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 32%, transparent 68%);}
-.cc-lvl-top-blue{background:linear-gradient(155deg, #DEEBFF 0%, #EFF5FF 45%, #F7FAFF 100%);border-color:rgba(30,111,224,.22);box-shadow:0 6px 24px rgba(30,111,224,.14);}
-.cc-dark .cc-lvl-top-blue{background:linear-gradient(155deg, rgba(30,111,224,.22) 0%, rgba(30,111,224,.1) 45%, rgba(255,255,255,.06) 100%);border-color:rgba(91,155,255,.3);box-shadow:0 6px 24px rgba(0,0,0,.3);}
-.cc-lvl-top-red{background:linear-gradient(155deg, #FFE1E1 0%, #FFEFEF 45%, #FFF7F7 100%);border-color:rgba(226,53,53,.22);box-shadow:0 6px 24px rgba(226,53,53,.14);}
-.cc-dark .cc-lvl-top-red{background:linear-gradient(155deg, rgba(226,53,53,.22) 0%, rgba(226,53,53,.1) 45%, rgba(255,255,255,.06) 100%);border-color:rgba(232,80,80,.3);box-shadow:0 6px 24px rgba(0,0,0,.3);}
-.cc-lvl-top-green{background:linear-gradient(155deg, #D8F5E1 0%, #ECFAF0 45%, #F5FCF7 100%);border-color:rgba(60,190,96,.24);box-shadow:0 6px 24px rgba(60,190,96,.14);}
-.cc-dark .cc-lvl-top-green{background:linear-gradient(155deg, rgba(60,190,96,.22) 0%, rgba(60,190,96,.1) 45%, rgba(255,255,255,.06) 100%);border-color:rgba(80,210,120,.3);box-shadow:0 6px 24px rgba(0,0,0,.3);}
-.cc-lvl-top-amber{background:linear-gradient(155deg, #FFECCF 0%, #FFF4E2 45%, #FFFAF1 100%);border-color:rgba(230,140,20,.24);box-shadow:0 6px 24px rgba(230,140,20,.14);}
-.cc-dark .cc-lvl-top-amber{background:linear-gradient(155deg, rgba(230,140,20,.22) 0%, rgba(230,140,20,.1) 45%, rgba(255,255,255,.06) 100%);border-color:rgba(240,160,40,.3);box-shadow:0 6px 24px rgba(0,0,0,.3);}
+  animation:ccSheen 7s ease-in-out infinite;animation-delay:2s;}
+.cc-lvl-top-blue{background:linear-gradient(145deg, #3B85F0, #1E6FE0);border-color:transparent;box-shadow:0 8px 28px rgba(30,111,224,.3);}
+.cc-lvl-top-red{background:linear-gradient(145deg, #E85555, #D02B2B);border-color:transparent;box-shadow:0 8px 28px rgba(226,53,53,.3);}
+.cc-lvl-top-green{background:linear-gradient(145deg, #43C465, #2A9048);border-color:transparent;box-shadow:0 8px 28px rgba(60,190,96,.3);}
+.cc-lvl-top-amber{background:linear-gradient(145deg, #F0A030, #E08010);border-color:transparent;box-shadow:0 8px 28px rgba(230,140,20,.3);}
+/* En modo protagonista sólido, todo el texto y elementos se adaptan a blanco */
+.cc-lvl-solid .cc-label{color:rgba(255,255,255,.82) !important;}
+.cc-lvl-solid .cc-num,.cc-lvl-solid .cc-serif{color:#fff !important;}
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
@@ -10758,7 +10756,7 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
 
 /* ── ScorePillIndicator — pill con gradiente y glow ── */
-function ScorePillIndicator({ targetScore, dark }) {
+function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
   const [displayed, setDisplayed] = useState(targetScore);
   const [animated, setAnimated] = useState(false);
 
@@ -10823,20 +10821,20 @@ function ScorePillIndicator({ targetScore, dark }) {
           <div style={{
             fontSize: 46, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
             fontFamily: "'Montserrat', sans-serif",
-            color: sTarget.solid,
+            color: solidHero ? "#fff" : sTarget.solid,
             opacity: animated ? 1 : 0,
             transform: animated ? "translateY(0)" : "translateY(6px)",
             transition: "opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
           }}>
             {pct}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 500, color: dark ? "rgba(245,245,247,.4)" : "rgba(0,0,0,.35)",
+          <div style={{ fontSize: 15, fontWeight: 500, color: solidHero ? "rgba(255,255,255,.6)" : dark ? "rgba(245,245,247,.4)" : "rgba(0,0,0,.35)",
             fontFamily: "'Montserrat', sans-serif" }}>/100</div>
         </div>
         <div style={{
           fontSize: 14, fontWeight: 700, fontFamily: "'Montserrat', sans-serif",
           padding: "5px 12px", borderRadius: 20,
-          background: sTarget.grad, color: "#fff",
+          background: solidHero ? "rgba(255,255,255,.22)" : sTarget.grad, color: "#fff",
           opacity: animated ? 1 : 0,
           transition: "opacity .5s ease .45s",
         }}>
@@ -10848,12 +10846,12 @@ function ScorePillIndicator({ targetScore, dark }) {
       <div style={{ position: "relative", height: 14, borderRadius: 8 }}>
         {/* Track */}
         <div style={{ position: "absolute", inset: 0, borderRadius: 8,
-          background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
+          background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
           {/* Fill */}
           <div style={{
             position: "absolute", top: 0, left: 0, bottom: 0,
             width: `${fillPct}%`, borderRadius: 8,
-            background: sTarget.grad,
+            background: solidHero ? "#fff" : sTarget.grad,
             transition: "width .9s cubic-bezier(.34,1.2,.64,1), background .5s ease",
           }}>
             <div style={{
@@ -10867,14 +10865,14 @@ function ScorePillIndicator({ targetScore, dark }) {
         {[45, 65, 80].map((mark) => (
           <div key={mark} style={{
             position: "absolute", top: -3, bottom: -3, left: `${mark}%`, width: 2,
-            background: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", borderRadius: 2,
+            background: solidHero ? "rgba(255,255,255,.35)" : dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", borderRadius: 2,
           }} />
         ))}
       </div>
 
       {/* Etiquetas de tramos */}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 9.5,
-        color: dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
+        color: solidHero ? "rgba(255,255,255,.6)" : dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
         <span>Crítico</span>
         <span>En riesgo</span>
         <span>Bien</span>
@@ -10884,7 +10882,7 @@ function ScorePillIndicator({ targetScore, dark }) {
   );
 }
 
-function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, dataLoaded = true, className = "" }) {
+function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, dataLoaded = true, className = "", solidHero = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -11310,14 +11308,14 @@ INSTRUCCIONES CRÍTICAS:
         </div>
       ) : (
         <div style={{ padding: "10px 20px 6px" }}>
-          <ScorePillIndicator targetScore={data.score} dark={dark} />
+          <ScorePillIndicator targetScore={data.score} dark={dark} solidHero={solidHero} />
         </div>
       )}
 
       {/* Análisis rotativo */}
       <div style={{ padding: "4px 20px 18px" }}>
         <div key={currentIdx} style={{
-          fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55,
+          fontSize: 13, color: solidHero ? "rgba(255,255,255,.9)" : "var(--ink-soft)", lineHeight: 1.55,
           textAlign: "center", animation: "ccFadeIn .4s ease", minHeight: 38,
         }}>
           {data.analyses[currentIdx]}
@@ -11326,7 +11324,7 @@ INSTRUCCIONES CRÍTICAS:
           {data.analyses.map((_, i) => (
             <span key={i} style={{
               width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
-              background: i === currentIdx ? gaugeColors.center : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
+              background: i === currentIdx ? (solidHero ? "#fff" : gaugeColors.center) : (solidHero ? "rgba(255,255,255,.3)" : dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
               transition: "all .3s ease",
             }} />
           ))}
@@ -12298,7 +12296,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   );
 }
 
-function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts, mode = "both", className = "" }) {
+function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts, mode = "both", className = "", solidHero = false }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [updatingGoal, setUpdatingGoal] = useState(null);
@@ -12386,16 +12384,16 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
       {goals.length === 0 ? (
         <button onClick={() => setPlannerOpen(true)}
           style={{ width: "100%", textAlign: "left", cursor: "pointer", border: "none",
-            background: "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
+            background: solidHero ? "rgba(255,255,255,.16)" : "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
             borderRadius: 14, padding: 18, fontFamily: FONT }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <GoalTypeIcon type="otro" size={26} />
+              <GoalTypeIcon type="otro" size={26} color={solidHero ? "#fff" : undefined} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>Ponle rumbo a tu dinero</div>
-              <div style={{ fontSize: 12.5, color: inkSoft, marginTop: 3, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: solidHero ? "#fff" : ink }}>Ponle rumbo a tu dinero</div>
+              <div style={{ fontSize: 12.5, color: solidHero ? "rgba(255,255,255,.85)" : inkSoft, marginTop: 3, lineHeight: 1.45 }}>
                 Crea tu primera meta — un fondo, un viaje, una casa. Te calculo cuánto ahorrar y en cuánto tiempo.
               </div>
             </div>
@@ -12408,39 +12406,39 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
             const remaining = Math.max(0, g.target - g.saved);
             const monthsLeft = g.monthly > 0 ? Math.ceil(remaining / g.monthly) : 0;
             return (
-              <div key={g.id} style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
-                borderRadius: 14, padding: 14, border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
+              <div key={g.id} style={{ background: solidHero ? "rgba(255,255,255,.15)" : dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
+                borderRadius: 14, padding: 14, border: `1px solid ${solidHero ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 11, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <GoalTypeIcon type={g.type} size={22} />
+                    <GoalTypeIcon type={g.type} size={22} color={solidHero ? "#fff" : undefined} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: solidHero ? "#fff" : ink, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       {g.name}
                       {accView === "all" && g.accountId && g.accountId !== "general" && (
-                        <span style={{ fontSize: 9, fontWeight: 700, background: dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(g.accountId)}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, background: solidHero ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: solidHero ? "#fff" : inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(g.accountId)}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: inkFaint, fontFamily: FONT }}>
+                    <div style={{ fontSize: 11, color: solidHero ? "rgba(255,255,255,.75)" : inkFaint, fontFamily: FONT }}>
                       {fmtMxn(g.saved)} de {fmtMxn(g.target)}
                     </div>
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1E6FE0", fontFamily: FONT }}>{pct}%</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: solidHero ? "#fff" : "#1E6FE0", fontFamily: FONT }}>{pct}%</div>
                 </div>
                 {/* Barra de progreso */}
-                <div style={{ height: 8, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginBottom: 8 }}>
+                <div style={{ height: 8, borderRadius: 99, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginBottom: 8 }}>
                   <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99,
-                    background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
+                    background: solidHero ? "#fff" : "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
+                  <div style={{ fontSize: 11, color: solidHero ? "rgba(255,255,255,.85)" : inkSoft, fontFamily: FONT }}>
                     {pct >= 100 ? "¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
                   </div>
                   {/* Botón para abonar/retirar (modo manual/dedicated) */}
                   {g.trackingMode !== "linked" && (
                     <button onClick={() => setUpdatingGoal(g)}
-                      style={{ background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
+                      style={{ background: solidHero ? "rgba(255,255,255,.9)" : "rgba(30,111,224,.1)", border: "none", color: solidHero ? "#1E6FE0" : "#1E6FE0",
                         fontSize: 11.5, fontWeight: 600, padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
                       Actualizar
                     </button>
@@ -13007,8 +13005,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           balance: (headerBalance >= 0 ? "cc-lvl-top-green" : "cc-lvl-top-red"), financialTips: "cc-lvl-top-amber",
         };
         const lvlClass = idx === 0
-          ? `${topTintById[s.id] || "cc-lvl-top-blue"} cc-sheen`
+          ? `${topTintById[s.id] || "cc-lvl-top-blue"} cc-lvl-solid cc-sheen`
           : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
+        const isSolidHero = idx === 0;
         const applyLvl = (node) => {
           if (!node || !node.props) return node;
           const existing = node.props.className || "";
@@ -13291,7 +13290,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           );
           return (
             <FinancialScoreCard key={s.id} config={config} txs={txs} dateRange={dateRange} accView={view}
-              saveConfig={saveConfig} dataLoaded={dataLoaded} />
+              saveConfig={saveConfig} dataLoaded={dataLoaded} solidHero={isSolidHero} />
           );
         }
 
@@ -13402,7 +13401,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           ) : null;
           return (
             <div key={s.id} className="cc-lvl-wrapper">
-              <GoalsCard config={config} saveConfig={saveConfig} className={lvlClass}
+              <GoalsCard config={config} saveConfig={saveConfig} className={lvlClass} solidHero={isSolidHero}
                 monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
                 accView={accView} accounts={config.accounts || []} mode="goals" />
               {goalsCollapsible}
