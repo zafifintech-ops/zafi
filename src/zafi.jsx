@@ -11730,35 +11730,110 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
     });
   }
 
-  // 0b. CATEGORÍA DOMINANTE — una categoría se come gran parte del gasto
+  // 0b. CATEGORÍA DOMINANTE — una categoría se come gran parte del gasto.
+  // Usamos VARIOS protocolos (no siempre "bájale 10%") para no ser repetitivos.
+  // El protocolo se elige según los datos reales de la categoría.
   const expByCat = {};
+  const catTxCount = {};
   expTxs.forEach((t) => {
     const cat = config.categories.find((c) => c.id === t.categoryId);
     const name = (cat && cat.type === "expense") ? cat.name : null;
-    if (name) expByCat[name] = (expByCat[name] || 0) + t.amount;
+    if (name) {
+      expByCat[name] = (expByCat[name] || 0) + t.amount;
+      catTxCount[name] = (catTxCount[name] || 0) + 1;
+    }
   });
   const topCat = Object.entries(expByCat).sort((a, b) => b[1] - a[1])[0];
   if (topCat && exp > 0) {
-    const catPct = Math.round((topCat[1] / exp) * 100);
+    const catName = topCat[0];
+    const catAmount = topCat[1];
+    const catPct = Math.round((catAmount / exp) * 100);
     if (catPct >= 40) {
-      const estSave = Math.round(topCat[1] * 0.1); // estimación conservadora (10%)
+      const nTx = catTxCount[catName] || 1;
+      const avgTx = Math.round(catAmount / nTx);
+      // Elección determinista del protocolo (estable por categoría, pero varía
+      // entre categorías distintas y situaciones distintas).
+      const seed = catName.split("").reduce((s, c) => s + c.charCodeAt(0), 0) + catPct;
+      // Protocolos candidatos según qué datos tenemos disponibles:
+      const protocols = [];
+
+      // Protocolo A: recorte del 10% (el clásico)
+      protocols.push(() => {
+        const estSave = Math.round(catAmount * 0.1);
+        return {
+          save: estSave, saveIsEstimate: true,
+          explain: {
+            viz: { type: "donut", label: `${catName} vs. el resto`, pct: catPct, color: "#E08010", centerTop: `${catPct}%`, centerBot: catName },
+            badge: { text: "Estimación (10%)", tone: "amber" },
+            points: [
+              { b: `${fmtMxn(estSave)} es una estimación.`, t: `Asume recortar un 10% de lo que gastas en ${catName} (${fmtMxn(catAmount)}) sin afectar tu vida.` },
+              { b: "¿Por qué el 10%?", t: `Cuando una categoría concentra el ${catPct}% del gasto, casi siempre hay margen: impulsos, versiones caras, o repeticiones.` },
+              { b: "Rinde más que en otras.", t: "Al ser tu mayor salida, cada peso que optimizas aquí pesa más. Revisa tus 3 compras más grandes." },
+            ],
+          },
+        };
+      });
+
+      // Protocolo B: frecuencia — desglosar en número de compras y promedio
+      if (nTx >= 4) {
+        protocols.push(() => {
+          const estSave = Math.round(avgTx * Math.max(1, Math.round(nTx * 0.2))); // evitar ~20% de las compras
+          return {
+            save: estSave, saveIsEstimate: true,
+            explain: {
+              viz: { type: "ants", count: nTx, total: fmtMxn(catAmount) },
+              badge: { text: "Por frecuencia", tone: "amber" },
+              points: [
+                { b: `${nTx} compras, ${fmtMxn(avgTx)} cada una.`, t: `No es un gasto grande, son muchos medianos en ${catName} que se acumulan.` },
+                { b: "Evita 1 de cada 5.", t: `Si saltas ~20% de esas compras (${Math.max(1, Math.round(nTx * 0.2))} al periodo), ahorras cerca de ${fmtMxn(estSave)}.` },
+                { b: "La frecuencia es el hábito.", t: "Reducir cuántas veces gastas es más fácil que reducir cuánto gastas cada vez. Ponte un límite semanal." },
+              ],
+            },
+          };
+        });
+      }
+
+      // Protocolo C: costo de oportunidad hacia una meta
+      if (hasGoal) {
+        protocols.push(() => {
+          const estSave = Math.round(catAmount * 0.15);
+          return {
+            save: estSave, saveIsEstimate: true,
+            explain: {
+              viz: { type: "stat", big: fmtMxn(estSave), sub: `podrían ir a tu meta`, color: "#2A9048" },
+              badge: { text: "Costo de oportunidad", tone: "green" },
+              points: [
+                { b: `${catName} es tu mayor gasto.`, t: `${fmtMxn(catAmount)} este periodo, el ${catPct}% de todo lo que gastas.` },
+                { b: "Reencuadra el gasto.", t: `Si rediriges solo el 15% (${fmtMxn(estSave)}) a tu meta, avanzas sin sentir que te privas.` },
+                { b: "No es recortar por recortar.", t: "Es elegir dónde quieres que esté tu dinero: en gastos que olvidas, o en algo que te importa." },
+              ],
+            },
+          };
+        });
+      }
+
+      // Protocolo D: regla del gasto consciente (sin cifra de ahorro, más reflexivo)
+      protocols.push(() => {
+        return {
+          save: 0, saveIsEstimate: false,
+          explain: {
+            viz: { type: "donut", label: `${catName} vs. el resto`, pct: catPct, color: "#E08010", centerTop: `${catPct}%`, centerBot: catName },
+            badge: { text: "Para reflexionar", tone: "amber" },
+            points: [
+              { b: `${catPct}% en una sola categoría.`, t: `Cuando algo concentra tanto de tu gasto, vale la pena preguntarte: ¿te está dando ese valor de vuelta?` },
+              { b: "No todo es malo.", t: `Si ${catName} es algo que valoras de verdad, está bien. El problema es cuando gastas ahí en automático, sin decidirlo.` },
+              { b: "El ejercicio de hoy:", t: `Revisa tus compras en ${catName} y marca cuáles repetirías. Las que no, son tu oportunidad.` },
+            ],
+          },
+        };
+      });
+
+      const chosen = protocols[seed % protocols.length]();
       opps.push({
-        id: `topcat_${topCat[0]}`, icon: "📊", tone: "amber",
-        title: `${topCat[0]} es el ${catPct}% de tus gastos`,
-        detail: `Gastaste ${fmtMxn(topCat[1])} en ${topCat[0]}. Es tu mayor salida — revisa si puedes reducirla.`,
-        save: estSave,
-        saveIsEstimate: true,
-        explain: {
-          viz: { type: "donut", label: `${topCat[0]} vs. el resto`,
-            pct: catPct, color: "#E08010",
-            centerTop: `${catPct}%`, centerBot: topCat[0] },
-          badge: { text: "Estimación (10%)", tone: "amber" },
-          points: [
-            { b: `${fmtMxn(estSave)} es una estimación.`, t: `Asume recortar un 10% de lo que gastas en ${topCat[0]} (${fmtMxn(topCat[1])}) sin afectar tu vida.` },
-            { b: "¿Por qué el 10%?", t: `Cuando una categoría concentra el ${catPct}% del gasto, casi siempre hay margen: impulsos, versiones caras, o repeticiones que pasan desapercibidas.` },
-            { b: "Rinde más que en otras.", t: "Al ser tu mayor salida, cada peso que optimizas aquí pesa más. Empieza revisando tus 3 compras más grandes." },
-          ],
-        },
+        id: `topcat_${catName}`, icon: "📊", tone: "amber",
+        title: `${catName} es el ${catPct}% de tus gastos`,
+        detail: `Gastaste ${fmtMxn(catAmount)} en ${catName}. Es tu mayor salida — revisa si puedes reducirla.`,
+        ...chosen,
       });
     }
   }
