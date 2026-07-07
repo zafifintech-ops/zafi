@@ -10819,7 +10819,7 @@ function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
           <div style={{
-            fontSize: 46, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
+            fontSize: 40, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
             fontFamily: "'Montserrat', sans-serif",
             color: solidHero ? "#fff" : sTarget.solid,
             opacity: animated ? 1 : 0,
@@ -11974,21 +11974,20 @@ function pickPooledAction(ctx) {
   // Acciones genéricas de respaldo — variadas, algunas reflexivas o de escritura
   if (deficitPct === 0 && !hasDebt) {
     pool.push(
-      "Antes de tu próxima compra, respira y pregúntate: ¿lo necesito o solo lo quiero?",
-      "Abre tus suscripciones y cancela una que no hayas usado este mes. Dinero que recuperas al instante.",
-      "Anota tus tres gastos más grandes de la semana pasada. Ver el patrón es el primer paso para cambiarlo.",
-      "Escribe dos cosas en las que gastaste de más la semana pasada. Reconocerlas te ayuda a no repetirlas.",
-      "Ponle nombre a un gasto que te haya dejado mal sabor de boca. La próxima vez lo pensarás dos veces.",
-      "Redondea cada compra de hoy hacia arriba y guarda la diferencia. Ahorro invisible que suma.",
-      "Antes de dormir, revisa tu saldo. Conocer tu número exacto te devuelve el control.",
-      "Elige una categoría y ponte el reto de no gastar en ella hoy. Un día a la vez.",
-      "Piensa en una compra reciente de más de $500: ¿la volverías a hacer? Anota tu respuesta.",
-      "Revisa tu última quincena y encuentra un gasto que puedas convertir en ahorro el próximo mes.",
+      "Antes de tu próxima compra, pregúntate: ¿lo necesito o solo lo quiero?",
+      "Cancela una suscripción que no usaste este mes. Dinero recuperado al instante.",
+      "Anota tus 3 gastos más grandes de la semana. Ver el patrón es el primer paso.",
+      "Escribe 2 cosas en las que gastaste de más la semana pasada.",
+      "Redondea cada compra de hoy y guarda la diferencia. Ahorro invisible.",
+      "Antes de dormir, revisa tu saldo. Conocer tu número te da control.",
+      "Reto de hoy: no gastes en una categoría que elijas. Un día a la vez.",
+      "Piensa en una compra reciente de +$500: ¿la volverías a hacer?",
+      "Encuentra un gasto de la quincena pasada que puedas recortar el próximo mes.",
     );
   }
   // Reflexión de escritura también cuando hay categoría dominante
   if (topExpCat && deficitPct === 0) {
-    pool.push(`Escribe qué te llevó a gastar tanto en ${topExpCat} este periodo. Entender el porqué te ayuda a ajustar.`);
+    pool.push(`Escribe qué te llevó a gastar tanto en ${topExpCat} este periodo.`);
   }
 
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
@@ -12110,7 +12109,7 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
   const heroAction = isHero && !doneToday;
   return (
     <div className={`cc-card ${heroAction ? "cc-lvl-self cc-sheen" : doneToday ? `cc-lvl-self ${className}` : className}`} style={{
-      padding: heroAction ? 20 : 16,
+      padding: heroAction ? 18 : 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
         : heroAction
@@ -12139,8 +12138,8 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         </div>
       ) : (
         <>
-          <div style={{ fontSize: heroAction ? 17 : 14.5, fontWeight: 600, color: heroAction ? "#fff" : ink,
-            lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
+          <div style={{ fontSize: heroAction ? 15.5 : 14, fontWeight: 600, color: heroAction ? "#fff" : ink,
+            lineHeight: 1.4, marginBottom: 14, fontFamily: FONT }}>
             {loadingAi ? "Generando tu acción del día…" : actionText}
           </div>
           <button onClick={markDone}
@@ -12367,25 +12366,25 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
 
   return (
-    <div className={`cc-card ${className}`} style={{ padding: solidHero && mode !== "debts" ? 24 : "16px 18px" }}>
+    <div className={`cc-card ${className}`} style={{ padding: solidHero && mode !== "debts" ? 20 : "16px 18px" }}>
       {/* ─── MODO PROTAGONISTA (metas) ─── */}
       {solidHero && mode !== "debts" ? (
         goals.length === 0 ? (
           // Estado vacío celebratorio
-          <div style={{ textAlign: "center", padding: "14px 6px" }}>
-            <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(255,255,255,.2)",
-              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
-              <GoalTypeIcon type="otro" size={38} color="#fff" />
+          <div style={{ textAlign: "center", padding: "10px 6px" }}>
+            <div style={{ width: 60, height: 60, borderRadius: 18, background: "rgba(255,255,255,.2)",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <GoalTypeIcon type="otro" size={32} color="#fff" />
             </div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 500, color: "#fff", marginBottom: 8 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: "#fff", marginBottom: 6 }}>
               Ponle rumbo a tu dinero
             </div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,.85)", lineHeight: 1.5, marginBottom: 20, maxWidth: 320, margin: "0 auto 20px" }}>
-              Estás en buen momento para crear tu primera meta. Un fondo, un viaje, una casa — yo te calculo cuánto ahorrar y en cuánto tiempo lo logras.
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", lineHeight: 1.5, marginBottom: 18, maxWidth: 300, margin: "0 auto 18px" }}>
+              Buen momento para crear tu primera meta. Un fondo, un viaje, una casa — te calculo cuánto ahorrar y en cuánto tiempo.
             </div>
             <button onClick={() => setPlannerOpen(true)}
-              style={{ background: "#fff", color: "#1E6FE0", border: "none", fontSize: 15, fontWeight: 700,
-                padding: "15px 32px", borderRadius: 14, cursor: "pointer", fontFamily: FONT }}>
+              style={{ background: "#fff", color: "#1E6FE0", border: "none", fontSize: 14, fontWeight: 700,
+                padding: "13px 28px", borderRadius: 13, cursor: "pointer", fontFamily: FONT }}>
               Crear mi primera meta
             </button>
           </div>
@@ -12414,34 +12413,34 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
               </div>
 
               {/* Meta principal grande */}
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,.2)",
-                display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-                <GoalTypeIcon type={main.type} size={30} color="#fff" />
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,.2)",
+                display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <GoalTypeIcon type={main.type} size={26} color="#fff" />
               </div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 500, color: "#fff", marginBottom: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: "#fff", marginBottom: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {main.name}
                 {accView === "all" && main.accountId && main.accountId !== "general" && (
                   <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,.2)", color: "#fff", padding: "3px 8px", borderRadius: 6, fontFamily: FONT }}>{accName(main.accountId)}</span>
                 )}
               </div>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,.85)", marginBottom: 16, fontFamily: FONT }}>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", marginBottom: 14, fontFamily: FONT }}>
                 <b style={{ fontWeight: 700 }}>{fmtMxn(main.saved)}</b> de {fmtMxn(main.target)}
               </div>
 
-              <div style={{ height: 12, borderRadius: 8, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${mpct}%`, borderRadius: 8, background: "#fff", transition: "width .6s ease" }} />
+              <div style={{ height: 10, borderRadius: 7, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${mpct}%`, borderRadius: 7, background: "#fff", transition: "width .6s ease" }} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
-                <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-.02em", color: "#fff", fontFamily: FONT }}>{mpct}%</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8 }}>
+                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em", color: "#fff", fontFamily: FONT }}>{mpct}%</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.8)", textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
                   {mpct >= 100 ? "¡Meta lograda!" : <>Faltan {mmonths} {mmonths === 1 ? "mes" : "meses"}<br />{fmtMxn(main.monthly)}/mes</>}
                 </div>
               </div>
 
               {main.trackingMode !== "linked" && (
                 <button onClick={() => setUpdatingGoal(main)}
-                  style={{ marginTop: 18, width: "100%", background: "#fff", color: "#1E6FE0", border: "none",
-                    fontSize: 15, fontWeight: 700, padding: 15, borderRadius: 14, cursor: "pointer", fontFamily: FONT }}>
+                  style={{ marginTop: 16, width: "100%", background: "#fff", color: "#1E6FE0", border: "none",
+                    fontSize: 14, fontWeight: 700, padding: 13, borderRadius: 13, cursor: "pointer", fontFamily: FONT }}>
                   Abonar a mi meta
                 </button>
               )}
