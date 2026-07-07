@@ -155,8 +155,8 @@ body{
   --shadow-lg:0 8px 32px rgba(0,0,0,.35);
   --shadow-xl:0 16px 48px rgba(0,0,0,.4);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.1);
-  --glass:rgba(38,40,46,.55);
-  --glass-border:rgba(255,255,255,.13);
+  --glass:rgba(38,40,46,.5);
+  --glass-border:rgba(255,255,255,.1);
 }
 .cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border-top:1px solid rgba(255,255,255,.08);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
@@ -326,7 +326,7 @@ body{
 .cc-lvl-top{background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.8);
   box-shadow:0 10px 34px rgba(0,0,0,.1);
   backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);}
-.cc-dark .cc-lvl-top{background:rgba(44,46,52,.62);border-color:rgba(255,255,255,.14);
+.cc-dark .cc-lvl-top{background:rgba(38,40,46,.62);border-color:rgba(255,255,255,.14);
   box-shadow:0 10px 34px rgba(0,0,0,.34);
   backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);}
 /* Nivel medio: glass estándar. */
