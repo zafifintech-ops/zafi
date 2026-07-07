@@ -12891,23 +12891,24 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
 
 /* Línea colapsada para secciones vacías o de buenas noticias.
    Muestra un resumen en una sola línea; al tocar, expande el contenido completo. */
-// Botón discreto para volver a colapsar una sección — un chevron en un círculo
-// sutil, en vez del texto "Colapsar ▲". Más limpio y coherente con el sistema.
+// Botón discreto para volver a colapsar una sección — un divisor con un chevron
+// al centro, elegante y sutil. Reemplaza el texto "Colapsar ▲".
 function CollapseButton({ onClick, dark }) {
   const [hover, setHover] = useState(false);
+  const lineColor = dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)";
   return (
-    <div style={{ display: "flex", justifyContent: "center", marginTop: 2, marginBottom: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, marginBottom: 6, padding: "0 6px" }}>
+      <div style={{ flex: 1, height: 1, background: lineColor }} />
       <button onClick={onClick}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
         aria-label="Colapsar"
-        style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: hover ? (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)") : (dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.03)"),
-          transition: "background .15s ease" }}>
-        <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: dark ? "rgba(245,245,247,.5)" : "#8B95A6", fill: "none", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }}>
+        style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex",
+          opacity: hover ? 1 : .55, transition: "opacity .15s ease" }}>
+        <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: dark ? "rgba(245,245,247,.6)" : "#8B95A6", fill: "none", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" }}>
           <path d="M18 15l-6-6-6 6" />
         </svg>
       </button>
+      <div style={{ flex: 1, height: 1, background: lineColor }} />
     </div>
   );
 }
