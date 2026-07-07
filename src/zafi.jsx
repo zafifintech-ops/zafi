@@ -4856,10 +4856,7 @@ function AuthScreen() {
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      padding: "24px 20px",
-      paddingTop: "calc(24px + env(safe-area-inset-top))",
-      paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
-      gap: 48, overflow: "hidden",
+      padding: "24px 20px", overflow: "hidden",
     }}>
       {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
@@ -4871,14 +4868,16 @@ function AuthScreen() {
         <source src={videoSrc} type="video/mp4" />
       </video>
 
-      {/* Logo — en flow normal para que el card se centre debajo */}
-      <div style={{ position: "relative", zIndex: 2, pointerEvents: "none", marginBottom: 8 }}>
+      {/* Logo — fijo arriba, debajo del notch */}
+      <div style={{ position: "fixed", top: "calc(70px + env(safe-area-inset-top))",
+        left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 2,
+        pointerEvents: "none" }}>
         <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400,
           fontSize: 48, letterSpacing: "-.05em", color: "#1A1815",
           lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
 
-      {/* Card flotante */}
+      {/* Card flotante — centrado en el medio real */}
       <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
         width: "100%", maxWidth: 340,
