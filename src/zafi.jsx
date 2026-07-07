@@ -311,8 +311,14 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
-.cc-lvl-top{background:#FFFFFF;border-color:rgba(30,111,224,.3);box-shadow:0 8px 30px rgba(30,111,224,.14);}
-.cc-dark .cc-lvl-top{background:rgba(255,255,255,.13);border-color:rgba(91,155,255,.35);box-shadow:0 8px 30px rgba(0,0,0,.35);}
+.cc-lvl-top-blue{background:#FFFFFF;border-color:rgba(30,111,224,.3);box-shadow:0 8px 30px rgba(30,111,224,.14);}
+.cc-dark .cc-lvl-top-blue{background:rgba(255,255,255,.13);border-color:rgba(91,155,255,.35);box-shadow:0 8px 30px rgba(30,111,224,.22);}
+.cc-lvl-top-red{background:#FFFFFF;border-color:rgba(226,53,53,.3);box-shadow:0 8px 30px rgba(226,53,53,.16);}
+.cc-dark .cc-lvl-top-red{background:rgba(255,255,255,.13);border-color:rgba(232,80,80,.38);box-shadow:0 8px 30px rgba(226,53,53,.26);}
+.cc-lvl-top-green{background:#FFFFFF;border-color:rgba(60,190,96,.32);box-shadow:0 8px 30px rgba(60,190,96,.16);}
+.cc-dark .cc-lvl-top-green{background:rgba(255,255,255,.13);border-color:rgba(80,210,120,.38);box-shadow:0 8px 30px rgba(60,190,96,.24);}
+.cc-lvl-top-amber{background:#FFFFFF;border-color:rgba(230,140,20,.32);box-shadow:0 8px 30px rgba(230,140,20,.16);}
+.cc-dark .cc-lvl-top-amber{background:rgba(255,255,255,.13);border-color:rgba(240,160,40,.38);box-shadow:0 8px 30px rgba(230,140,20,.24);}
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
@@ -9960,36 +9966,34 @@ const HOME_SECTION_PLANS = {
   financialTips: "pro",
 };
 
-// Orden adaptativo del Dashboard según la salud financiera del usuario.
-// - Modo rescate (score < 45): primero entender y corregir → calificación,
-//   consejos, KPIs, y al final el saldo.
-// - Modo mejora (45-65): balance entre claridad y motivación.
-// - Modo crecimiento (score > 65): primero motivación → saldo/metas arriba,
-//   calificación como refuerzo.
+// Orden adaptativo del Dashboard. El PROTAGONISTA (primera sección) cambia
+// según la situación financiera:
+// - Rescate (score < 45): la Acción del día es protagonista (qué hacer HOY).
+// - Mejora (45-65): la Calificación es protagonista (cómo voy, motivación).
+// - Crecimiento (>65): las Metas son protagonistas (hacia dónde voy).
+// Las secciones que no aportan algo accionable van más abajo y se colapsan.
 function adaptiveSectionOrder(score, allSections, ctx = {}) {
   const { hasDebt = false, hasDeficit = false } = ctx;
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: lo urgente primero. Si hay déficit, oportunidades (que lo detectan)
-    // y acción suben; deudas solo sube si realmente hay deudas.
-    if (hasDeficit) {
-      order = ["opportunities", "dailyAction", "financialScore", "financialTips", "balance", "debts", "goals"];
-    } else if (hasDebt) {
-      order = ["debts", "dailyAction", "opportunities", "financialScore", "financialTips", "balance", "goals"];
+    // Rescate: ACCIÓN protagonista. Qué hago hoy para salir de esto.
+    // Luego lo urgente (deudas/oportunidades), después contexto.
+    if (hasDebt) {
+      order = ["dailyAction", "debts", "opportunities", "financialScore", "balance", "goals", "financialTips"];
     } else {
-      order = ["dailyAction", "opportunities", "financialScore", "financialTips", "balance", "goals", "debts"];
+      order = ["dailyAction", "opportunities", "financialScore", "balance", "goals", "debts", "financialTips"];
     }
   } else if (score < 65) {
-    // Mejora
+    // Mejora: CALIFICACIÓN protagonista (motivación de progreso), luego acción.
     if (hasDebt) {
-      order = ["dailyAction", "debts", "opportunities", "financialScore", "goals", "balance", "financialTips"];
+      order = ["financialScore", "dailyAction", "debts", "opportunities", "goals", "balance", "financialTips"];
     } else {
-      order = ["dailyAction", "opportunities", "financialScore", "goals", "balance", "financialTips", "debts"];
+      order = ["financialScore", "dailyAction", "opportunities", "goals", "balance", "debts", "financialTips"];
     }
   } else {
-    // Crecimiento: motivación primero → metas arriba, deudas al final (probablemente vacío)
-    order = ["goals", "dailyAction", "balance", "opportunities", "financialScore", "financialTips", "debts"];
+    // Crecimiento: METAS protagonistas (hacia dónde voy), luego acción y refuerzo.
+    order = ["goals", "dailyAction", "financialScore", "balance", "opportunities", "financialTips", "debts"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -10772,18 +10776,22 @@ function ScorePillIndicator({ targetScore, dark }) {
   const getState = (v) => {
     if (v < 45) return {
       grad:    "linear-gradient(90deg, #B32020 0%, #D93232 55%, #E84545 100%)",
+      solid:   "#D42F2F",
       label:   "Crítico",
     };
     if (v < 65) return {
       grad:    "linear-gradient(90deg, #C47000 0%, #E08010 55%, #F09828 100%)",
+      solid:   "#E08010",
       label:   "En riesgo",
     };
     if (v < 80) return {
       grad:    "linear-gradient(90deg, #1A9040 0%, #28B050 55%, #38C860 100%)",
+      solid:   "#22A04A",
       label:   "Bien",
     };
     return {
       grad:    "linear-gradient(90deg, #1A8040 0%, #22A050 40%, #34C060 75%, #80D878 100%)",
+      solid:   "#1E9848",
       label:   "Excelente",
     };
   };
@@ -10801,8 +10809,7 @@ function ScorePillIndicator({ targetScore, dark }) {
           <div style={{
             fontSize: 46, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
             fontFamily: "'Montserrat', sans-serif",
-            background: sTarget.grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+            color: sTarget.solid,
             opacity: animated ? 1 : 0,
             transform: animated ? "translateY(0)" : "translateY(6px)",
             transition: "opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
@@ -11885,13 +11892,6 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
                   Ahorro posible: {fmtMxn(o.save)}
                 </div>
               )}
-              <button onClick={() => markResolved(o.id)}
-                style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
-                  background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)", border: "none",
-                  color: inkSoft, fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
-                  cursor: "pointer", fontFamily: FONT }}>
-                ✓ Resuelto
-              </button>
             </div>
           </div>
         ))}
@@ -11973,7 +11973,7 @@ function pickPooledAction(ctx) {
   return pool[idx];
 }
 
-function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className = "" }) {
+function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className = "", isHero = false }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -12080,13 +12080,17 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
   return (
     <div className="cc-card cc-lvl-self" style={{
-      padding: 16,
+      padding: isHero && !doneToday ? 20 : 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
-        : "linear-gradient(135deg, rgba(245,160,40,.14), rgba(245,120,40,.06))",
-      border: `1px solid ${doneToday ? "rgba(60,190,96,.25)" : "rgba(245,140,40,.22)"}`,
+        : isHero
+          ? "linear-gradient(140deg, #E8920F, #C4700A)"
+          : "linear-gradient(135deg, rgba(245,160,40,.14), rgba(245,120,40,.06))",
+      border: `1px solid ${doneToday ? "rgba(60,190,96,.25)" : isHero ? "transparent" : "rgba(245,140,40,.22)"}`,
+      boxShadow: isHero && !doneToday ? "0 8px 30px rgba(230,140,20,.28)" : undefined,
     }}>
-      <div className="cc-label" style={{ margin: 0, marginBottom: 12, color: doneToday ? "#2A8A40" : "#C47000" }}>
+      <div className="cc-label" style={{ margin: 0, marginBottom: 12,
+        color: doneToday ? "#2A8A40" : isHero ? "rgba(255,255,255,.85)" : "#C47000" }}>
         {doneToday ? "✓ Acción de hoy" : "⚡ Acción de hoy"}
       </div>
 
@@ -12105,12 +12109,14 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 14.5, fontWeight: 600, color: ink, lineHeight: 1.45, marginBottom: 12, fontFamily: FONT }}>
+          <div style={{ fontSize: isHero ? 17 : 14.5, fontWeight: 600, color: isHero ? "#fff" : ink,
+            lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
             {loadingAi ? "Generando tu acción del día…" : actionText}
           </div>
           <button onClick={markDone}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: "#fff", background: "#E08010", padding: "9px 16px", borderRadius: 11, border: "none",
+              color: isHero ? "#C4700A" : "#fff", background: isHero ? "#fff" : "#E08010",
+              padding: "10px 18px", borderRadius: 11, border: "none",
               cursor: "pointer", fontFamily: FONT }}>
             ✓ Marcar como hecho
           </button>
@@ -12119,14 +12125,14 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
       {/* Racha */}
       {(streak.current > 0 || doneToday) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12,
-          borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 14,
+          borderTop: `1px solid ${isHero && !doneToday ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
           <span style={{ fontSize: 22 }}>🔥</span>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: ink, fontFamily: FONT, lineHeight: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: isHero && !doneToday ? "#fff" : ink, fontFamily: FONT, lineHeight: 1 }}>
               {streak.current} {streak.current === 1 ? "día" : "días"}
             </div>
-            <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT, marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: isHero && !doneToday ? "rgba(255,255,255,.75)" : inkSoft, fontFamily: FONT, marginTop: 2 }}>
               {streak.best > streak.current ? `tu mejor racha: ${streak.best}` : "de racha"}
             </div>
           </div>
@@ -12135,8 +12141,12 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
               <div key={i} style={{
                 width: 22, height: 22, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 9, fontWeight: 600, fontFamily: FONT,
-                background: d.state === "done" ? "#3CBE60" : d.state === "today" ? "#E08010" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"),
-                color: d.state === "done" || d.state === "today" ? "#fff" : inkFaint,
+                background: isHero && !doneToday
+                  ? (d.state === "done" ? "rgba(255,255,255,.9)" : d.state === "today" ? "#fff" : "rgba(255,255,255,.25)")
+                  : (d.state === "done" ? "#3CBE60" : d.state === "today" ? "#E08010" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")),
+                color: isHero && !doneToday
+                  ? (d.state === "done" || d.state === "today" ? "#C4700A" : "rgba(255,255,255,.7)")
+                  : (d.state === "done" || d.state === "today" ? "#fff" : inkFaint),
               }}>{d.letter}</div>
             ))}
           </div>
@@ -12950,7 +12960,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
         // Nivel de presencia visual según prioridad:
         // idx 0 = protagonista (más presente), 1-2 = opaco, resto = sutil.
-        const lvlClass = idx === 0 ? "cc-lvl-top" : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
+        // El glow del protagonista combina con el color de su sección.
+        const topTintById = {
+          debts: "cc-lvl-top-red", opportunities: "cc-lvl-top-green",
+          goals: "cc-lvl-top-blue", financialScore: "cc-lvl-top-blue",
+          balance: "cc-lvl-top-blue", financialTips: "cc-lvl-top-amber",
+        };
+        const lvlClass = idx === 0
+          ? (topTintById[s.id] || "cc-lvl-top-blue")
+          : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
         const applyLvl = (node) => {
           if (!node || !node.props) return node;
           const existing = node.props.className || "";
@@ -12958,6 +12976,36 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           if (existing.includes("cc-lvl")) return node;
           return cloneElement(node, { className: `${existing} ${lvlClass}`.trim() });
         };
+
+        // AUTO-COLAPSO: secciones secundarias que caen en posición baja (idx >= 3)
+        // se muestran como una línea resumen, para no saturar. El usuario expande al tocar.
+        // La acción, el protagonista y los 2 primeros nunca se auto-colapsan.
+        const autoCollapsible = ["balance", "financialTips", "financialScore", "opportunities"];
+        const shouldAutoCollapse = idx >= 3 && autoCollapsible.includes(s.id) && !expandedSections.has(s.id);
+        if (shouldAutoCollapse) {
+          const summaries = {
+            balance: { tone: headerBalance >= 0 ? "green" : "amber", text: headerBalance >= 0 ? "Flujo positivo" : "Flujo en déficit",
+              sub: `${headerBalance >= 0 ? "+" : "−"}${fmtBare(Math.abs(headerBalance))}` },
+            financialScore: { tone: "faint", text: "Calificación financiera", sub: "toca para ver tu score" },
+            financialTips: { tone: "amber", text: "Consejo del día", sub: "toca para leer" },
+            opportunities: { tone: "faint", text: "Áreas de oportunidad", sub: "toca para revisar" },
+          };
+          const sm = summaries[s.id] || { tone: "faint", text: s.label || s.id, sub: "" };
+          const icons = {
+            balance: <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: sm.tone === "green" ? "#2A9048" : "#C47000", fill: "none", strokeWidth: 1.9 }}><path d="M4 20V10M10 20V4M16 20v-7M20 20H2" strokeLinecap="round" /></svg>,
+            financialScore: <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: dark ? "rgba(245,245,247,.5)" : "#8B95A6", fill: "none", strokeWidth: 1.9 }}><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" strokeLinecap="round" /></svg>,
+            financialTips: <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: "#C47000", fill: "none", strokeWidth: 1.9 }}><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.5.5 1 1.2 1 2h6c0-.8.5-1.5 1-2A6 6 0 0 0 12 3z" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+            opportunities: <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: dark ? "rgba(245,245,247,.5)" : "#8B95A6", fill: "none", strokeWidth: 1.9 }}><path d="M12 3a6 6 0 0 0-4 10.5c.5.5 1 1.2 1 2v.5h6v-.5c0-.8.5-1.5 1-2A6 6 0 0 0 12 3zM9 20h6" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+          };
+          return (
+            <div key={s.id} className="cc-card cc-lvl-faint">
+              <CollapsedSection dark={dark} iconTone={sm.tone} expanded={false}
+                onToggle={() => toggleExpanded(s.id)}
+                icon={icons[s.id]} text={sm.text} subtext={sm.sub} />
+            </div>
+          );
+        }
+
         const renderSection = () => {
 
         if (s.id === "balance") {
@@ -13239,7 +13287,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </div>
             );
           }
-          return <OpportunitiesCard key={s.id} config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />;
+          // Si está vacío pero expandido, permitir re-colapsar
+          const oppCollapsible = opps.length === 0 ? (
+            <button onClick={() => toggleExpanded("opportunities")}
+              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
+                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
+              Colapsar ▲
+            </button>
+          ) : null;
+          return <div key={s.id}><OpportunitiesCard config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />{oppCollapsible}</div>;
         }
 
         if (s.id === "dailyAction") {
@@ -13277,7 +13333,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           };
           return (
             <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
-              actionCtx={actionCtx} dark={dark} isPro={getUserPlan(config) === "pro"} />
+              actionCtx={actionCtx} dark={dark} isPro={getUserPlan(config) === "pro"} isHero={idx === 0} />
           );
         }
 
@@ -13296,10 +13352,20 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </div>
             );
           }
+          const goalsCollapsible = goalsHere.length === 0 ? (
+            <button onClick={() => toggleExpanded("goals")}
+              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
+                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
+              Colapsar ▲
+            </button>
+          ) : null;
           return (
-            <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
-              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
-              accView={accView} accounts={config.accounts || []} mode="goals" />
+            <div key={s.id}>
+              <GoalsCard config={config} saveConfig={saveConfig}
+                monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
+                accView={accView} accounts={config.accounts || []} mode="goals" />
+              {goalsCollapsible}
+            </div>
           );
         }
 
@@ -13318,16 +13384,40 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </div>
             );
           }
+          const debtsCollapsible = debtsHere.length === 0 ? (
+            <button onClick={() => toggleExpanded("debts")}
+              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
+                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
+              Colapsar ▲
+            </button>
+          ) : null;
           return (
-            <GoalsCard key={s.id} config={config} saveConfig={saveConfig}
-              monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
-              accView={accView} accounts={config.accounts || []} mode="debts" />
+            <div key={s.id}>
+              <GoalsCard config={config} saveConfig={saveConfig}
+                monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
+                accView={accView} accounts={config.accounts || []} mode="debts" />
+              {debtsCollapsible}
+            </div>
           );
         }
 
         return null;
         };
-        return applyLvl(renderSection());
+        const rendered = applyLvl(renderSection());
+        // Si es una sección auto-colapsable expandida, añadir botón para re-colapsar
+        if (idx >= 3 && autoCollapsible.includes(s.id) && expandedSections.has(s.id) && rendered) {
+          return (
+            <div key={s.id}>
+              {rendered}
+              <button onClick={() => toggleExpanded(s.id)}
+                style={{ display: "block", margin: "0 auto", marginTop: -2, marginBottom: 6, background: "none", border: "none",
+                  color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
+                Colapsar ▲
+              </button>
+            </div>
+          );
+        }
+        return rendered;
       })}
 
       {configuring && (
