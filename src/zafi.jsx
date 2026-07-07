@@ -715,6 +715,18 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-auth-form.back{animation:ccAuthSwitchBack .4s cubic-bezier(.2,.8,.3,1) both;}
 .cc-auth-title{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;display:inline-block;}
 .cc-onboard-step{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;}
+/* Botones con efecto de presión (feedback táctil) */
+.cc-press{transition:transform .12s cubic-bezier(.3,.8,.3,1), opacity .2s ease, box-shadow .2s ease;}
+.cc-press:active:not(:disabled){transform:scale(.96);}
+/* Spinner circular pequeño para dentro de botones (trazo que gira) */
+.cc-btn-spin{display:inline-block;width:16px;height:16px;vertical-align:-3px;
+  animation:ccBtnSpin .7s linear infinite;}
+.cc-btn-spin circle{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;
+  stroke-dasharray:44;stroke-dashoffset:12;opacity:.9;}
+@keyframes ccBtnSpin{to{transform:rotate(360deg);}}
+/* Aparición suave de contenido de auth (entra al montar) */
+@keyframes ccAuthRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.cc-auth-rise{animation:ccAuthRise .5s cubic-bezier(.2,.8,.3,1) both;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:12px auto 16px;cursor:grab;flex-shrink:0;}
@@ -4868,7 +4880,7 @@ function AuthScreen() {
       </div>
 
       {/* Card flotante centrada */}
-      <div style={{
+      <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
         width: "100%", maxWidth: 400,
         background: "rgba(220,225,232,.15)",
@@ -4908,8 +4920,8 @@ function AuthScreen() {
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
             {ok && <p style={{ fontSize: 13, color: "#2D6F4E", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{ok}</p>}
-            <button style={btnMain} onClick={doForgot} disabled={busy}>
-              {busy ? "Enviando…" : "Enviar correo"}
+            <button className="cc-press" style={{ ...btnMain, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doForgot} disabled={busy}>
+              {busy ? <><BtnSpinner /> Enviando…</> : "Enviar correo"}
             </button>
             <div style={{ textAlign: "center" }}>
               <button onClick={() => { setShowForgot(false); setErr(""); setOk(""); }}
@@ -4935,8 +4947,8 @@ function AuthScreen() {
               } />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
-            <button style={{ ...btnMain, marginTop: 8 }} onClick={doLogin} disabled={busy}>
-              {busy ? "Entrando…" : "Iniciar sesión →"}
+            <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doLogin} disabled={busy}>
+              {busy ? <><BtnSpinner /> Entrando…</> : "Iniciar sesión →"}
             </button>
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
@@ -4945,7 +4957,7 @@ function AuthScreen() {
             </div>
             <div style={{ display:"flex", gap:10, marginTop:4 }}>
               {/* Google */}
-              <button onClick={doGoogleSignIn} disabled={busy}
+              <button onClick={doGoogleSignIn} disabled={busy} className="cc-press"
                 style={{ flex:1, padding:"13px 10px", borderRadius:12,
                   border:"1px solid rgba(26,24,21,.15)",
                   background:"rgba(255,255,255,.55)", cursor:"pointer",
@@ -4986,8 +4998,8 @@ function AuthScreen() {
               value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
-            <button style={{ ...btnMain, marginTop: 8 }} onClick={doRegister} disabled={busy}>
-              {busy ? "Creando cuenta…" : "Crear cuenta gratis →"}
+            <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doRegister} disabled={busy}>
+              {busy ? <><BtnSpinner /> Creando cuenta…</> : "Crear cuenta gratis →"}
             </button>
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
@@ -5210,6 +5222,15 @@ function ScrollFadeRow({ children, className = "" }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// Spinner pequeño para dentro de botones (hereda el color del texto).
+function BtnSpinner() {
+  return (
+    <svg className="cc-btn-spin" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="7" />
+    </svg>
   );
 }
 
@@ -10178,6 +10199,15 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       placement: "top",
       waitForAction: false,
       cta: "Siguiente",
+    },
+    {
+      id: "delete",
+      title: "Editar o eliminar",
+      body: "Toca cualquier movimiento para editarlo. Y para borrarlo, deslízalo hacia la izquierda y aparecerá el botón de eliminar. Funciona aquí y en Historial.",
+      targetSelector: '[data-tour="recent-section"]',
+      placement: "top",
+      waitForAction: false,
+      cta: "Entendido, continuar",
     },
     {
       id: "stats",
