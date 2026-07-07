@@ -742,9 +742,9 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-sheet-close:hover{background:var(--surface-2);color:var(--ink);}
 
 /* monto grande centrado — estilo "Nueva transacción" */
-.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:2px;
+.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:8px;
   padding:18px 0;margin-bottom:6px;width:100%;}
-.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--ink-soft);opacity:.45;flex-shrink:0;margin-right:4px;}
+.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:20px;font-weight:500;color:var(--ink-soft);opacity:.4;flex-shrink:0;margin-right:2px;}
 .cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:14px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;margin-left:6px;}
 /* "00" gris que aparece después del número cuando no hay punto */
 .cc-amount-decimal-hint{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
@@ -4859,7 +4859,7 @@ function AuthScreen() {
       padding: "24px 20px",
       paddingTop: "calc(24px + env(safe-area-inset-top))",
       paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
-      gap: 32, overflow: "hidden",
+      gap: 48, overflow: "hidden",
     }}>
       {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
@@ -4872,7 +4872,7 @@ function AuthScreen() {
       </video>
 
       {/* Logo — en flow normal para que el card se centre debajo */}
-      <div style={{ position: "relative", zIndex: 2, pointerEvents: "none" }}>
+      <div style={{ position: "relative", zIndex: 2, pointerEvents: "none", marginBottom: 8 }}>
         <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400,
           fontSize: 48, letterSpacing: "-.05em", color: "#1A1815",
           lineHeight: 1, opacity: .85 }}>zafi</span>
@@ -16204,8 +16204,8 @@ function MonetaryInput({ value, onChange, placeholder = "0", currencyCode = "mxn
   };
   return (
     <div className="cc-amount-display" onClick={focusInput} style={{ cursor: "text" }}>
-      <span className="cc-amount-currency">$</span>
       <span style={{ display: "inline-flex", alignItems: "baseline", position: "relative" }}>
+        <span className="cc-amount-currency">$</span>
         <span ref={mirrorRef} aria-hidden="true"
           style={{
             position: "absolute", visibility: "hidden", whiteSpace: "pre",
