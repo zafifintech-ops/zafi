@@ -637,7 +637,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
-  min-height:60vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
+  min-height:40vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.7);
   box-shadow:0 -4px 24px rgba(0,0,0,.06);
@@ -791,9 +791,6 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 @media(prefers-color-scheme:dark){.cc-loading:not(.cc-light){background:#0D0F14;}}
 .cc-loading.cc-dark{background:#0D0F14;}
 /* Trazo circular zen: la línea se dibuja y se borra continuamente. */
-.cc-zafi-loader{position:relative;width:56px;height:56px;
-  display:flex;align-items:center;justify-content:center;}
-.cc-zafi-loader svg{position:absolute;inset:0;transform:rotate(-90deg);}
 .cc-zafi-arc{fill:none;stroke:#1E6FE0;stroke-width:3;stroke-linecap:round;
   stroke-dasharray:138;
   animation:ccZafiTrace 2.4s ease-in-out infinite;}
@@ -4855,12 +4852,11 @@ function AuthScreen() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", position: "relative",
-      padding: "24px 20px",
-      paddingTop: "calc(24px + env(safe-area-inset-top))",
-      paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
+      alignItems: "center", justifyContent: "flex-end", position: "relative",
+      padding: "0 16px",
+      paddingBottom: "calc(32px + env(safe-area-inset-bottom))",
     }}>
-      {/* Fondo blanco mientras carga el video */}
+      {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
       {/* Video de fondo */}
       <video autoPlay muted loop playsInline preload="auto"
@@ -4879,17 +4875,17 @@ function AuthScreen() {
           lineHeight: 1, opacity: .85 }}>zafi</span>
       </div>
 
-      {/* Card flotante centrada */}
+      {/* Card flotante — ancla abajo como iOS sheet */}
       <div className="cc-auth-rise" style={{
         position: "relative", zIndex: 3,
-        width: "100%", maxWidth: 400,
-        background: "rgba(220,225,232,.15)",
-        backdropFilter: "blur(6px) saturate(120%)",
-        WebkitBackdropFilter: "blur(6px) saturate(120%)",
-        borderRadius: 24,
+        width: "100%", maxWidth: 480,
+        background: "rgba(245,246,248,.88)",
+        backdropFilter: "blur(24px) saturate(160%)",
+        WebkitBackdropFilter: "blur(24px) saturate(160%)",
+        borderRadius: 28,
         padding: "28px 22px 24px",
-        border: "1px solid rgba(255,255,255,.5)",
-        boxShadow: "0 4px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.6)",
+        border: "1px solid rgba(255,255,255,.75)",
+        boxShadow: "0 8px 40px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.8)",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
@@ -4947,9 +4943,19 @@ function AuthScreen() {
               } />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
-            <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doLogin} disabled={busy}>
-              {busy ? <><BtnSpinner /> Entrando…</> : "Iniciar sesión →"}
-            </button>
+            {busy ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 10, marginTop: 8, padding: "15px", borderRadius: 12,
+                background: "rgba(26,24,21,.06)" }}>
+                <MidSpinner />
+                <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(26,24,21,.55)",
+                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>Entrando…</span>
+              </div>
+            ) : (
+              <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doLogin} disabled={busy}>
+                Iniciar sesión →
+              </button>
+            )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
               <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
@@ -4998,9 +5004,19 @@ function AuthScreen() {
               value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
-            <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doRegister} disabled={busy}>
-              {busy ? <><BtnSpinner /> Creando cuenta…</> : "Crear cuenta gratis →"}
-            </button>
+            {busy ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 10, marginTop: 8, padding: "15px", borderRadius: 12,
+                background: "rgba(26,24,21,.06)" }}>
+                <MidSpinner />
+                <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(26,24,21,.55)",
+                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>Creando cuenta…</span>
+              </div>
+            ) : (
+              <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doRegister} disabled={busy}>
+                Crear cuenta gratis →
+              </button>
+            )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
               <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif" }}>o regístrate con</span>
@@ -5205,11 +5221,26 @@ function detectEarlyDark() {
 // Se usa en todas las pantallas de carga para mantener consistencia.
 function ZafiLoader() {
   return (
-    <div className="cc-zafi-loader">
-      <svg viewBox="0 0 56 56" width="56" height="56">
+    <div style={{ position: "relative", width: 56, height: 56,
+      display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <svg viewBox="0 0 56 56" width="56" height="56"
+        style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
         <circle className="cc-zafi-arc" cx="28" cy="28" r="22" />
       </svg>
     </div>
+  );
+}
+
+// Spinner mediano para estados de carga inline (auth busy)
+function MidSpinner({ color = "rgba(26,24,21,.45)" }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24"
+      style={{ animation: "ccBtnSpin .8s linear infinite", flexShrink: 0 }}
+      aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke={color}
+        strokeWidth="2.5" strokeLinecap="round"
+        strokeDasharray="44" strokeDashoffset="12" opacity=".9" />
+    </svg>
   );
 }
 
@@ -9412,7 +9443,8 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "88vh", overflowY: "auto", minHeight: "auto" }}>
         <div className="cc-grip" />
 
         <div key={section} className={`cc-settings-section ${section === "menu" ? "is-menu" : ""}`}>
