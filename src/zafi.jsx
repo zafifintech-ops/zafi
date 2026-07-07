@@ -310,28 +310,17 @@ body{
   border:1px solid var(--glass-border);
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
-/* Jerarquía de presencia visual en el dashboard */
-/* Brillo tipo barrido lento para las secciones protagonistas —
-   una franja de luz que cruza diagonalmente cada cierto tiempo. */
-@keyframes ccSheen {
-  0%   { transform: translateX(-140%) skewX(-20deg); }
-  100% { transform: translateX(360%) skewX(-20deg); }
-}
-.cc-sheen{position:relative;overflow:hidden;}
-.cc-sheen::after{content:"";position:absolute;top:0;bottom:0;left:0;width:35%;
-  background:linear-gradient(100deg, transparent, rgba(255,255,255,.25), transparent);
-  transform:translateX(-140%) skewX(-20deg);
-  pointer-events:none;z-index:2;
-  animation:ccSheen 7s ease-in-out infinite;animation-delay:2s;}
-.cc-lvl-top-blue{background:linear-gradient(145deg, #3B85F0, #1E6FE0);border-color:transparent;box-shadow:0 8px 28px rgba(30,111,224,.3);}
-.cc-lvl-top-red{background:linear-gradient(145deg, #E85555, #D02B2B);border-color:transparent;box-shadow:0 8px 28px rgba(226,53,53,.3);}
-.cc-lvl-top-green{background:linear-gradient(145deg, #43C465, #2A9048);border-color:transparent;box-shadow:0 8px 28px rgba(60,190,96,.3);}
-.cc-lvl-top-amber{background:linear-gradient(145deg, #F0A030, #E08010);border-color:transparent;box-shadow:0 8px 28px rgba(230,140,20,.3);}
-/* En modo protagonista sólido, todo el texto y elementos se adaptan a blanco */
-.cc-lvl-solid .cc-label{color:rgba(255,255,255,.82) !important;}
-.cc-lvl-solid .cc-num,.cc-lvl-solid .cc-serif{color:#fff !important;}
+/* Jerarquía de presencia visual en el dashboard.
+   El color NUNCA es fondo de tarjeta — la jerarquía se logra con presencia
+   (opacidad del glass, sombra, borde). El color vive en números, badges,
+   barras e íconos dentro de la tarjeta, no en su fondo. */
+/* Protagonista: glass plenamente presente, sombra un poco más marcada. */
+.cc-lvl-top{background:rgba(255,255,255,.9);border-color:rgba(255,255,255,.95);box-shadow:0 8px 28px rgba(0,0,0,.09);}
+.cc-dark .cc-lvl-top{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.16);box-shadow:0 8px 28px rgba(0,0,0,.3);}
+/* Nivel medio: glass estándar. */
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+/* Nivel tenue: glass sutil, casi fundido con el fondo. */
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
 .cc-dark .cc-lvl-faint{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.05);box-shadow:none;}
 .cc-lvl-wrapper{display:block;}
@@ -10757,6 +10746,9 @@ function ScoreCanvasIndicator({ targetScore, inView, dark }) {
 
 /* ── ScorePillIndicator — pill con gradiente y glow ── */
 function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
+  // solidHero ya no cambia colores a blanco — la tarjeta es blanca/glass y el
+  // color vive en el número, badge y barra (semáforo). Se conserva el parámetro
+  // por compatibilidad pero no altera el esquema de color.
   const [displayed, setDisplayed] = useState(targetScore);
   const [animated, setAnimated] = useState(false);
 
@@ -10821,20 +10813,20 @@ function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
           <div style={{
             fontSize: 40, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
             fontFamily: "'Montserrat', sans-serif",
-            color: solidHero ? "#fff" : sTarget.solid,
+            color: sTarget.solid,
             opacity: animated ? 1 : 0,
             transform: animated ? "translateY(0)" : "translateY(6px)",
             transition: "opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
           }}>
             {pct}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 500, color: solidHero ? "rgba(255,255,255,.6)" : dark ? "rgba(245,245,247,.4)" : "rgba(0,0,0,.35)",
+          <div style={{ fontSize: 15, fontWeight: 500, color: dark ? "rgba(245,245,247,.4)" : "rgba(0,0,0,.35)",
             fontFamily: "'Montserrat', sans-serif" }}>/100</div>
         </div>
         <div style={{
           fontSize: 14, fontWeight: 700, fontFamily: "'Montserrat', sans-serif",
           padding: "5px 12px", borderRadius: 20,
-          background: solidHero ? "rgba(255,255,255,.22)" : sTarget.grad, color: "#fff",
+          background: sTarget.grad, color: "#fff",
           opacity: animated ? 1 : 0,
           transition: "opacity .5s ease .45s",
         }}>
@@ -10846,12 +10838,12 @@ function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
       <div style={{ position: "relative", height: 14, borderRadius: 8 }}>
         {/* Track */}
         <div style={{ position: "absolute", inset: 0, borderRadius: 8,
-          background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
+          background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
           {/* Fill */}
           <div style={{
             position: "absolute", top: 0, left: 0, bottom: 0,
             width: `${fillPct}%`, borderRadius: 8,
-            background: solidHero ? "#fff" : sTarget.grad,
+            background: sTarget.grad,
             transition: "width .9s cubic-bezier(.34,1.2,.64,1), background .5s ease",
           }}>
             <div style={{
@@ -10865,14 +10857,14 @@ function ScorePillIndicator({ targetScore, dark, solidHero = false }) {
         {[45, 65, 80].map((mark) => (
           <div key={mark} style={{
             position: "absolute", top: -3, bottom: -3, left: `${mark}%`, width: 2,
-            background: solidHero ? "rgba(255,255,255,.35)" : dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", borderRadius: 2,
+            background: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", borderRadius: 2,
           }} />
         ))}
       </div>
 
       {/* Etiquetas de tramos */}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 9.5,
-        color: solidHero ? "rgba(255,255,255,.6)" : dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
+        color: dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
         <span>Crítico</span>
         <span>En riesgo</span>
         <span>Bien</span>
@@ -11315,7 +11307,7 @@ INSTRUCCIONES CRÍTICAS:
       {/* Análisis rotativo */}
       <div style={{ padding: "4px 20px 18px" }}>
         <div key={currentIdx} style={{
-          fontSize: 13, color: solidHero ? "rgba(255,255,255,.9)" : "var(--ink-soft)", lineHeight: 1.55,
+          fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55,
           textAlign: "center", animation: "ccFadeIn .4s ease", minHeight: 38,
         }}>
           {data.analyses[currentIdx]}
@@ -11324,7 +11316,7 @@ INSTRUCCIONES CRÍTICAS:
           {data.analyses.map((_, i) => (
             <span key={i} style={{
               width: i === currentIdx ? 16 : 5, height: 5, borderRadius: 99,
-              background: i === currentIdx ? (solidHero ? "#fff" : gaugeColors.center) : (solidHero ? "rgba(255,255,255,.3)" : dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
+              background: i === currentIdx ? gaugeColors.center : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.12)"),
               transition: "all .3s ease",
             }} />
           ))}
@@ -12108,18 +12100,15 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
 
   const heroAction = isHero && !doneToday;
   return (
-    <div className={`cc-card ${heroAction ? "cc-lvl-self cc-sheen" : doneToday ? `cc-lvl-self ${className}` : className}`} style={{
-      padding: heroAction ? 18 : 16,
+    <div className={`cc-card ${doneToday ? `cc-lvl-self ${className}` : className}`} style={{
+      padding: 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
-        : heroAction
-          ? "linear-gradient(140deg, #E8920F, #C4700A)"
-          : undefined,
-      border: doneToday ? "1px solid rgba(60,190,96,.25)" : heroAction ? "1px solid transparent" : undefined,
-      boxShadow: heroAction ? "0 8px 30px rgba(230,140,20,.28)" : undefined,
+        : undefined,
+      border: doneToday ? "1px solid rgba(60,190,96,.25)" : undefined,
     }}>
       <div className="cc-label" style={{ margin: 0, marginBottom: 12,
-        color: doneToday ? "#2A8A40" : heroAction ? "rgba(255,255,255,.85)" : "#C47000" }}>
+        color: doneToday ? "#2A8A40" : "#C47000" }}>
         {doneToday ? "✓ Acción de hoy" : "⚡ Acción de hoy"}
       </div>
 
@@ -12138,13 +12127,13 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         </div>
       ) : (
         <>
-          <div style={{ fontSize: heroAction ? 15.5 : 14, fontWeight: 600, color: heroAction ? "#fff" : ink,
-            lineHeight: 1.4, marginBottom: 14, fontFamily: FONT }}>
+          <div style={{ fontSize: 14.5, fontWeight: 600, color: ink,
+            lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
             {loadingAi ? "Generando tu acción del día…" : actionText}
           </div>
           <button onClick={markDone}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: heroAction ? "#C4700A" : "#fff", background: heroAction ? "#fff" : "#E08010",
+              color: "#fff", background: "#E08010",
               padding: "10px 18px", borderRadius: 11, border: "none",
               cursor: "pointer", fontFamily: FONT }}>
             ✓ Marcar como hecho
@@ -12155,13 +12144,13 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
       {/* Racha */}
       {(streak.current > 0 || doneToday) && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 14,
-          borderTop: `1px solid ${isHero && !doneToday ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
+          borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
           <span style={{ fontSize: 22 }}>🔥</span>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: isHero && !doneToday ? "#fff" : ink, fontFamily: FONT, lineHeight: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: ink, fontFamily: FONT, lineHeight: 1 }}>
               {streak.current} {streak.current === 1 ? "día" : "días"}
             </div>
-            <div style={{ fontSize: 11, color: isHero && !doneToday ? "rgba(255,255,255,.75)" : inkSoft, fontFamily: FONT, marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT, marginTop: 2 }}>
               {streak.best > streak.current ? `tu mejor racha: ${streak.best}` : "de racha"}
             </div>
           </div>
@@ -12170,12 +12159,8 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
               <div key={i} style={{
                 width: 22, height: 22, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 9, fontWeight: 600, fontFamily: FONT,
-                background: isHero && !doneToday
-                  ? (d.state === "done" ? "rgba(255,255,255,.9)" : d.state === "today" ? "#fff" : "rgba(255,255,255,.25)")
-                  : (d.state === "done" ? "#3CBE60" : d.state === "today" ? "#E08010" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")),
-                color: isHero && !doneToday
-                  ? (d.state === "done" || d.state === "today" ? "#C4700A" : "rgba(255,255,255,.7)")
-                  : (d.state === "done" || d.state === "today" ? "#fff" : inkFaint),
+                background: d.state === "done" ? "#3CBE60" : d.state === "today" ? "#E08010" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"),
+                color: d.state === "done" || d.state === "today" ? "#fff" : inkFaint,
               }}>{d.letter}</div>
             ))}
           </div>
@@ -12366,24 +12351,24 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
 
   return (
-    <div className={`cc-card ${className}`} style={{ padding: solidHero && mode !== "debts" ? 20 : "16px 18px" }}>
-      {/* ─── MODO PROTAGONISTA (metas) ─── */}
+    <div className={`cc-card ${className}`} style={{ padding: "16px 18px" }}>
+      {/* ─── MODO PROTAGONISTA (metas) — tarjeta blanca, color solo en acentos ─── */}
       {solidHero && mode !== "debts" ? (
         goals.length === 0 ? (
           // Estado vacío celebratorio
           <div style={{ textAlign: "center", padding: "10px 6px" }}>
-            <div style={{ width: 60, height: 60, borderRadius: 18, background: "rgba(255,255,255,.2)",
+            <div style={{ width: 60, height: 60, borderRadius: 18, background: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
               display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-              <GoalTypeIcon type="otro" size={32} color="#fff" />
+              <GoalTypeIcon type="otro" size={32} />
             </div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: "#fff", marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: ink, marginBottom: 6 }}>
               Ponle rumbo a tu dinero
             </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", lineHeight: 1.5, marginBottom: 18, maxWidth: 300, margin: "0 auto 18px" }}>
+            <div style={{ fontSize: 13, color: inkSoft, lineHeight: 1.5, marginBottom: 18, maxWidth: 300, margin: "0 auto 18px" }}>
               Buen momento para crear tu primera meta. Un fondo, un viaje, una casa — te calculo cuánto ahorrar y en cuánto tiempo.
             </div>
             <button onClick={() => setPlannerOpen(true)}
-              style={{ background: "#fff", color: "#1E6FE0", border: "none", fontSize: 14, fontWeight: 700,
+              style={{ background: "#1E6FE0", color: "#fff", border: "none", fontSize: 14, fontWeight: 700,
                 padding: "13px 28px", borderRadius: 13, cursor: "pointer", fontFamily: FONT }}>
               Crear mi primera meta
             </button>
@@ -12402,44 +12387,44 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           const mmonths = main.monthly > 0 ? Math.ceil(mrem / main.monthly) : 0;
           return (
             <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7, color: "rgba(255,255,255,.78)" }}>
-                  <GoalTypeIcon type="otro" size={15} color="#fff" /> Metas y planes
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+                <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
+                  <GoalTypeIcon type="otro" size={15} /> Metas y planes
                 </div>
                 <button onClick={() => setPlannerOpen(true)}
-                  style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", fontSize: 12.5, fontWeight: 600, padding: "7px 14px", borderRadius: 11, cursor: "pointer", fontFamily: FONT }}>
+                  style={{ background: "none", border: "none", color: "#1E6FE0", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
                   + Nueva
                 </button>
               </div>
 
               {/* Meta principal grande */}
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,.2)",
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
                 display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                <GoalTypeIcon type={main.type} size={26} color="#fff" />
+                <GoalTypeIcon type={main.type} size={26} />
               </div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: "#fff", marginBottom: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 500, color: ink, marginBottom: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {main.name}
                 {accView === "all" && main.accountId && main.accountId !== "general" && (
-                  <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,.2)", color: "#fff", padding: "3px 8px", borderRadius: 6, fontFamily: FONT }}>{accName(main.accountId)}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, background: dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: inkSoft, padding: "3px 8px", borderRadius: 6, fontFamily: FONT }}>{accName(main.accountId)}</span>
                 )}
               </div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.85)", marginBottom: 14, fontFamily: FONT }}>
-                <b style={{ fontWeight: 700 }}>{fmtMxn(main.saved)}</b> de {fmtMxn(main.target)}
+              <div style={{ fontSize: 13, color: inkFaint, marginBottom: 14, fontFamily: FONT }}>
+                <b style={{ fontWeight: 700, color: inkSoft }}>{fmtMxn(main.saved)}</b> de {fmtMxn(main.target)}
               </div>
 
-              <div style={{ height: 10, borderRadius: 7, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${mpct}%`, borderRadius: 7, background: "#fff", transition: "width .6s ease" }} />
+              <div style={{ height: 10, borderRadius: 7, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${mpct}%`, borderRadius: 7, background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8 }}>
-                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em", color: "#fff", fontFamily: FONT }}>{mpct}%</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,.8)", textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em", color: "#1E6FE0", fontFamily: FONT }}>{mpct}%</div>
+                <div style={{ fontSize: 12, color: inkSoft, textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
                   {mpct >= 100 ? "¡Meta lograda!" : <>Faltan {mmonths} {mmonths === 1 ? "mes" : "meses"}<br />{fmtMxn(main.monthly)}/mes</>}
                 </div>
               </div>
 
               {main.trackingMode !== "linked" && (
                 <button onClick={() => setUpdatingGoal(main)}
-                  style={{ marginTop: 16, width: "100%", background: "#fff", color: "#1E6FE0", border: "none",
+                  style={{ marginTop: 16, width: "100%", background: "#1E6FE0", color: "#fff", border: "none",
                     fontSize: 14, fontWeight: 700, padding: 13, borderRadius: 13, cursor: "pointer", fontFamily: FONT }}>
                   Abonar a mi meta
                 </button>
@@ -12447,21 +12432,21 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
 
               {/* Resto de metas — compactas */}
               {rest.length > 0 && (
-                <div style={{ marginTop: 14, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.2)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ marginTop: 14, paddingTop: 16, borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}`, display: "flex", flexDirection: "column", gap: 14 }}>
                   {rest.map((g) => {
                     const gp = g.target > 0 ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0;
                     return (
                       <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <GoalTypeIcon type={g.type} size={20} color="#fff" />
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <GoalTypeIcon type={g.type} size={20} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", fontFamily: FONT }}>{g.name}</div>
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,.75)", fontFamily: FONT }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>{g.name}</div>
+                          <div style={{ fontSize: 12, color: inkFaint, fontFamily: FONT }}>
                             {fmtMxn(g.saved)} de {fmtMxn(g.target)}{g.monthly > 0 ? ` · ${fmtMxn(g.monthly)}/mes` : ""}
                           </div>
                         </div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: FONT }}>{gp}%</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#1E6FE0", fontFamily: FONT }}>{gp}%</div>
                       </div>
                     );
                   })}
@@ -12487,16 +12472,16 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
       {goals.length === 0 ? (
         <button onClick={() => setPlannerOpen(true)}
           style={{ width: "100%", textAlign: "left", cursor: "pointer", border: "none",
-            background: solidHero ? "rgba(255,255,255,.16)" : "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
+            background: "linear-gradient(140deg, rgba(30,111,224,.10), rgba(91,155,255,.05))",
             borderRadius: 14, padding: 18, fontFamily: FONT }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.18)" : "rgba(30,111,224,.1)",
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <GoalTypeIcon type="otro" size={26} color={solidHero ? "#fff" : undefined} />
+              <GoalTypeIcon type="otro" size={26} color={undefined} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: solidHero ? "#fff" : ink }}>Ponle rumbo a tu dinero</div>
-              <div style={{ fontSize: 12.5, color: solidHero ? "rgba(255,255,255,.85)" : inkSoft, marginTop: 3, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: ink }}>Ponle rumbo a tu dinero</div>
+              <div style={{ fontSize: 12.5, color: inkSoft, marginTop: 3, lineHeight: 1.45 }}>
                 Crea tu primera meta — un fondo, un viaje, una casa. Te calculo cuánto ahorrar y en cuánto tiempo.
               </div>
             </div>
@@ -12509,39 +12494,39 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
             const remaining = Math.max(0, g.target - g.saved);
             const monthsLeft = g.monthly > 0 ? Math.ceil(remaining / g.monthly) : 0;
             return (
-              <div key={g.id} style={{ background: solidHero ? "rgba(255,255,255,.15)" : dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
-                borderRadius: 14, padding: 14, border: `1px solid ${solidHero ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
+              <div key={g.id} style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.5)",
+                borderRadius: 14, padding: 14, border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.6)"}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 11, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <GoalTypeIcon type={g.type} size={22} color={solidHero ? "#fff" : undefined} />
+                    <GoalTypeIcon type={g.type} size={22} color={undefined} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: solidHero ? "#fff" : ink, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       {g.name}
                       {accView === "all" && g.accountId && g.accountId !== "general" && (
-                        <span style={{ fontSize: 9, fontWeight: 700, background: solidHero ? "rgba(255,255,255,.2)" : dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: solidHero ? "#fff" : inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(g.accountId)}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, background: dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)", color: inkSoft, padding: "2px 6px", borderRadius: 5 }}>{accName(g.accountId)}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: solidHero ? "rgba(255,255,255,.75)" : inkFaint, fontFamily: FONT }}>
+                    <div style={{ fontSize: 11, color: inkFaint, fontFamily: FONT }}>
                       {fmtMxn(g.saved)} de {fmtMxn(g.target)}
                     </div>
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: solidHero ? "#fff" : "#1E6FE0", fontFamily: FONT }}>{pct}%</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1E6FE0", fontFamily: FONT }}>{pct}%</div>
                 </div>
                 {/* Barra de progreso */}
-                <div style={{ height: 8, borderRadius: 99, background: solidHero ? "rgba(255,255,255,.22)" : dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginBottom: 8 }}>
+                <div style={{ height: 8, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", marginBottom: 8 }}>
                   <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99,
-                    background: solidHero ? "#fff" : "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
+                    background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .6s ease" }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 11, color: solidHero ? "rgba(255,255,255,.85)" : inkSoft, fontFamily: FONT }}>
+                  <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
                     {pct >= 100 ? "¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
                   </div>
                   {/* Botón para abonar/retirar (modo manual/dedicated) */}
                   {g.trackingMode !== "linked" && (
                     <button onClick={() => setUpdatingGoal(g)}
-                      style={{ background: solidHero ? "rgba(255,255,255,.9)" : "rgba(30,111,224,.1)", border: "none", color: solidHero ? "#1E6FE0" : "#1E6FE0",
+                      style={{ background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
                         fontSize: 11.5, fontWeight: 600, padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
                       Actualizar
                     </button>
@@ -13097,20 +13082,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const isLocked = !planMeets(userPlan, requiredPlan);
         const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
         // Nivel de presencia visual según prioridad:
-        // idx 0 = protagonista (más presente), 1-2 = opaco, resto = sutil.
-        // El protagonista lleva un tinte de color acorde a su sección/estado.
-        // La calificación usa semáforo según el score adaptativo.
-        const scoreTint = adaptiveScore < 45 ? "cc-lvl-top-red"
-          : adaptiveScore < 65 ? "cc-lvl-top-amber"
-          : "cc-lvl-top-green";
-        const topTintById = {
-          debts: "cc-lvl-top-red", opportunities: "cc-lvl-top-green",
-          goals: "cc-lvl-top-blue", financialScore: scoreTint,
-          balance: (headerBalance >= 0 ? "cc-lvl-top-green" : "cc-lvl-top-red"), financialTips: "cc-lvl-top-amber",
-        };
-        const lvlClass = idx === 0
-          ? `${topTintById[s.id] || "cc-lvl-top-blue"} cc-lvl-solid cc-sheen`
-          : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
+        // Jerarquía por posición: protagonista (idx 0), medio (1-2), tenue (3+).
+        // El color NO va en el fondo — vive dentro de cada tarjeta (números, badges, barras).
+        const lvlClass = idx === 0 ? "cc-lvl-top" : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
         const isSolidHero = idx === 0;
         const applyLvl = (node) => {
           if (!node || !node.props) return node;
