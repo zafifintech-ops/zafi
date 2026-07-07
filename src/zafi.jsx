@@ -112,9 +112,9 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.62);
-  --glass-border:rgba(255,255,255,.7);
-  --blur:blur(12px);
+  --glass:rgba(255,255,255,.5);
+  --glass-border:rgba(255,255,255,.65);
+  --blur:blur(14px);
 }
 
 /* Dark theme override */
@@ -306,7 +306,7 @@ body{
   box-shadow:var(--shadow-sm);}
 
 /* ============== TARJETAS ============== */
-.cc-card{background:var(--glass);
+.cc-card{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
@@ -323,13 +323,17 @@ body{
    backdrop-filter sobre el video causa que iOS WKWebView renderice el contenido
    "quemado"/fantasma en el primer render (modo claro). Sin él, el glass se logra
    con el fondo translúcido + el blur del video detrás, y es estable. */
-.cc-lvl-top{background:rgba(255,255,255,.82);border-color:rgba(255,255,255,.92);
-  box-shadow:0 10px 34px rgba(0,0,0,.1);}
-.cc-dark .cc-lvl-top{background:rgba(44,46,52,.82);border-color:rgba(255,255,255,.14);
-  box-shadow:0 10px 34px rgba(0,0,0,.34);}
+.cc-lvl-top{background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.8);
+  box-shadow:0 10px 34px rgba(0,0,0,.1);
+  backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);}
+.cc-dark .cc-lvl-top{background:rgba(44,46,52,.62);border-color:rgba(255,255,255,.14);
+  box-shadow:0 10px 34px rgba(0,0,0,.34);
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);}
 /* Nivel medio: glass estándar. */
-.cc-lvl-mid{background:rgba(255,255,255,.68);border-color:rgba(255,255,255,.8);box-shadow:0 4px 18px rgba(0,0,0,.05);}
-.cc-dark .cc-lvl-mid{background:rgba(38,40,46,.62);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+.cc-lvl-mid{background:rgba(255,255,255,.5);border-color:rgba(255,255,255,.7);box-shadow:0 4px 18px rgba(0,0,0,.05);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+.cc-dark .cc-lvl-mid{background:rgba(38,40,46,.5);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
 /* Nivel tenue: glass sutil, casi fundido con el fondo. */
 .cc-lvl-faint{background:rgba(255,255,255,.42);border-color:rgba(255,255,255,.5);box-shadow:none;}
 .cc-dark .cc-lvl-faint{background:rgba(38,40,46,.32);border-color:rgba(255,255,255,.07);box-shadow:none;}
@@ -524,6 +528,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 /* ============== TARJETAS DE CUENTAS ============== */
 .cc-acc-card{cursor:pointer;
   border:1px solid var(--glass-border);background:var(--glass);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border-radius:18px;padding:13px 14px;min-width:148px;text-align:left;
   position:relative;overflow:hidden;
   transition:all .2s ease;}
@@ -2479,10 +2484,37 @@ function UpgradeModal({ config, onClose, feature }) {
   );
 }
 
+// Fuente de verdad global del tema — la actualiza el componente raíz (App) en
+// cada render. Evita que useDarkMode lea un valor desincronizado del DOM en el
+// primer render (bug: texto blanco sobre fondo claro al iniciar sesión de noche).
+let _globalDark = (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) || false;
+function setGlobalDark(v) { _globalDark = v; }
+
 function isDarkMode() {
-  if (typeof document === "undefined") return false;
+  if (typeof document === "undefined") return _globalDark;
   const root = document.querySelector(".cc-root");
-  return !!(root && root.classList.contains("cc-dark"));
+  // Preferir la clase del DOM si el root existe; si no, usar la fuente global.
+  if (root) return root.classList.contains("cc-dark");
+  return _globalDark;
+}
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() => isDarkMode());
+  useEffect(() => {
+    // Sincronizar con el valor global (fuente de verdad) al montar y en cada
+    // cambio de tema, además de observar la clase del DOM.
+    setDark(isDarkMode());
+    const root = document.querySelector(".cc-root");
+    if (!root) return;
+    const obs = new MutationObserver(() => setDark(isDarkMode()));
+    obs.observe(root, { attributes: true, attributeFilter: ["class"] });
+    // También reaccionar a cambios del esquema del sistema (modo auto).
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const onMq = () => setDark(isDarkMode());
+    mq?.addEventListener?.("change", onMq);
+    return () => { obs.disconnect(); mq?.removeEventListener?.("change", onMq); };
+  }, []);
+  return dark;
 }
 
 /* Devuelve "free" | "lite" | "pro" */
@@ -2701,18 +2733,6 @@ function FaceIDSettings() {
       </button>
     </div>
   );
-}
-
-function useDarkMode() {
-  const [dark, setDark] = useState(() => isDarkMode());
-  useEffect(() => {
-    const root = document.querySelector(".cc-root");
-    if (!root) return;
-    const obs = new MutationObserver(() => setDark(isDarkMode()));
-    obs.observe(root, { attributes: true, attributeFilter: ["class"] });
-    return () => obs.disconnect();
-  }, []);
-  return dark;
 }
 
 function rangeLabel(range) {
@@ -7264,6 +7284,9 @@ export default function App() {
 
   const themeMode = config?.theme || "auto";
   const isDarkTheme = themeMode === "dark" || (themeMode === "auto" && systemDark);
+  // Mantener la fuente de verdad global sincronizada para que useDarkMode nunca
+  // lea un valor desfasado en el primer render (texto blanco sobre fondo claro).
+  setGlobalDark(isDarkTheme);
   // Sincronizar tema con localStorage para que esté disponible al inicio
   useEffect(() => {
     if (config?.theme) {
