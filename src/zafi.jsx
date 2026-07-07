@@ -12071,10 +12071,11 @@ function pickPooledAction(ctx) {
   // Formato: [[contar:N]] al inicio. DailyActionCard muestra un contador táctil.
   // La razón financiera va incluida — es un gesto para fijar conciencia o hábito.
   if (deficitPct > 0) {
-    pool.push(`[[contar:10]] Toca 10 veces para grabártelo: este mes gastas ${deficitPct}% más de lo que ganas. Hoy frénalo.`);
+    pool.push(`[[contar:10]] Tomemos conciencia: este mes gastas ${deficitPct}% más de lo que ganas. Toca 10 veces y hoy frénalo.`);
+    pool.push(`[[contar:6]] Toca 6 veces, una por cada gasto grande que revisarás hoy para cerrar tu déficit.`);
   }
   if (topExpCat) {
-    pool.push(`[[contar:5]] Toca 5 veces, una por cada vez que revisarás si de verdad necesitas gastar en ${topExpCat} hoy.`);
+    pool.push(`[[contar:5]] Toca 5 veces, una por cada vez que hoy te preguntarás si de verdad necesitas gastar en ${topExpCat}.`);
   }
   if (hasDebt && worstDebtName) {
     pool.push(`[[contar:7]] Toca 7 veces recordando tu meta: quedar libre de "${worstDebtName}". Hoy no sumes deuda.`);
@@ -12082,12 +12083,20 @@ function pickPooledAction(ctx) {
   if (hasGoal) {
     pool.push(`[[contar:8]] Toca 8 veces visualizando tu meta cumplida. Ese impulso te ayuda a no gastar de más hoy.`);
   }
+  if (hasEmergencyFund) {
+    pool.push(`[[contar:6]] Toca 6 veces valorando tu fondo de emergencia. Tenerlo es tranquilidad — hoy cuídalo.`);
+  }
   if (deficitPct === 0 && !hasDebt) {
     pool.push(
-      `[[contar:12]] Toca 12 veces, una por cada mes del año, comprometiéndote a ahorrar algo cada uno.`,
-      `[[contar:5]] Antes de tu próxima compra, toca 5 veces y pregúntate en cada una: ¿lo necesito?`,
+      `[[contar:12]] Toca 12 veces, una por cada mes del año, comprometiéndote a ahorrar algo en cada uno.`,
+      `[[contar:5]] Antes de tu próxima compra, toca 5 veces y en cada una pregúntate: ¿lo necesito?`,
       `[[contar:3]] Toca 3 veces y nombra en tu mente 3 gastos que puedes evitar esta semana.`,
+      `[[contar:7]] Toca 7 veces, una por cada día de la semana en que evitarás una compra impulsiva.`,
+      `[[contar:4]] Toca 4 veces recordando tus 4 prioridades financieras. Que hoy tus gastos las respeten.`,
     );
+  }
+  if (positiveFlow) {
+    pool.push(`[[contar:5]] Toca 5 veces celebrando tu flujo positivo. Vas bien — hoy decide guardar una parte.`);
   }
 
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
@@ -12882,6 +12891,27 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
 
 /* Línea colapsada para secciones vacías o de buenas noticias.
    Muestra un resumen en una sola línea; al tocar, expande el contenido completo. */
+// Botón discreto para volver a colapsar una sección — un chevron en un círculo
+// sutil, en vez del texto "Colapsar ▲". Más limpio y coherente con el sistema.
+function CollapseButton({ onClick, dark }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div style={{ display: "flex", justifyContent: "center", marginTop: 2, marginBottom: 6 }}>
+      <button onClick={onClick}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        aria-label="Colapsar"
+        style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: hover ? (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)") : (dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.03)"),
+          transition: "background .15s ease" }}>
+        <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: dark ? "rgba(245,245,247,.5)" : "#8B95A6", fill: "none", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" }}>
+          <path d="M18 15l-6-6-6 6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function CollapsedSection({ icon, iconTone = "green", text, subtext, dark, expanded, onToggle, className = "" }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#16181D";
@@ -13308,9 +13338,12 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <div className="cc-label" style={{ margin: 0 }}>{headerLabel}</div>
                 <div style={{ fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500 }}>{rangeLabel(dateRange)}</div>
               </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <div className="cc-serif cc-num" style={{ fontSize: 42, fontWeight: 600, letterSpacing: "-.02em", color: positive ? "var(--ink)" : "var(--coral)", lineHeight: 1 }}>
-                  {positive ? "+" : "−"}{fmt(Math.abs(headerBalance)).replace("-", "")}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                <div className="cc-serif cc-num" style={{ display: "flex", alignItems: "baseline", gap: 5, color: positive ? "var(--ink)" : "var(--coral)", lineHeight: 1 }}>
+                  <span style={{ fontSize: 38, fontWeight: 600, letterSpacing: "-.02em", whiteSpace: "nowrap" }}>
+                    {positive ? "+" : "−"}{fmtBare(Math.abs(headerBalance))}
+                  </span>
+                  <span style={{ fontSize: 15, fontWeight: 500, opacity: .5 }}>mxn</span>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: positive ? "#2A9048" : "var(--coral)",
                   background: positive ? "rgba(60,190,96,.12)" : "rgba(226,53,53,.12)", padding: "3px 8px", borderRadius: 7 }}>
@@ -13579,11 +13612,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           }
           // Si está vacío pero expandido, permitir re-colapsar
           const oppCollapsible = (opps.length === 0 && idx !== 0) ? (
-            <button onClick={() => toggleExpanded("opportunities")}
-              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
-                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
-              Colapsar ▲
-            </button>
+            <CollapseButton onClick={() => toggleExpanded("opportunities")} dark={dark} />
           ) : null;
           return <div key={s.id} className="cc-lvl-wrapper"><OpportunitiesCard config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} className={lvlClass} />{oppCollapsible}</div>;
         }
@@ -13681,11 +13710,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             );
           }
           const goalsCollapsible = (goalsHere.length === 0 && idx !== 0) ? (
-            <button onClick={() => toggleExpanded("goals")}
-              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
-                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
-              Colapsar ▲
-            </button>
+            <CollapseButton onClick={() => toggleExpanded("goals")} dark={dark} />
           ) : null;
           return (
             <div key={s.id} className="cc-lvl-wrapper">
@@ -13713,11 +13738,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             );
           }
           const debtsCollapsible = (debtsHere.length === 0 && idx !== 0) ? (
-            <button onClick={() => toggleExpanded("debts")}
-              style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
-                color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
-              Colapsar ▲
-            </button>
+            <CollapseButton onClick={() => toggleExpanded("debts")} dark={dark} />
           ) : null;
           return (
             <div key={s.id} className="cc-lvl-wrapper">
@@ -13737,11 +13758,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           return (
             <div key={s.id}>
               {rendered}
-              <button onClick={() => toggleExpanded(s.id)}
-                style={{ display: "block", margin: "0 auto", marginTop: -2, marginBottom: 6, background: "none", border: "none",
-                  color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
-                Colapsar ▲
-              </button>
+              <CollapseButton onClick={() => toggleExpanded(s.id)} dark={dark} />
             </div>
           );
         }
