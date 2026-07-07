@@ -12367,7 +12367,111 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
 
   return (
-    <div className={`cc-card ${className}`} style={{ padding: "16px 18px" }}>
+    <div className={`cc-card ${className}`} style={{ padding: solidHero && mode !== "debts" ? 24 : "16px 18px" }}>
+      {/* ─── MODO PROTAGONISTA (metas) ─── */}
+      {solidHero && mode !== "debts" ? (
+        goals.length === 0 ? (
+          // Estado vacío celebratorio
+          <div style={{ textAlign: "center", padding: "14px 6px" }}>
+            <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(255,255,255,.2)",
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
+              <GoalTypeIcon type="otro" size={38} color="#fff" />
+            </div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 500, color: "#fff", marginBottom: 8 }}>
+              Ponle rumbo a tu dinero
+            </div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,.85)", lineHeight: 1.5, marginBottom: 20, maxWidth: 320, margin: "0 auto 20px" }}>
+              Estás en buen momento para crear tu primera meta. Un fondo, un viaje, una casa — yo te calculo cuánto ahorrar y en cuánto tiempo lo logras.
+            </div>
+            <button onClick={() => setPlannerOpen(true)}
+              style={{ background: "#fff", color: "#1E6FE0", border: "none", fontSize: 15, fontWeight: 700,
+                padding: "15px 32px", borderRadius: 14, cursor: "pointer", fontFamily: FONT }}>
+              Crear mi primera meta
+            </button>
+          </div>
+        ) : (() => {
+          // Meta principal (mayor % o la primera) + resto compactas
+          const sorted = [...goals].sort((a, b) => {
+            const pa = a.target > 0 ? a.saved / a.target : 0;
+            const pb = b.target > 0 ? b.saved / b.target : 0;
+            return pb - pa;
+          });
+          const main = sorted[0];
+          const rest = sorted.slice(1);
+          const mpct = main.target > 0 ? Math.min(100, Math.round((main.saved / main.target) * 100)) : 0;
+          const mrem = Math.max(0, main.target - main.saved);
+          const mmonths = main.monthly > 0 ? Math.ceil(mrem / main.monthly) : 0;
+          return (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7, color: "rgba(255,255,255,.78)" }}>
+                  <GoalTypeIcon type="otro" size={15} color="#fff" /> Metas y planes
+                </div>
+                <button onClick={() => setPlannerOpen(true)}
+                  style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", fontSize: 12.5, fontWeight: 600, padding: "7px 14px", borderRadius: 11, cursor: "pointer", fontFamily: FONT }}>
+                  + Nueva
+                </button>
+              </div>
+
+              {/* Meta principal grande */}
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,.2)",
+                display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                <GoalTypeIcon type={main.type} size={30} color="#fff" />
+              </div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 500, color: "#fff", marginBottom: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {main.name}
+                {accView === "all" && main.accountId && main.accountId !== "general" && (
+                  <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,.2)", color: "#fff", padding: "3px 8px", borderRadius: 6, fontFamily: FONT }}>{accName(main.accountId)}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,.85)", marginBottom: 16, fontFamily: FONT }}>
+                <b style={{ fontWeight: 700 }}>{fmtMxn(main.saved)}</b> de {fmtMxn(main.target)}
+              </div>
+
+              <div style={{ height: 12, borderRadius: 8, background: "rgba(255,255,255,.22)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${mpct}%`, borderRadius: 8, background: "#fff", transition: "width .6s ease" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
+                <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-.02em", color: "#fff", fontFamily: FONT }}>{mpct}%</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.8)", textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
+                  {mpct >= 100 ? "¡Meta lograda!" : <>Faltan {mmonths} {mmonths === 1 ? "mes" : "meses"}<br />{fmtMxn(main.monthly)}/mes</>}
+                </div>
+              </div>
+
+              {main.trackingMode !== "linked" && (
+                <button onClick={() => setUpdatingGoal(main)}
+                  style={{ marginTop: 18, width: "100%", background: "#fff", color: "#1E6FE0", border: "none",
+                    fontSize: 15, fontWeight: 700, padding: 15, borderRadius: 14, cursor: "pointer", fontFamily: FONT }}>
+                  Abonar a mi meta
+                </button>
+              )}
+
+              {/* Resto de metas — compactas */}
+              {rest.length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.2)", display: "flex", flexDirection: "column", gap: 14 }}>
+                  {rest.map((g) => {
+                    const gp = g.target > 0 ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0;
+                    return (
+                      <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <GoalTypeIcon type={g.type} size={20} color="#fff" />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", fontFamily: FONT }}>{g.name}</div>
+                          <div style={{ fontSize: 12, color: "rgba(255,255,255,.75)", fontFamily: FONT }}>
+                            {fmtMxn(g.saved)} de {fmtMxn(g.target)}{g.monthly > 0 ? ` · ${fmtMxn(g.monthly)}/mes` : ""}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: FONT }}>{gp}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          );
+        })()
+      ) : (<>
       {mode !== "debts" && (<>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: goals.length ? 14 : 8 }}>
         <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
@@ -12583,6 +12687,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
         )}
       </div>
       )}
+      </>)}
 
       {plannerOpen && (
         <GoalPlannerModal
