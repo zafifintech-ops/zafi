@@ -11828,6 +11828,31 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
   return active.slice(0, 4); // máximo 4
 }
 
+// Ícono SVG por tipo de oportunidad (según el id) — coherente con el resto de la app, sin emojis.
+function OppIcon({ id, tone }) {
+  const color = { red: "#D42F2F", amber: "#C47000", green: "#2A9048", blue: "#1E6FE0" }[tone] || "#1E6FE0";
+  const base = { width: 20, height: 20, stroke: color, fill: "none", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
+  const key = String(id).startsWith("topcat_") ? "topcat" : id;
+  const paths = {
+    deficit: <path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a1.5 1.5 0 0 0 1.3 2.2h16.6a1.5 1.5 0 0 0 1.3-2.2L13.7 3.9a1.5 1.5 0 0 0-2.6 0z" />,
+    topcat: <><path d="M4 20V10M10 20V4M16 20v-7M20 20H2" /></>,
+    subs: <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />,
+    hormiga: <><circle cx="12" cy="6" r="2.5" /><path d="M12 8.5v7M8 11l4 1.5 4-1.5M8 16l4-1 4 1" /></>,
+    duplicados: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M4 16V6a2 2 0 0 1 2-2h10" /></>,
+    ocioso: <path d="M3 17l6-6 4 4 8-8M21 7v5h-5" />,
+    meta: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" /></>,
+    deuda_cara: <path d="M12 2s5 4.5 5 9a5 5 0 0 1-10 0c0-1.5.5-2.8 1.2-3.9C9 9 12 6 12 2z" />,
+    abona_deuda: <><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20" /></>,
+    crea_meta: <path d="M12 3l2.3 4.7 5.2.8-3.7 3.7.9 5.1L12 15l-4.6 2.4.9-5.1L4.5 8.5l5.2-.8z" />,
+    crea_fondo: <path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z" />,
+  };
+  return (
+    <svg viewBox="0 0 24 24" style={base}>
+      {paths[key] || paths.crea_meta}
+    </svg>
+  );
+}
+
 function OpportunitiesCard({ config, saveConfig, opportunities, dark, className = "" }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
@@ -11902,8 +11927,8 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
             borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
             paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: toneBg[o.tone] || toneBg.blue,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-              {o.icon}
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <OppIcon id={o.id} tone={o.tone} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, lineHeight: 1.4, fontFamily: FONT }}>{o.title}</div>
@@ -11996,9 +12021,11 @@ function pickPooledAction(ctx) {
     pool.push("Registra cada gasto de hoy, por pequeño que sea.");
   }
 
-  // Elegir de forma determinista según el día (misma acción todo el día)
-  const seed = today().split("-").join("");
-  const idx = parseInt(seed, 10) % pool.length;
+  // Elegir de forma determinista según el día + la cuenta (misma acción todo el
+  // día para la misma cuenta, pero distinta entre cuentas con situación distinta).
+  const accSeed = (ctx.accKey || "all").split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  const seed = parseInt(today().split("-").join(""), 10) + accSeed;
+  const idx = seed % pool.length;
   return pool[idx];
 }
 
@@ -12020,14 +12047,19 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 
   const pooledAction = pickPooledAction(actionCtx);
 
+  // Clave de caché que distingue la cuenta y el estado financiero, no solo el día.
+  // Así cada cuenta tiene su propia acción coherente con SU situación.
+  const actionKey = `${actionCtx.accKey || "all"}|${actionCtx.deficitPct}|${actionCtx.positiveFlow ? 1 : 0}|${actionCtx.topExpCat || ""}|${actionCtx.hasDebt ? 1 : 0}`;
+
   useEffect(() => {
     if (!isPro) return;
-    // Caché diario: si ya generamos la acción de IA hoy, usarla
+    // Caché diario POR cuenta/estado: si ya generamos esta acción hoy, usarla.
     const cached = config.dailyActionCache;
-    if (cached && cached.date === todayK && cached.text) {
+    if (cached && cached.date === todayK && cached.key === actionKey && cached.text) {
       setAiAction(cached.text);
       return;
     }
+    setAiAction(null);
     // Generar nueva acción con IA
     setLoadingAi(true);
     const prompt = `Eres un coach financiero. Genera UNA sola acción concreta y sencilla que el usuario pueda hacer HOY para mejorar sus finanzas, basada en sus datos:
@@ -12040,7 +12072,7 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 - Flujo positivo este periodo: ${actionCtx.positiveFlow ? "sí" : "no"}
 - Déficit: ${actionCtx.deficitPct > 0 ? `sí, gasta ${actionCtx.deficitPct}% más de lo que gana` : "no"}
 
-Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. IMPORTANTE: no menciones déficit si el flujo es positivo, ni al revés — sé coherente con los datos. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
 
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -12056,14 +12088,14 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         const text = data.content?.filter((i) => i.type === "text").map((i) => i.text).join(" ").trim();
         if (text) {
           setAiAction(text);
-          saveConfig({ ...config, dailyActionCache: { date: todayK, text } });
+          saveConfig({ ...config, dailyActionCache: { date: todayK, key: actionKey, text } });
         } else {
           setAiAction(pooledAction);
         }
       })
       .catch(() => setAiAction(pooledAction))
       .finally(() => setLoadingAi(false));
-  }, [isPro, todayK]);
+  }, [isPro, todayK, actionKey]);
 
   const actionText = isPro ? (aiAction || pooledAction) : pooledAction;
 
@@ -13474,6 +13506,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             hasEmergencyFund: goalsInAcc.some((g) => g.type === "emergencias"),
             positiveFlow: (inc - exp) > 0,
             deficitPct: inc > 0 && (inc - exp) < 0 ? Math.round((Math.abs(inc - exp) / inc) * 100) : 0,
+            accKey: accView,
           };
           return (
             <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
