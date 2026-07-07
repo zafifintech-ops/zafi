@@ -13032,10 +13032,17 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     const acc = d.accountId || "general";
     return accView === "all" || acc === "general" || acc === accView;
   });
-  const sections = adaptiveSectionOrder(adaptiveScore, rawSections, {
-    hasDebt: debtsInView.length > 0,
-    hasDeficit: inc > 0 && (inc - exp) < 0,
-  });
+  // Orden automático (adaptativo) vs manual. Si autoOrder está encendido
+  // (default), la app ordena según la situación financiera. Si está apagado,
+  // se respeta el orden manual guardado por el usuario (rawSections tal cual).
+  const autoOrder = getPersonalize(config, "homeAutoOrder", accView);
+  const autoOrderOn = autoOrder !== false; // default: true
+  const sections = autoOrderOn
+    ? adaptiveSectionOrder(adaptiveScore, rawSections, {
+        hasDebt: debtsInView.length > 0,
+        hasDeficit: inc > 0 && (inc - exp) < 0,
+      })
+    : rawSections.filter((s) => s.on);
 
   // Saldo destacado: ahora es el FLUJO NETO del periodo seleccionado
   // (ingresos − gastos, ya filtrado por cuentas/categorías) — NO el saldo
@@ -13769,10 +13776,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       {configuring && (
         <HomeConfigModal
           sections={rawSections}
+          adaptiveOrderIds={sections.map((s) => s.id)}
           config={config}
           accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           accounts={config.accounts}
           hiddenAccountCards={config.hiddenAccountCards || []}
+          autoOrderOn={autoOrderOn}
+          onToggleAutoOrder={(val) => saveConfig(setPersonalize(config, "homeAutoOrder", val, accView))}
           onToggleAccountCard={(id) => {
             const cur = config.hiddenAccountCards || [];
             const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
@@ -13927,7 +13937,7 @@ function useDragSort(items, onApply) {
   return { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps };
 }
 
-function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, onClose, onSave }) {
+function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, autoOrderOn = true, onToggleAutoOrder, onClose, onSave }) {
   const [items, setItems] = useState(sections);
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
@@ -13966,15 +13976,60 @@ function HomeConfigModal({ sections, config, accountLabel, accounts, hiddenAccou
             🏦 Configuración para {accountLabel}
           </div>
         )}
-        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.45,
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.45,
           fontFamily: "'Montserrat', sans-serif" }}>
-          Activa o desactiva secciones. El orden se ajusta solo según tu situación financiera.
+          {autoOrderOn
+            ? "El orden se ajusta solo según tu situación financiera. Apaga el orden automático para ordenar tú."
+            : "Arrastra para reordenar, y activa o desactiva las secciones que quieras ver."}
         </p>
 
+        {/* Interruptor de orden automático */}
+        <div
+          onClick={() => onToggleAutoOrder && onToggleAutoOrder(!autoOrderOn)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "13px 15px", borderRadius: 14, marginBottom: 18, cursor: "pointer",
+            background: dark ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.03)",
+            border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)"}` }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", fontFamily: "'Montserrat', sans-serif" }}>
+              Orden automático
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 2, fontFamily: "'Montserrat', sans-serif", lineHeight: 1.35 }}>
+              Zafi decide qué mostrar primero según cómo vas
+            </div>
+          </div>
+          {/* Switch */}
+          <div style={{ width: 46, height: 28, borderRadius: 99, flexShrink: 0, marginLeft: 12,
+            background: autoOrderOn ? "#1E6FE0" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)"),
+            transition: "background .2s ease", position: "relative" }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute",
+              top: 3, left: autoOrderOn ? 21 : 3, transition: "left .2s ease", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+          </div>
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-          {items.map((s, i) => (
+          {(autoOrderOn
+            ? // Orden REAL adaptativo tal como aparece en el inicio (viene del Dashboard)
+              (adaptiveOrderIds && adaptiveOrderIds.length
+                ? adaptiveOrderIds.map((id) => items.find((s) => s.id === id)).filter(Boolean).concat(items.filter((s) => !s.on))
+                : items)
+            : items
+          ).map((s, i) => (
             <div key={s.id}
-              className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}>
+              className={`cc-sortable-v2 ${!s.on ? "disabled" : ""}`}
+              style={autoOrderOn ? {} : getItemStyle(i)}
+              {...(autoOrderOn ? {} : getItemProps(i))}>
+              {/* Grip para arrastrar — solo en modo manual */}
+              {!autoOrderOn && (
+                <span {...getGripProps(i)} style={{ cursor: "grab", display: "flex", marginRight: 4, touchAction: "none",
+                  color: dark ? "rgba(255,255,255,.3)" : "rgba(0,0,0,.25)" }}>
+                  <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: "currentColor" }}>
+                    <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+                    <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+                    <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+                  </svg>
+                </span>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontWeight: 500, fontSize: 14.5,
                   color: s.on ? "var(--ink)" : "var(--ink-faint)",
