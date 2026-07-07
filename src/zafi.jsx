@@ -4854,12 +4854,12 @@ function AuthScreen() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", position: "relative",
+    <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
       padding: "24px 20px",
       paddingTop: "calc(24px + env(safe-area-inset-top))",
       paddingBottom: "calc(24px + env(safe-area-inset-bottom))",
-      gap: 32,
+      gap: 32, overflow: "hidden",
     }}>
       {/* Fondo mientras carga el video */}
       <div style={{ position: "fixed", inset: 0, background: "#DCE1E8", zIndex: 0 }} />
