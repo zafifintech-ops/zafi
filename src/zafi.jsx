@@ -63,8 +63,8 @@ body{
 .cc-solid-bg{position:fixed;inset:0;z-index:-1;
   background:linear-gradient(165deg, #E8ECF4 0%, #D8DDE8 40%, #CDD3E0 100%);}
 .cc-dark .cc-solid-bg{background:linear-gradient(165deg, #13161D 0%, #0D0F14 40%, #0A0C10 100%);}
-.cc-video-bg video{width:100%;height:180%;object-fit:cover;
-  filter:blur(10px);transform:scale(1.06) translateY(var(--parallax-y, 0px));
+.cc-video-bg video{width:100%;height:100%;object-fit:cover;object-position:center center;
+  filter:blur(10px);transform:scale(1.04) translateY(var(--parallax-y, 0px));
   will-change:transform;}
 #root{background:transparent!important;min-height:100vh;}
 .cc-root *{box-sizing:border-box;margin:0;padding:0;}
@@ -8125,11 +8125,10 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
   // Parallax del fondo de video (con límite para no mostrar el borde)
   useEffect(() => {
     const onScroll = () => {
-      // Video es 180% del viewport, escalado 1.06 = ~190%
-      // Extra space: 90% del vh, dividido 2 = 45% arriba y abajo
-      // Max translateY antes de mostrar el borde: ~40% del vh
-      const maxY = window.innerHeight * 0.38;
-      const raw = window.scrollY * 0.15; // velocidad más sutil
+      // Video es 100% del viewport, escalado 1.04 = ~104%.
+      // Solo hay ~2% de margen arriba/abajo, así que el parallax es muy sutil.
+      const maxY = window.innerHeight * 0.02;
+      const raw = window.scrollY * 0.04; // velocidad muy sutil
       const clamped = Math.min(raw, maxY);
       document.documentElement.style.setProperty("--parallax-y", `${-clamped}px`);
     };
