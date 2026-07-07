@@ -12069,16 +12069,28 @@ function pickPooledAction(ctx) {
 
   // ── Acciones de CONTADOR (interactivas) ──
   // Formato: [[contar:N]] al inicio. DailyActionCard muestra un contador táctil.
-  // La razón financiera va incluida — es un gesto para fijar conciencia o hábito.
+  // IMPORTANTE: el número de toques está LIGADO al dato del mensaje, no es
+  // arbitrario. Ej: gastas 6% más → toca 6; gastas 120% más → 12 (1 por cada 10%).
   if (deficitPct > 0) {
-    pool.push(`[[contar:10]] Tomemos conciencia: este mes gastas ${deficitPct}% más de lo que ganas. Toca 10 veces y hoy frénalo.`);
-    pool.push(`[[contar:6]] Toca 6 veces, una por cada gasto grande que revisarás hoy para cerrar tu déficit.`);
+    // 1 toque por cada 10% de exceso, mínimo 3, máximo 15 (para que sea alcanzable).
+    const deficitTaps = Math.max(3, Math.min(15, Math.round(deficitPct / 10)));
+    pool.push(`[[contar:${deficitTaps}]] Tomemos conciencia: gastas ${deficitPct}% más de lo que ganas. Toca ${deficitTaps} ${deficitTaps === 1 ? "vez" : "veces"} (una por cada 10% de más) y hoy frénalo.`);
+    pool.push(`[[contar:3]] Toca 3 veces, una por cada gasto grande que revisarás hoy para cerrar tu déficit.`);
+  }
+  if (topExpPct > 0 && topExpCat) {
+    // 1 toque por cada 10% que representa la categoría, mínimo 3, máximo 12.
+    const catTaps = Math.max(3, Math.min(12, Math.round(topExpPct / 10)));
+    pool.push(`[[contar:${catTaps}]] ${topExpCat} es el ${topExpPct}% de tus gastos. Toca ${catTaps} ${catTaps === 1 ? "vez" : "veces"} (una por cada 10%) tomando conciencia de eso.`);
   }
   if (topExpCat) {
     pool.push(`[[contar:5]] Toca 5 veces, una por cada vez que hoy te preguntarás si de verdad necesitas gastar en ${topExpCat}.`);
   }
-  if (hasDebt && worstDebtName) {
-    pool.push(`[[contar:7]] Toca 7 veces recordando tu meta: quedar libre de "${worstDebtName}". Hoy no sumes deuda.`);
+  if (hasDebt && worstDebtRate > 0) {
+    // 1 toque por cada 10% de interés de la deuda más cara, mínimo 3, máximo 12.
+    const rateTaps = Math.max(3, Math.min(12, Math.round(worstDebtRate / 10)));
+    pool.push(`[[contar:${rateTaps}]] Tu deuda "${worstDebtName}" cobra ${worstDebtRate}% de interés. Toca ${rateTaps} ${rateTaps === 1 ? "vez" : "veces"} (una por cada 10%) y hoy no sumes deuda.`);
+  } else if (hasDebt && worstDebtName) {
+    pool.push(`[[contar:5]] Toca 5 veces recordando tu meta: quedar libre de "${worstDebtName}". Hoy no sumes deuda.`);
   }
   if (hasGoal) {
     pool.push(`[[contar:8]] Toca 8 veces visualizando tu meta cumplida. Ese impulso te ayuda a no gastar de más hoy.`);
@@ -12086,13 +12098,17 @@ function pickPooledAction(ctx) {
   if (hasEmergencyFund) {
     pool.push(`[[contar:6]] Toca 6 veces valorando tu fondo de emergencia. Tenerlo es tranquilidad — hoy cuídalo.`);
   }
+  if (spendRatio > 0 && deficitPct === 0) {
+    // 1 toque por cada 10% de ingreso gastado, mínimo 3, máximo 10.
+    const ratioTaps = Math.max(3, Math.min(10, Math.round(spendRatio / 10)));
+    pool.push(`[[contar:${ratioTaps}]] Gastas el ${spendRatio}% de lo que ganas. Toca ${ratioTaps} ${ratioTaps === 1 ? "vez" : "veces"} (una por cada 10%) y busca dónde recortar.`);
+  }
   if (deficitPct === 0 && !hasDebt) {
     pool.push(
       `[[contar:12]] Toca 12 veces, una por cada mes del año, comprometiéndote a ahorrar algo en cada uno.`,
       `[[contar:5]] Antes de tu próxima compra, toca 5 veces y en cada una pregúntate: ¿lo necesito?`,
       `[[contar:3]] Toca 3 veces y nombra en tu mente 3 gastos que puedes evitar esta semana.`,
       `[[contar:7]] Toca 7 veces, una por cada día de la semana en que evitarás una compra impulsiva.`,
-      `[[contar:4]] Toca 4 veces recordando tus 4 prioridades financieras. Que hoy tus gastos las respeten.`,
     );
   }
   if (positiveFlow) {
@@ -12271,32 +12287,56 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
             {loadingAi ? "Generando tu acción del día…" : cleanActionText}
           </div>
           {isCounterAction && !loadingAi && (
-            <div style={{ marginBottom: 14 }}>
-              <button
-                onClick={() => { if (counterCount < counterTarget) setCounterCount((c) => c + 1); }}
-                disabled={counterCount >= counterTarget}
-                style={{ width: "100%", padding: "16px", borderRadius: 14, border: "none",
-                  background: counterCount >= counterTarget ? "#3CBE60" : "#E08010",
-                  color: "#fff", fontFamily: FONT, cursor: counterCount >= counterTarget ? "default" : "pointer",
-                  transition: "background .2s ease, transform .1s ease", position: "relative", overflow: "hidden" }}
-                onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.98)"; }}
-                onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-                onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.98)"; }}
-                onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}>
-                <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
-                  {counterCount >= counterTarget ? "✓" : `${counterCount} / ${counterTarget}`}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4, opacity: .9 }}>
-                  {counterCount >= counterTarget ? "¡Listo! Buen gesto." : "Toca aquí"}
-                </div>
-              </button>
-              {/* Puntitos de progreso */}
-              <div style={{ display: "flex", gap: 5, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
-                {Array.from({ length: counterTarget }).map((_, i) => (
-                  <span key={i} style={{ width: 7, height: 7, borderRadius: 99,
-                    background: i < counterCount ? "#E08010" : (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.1)"),
-                    transition: "background .2s ease" }} />
-                ))}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16, marginTop: 4 }}>
+              {(() => {
+                const done = counterCount >= counterTarget;
+                const R = 52;                       // radio del anillo
+                const C = 2 * Math.PI * R;           // circunferencia
+                const progress = counterTarget > 0 ? counterCount / counterTarget : 0;
+                const color = done ? "#3CBE60" : "#E08010";
+                return (
+                  <button
+                    onClick={() => { if (counterCount < counterTarget) setCounterCount((c) => c + 1); }}
+                    disabled={done}
+                    style={{ position: "relative", width: 128, height: 128, borderRadius: "50%", border: "none",
+                      background: "none", padding: 0, cursor: done ? "default" : "pointer",
+                      WebkitTapHighlightColor: "transparent" }}
+                    onTouchStart={(e) => { if (!done) e.currentTarget.style.transform = "scale(.94)"; }}
+                    onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                    onMouseDown={(e) => { if (!done) e.currentTarget.style.transform = "scale(.94)"; }}
+                    onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}>
+                    {/* Anillo de progreso */}
+                    <svg viewBox="0 0 128 128" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)", transition: "transform .1s ease" }}>
+                      <circle cx="64" cy="64" r={R} fill="none" strokeWidth="7"
+                        stroke={dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.07)"} />
+                      <circle cx="64" cy="64" r={R} fill="none" strokeWidth="7" strokeLinecap="round"
+                        stroke={color} strokeDasharray={C} strokeDashoffset={C * (1 - progress)}
+                        style={{ transition: "stroke-dashoffset .3s cubic-bezier(.34,1.2,.64,1), stroke .3s ease" }} />
+                    </svg>
+                    {/* Círculo interior (el botón visible) */}
+                    <div style={{ position: "absolute", inset: 12, borderRadius: "50%",
+                      background: color, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      transition: "background .3s ease", boxShadow: `0 6px 18px ${done ? "rgba(60,190,96,.3)" : "rgba(230,140,20,.3)"}` }}>
+                      {done ? (
+                        <div style={{ fontSize: 40, color: "#fff", lineHeight: 1 }}>✓</div>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 30, fontWeight: 700, color: "#fff", lineHeight: 1, fontFamily: FONT }}>
+                            {counterCount}
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.85)", marginTop: 2, fontFamily: FONT }}>
+                            de {counterTarget}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                );
+              })()}
+              <div style={{ fontSize: 12, fontWeight: 600, color: counterCount >= counterTarget ? "#2A9048" : inkSoft,
+                marginTop: 12, fontFamily: FONT }}>
+                {counterCount >= counterTarget ? "¡Listo! Buen gesto." : "Toca el círculo"}
               </div>
             </div>
           )}
