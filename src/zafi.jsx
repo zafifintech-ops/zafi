@@ -306,13 +306,10 @@ body{
   box-shadow:var(--shadow-sm);}
 
 /* ============== TARJETAS ============== */
-.cc-card{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+.cc-card{background:var(--glass);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
-  transition:.2s ease;
-  /* Forzar capa propia de composición en iOS WKWebView: evita que el contenido
-     se renderice "quemado"/fantasma cuando hay backdrop-filter sobre el video. */
-  transform:translateZ(0);-webkit-transform:translateZ(0);}
+  transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard.
    El color NUNCA es fondo de tarjeta — la jerarquía se logra con presencia
    (opacidad del glass, sombra, borde). El color vive en números, badges,
@@ -321,15 +318,18 @@ body{
    legibilidad del texto incluso cuando el WKWebView apila mal los backdrop-filter
    sobre el video de fondo. El glass se logra con el blur del fondo, no con
    transparencia extrema de la tarjeta. */
-.cc-lvl-top{background:rgba(255,255,255,.78);border-color:rgba(255,255,255,.9);
-  box-shadow:0 10px 34px rgba(0,0,0,.1);
-  backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);}
-.cc-dark .cc-lvl-top{background:rgba(44,46,52,.7);border-color:rgba(255,255,255,.14);
-  box-shadow:0 10px 34px rgba(0,0,0,.34);
-  backdrop-filter:blur(16px) saturate(130%);-webkit-backdrop-filter:blur(16px) saturate(130%);}
+/* NOTA iOS: NO usamos backdrop-filter en las tarjetas. El video de fondo ya está
+   difuminado, así que las tarjetas solo llevan un fondo semi-translúcido. Apilar
+   backdrop-filter sobre el video causa que iOS WKWebView renderice el contenido
+   "quemado"/fantasma en el primer render (modo claro). Sin él, el glass se logra
+   con el fondo translúcido + el blur del video detrás, y es estable. */
+.cc-lvl-top{background:rgba(255,255,255,.82);border-color:rgba(255,255,255,.92);
+  box-shadow:0 10px 34px rgba(0,0,0,.1);}
+.cc-dark .cc-lvl-top{background:rgba(44,46,52,.82);border-color:rgba(255,255,255,.14);
+  box-shadow:0 10px 34px rgba(0,0,0,.34);}
 /* Nivel medio: glass estándar. */
-.cc-lvl-mid{background:rgba(255,255,255,.6);border-color:rgba(255,255,255,.75);box-shadow:0 4px 18px rgba(0,0,0,.05);}
-.cc-dark .cc-lvl-mid{background:rgba(38,40,46,.5);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+.cc-lvl-mid{background:rgba(255,255,255,.68);border-color:rgba(255,255,255,.8);box-shadow:0 4px 18px rgba(0,0,0,.05);}
+.cc-dark .cc-lvl-mid{background:rgba(38,40,46,.62);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 /* Nivel tenue: glass sutil, casi fundido con el fondo. */
 .cc-lvl-faint{background:rgba(255,255,255,.42);border-color:rgba(255,255,255,.5);box-shadow:none;}
 .cc-dark .cc-lvl-faint{background:rgba(38,40,46,.32);border-color:rgba(255,255,255,.07);box-shadow:none;}
@@ -524,7 +524,6 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 /* ============== TARJETAS DE CUENTAS ============== */
 .cc-acc-card{cursor:pointer;
   border:1px solid var(--glass-border);background:var(--glass);
-  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border-radius:18px;padding:13px 14px;min-width:148px;text-align:left;
   position:relative;overflow:hidden;
   transition:all .2s ease;}
