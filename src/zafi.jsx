@@ -742,16 +742,17 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-sheet-close:hover{background:var(--surface-2);color:var(--ink);}
 
 /* monto grande centrado — estilo "Nueva transacción" */
-.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:8px;
+.cc-amount-display{display:flex;align-items:baseline;justify-content:center;gap:0;
   padding:18px 0;margin-bottom:6px;width:100%;}
-.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:20px;font-weight:500;color:var(--ink-soft);opacity:.4;flex-shrink:0;margin-right:2px;}
-.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:14px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;margin-left:6px;}
+.cc-amount-display .cc-amount-currency{font-family:'Fraunces',serif;font-size:22px;font-weight:500;color:var(--ink-soft);opacity:.4;flex-shrink:0;margin-right:3px;align-self:center;}
+.cc-amount-display .cc-amount-mxn{font-family:'Montserrat',sans-serif;font-size:14px;font-weight:300;color:var(--ink-faint);flex-shrink:0;align-self:center;margin-left:7px;}
 /* "00" gris que aparece después del número cuando no hay punto */
 .cc-amount-decimal-hint{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   color:var(--ink);opacity:.25;pointer-events:none;font-feature-settings:"tnum";flex-shrink:0;}
 .cc-amount-display input{font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-.02em;
   text-align:left;color:var(--ink);background:transparent;border:none;outline:none;
-  width:auto;max-width:240px;min-width:30px;font-feature-settings:"tnum";
+  width:auto;max-width:240px;min-width:18px;font-feature-settings:"tnum";
+  padding:0;margin:0;
   -moz-appearance:textfield;appearance:textfield;}
 .cc-amount-display input:placeholder-shown ~ .cc-amount-currency{color:var(--ink-faint);opacity:.5;}
 .cc-amount-display input::-webkit-outer-spin-button,
@@ -16203,8 +16204,8 @@ function MonetaryInput({ value, onChange, placeholder = "0", currencyCode = "mxn
   };
   return (
     <div className="cc-amount-display" onClick={focusInput} style={{ cursor: "text" }}>
+      <span className="cc-amount-currency">$</span>
       <span style={{ display: "inline-flex", alignItems: "baseline", position: "relative" }}>
-        <span className="cc-amount-currency">$</span>
         <span ref={mirrorRef} aria-hidden="true"
           style={{
             position: "absolute", visibility: "hidden", whiteSpace: "pre",
