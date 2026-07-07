@@ -335,6 +335,7 @@ body{
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
 .cc-dark .cc-lvl-faint{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.05);box-shadow:none;}
+.cc-lvl-wrapper{display:block;}
 .cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:16px;box-shadow:var(--shadow-sm);}
@@ -10882,7 +10883,7 @@ function ScorePillIndicator({ targetScore, dark }) {
   );
 }
 
-function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, dataLoaded = true }) {
+function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, dataLoaded = true, className = "" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -11295,7 +11296,7 @@ INSTRUCCIONES CRÍTICAS:
   };
 
   return (
-    <div ref={cardRef} className="cc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
+    <div ref={cardRef} className={`cc-card ${className}`} style={{ padding: 0, overflow: "hidden", position: "relative" }}>
       {/* Header — solo título (siempre modo pill) */}
       <div style={{ padding: "16px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
@@ -11335,7 +11336,7 @@ INSTRUCCIONES CRÍTICAS:
 }
 
 /* ===== Tarjeta de consejos financieros con IA (Pro) ===================== */
-function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false }) {
+function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpenAccountsModal, onOpenCatsModal, demoMode = false, className = "" }) {
   const [tips, setTips] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -11522,7 +11523,7 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
   const tipAccentLight = "#FAC775";
 
   return (
-    <div className="cc-card" style={{
+    <div className={`cc-card ${className}`} style={{
       padding: 0, overflow: "hidden", position: "relative",
       // Fondo con gradiente radial ámbar sutil (a juego con el foco/iluminación de un tip)
       background: dark
@@ -12098,19 +12099,20 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
     return days;
   })();
 
+  const heroAction = isHero && !doneToday;
   return (
-    <div className={`cc-card cc-lvl-self ${isHero && !doneToday ? "cc-sheen" : ""}`} style={{
-      padding: isHero && !doneToday ? 20 : 16,
+    <div className={`cc-card ${heroAction ? "cc-lvl-self cc-sheen" : doneToday ? "cc-lvl-self" : ""}`} style={{
+      padding: heroAction ? 20 : 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
-        : isHero
+        : heroAction
           ? "linear-gradient(140deg, #E8920F, #C4700A)"
-          : "linear-gradient(135deg, rgba(245,160,40,.14), rgba(245,120,40,.06))",
-      border: `1px solid ${doneToday ? "rgba(60,190,96,.25)" : isHero ? "transparent" : "rgba(245,140,40,.22)"}`,
-      boxShadow: isHero && !doneToday ? "0 8px 30px rgba(230,140,20,.28)" : undefined,
+          : undefined,
+      border: doneToday ? "1px solid rgba(60,190,96,.25)" : heroAction ? "1px solid transparent" : undefined,
+      boxShadow: heroAction ? "0 8px 30px rgba(230,140,20,.28)" : undefined,
     }}>
       <div className="cc-label" style={{ margin: 0, marginBottom: 12,
-        color: doneToday ? "#2A8A40" : isHero ? "rgba(255,255,255,.85)" : "#C47000" }}>
+        color: doneToday ? "#2A8A40" : heroAction ? "rgba(255,255,255,.85)" : "#C47000" }}>
         {doneToday ? "✓ Acción de hoy" : "⚡ Acción de hoy"}
       </div>
 
@@ -12129,13 +12131,13 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
         </div>
       ) : (
         <>
-          <div style={{ fontSize: isHero ? 17 : 14.5, fontWeight: 600, color: isHero ? "#fff" : ink,
+          <div style={{ fontSize: heroAction ? 17 : 14.5, fontWeight: 600, color: heroAction ? "#fff" : ink,
             lineHeight: 1.45, marginBottom: 14, fontFamily: FONT }}>
             {loadingAi ? "Generando tu acción del día…" : actionText}
           </div>
           <button onClick={markDone}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: isHero ? "#C4700A" : "#fff", background: isHero ? "#fff" : "#E08010",
+              color: heroAction ? "#C4700A" : "#fff", background: heroAction ? "#fff" : "#E08010",
               padding: "10px 18px", borderRadius: 11, border: "none",
               cursor: "pointer", fontFamily: FONT }}>
             ✓ Marcar como hecho
@@ -13315,7 +13317,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               Colapsar ▲
             </button>
           ) : null;
-          return <div key={s.id}><OpportunitiesCard config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />{oppCollapsible}</div>;
+          return <div key={s.id} className="cc-lvl-wrapper"><OpportunitiesCard config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} className={lvlClass} />{oppCollapsible}</div>;
         }
 
         if (s.id === "dailyAction") {
@@ -13380,8 +13382,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             </button>
           ) : null;
           return (
-            <div key={s.id}>
-              <GoalsCard config={config} saveConfig={saveConfig}
+            <div key={s.id} className="cc-lvl-wrapper">
+              <GoalsCard config={config} saveConfig={saveConfig} className={lvlClass}
                 monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
                 accView={accView} accounts={config.accounts || []} mode="goals" />
               {goalsCollapsible}
@@ -13412,8 +13414,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             </button>
           ) : null;
           return (
-            <div key={s.id}>
-              <GoalsCard config={config} saveConfig={saveConfig}
+            <div key={s.id} className="cc-lvl-wrapper">
+              <GoalsCard config={config} saveConfig={saveConfig} className={lvlClass}
                 monthlyExpenses={exp} monthlyIncome={inc} currentSavings={Math.max(0, inc - exp)} dark={dark}
                 accView={accView} accounts={config.accounts || []} mode="debts" />
               {debtsCollapsible}
