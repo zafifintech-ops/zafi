@@ -11713,6 +11713,8 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: `Gastas ${deficitPct}% más de lo que ganas`,
       detail: `Tu déficit es de ${fmtMxn(Math.abs(flujoNeto))} este periodo. Revisa tus gastos más grandes y busca dónde recortar cuanto antes.`,
       save: Math.abs(flujoNeto),
+      saveIsEstimate: false, // es un dato real: el déficit exacto del periodo
+      why: `Este número es exacto, no una estimación: es la diferencia entre lo que ganaste (${fmtMxn(inc)}) y lo que gastaste (${fmtMxn(exp)}) este periodo.\n\nUn déficit sostenido significa que estás consumiendo ahorros o sumando deuda para cubrir el día a día. Cerrarlo es la prioridad #1 de cualquier salud financiera: mientras exista, cualquier meta de ahorro o inversión se construye sobre terreno inestable.\n\nEl camino más rápido no es ganar más (eso toma tiempo), sino identificar 2 o 3 gastos grandes y recortarlos hoy. Pequeños ajustes sostenidos cierran la brecha más rápido de lo que parece.`,
     });
   }
 
@@ -11727,11 +11729,14 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
   if (topCat && exp > 0) {
     const catPct = Math.round((topCat[1] / exp) * 100);
     if (catPct >= 40) {
+      const estSave = Math.round(topCat[1] * 0.1); // estimación conservadora (10%)
       opps.push({
         id: `topcat_${topCat[0]}`, icon: "📊", tone: "amber",
         title: `${topCat[0]} es el ${catPct}% de tus gastos`,
         detail: `Gastaste ${fmtMxn(topCat[1])} en ${topCat[0]}. Es tu mayor salida — revisa si puedes reducirla.`,
-        save: Math.round(topCat[1] * 0.15),
+        save: estSave,
+        saveIsEstimate: true, // es una estimación, no un dato duro
+        why: `Este ${fmtMxn(estSave)} es una estimación, no un dato exacto: asume que podrías recortar un 10% de lo que gastas en ${topCat[0]} (${fmtMxn(topCat[1])}) sin afectar tu calidad de vida.\n\n¿Por qué el 10%? Cuando una sola categoría concentra el ${catPct}% de tus gastos, casi siempre hay margen: compras por impulso, versiones más caras de lo necesario, o gastos repetidos que pasan desapercibidos. El 10% es un objetivo conservador y alcanzable — no te pide sacrificarte, solo estar atento.\n\nLo importante no es el número exacto, sino el hábito: al ser tu mayor salida, cada peso que optimizas aquí rinde más que en cualquier otra categoría. Empieza revisando tus 3 compras más grandes en ${topCat[0]} este periodo.`,
       });
     }
   }
@@ -11751,6 +11756,8 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: `${subs.length} ${subs.length === 1 ? "cargo recurrente" : "cargos recurrentes"} detectados`,
       detail: `${subs.map((g) => g[0].description || "Sin nombre").slice(0, 3).join(", ")} por ${fmtMxn(totalSubs)}. Revisa si los usas todos.`,
       save: totalSubs,
+      saveIsEstimate: false, // suma real de los cargos recurrentes detectados
+      why: `Este ${fmtMxn(totalSubs)} es real: es la suma de los cargos que se repiten con el mismo monto y nombre, señal de suscripciones o servicios recurrentes.\n\nLas suscripciones son la fuga silenciosa más común: se cobran solas, dejas de usarlas pero las sigues pagando mes con mes. Un servicio de $199 que no usas son casi $2,400 al año que podrías dirigir a tu meta.\n\nEs de las oportunidades más fáciles de capturar: no requiere disciplina diaria, solo una decisión única de cancelar lo que no aprovechas. Revisa la lista y pregúntate honestamente cuál usaste de verdad este mes.`,
     });
   }
 
@@ -11763,6 +11770,8 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Gastos hormiga",
       detail: `${smallTxs.length} compras pequeñas suman ${fmtMxn(totalSmall)} este periodo.`,
       save: Math.round(totalSmall * 0.5),
+      saveIsEstimate: true, // estimación: asume recortar la mitad de los gastos hormiga
+      why: `Este ${fmtMxn(Math.round(totalSmall * 0.5))} es una estimación: asume que podrías evitar la mitad de tus ${smallTxs.length} compras pequeñas (que juntas suman ${fmtMxn(totalSmall)}).\n\nLos gastos hormiga engañan porque cada uno se siente insignificante — un café, un antojo, un envío. Pero al sumarlos revelan un patrón: son ${smallTxs.length} decisiones pequeñas que, juntas, pesan tanto como un gasto grande.\n\n¿Por qué la mitad? No se trata de eliminarlos todos (algunos valen la pena), sino de volverte consciente. Estudios de comportamiento muestran que solo con registrar y ver estos gastos, la gente reduce naturalmente cerca de la mitad. El simple hecho de notarlos ya cambia la conducta.`,
     });
   }
 
@@ -11796,6 +11805,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Tienes dinero que podría crecer",
       detail: `Ahorras ${fmtMxn(flujo)} al periodo sin invertirlo. Ese dinero podría generar rendimientos.`,
       action: "invest",
+      why: `Ahorrar es el primer paso, pero el dinero quieto pierde valor: con la inflación, ${fmtMxn(flujo)} guardados bajo el colchón valen menos cada año.\n\nLo bueno de tu situación es que ya tienes el hábito de generar excedente (ahorras el ${Math.round((flujo/inc)*100)}% de tus ingresos). Ese es el paso difícil. Falta ponerlo a trabajar.\n\nInstrumentos de bajo riesgo como CETES o un fondo de inversión pueden dar rendimientos que al menos igualen la inflación, protegiendo tu poder de compra. No necesitas ser experto ni arriesgar: solo dejar de perder valor con el tiempo. Considera empezar con una parte pequeña para tomar confianza.`,
     });
   }
 
@@ -11806,6 +11816,7 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
       title: "Adelanta tu meta",
       detail: `Tienes ${fmtMxn(flujo)} de flujo positivo. Abónalo a tu meta y llega antes.`,
       action: "goal",
+      why: `Tienes ${fmtMxn(flujo)} de excedente este periodo. Cada peso que abones de más a tu meta la acerca — no de forma lineal, sino acelerada.\n\nEl motivo es psicológico y práctico: cuando ves tu meta avanzar más rápido de lo esperado, es más probable que sigas aportando (el progreso engancha). Y entre más pronto la cumplas, antes puedes empezar la siguiente.\n\nNo tiene que ser todo el excedente. Incluso abonar una parte hoy, mientras tienes el dinero disponible y la intención fresca, evita que se diluya en gastos pequeños durante el mes.`,
     });
   }
 
@@ -11821,7 +11832,9 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
         title: `Tu deuda "${worst.name}" te cuesta cara`,
         detail: `Con ${worst.rate}% de interés, pagas ~${fmtMxn(Math.round(monthlyInterest))}/mes en intereses. Abonar extra aquí te ahorra más que ahorrar.`,
         save: Math.round(monthlyInterest),
+        saveIsEstimate: false, // interés mensual real según saldo y tasa
         action: "debt",
+        why: `Este ${fmtMxn(Math.round(monthlyInterest))} es real: es lo que pagas cada mes SOLO en intereses, calculado con el saldo y la tasa de ${worst.rate}% de tus deudas. Ese dinero no reduce lo que debes — se lo lleva el banco.\n\nPor eso abonar a una deuda cara rinde más que ahorrar: si un ahorro te da 10% al año pero tu deuda cobra ${worst.rate}%, cada peso que abonas a la deuda te "gana" ${worst.rate}% garantizado. Es la mejor inversión posible, sin riesgo.\n\nLa estrategia más eficiente es atacar primero la deuda de mayor tasa (esta), aunque no sea la más grande. Cada abono extra reduce el saldo sobre el que se calcula el interés, así que el efecto se acelera mes con mes.`,
       });
     } else if (flujo > 0 && monthlyInterest > 0) {
       opps.push({
@@ -11898,6 +11911,7 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+  const [detailOpp, setDetailOpp] = useState(null); // oportunidad con detalle abierto
 
   const markResolved = (oppId) => {
     const resolved = { ...(config.resolvedOpportunities || {}), [oppId]: Date.now() };
@@ -11932,11 +11946,20 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
     );
   }
 
-  const totalSave = opportunities.reduce((s, o) => s + (o.save || 0), 0);
+  // El ahorro "detectado" de arriba: sumamos por separado lo REAL y lo ESTIMADO
+  // para ser honestos. El número grande muestra el total, pero aclaramos si
+  // incluye estimaciones.
+  const realSave = opportunities.reduce((s, o) => s + ((o.save && !o.saveIsEstimate) ? o.save : 0), 0);
+  const estSave = opportunities.reduce((s, o) => s + ((o.save && o.saveIsEstimate) ? o.save : 0), 0);
+  const totalSave = realSave + estSave;
+  const hasEstimate = estSave > 0;
 
   const toneBg = {
     red: "rgba(226,53,53,.12)", amber: "rgba(230,140,20,.12)",
     green: "rgba(60,190,96,.12)", blue: "rgba(30,111,224,.12)",
+  };
+  const toneColor = {
+    red: "#D42F2F", amber: "#C47000", green: "#2A9048", blue: "#1E6FE0",
   };
 
   return (
@@ -11950,39 +11973,105 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
       {totalSave > 0 && (
         <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
           <div style={{ fontSize: 10.5, color: inkFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
-            Ahorro potencial detectado
+            Ahorro potencial {hasEstimate ? "estimado" : "detectado"}
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, margin: "3px 0 2px", fontFamily: FONT, color: "#2A9048" }}>
-            {fmtMxn(totalSave)}
+            {hasEstimate ? "~" : ""}{fmtMxn(totalSave)}
           </div>
           <div style={{ fontSize: 12, color: inkSoft, fontFamily: FONT }}>
-            Si aplicas las oportunidades de abajo
+            Toca cada oportunidad para ver el porqué
           </div>
         </div>
       )}
 
       <div>
         {opportunities.map((o, i) => (
-          <div key={o.id || i} style={{ display: "flex", gap: 12, padding: "12px 0",
-            borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
-            paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
+          <button key={o.id || i}
+            onClick={() => o.why && setDetailOpp(o)}
+            style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: o.why ? "pointer" : "default",
+              display: "flex", gap: 12, padding: "12px 0", fontFamily: FONT,
+              borderBottom: i < opportunities.length - 1 ? `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"}` : "none",
+              paddingTop: i === 0 ? 0 : 12, paddingBottom: i === opportunities.length - 1 ? 0 : 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: toneBg[o.tone] || toneBg.blue,
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <OppIcon id={o.id} tone={o.tone} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, lineHeight: 1.4, fontFamily: FONT }}>{o.title}</div>
               <div style={{ fontSize: 12, color: inkSoft, marginTop: 3, lineHeight: 1.45, fontFamily: FONT }}>{o.detail}</div>
               {o.save > 0 && (
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#3CBE60", marginTop: 5, fontFamily: FONT }}>
-                  Ahorro posible: {fmtMxn(o.save)}
+                  Ahorro {o.saveIsEstimate ? "estimado" : "posible"}: {o.saveIsEstimate ? "~" : ""}{fmtMxn(o.save)}
                 </div>
               )}
             </div>
-          </div>
+            {o.why && (
+              <div style={{ display: "flex", alignItems: "center", flexShrink: 0, alignSelf: "center",
+                color: dark ? "rgba(255,255,255,.3)" : "rgba(0,0,0,.25)" }}>
+                <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </div>
+            )}
+          </button>
         ))}
       </div>
+
+      {/* Hoja de detalle: el "porqué" que convence */}
+      {detailOpp && (
+        <OpportunityDetailSheet opp={detailOpp} dark={dark} toneColor={toneColor} toneBg={toneBg} onClose={() => setDetailOpp(null)} />
+      )}
     </div>
+  );
+}
+
+// Hoja inferior con la explicación detallada de una oportunidad — el "porqué"
+// que da contexto, transparencia sobre el cálculo, y motiva a actuar.
+function OpportunityDetailSheet({ opp, dark, toneColor, toneBg, onClose }) {
+  const FONT = "'Montserrat', sans-serif";
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.65)" : "#5A6472";
+  const [closing, close] = useSheetClose(onClose);
+  const color = toneColor[opp.tone] || "#1E6FE0";
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "82vh", overflowY: "auto" }}>
+        <div className="cc-grip" />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 13, background: toneBg[opp.tone] || "rgba(30,111,224,.12)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <OppIcon id={opp.id} tone={opp.tone} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 500, color: ink, lineHeight: 1.25 }}>{opp.title}</div>
+          </div>
+          <button className="cc-sheet-close" onClick={close}>×</button>
+        </div>
+
+        {opp.save > 0 && (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "12px 14px", borderRadius: 14,
+            background: toneBg[opp.tone] || "rgba(60,190,96,.1)", marginBottom: 16 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: FONT }}>
+              {opp.saveIsEstimate ? "~" : ""}{fmtMxn(opp.save)}
+            </div>
+            <div style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT }}>
+              {opp.saveIsEstimate ? "ahorro estimado" : "ahorro real"}
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize: 14, color: ink, lineHeight: 1.6, fontFamily: FONT, whiteSpace: "pre-line", marginBottom: 20 }}>
+          {opp.why}
+        </div>
+
+        <button onClick={close}
+          style={{ width: "100%", padding: 14, borderRadius: 13, border: "none", background: color, color: "#fff",
+            fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          Entendido
+        </button>
+      </div>
+    </div>,
+    document.body
   );
 }
 
