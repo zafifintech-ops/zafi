@@ -1464,6 +1464,20 @@ function setPersonalize(config, key, value, accView) {
   };
 }
 
+// Devuelve el ritmo de ahorro de una meta en la FRECUENCIA que el usuario eligió
+// al crearla (semana/quincena/mes). g.monthly siempre está en base mensual;
+// aquí lo convertimos y damos la etiqueta correcta. "variable" → semanal por defecto.
+function goalPaceText(goal) {
+  const monthly = goal?.monthly || 0;
+  if (monthly <= 0) return "";
+  const freq = goal?.selections?.freq || "mensual";
+  const DIV = { semanal: 4.33, quincenal: 2, mensual: 1, variable: 4.33 };
+  const LBL = { semanal: "/semana", quincenal: "/quincena", mensual: "/mes", variable: "/semana" };
+  const div = DIV[freq] || 1;
+  const perPeriod = Math.round(monthly / div);
+  return `${fmtMxn(perPeriod)}${LBL[freq] || "/mes"}`;
+}
+
 function accountBalance(config, txs, accId) {
   const acc = config.accounts.find((a) => a.id === accId);
   const init = acc ? acc.initialBalance || 0 : 0;
@@ -6444,19 +6458,44 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
                 <div style={{ fontFamily: "'Fraunces', serif", fontSize: 25, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.15 }}>
                   ¿En cuánto tiempo lo juntas?
                 </div>
-                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 8, lineHeight: 1.5, fontFamily: FONT }}>
-                  Meta: {fmtMxn(wizTarget)}{wizAlreadyNum > 0 ? ` · te faltan ${fmtMxn(wizRemaining)}` : ""}.
+                <p style={{ fontSize: 13, color: inkSoft, marginBottom: 16, lineHeight: 1.5, fontFamily: FONT }}>
+                  Primero dime si ya llevas algo — así calculo sobre lo que te falta.
                 </p>
 
-                {/* ¿Ya tienes algo? */}
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>¿Ya tienes algo ahorrado? (opcional)</label>
+                {/* ¿Ya tienes algo? — destacado, ANTES de los planes */}
+                <div style={{ background: dark ? "rgba(255,255,255,.04)" : "rgba(30,111,224,.04)",
+                  border: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(30,111,224,.12)"}`,
+                  borderRadius: 14, padding: 14, marginBottom: 14 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                    ¿Ya tienes algo ahorrado para esto?
+                  </label>
                   <input value={wizAlready ? `$${Number(String(wizAlready).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
                     onChange={(e) => setWizAlready(e.target.value.replace(/[^\d]/g, ""))}
-                    inputMode="numeric" placeholder="$0"
-                    style={{ width: "100%", padding: "11px 13px", borderRadius: 10,
-                      border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
-                      background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
+                    inputMode="numeric" placeholder="$0 — empiezo desde cero"
+                    style={{ width: "100%", padding: "12px 13px", borderRadius: 10,
+                      border: `1px solid ${wizAlready ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                      background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none", boxSizing: "border-box" }} />
+                  {/* Resumen del cálculo */}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontSize: 12.5, fontFamily: FONT }}>
+                    <span style={{ color: inkSoft }}>Meta</span>
+                    <span style={{ color: ink, fontWeight: 600 }}>{fmtMxn(wizTarget)}</span>
+                  </div>
+                  {wizAlreadyNum > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, fontSize: 12.5, fontFamily: FONT }}>
+                      <span style={{ color: inkSoft }}>Ya llevas</span>
+                      <span style={{ color: "#2A9048", fontWeight: 600 }}>− {fmtMxn(wizAlreadyNum)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, paddingTop: 8,
+                    borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}`, fontSize: 13.5, fontFamily: FONT }}>
+                    <span style={{ color: ink, fontWeight: 600 }}>Te falta juntar</span>
+                    <span style={{ color: "#1E6FE0", fontWeight: 700 }}>{fmtMxn(wizRemaining)}</span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 12, fontWeight: 600, color: inkFaint, textTransform: "uppercase",
+                  letterSpacing: ".05em", marginBottom: 10, fontFamily: FONT }}>
+                  Elige tu ritmo
                 </div>
 
                 {wizPlans.map((p) => {
@@ -13037,7 +13076,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8 }}>
                 <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-.02em", color: "#1E6FE0", fontFamily: FONT }}>{mpct}%</div>
                 <div style={{ fontSize: 12, color: inkSoft, textAlign: "right", fontFamily: FONT, lineHeight: 1.4 }}>
-                  {mpct >= 100 ? "¡Meta lograda!" : <>Faltan {mmonths} {mmonths === 1 ? "mes" : "meses"}<br />{fmtMxn(main.monthly)}/mes</>}
+                  {mpct >= 100 ? "¡Meta lograda!" : <>Faltan {mmonths} {mmonths === 1 ? "mes" : "meses"}<br />{goalPaceText(main)}</>}
                 </div>
               </div>
 
@@ -13062,7 +13101,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: ink, fontFamily: FONT }}>{g.name}</div>
                           <div style={{ fontSize: 12, color: inkFaint, fontFamily: FONT }}>
-                            {fmtMxn(g.saved)} de {fmtMxn(g.target)}{g.monthly > 0 ? ` · ${fmtMxn(g.monthly)}/mes` : ""}
+                            {fmtMxn(g.saved)} de {fmtMxn(g.target)}{g.monthly > 0 ? ` · ${goalPaceText(g)}` : ""}
                           </div>
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: "#1E6FE0", fontFamily: FONT }}>{gp}%</div>
@@ -13140,7 +13179,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 11, color: inkSoft, fontFamily: FONT }}>
-                    {pct >= 100 ? "¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${fmtMxn(g.monthly)}/mes`}
+                    {pct >= 100 ? "¡Meta lograda!" : `Faltan ${monthsLeft} ${monthsLeft === 1 ? "mes" : "meses"} · ${goalPaceText(g)}`}
                   </div>
                   {/* Botón para abonar/retirar (modo manual/dedicated) */}
                   {g.trackingMode !== "linked" && (
