@@ -311,12 +311,12 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
-.cc-lvl-top{background:rgba(255,255,255,.92);border-color:rgba(30,111,224,.25);box-shadow:0 6px 26px rgba(30,111,224,.10);}
-.cc-dark .cc-lvl-top{background:rgba(255,255,255,.10);border-color:rgba(91,155,255,.28);box-shadow:0 6px 26px rgba(0,0,0,.28);}
-.cc-lvl-mid{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.9);box-shadow:0 4px 20px rgba(0,0,0,.06);}
-.cc-dark .cc-lvl-mid{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);box-shadow:0 4px 20px rgba(0,0,0,.2);}
-.cc-lvl-faint{background:rgba(255,255,255,.4);border-color:rgba(255,255,255,.5);box-shadow:none;}
-.cc-dark .cc-lvl-faint{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.06);box-shadow:none;}
+.cc-lvl-top{background:#FFFFFF;border-color:rgba(30,111,224,.3);box-shadow:0 8px 30px rgba(30,111,224,.14);}
+.cc-dark .cc-lvl-top{background:rgba(255,255,255,.13);border-color:rgba(91,155,255,.35);box-shadow:0 8px 30px rgba(0,0,0,.35);}
+.cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
+.cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+.cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
+.cc-dark .cc-lvl-faint{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.05);box-shadow:none;}
 .cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:16px;box-shadow:var(--shadow-sm);}
@@ -9966,18 +9966,30 @@ const HOME_SECTION_PLANS = {
 // - Modo mejora (45-65): balance entre claridad y motivación.
 // - Modo crecimiento (score > 65): primero motivación → saldo/metas arriba,
 //   calificación como refuerzo.
-function adaptiveSectionOrder(score, allSections) {
+function adaptiveSectionOrder(score, allSections, ctx = {}) {
+  const { hasDebt = false, hasDeficit = false } = ctx;
   const byId = (id) => allSections.find((s) => s.id === id);
   let order;
   if (score < 45) {
-    // Rescate: acción, deudas (lo más urgente si las hay), oportunidades, claridad
-    order = ["dailyAction", "debts", "opportunities", "financialScore", "financialTips", "balance", "goals"];
+    // Rescate: lo urgente primero. Si hay déficit, oportunidades (que lo detectan)
+    // y acción suben; deudas solo sube si realmente hay deudas.
+    if (hasDeficit) {
+      order = ["opportunities", "dailyAction", "financialScore", "financialTips", "balance", "debts", "goals"];
+    } else if (hasDebt) {
+      order = ["debts", "dailyAction", "opportunities", "financialScore", "financialTips", "balance", "goals"];
+    } else {
+      order = ["dailyAction", "opportunities", "financialScore", "financialTips", "balance", "goals", "debts"];
+    }
   } else if (score < 65) {
-    // Mejora: acción, deudas, oportunidades, luego metas
-    order = ["dailyAction", "debts", "opportunities", "financialScore", "goals", "balance", "financialTips"];
+    // Mejora
+    if (hasDebt) {
+      order = ["dailyAction", "debts", "opportunities", "financialScore", "goals", "balance", "financialTips"];
+    } else {
+      order = ["dailyAction", "opportunities", "financialScore", "goals", "balance", "financialTips", "debts"];
+    }
   } else {
-    // Crecimiento: motivación primero → metas arriba, deudas más abajo
-    order = ["goals", "dailyAction", "balance", "opportunities", "debts", "financialScore", "financialTips"];
+    // Crecimiento: motivación primero → metas arriba, deudas al final (probablemente vacío)
+    order = ["goals", "dailyAction", "balance", "opportunities", "financialScore", "financialTips", "debts"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -10789,79 +10801,71 @@ function ScorePillIndicator({ targetScore, dark }) {
   const sTarget = getState(targetScore);
   const fillPct = (displayed / 100) * 100;
 
-  // El número está sobre el fill cuando pct > ~14
-  // El texto derecho está sobre el fill cuando pct > ~84
-  const numOnFill   = fillPct > 14;
-  const rightOnFill = fillPct > 84;
-  const numCol   = numOnFill   ? "#fff" : (dark ? "rgba(255,255,255,0.85)" : "#1a1a1a");
-  const rightCol = rightOnFill ? "rgba(255,255,255,0.92)" : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)");
-
   return (
-    <div style={{ position: "relative", height: 64, borderRadius: 32 }}>
-      {/* Sombra discreta — sin glow de color */}
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 32,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08)",
-        pointerEvents: "none", zIndex: 0,
-      }} />
-      {/* Track */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: 32,
-        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.055)",
-        overflow: "hidden", zIndex: 1,
-      }}>
-        {/* Fill — anima desde 0% */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, bottom: 0,
-          width: `${fillPct}%`,
-          borderRadius: 32,
-          background: sTarget.grad,
-          transition: "width .9s cubic-bezier(.34,1.2,.64,1), background .5s ease",
-          overflow: "hidden",
-        }}>
-          {/* Reflejo glass */}
+    <div>
+      {/* Número grande + label arriba */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
           <div style={{
-            position: "absolute", top: 0, left: 0, right: 0, height: "50%",
-            borderRadius: "32px 32px 50% 50%",
-            background: "linear-gradient(to bottom, rgba(255,255,255,0.18), transparent)",
-          }} />
+            fontSize: 46, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1,
+            fontFamily: "'Montserrat', sans-serif",
+            background: sTarget.grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            opacity: animated ? 1 : 0,
+            transform: animated ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
+          }}>
+            {pct}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: dark ? "rgba(245,245,247,.4)" : "rgba(0,0,0,.35)",
+            fontFamily: "'Montserrat', sans-serif" }}>/100</div>
+        </div>
+        <div style={{
+          fontSize: 14, fontWeight: 700, fontFamily: "'Montserrat', sans-serif",
+          padding: "5px 12px", borderRadius: 20,
+          background: sTarget.grad, color: "#fff",
+          opacity: animated ? 1 : 0,
+          transition: "opacity .5s ease .45s",
+        }}>
+          {sTarget.label}
         </div>
       </div>
-      {/* Texto */}
-      <div style={{
-        position: "absolute", inset: 0, zIndex: 2,
-        display: "flex", alignItems: "center",
-        padding: "0 20px", justifyContent: "space-between",
-        pointerEvents: "none",
-      }}>
-        <div style={{
-          fontSize: 31, fontWeight: 700, letterSpacing: "-.03em",
-          lineHeight: 1, color: numCol, transition: "color .3s ease",
-          fontFamily: "'Montserrat', sans-serif",
-          // Fade+slide desde abajo al montar
-          opacity: animated ? 1 : 0,
-          transform: animated ? "translateY(0)" : "translateY(6px)",
-          transition: "color .3s ease, opacity .5s ease .3s, transform .5s cubic-bezier(.34,1.4,.64,1) .3s",
-        }}>
-          {pct}
-        </div>
-        <div style={{
-          textAlign: "right",
-          opacity: animated ? 1 : 0,
-          transform: animated ? "translateY(0)" : "translateY(4px)",
-          transition: "opacity .5s ease .45s, transform .5s cubic-bezier(.34,1.4,.64,1) .45s",
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: rightCol,
-            transition: "color .3s ease", fontFamily: "'Montserrat', sans-serif",
+
+      {/* Barra medidor */}
+      <div style={{ position: "relative", height: 14, borderRadius: 8 }}>
+        {/* Track */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 8,
+          background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
+          {/* Fill */}
+          <div style={{
+            position: "absolute", top: 0, left: 0, bottom: 0,
+            width: `${fillPct}%`, borderRadius: 8,
+            background: sTarget.grad,
+            transition: "width .9s cubic-bezier(.34,1.2,.64,1), background .5s ease",
           }}>
-            {sTarget.label}
-          </div>
-          <div style={{ fontSize: 9.5, fontWeight: 400, color: rightCol,
-            transition: "color .3s ease", marginTop: 2, opacity: .7,
-            fontFamily: "'Montserrat', sans-serif",
-          }}>
-            de 100
+            <div style={{
+              position: "absolute", top: 0, left: 0, right: 0, height: "45%",
+              borderRadius: "8px 8px 40% 40%",
+              background: "linear-gradient(to bottom, rgba(255,255,255,0.25), transparent)",
+            }} />
           </div>
         </div>
+        {/* Marcadores de umbral (45, 65, 80) */}
+        {[45, 65, 80].map((mark) => (
+          <div key={mark} style={{
+            position: "absolute", top: -3, bottom: -3, left: `${mark}%`, width: 2,
+            background: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", borderRadius: 2,
+          }} />
+        ))}
+      </div>
+
+      {/* Etiquetas de tramos */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 9.5,
+        color: dark ? "rgba(245,245,247,.35)" : "rgba(0,0,0,.32)", fontFamily: "'Montserrat', sans-serif", fontWeight: 500 }}>
+        <span>Atención</span>
+        <span>Regular</span>
+        <span>Bueno</span>
+        <span>Excelente</span>
       </div>
     </div>
   );
@@ -11276,32 +11280,13 @@ INSTRUCCIONES CRÍTICAS:
 
   return (
     <div ref={cardRef} className="cc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
-      {/* Header con selector de estilo */}
+      {/* Header — solo título (siempre modo pill) */}
       <div style={{ padding: "16px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="cc-label" style={{ marginBottom: 0 }}>Calificación financiera</div>
-        {/* Selector — dos opciones de texto, sin emoji */}
-        <div style={{ display: "flex", gap: 2, background: dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-          borderRadius: 10, padding: 3,
-        }}>
-          {[["donut", "Donut"], ["pill", "Pill"]].map(([key, label]) => {
-            const active = scoreStyle === key;
-            return (
-            <button key={key} onClick={() => setStyle(key)} style={{
-              background: active ? (dark ? "rgba(255,255,255,0.16)" : "#fff") : "none",
-              border: "none", cursor: "pointer", borderRadius: 8,
-              padding: "3px 10px", fontSize: 11, fontWeight: 600,
-              color: active ? (dark ? "#fff" : "var(--ink)") : "var(--ink-soft)",
-              transition: "all .2s ease",
-              boxShadow: active ? (dark ? "none" : "0 1px 4px rgba(0,0,0,0.10)") : "none",
-            }}>
-              {label}
-            </button>
-          )})}
-        </div>
       </div>
 
       {/* Indicador */}
-      {scoreStyle === "donut" ? (
+      {false ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 20px 4px" }}>
           <ScoreCanvasIndicator targetScore={data.score} inView={inView} dark={dark} />
         </div>
@@ -11666,6 +11651,38 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
     return acc === "general" || acc === accView;
   };
 
+  // 0. DÉFICIT — gastas más de lo que ingresas (lo más crítico)
+  const flujoNeto = inc - exp;
+  if (inc > 0 && flujoNeto < 0) {
+    const deficitPct = Math.round((Math.abs(flujoNeto) / inc) * 100);
+    opps.push({
+      id: "deficit", icon: "⚠️", tone: "red",
+      title: `Gastas ${deficitPct}% más de lo que ganas`,
+      detail: `Tu déficit es de ${fmtMxn(Math.abs(flujoNeto))} este periodo. Revisa tus gastos más grandes y busca dónde recortar cuanto antes.`,
+      save: Math.abs(flujoNeto),
+    });
+  }
+
+  // 0b. CATEGORÍA DOMINANTE — una categoría se come gran parte del gasto
+  const expByCat = {};
+  expTxs.forEach((t) => {
+    const cat = config.categories.find((c) => c.id === t.categoryId);
+    const name = (cat && cat.type === "expense") ? cat.name : null;
+    if (name) expByCat[name] = (expByCat[name] || 0) + t.amount;
+  });
+  const topCat = Object.entries(expByCat).sort((a, b) => b[1] - a[1])[0];
+  if (topCat && exp > 0) {
+    const catPct = Math.round((topCat[1] / exp) * 100);
+    if (catPct >= 40) {
+      opps.push({
+        id: `topcat_${topCat[0]}`, icon: "📊", tone: "amber",
+        title: `${topCat[0]} es el ${catPct}% de tus gastos`,
+        detail: `Gastaste ${fmtMxn(topCat[1])} en ${topCat[0]}. Es tu mayor salida — revisa si puedes reducirla.`,
+        save: Math.round(topCat[1] * 0.15),
+      });
+    }
+  }
+
   // 1. SUSCRIPCIONES — cargos recurrentes con mismo monto y descripción similar
   const byDescAmount = {};
   expTxs.forEach((t) => {
@@ -11901,8 +11918,16 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
 // Pool curado de acciones para Free/Lite — se elige según datos del usuario
 function pickPooledAction(ctx) {
   const { topExpCat, topExpPct, spendRatio, uncatPct, hasGoal, daysSinceLastTx,
-    hasDebt, worstDebtName, worstDebtRate, hasEmergencyFund, positiveFlow } = ctx;
+    hasDebt, worstDebtName, worstDebtRate, hasEmergencyFund, positiveFlow, deficitPct } = ctx;
   const pool = [];
+
+  // Prioridad máxima: déficit (gastas más de lo que ganas)
+  if (deficitPct > 0) {
+    pool.push(`Estás gastando ${deficitPct}% más de lo que ganas. Hoy revisa tus 3 gastos más grandes y corta uno.`);
+    if (topExpCat) {
+      pool.push(`Tu déficit viene en parte de ${topExpCat}. Hoy no gastes nada en esa categoría.`);
+    }
+  }
 
   // Prioridad alta: deudas caras
   if (hasDebt && worstDebtRate >= 40) {
@@ -11914,36 +11939,43 @@ function pickPooledAction(ctx) {
   if (daysSinceLastTx >= 2) {
     pool.push(`Llevas ${daysSinceLastTx} días sin registrar. Anota tus gastos de hoy para no perder el control.`);
   }
-  if (topExpCat && topExpPct > 40) {
+  if (topExpCat && topExpPct > 40 && deficitPct === 0) {
     pool.push(`${topExpCat} es el ${topExpPct}% de tus gastos. Hoy intenta no gastar en esa categoría.`);
   }
-  if (spendRatio > 90) {
+  if (spendRatio > 90 && deficitPct === 0) {
     pool.push(`Estás gastando el ${spendRatio}% de tus ingresos. Busca un gasto que puedas evitar hoy.`);
   }
   if (uncatPct > 20) {
     pool.push(`Tienes ${uncatPct}% de gastos sin categoría. Ordénalos para ver a dónde va tu dinero.`);
   }
 
-  // Sin fondo de emergencia y sin deudas → invitar a crearlo
-  if (!hasEmergencyFund && !hasDebt && positiveFlow) {
+  // Sin fondo de emergencia y sin deudas → invitar a crearlo (solo si no hay déficit)
+  if (!hasEmergencyFund && !hasDebt && positiveFlow && deficitPct === 0) {
     pool.push(`¿Ya tienes fondo de emergencia? Es la base de todo. Créalo hoy en Metas y planes.`);
   }
   // Sin metas ni deudas → crear una meta
-  if (!hasGoal && !hasDebt && positiveFlow) {
+  if (!hasGoal && !hasDebt && positiveFlow && deficitPct === 0) {
     pool.push(`Dale rumbo a tu ahorro: crea una meta hoy (un viaje, un fondo, lo que quieras).`);
   }
-  if (hasGoal) {
+  if (hasGoal && positiveFlow) {
     pool.push(`Abona lo que puedas a tu meta hoy, aunque sea poco. Cada peso cuenta.`);
   }
 
-  // Acciones genéricas de respaldo
-  pool.push(
-    "Antes de tu próxima compra, pregúntate: ¿lo necesito o lo quiero?",
-    "Revisa tus suscripciones activas. ¿Usas todas las que pagas?",
-    "Registra cada gasto de hoy, por pequeño que sea.",
-    "Guarda el cambio de hoy: redondea tus compras y ahorra la diferencia.",
-    "Revisa tu saldo antes de dormir. Conocer tu número te da control.",
-  );
+  // Acciones genéricas de respaldo (solo si no hay nada urgente)
+  if (deficitPct === 0 && !hasDebt) {
+    pool.push(
+      "Antes de tu próxima compra, pregúntate: ¿lo necesito o lo quiero?",
+      "Revisa tus suscripciones activas. ¿Usas todas las que pagas?",
+      "Registra cada gasto de hoy, por pequeño que sea.",
+      "Guarda el cambio de hoy: redondea tus compras y ahorra la diferencia.",
+      "Revisa tu saldo antes de dormir. Conocer tu número te da control.",
+    );
+  }
+
+  // Si por alguna razón el pool quedó vacío, respaldo mínimo
+  if (pool.length === 0) {
+    pool.push("Registra cada gasto de hoy, por pequeño que sea.");
+  }
 
   // Elegir de forma determinista según el día (misma acción todo el día)
   const seed = today().split("-").join("");
@@ -11987,8 +12019,9 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 - Tiene fondo de emergencia: ${actionCtx.hasEmergencyFund ? "sí" : "no"}
 - Tiene deudas: ${actionCtx.hasDebt ? `sí (la más cara: "${actionCtx.worstDebtName}" al ${actionCtx.worstDebtRate}% anual)` : "no"}
 - Flujo positivo este periodo: ${actionCtx.positiveFlow ? "sí" : "no"}
+- Déficit: ${actionCtx.deficitPct > 0 ? `sí, gasta ${actionCtx.deficitPct}% más de lo que gana` : "no"}
 
-Prioridades: si tiene deudas caras (≥40%), sugiere abonar a ellas (ahorra más que invertir). Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
 
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -12625,7 +12658,14 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     if (savePct >= 0.05) return 55;
     return 48;
   })();
-  const sections = adaptiveSectionOrder(adaptiveScore, rawSections);
+  const debtsInView = (config.debts || []).filter((d) => {
+    const acc = d.accountId || "general";
+    return accView === "all" || acc === "general" || acc === accView;
+  });
+  const sections = adaptiveSectionOrder(adaptiveScore, rawSections, {
+    hasDebt: debtsInView.length > 0,
+    hasDeficit: inc > 0 && (inc - exp) < 0,
+  });
 
   // Saldo destacado: ahora es el FLUJO NETO del periodo seleccionado
   // (ingresos − gastos, ya filtrado por cuentas/categorías) — NO el saldo
@@ -13191,6 +13231,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             worstDebtRate: worstDebt ? worstDebt.rate : 0,
             hasEmergencyFund: goalsInAcc.some((g) => g.type === "emergencias"),
             positiveFlow: (inc - exp) > 0,
+            deficitPct: inc > 0 && (inc - exp) < 0 ? Math.round((Math.abs(inc - exp) / inc) * 100) : 0,
           };
           return (
             <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
