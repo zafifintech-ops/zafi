@@ -314,9 +314,10 @@ body{
    El color NUNCA es fondo de tarjeta — la jerarquía se logra con presencia
    (opacidad del glass, sombra, borde). El color vive en números, badges,
    barras e íconos dentro de la tarjeta, no en su fondo. */
-/* Protagonista: glass plenamente presente, sombra un poco más marcada. */
-.cc-lvl-top{background:rgba(255,255,255,.9);border-color:rgba(255,255,255,.95);box-shadow:0 8px 28px rgba(0,0,0,.09);}
-.cc-dark .cc-lvl-top{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.16);box-shadow:0 8px 28px rgba(0,0,0,.3);}
+/* Protagonista: glass presente pero translúcido (conserva el blur del fondo),
+   diferenciado por una sombra un poco más marcada, no por opacidad total. */
+.cc-lvl-top{background:rgba(255,255,255,.55);border-color:rgba(255,255,255,.7);box-shadow:0 8px 30px rgba(0,0,0,.1);}
+.cc-dark .cc-lvl-top{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);box-shadow:0 8px 30px rgba(0,0,0,.3);}
 /* Nivel medio: glass estándar. */
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
