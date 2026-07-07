@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, cloneElement } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
@@ -310,6 +310,13 @@ body{
   border:1px solid var(--glass-border);
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
+/* Jerarquía de presencia visual en el dashboard */
+.cc-lvl-top{background:rgba(255,255,255,.92);border-color:rgba(30,111,224,.25);box-shadow:0 6px 26px rgba(30,111,224,.10);}
+.cc-dark .cc-lvl-top{background:rgba(255,255,255,.10);border-color:rgba(91,155,255,.28);box-shadow:0 6px 26px rgba(0,0,0,.28);}
+.cc-lvl-mid{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.9);box-shadow:0 4px 20px rgba(0,0,0,.06);}
+.cc-dark .cc-lvl-mid{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);box-shadow:0 4px 20px rgba(0,0,0,.2);}
+.cc-lvl-faint{background:rgba(255,255,255,.4);border-color:rgba(255,255,255,.5);box-shadow:none;}
+.cc-dark .cc-lvl-faint{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.06);box-shadow:none;}
 .cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
   border-radius:20px;padding:16px;box-shadow:var(--shadow-sm);}
@@ -11791,13 +11798,44 @@ function detectOpportunities(txs, config, dateRange, inc, exp, hasGoal, accView)
   return active.slice(0, 4); // máximo 4
 }
 
-function OpportunitiesCard({ config, saveConfig, opportunities, dark }) {
+function OpportunitiesCard({ config, saveConfig, opportunities, dark, className = "" }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
-  if (!opportunities || opportunities.length === 0) return null;
+  const markResolved = (oppId) => {
+    const resolved = { ...(config.resolvedOpportunities || {}), [oppId]: Date.now() };
+    saveConfig({ ...config, resolvedOpportunities: resolved });
+  };
+
+  // Estado vacío — modo pequeño: no detectamos nada que optimizar
+  if (!opportunities || opportunities.length === 0) {
+    return (
+      <div className={`cc-card ${className}`} style={{ padding: "14px 16px" }}>
+        <div className="cc-label" style={{ margin: 0, marginBottom: 10, display: "flex", alignItems: "center", gap: 7 }}>
+          <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: inkFaint, fill: "none", strokeWidth: 1.8 }}>
+            <path d="M12 3a6 6 0 0 0-4 10.5c.5.5 1 1.2 1 2v.5h6v-.5c0-.8.5-1.5 1-2A6 6 0 0 0 12 3zM9 20h6M10 22h4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Áreas de oportunidad
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(60,190,96,.12)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" style={{ width: 19, height: 19, stroke: "#2A9048", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, fontFamily: FONT }}>Todo en orden por ahora</div>
+            <div style={{ fontSize: 12, color: inkSoft, marginTop: 1, fontFamily: FONT, lineHeight: 1.4 }}>
+              No detectamos gastos ni cargos que optimizar. Sigue así.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const totalSave = opportunities.reduce((s, o) => s + (o.save || 0), 0);
 
@@ -11806,13 +11844,8 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark }) {
     green: "rgba(60,190,96,.12)", blue: "rgba(30,111,224,.12)",
   };
 
-  const markResolved = (oppId) => {
-    const resolved = { ...(config.resolvedOpportunities || {}), [oppId]: Date.now() };
-    saveConfig({ ...config, resolvedOpportunities: resolved });
-  };
-
   return (
-    <div className="cc-card" style={{ padding: 0, overflow: "hidden" }}>
+    <div className={`cc-card ${className}`} style={{ padding: 0, overflow: "hidden" }}>
       {totalSave > 0 && (
         <div style={{ background: "linear-gradient(140deg,#3CBE60,#2A9048)", padding: 16, color: "#fff" }}>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,.75)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", fontFamily: FONT }}>
@@ -11918,7 +11951,7 @@ function pickPooledAction(ctx) {
   return pool[idx];
 }
 
-function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro }) {
+function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className = "" }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -12023,7 +12056,7 @@ Prioridades: si tiene deudas caras (≥40%), sugiere abonar a ellas (ahorra más
   })();
 
   return (
-    <div className="cc-card" style={{
+    <div className="cc-card cc-lvl-self" style={{
       padding: 16,
       background: doneToday
         ? "linear-gradient(135deg, rgba(60,190,96,.14), rgba(60,190,96,.05))"
@@ -12200,7 +12233,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   );
 }
 
-function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts, mode = "both" }) {
+function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, currentSavings, dark, accView, accounts, mode = "both", className = "" }) {
   const FONT = "'Montserrat', sans-serif";
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [updatingGoal, setUpdatingGoal] = useState(null);
@@ -12271,7 +12304,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
 
   return (
-    <div className="cc-card" style={{ padding: "16px 18px" }}>
+    <div className={`cc-card ${className}`} style={{ padding: "16px 18px" }}>
       {mode !== "debts" && (<>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: goals.length ? 14 : 8 }}>
         <div className="cc-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 7 }}>
@@ -12844,18 +12877,67 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const requiredPlan = HOME_SECTION_PLANS[s.id] || "free";
         const isLocked = !planMeets(userPlan, requiredPlan);
         const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
+        // Nivel de presencia visual según prioridad:
+        // idx 0 = protagonista (más presente), 1-2 = opaco, resto = sutil.
+        const lvlClass = idx === 0 ? "cc-lvl-top" : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
+        const applyLvl = (node) => {
+          if (!node || !node.props) return node;
+          const existing = node.props.className || "";
+          // No pisar si ya trae un nivel; agregar el nuestro
+          if (existing.includes("cc-lvl")) return node;
+          return cloneElement(node, { className: `${existing} ${lvlClass}`.trim() });
+        };
+        const renderSection = () => {
 
         if (s.id === "balance") {
           const hasActiveFilter = globalAccHidden.length > 0 || globalIncCatsHidden.length > 0 || globalExpCatsHidden.length > 0;
+          const total = inc + exp;
+          const incPct = total > 0 ? Math.round((inc / total) * 100) : 50;
+          const positive = headerBalance >= 0;
           return (
-            <div key={s.id} className="cc-card" style={{ padding: "22px 22px" }}>
-              <div className="cc-label">{headerLabel} · {rangeLabel(dateRange)}</div>
-              <div className="cc-serif cc-num" style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-.02em", color: headerBalance < 0 ? "var(--coral)" : "var(--ink)" }}>
-                {headerBalance >= 0 ? "+" : "−"}{fmt(Math.abs(headerBalance)).replace("-", "")}
+            <div key={s.id} className="cc-card" style={{ padding: "20px 22px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div className="cc-label" style={{ margin: 0 }}>{headerLabel}</div>
+                <div style={{ fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500 }}>{rangeLabel(dateRange)}</div>
               </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 4 }}>
-                Ingresos {fmtBare(inc)} − Gastos {fmtBare(exp)}{hasActiveFilter ? " · con filtro aplicado" : ""}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <div className="cc-serif cc-num" style={{ fontSize: 42, fontWeight: 600, letterSpacing: "-.02em", color: positive ? "var(--ink)" : "var(--coral)", lineHeight: 1 }}>
+                  {positive ? "+" : "−"}{fmt(Math.abs(headerBalance)).replace("-", "")}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: positive ? "#2A9048" : "var(--coral)",
+                  background: positive ? "rgba(60,190,96,.12)" : "rgba(226,53,53,.12)", padding: "3px 8px", borderRadius: 7 }}>
+                  {positive ? "Ahorro" : "Déficit"}
+                </div>
               </div>
+
+              {/* Barra proporcional ingresos vs gastos */}
+              {total > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: "flex", height: 8, borderRadius: 99, overflow: "hidden", gap: 2 }}>
+                    <div style={{ width: `${incPct}%`, background: "linear-gradient(90deg,#3CBE60,#5dd980)", borderRadius: "99px 3px 3px 99px" }} />
+                    <div style={{ flex: 1, background: "linear-gradient(90deg,#E86B6B,#E23535)", borderRadius: "3px 99px 99px 3px" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3CBE60" }} />
+                      <div>
+                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500 }}>Ingresos</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{fmtBare(inc)}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <div>
+                        <div style={{ fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500, textAlign: "right" }}>Gastos</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", textAlign: "right" }}>{fmtBare(exp)}</div>
+                      </div>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#E23535" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {hasActiveFilter && (
+                <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 10 }}>Con filtro aplicado</div>
+              )}
             </div>
           );
         }
@@ -13075,7 +13157,6 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             statTxs(txsInRange(scopedTxs, dateRange)).all,
             config, dateRange, inc, exp, goalsInView.length > 0, accView
           );
-          if (opps.length === 0) return null;
           return <OpportunitiesCard key={s.id} config={config} saveConfig={saveConfig} opportunities={opps} dark={dark} />;
         }
 
@@ -13134,11 +13215,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         }
 
         return null;
+        };
+        return applyLvl(renderSection());
       })}
 
       {configuring && (
         <HomeConfigModal
-          sections={sections}
+          sections={rawSections}
           config={config}
           accountLabel={view === "all" ? "todas las cuentas" : (config.accounts.find((a) => a.id === view)?.name || "")}
           accounts={config.accounts}
