@@ -8442,7 +8442,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
 
       <div className="cc-wrap">
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={loaded} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={true} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
           {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfigWrapped} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfigWrapped} accView={accView} setAccView={setAccView} />}
