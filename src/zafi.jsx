@@ -311,22 +311,27 @@ body{
   border-radius:20px;padding:0;box-shadow:var(--shadow-sm);
   transition:.2s ease;}
 /* Jerarquía de presencia visual en el dashboard */
-/* Brillo sutil tipo vidrio para las secciones protagonistas — un reflejo
-   diagonal suave y estático en la esquina superior, como luz sobre cristal. */
+/* Brillo sutil animado tipo vidrio para las secciones protagonistas.
+   Un reflejo diagonal suave que respira lentamente, como luz sobre cristal. */
+@keyframes ccSheen {
+  0%, 100% { opacity: .45; transform: translateX(-8%); }
+  50%      { opacity: .85; transform: translateX(8%); }
+}
 .cc-sheen{position:relative;overflow:hidden;}
-.cc-sheen::before{content:"";position:absolute;top:0;left:0;right:0;height:55%;
-  background:linear-gradient(160deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,.12) 35%, transparent 70%);
+.cc-sheen::before{content:"";position:absolute;top:0;left:-10%;right:-10%;height:60%;
+  background:linear-gradient(155deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.14) 32%, transparent 68%);
   border-radius:20px 20px 0 0;
-  pointer-events:none;z-index:2;opacity:.7;}
-.cc-dark .cc-sheen::before{background:linear-gradient(160deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.04) 35%, transparent 70%);}
-.cc-lvl-top-blue{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
-.cc-dark .cc-lvl-top-blue{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
-.cc-lvl-top-red{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
-.cc-dark .cc-lvl-top-red{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
-.cc-lvl-top-green{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
-.cc-dark .cc-lvl-top-green{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
-.cc-lvl-top-amber{background:#FFFFFF;border-color:rgba(0,0,0,.05);box-shadow:0 6px 22px rgba(0,0,0,.08);}
-.cc-dark .cc-lvl-top-amber{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+  pointer-events:none;z-index:2;
+  animation:ccSheen 6s ease-in-out infinite;}
+.cc-dark .cc-sheen::before{background:linear-gradient(155deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 32%, transparent 68%);}
+.cc-lvl-top-blue{background:linear-gradient(160deg, #F0F6FF 0%, #FFFFFF 55%);border-color:rgba(30,111,224,.12);box-shadow:0 6px 22px rgba(30,111,224,.10);}
+.cc-dark .cc-lvl-top-blue{background:linear-gradient(160deg, rgba(30,111,224,.14) 0%, rgba(255,255,255,.08) 55%);border-color:rgba(91,155,255,.2);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-red{background:linear-gradient(160deg, #FFF1F1 0%, #FFFFFF 55%);border-color:rgba(226,53,53,.12);box-shadow:0 6px 22px rgba(226,53,53,.10);}
+.cc-dark .cc-lvl-top-red{background:linear-gradient(160deg, rgba(226,53,53,.14) 0%, rgba(255,255,255,.08) 55%);border-color:rgba(232,80,80,.2);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-green{background:linear-gradient(160deg, #EFFBF2 0%, #FFFFFF 55%);border-color:rgba(60,190,96,.14);box-shadow:0 6px 22px rgba(60,190,96,.10);}
+.cc-dark .cc-lvl-top-green{background:linear-gradient(160deg, rgba(60,190,96,.14) 0%, rgba(255,255,255,.08) 55%);border-color:rgba(80,210,120,.2);box-shadow:0 6px 22px rgba(0,0,0,.28);}
+.cc-lvl-top-amber{background:linear-gradient(160deg, #FFF7EC 0%, #FFFFFF 55%);border-color:rgba(230,140,20,.14);box-shadow:0 6px 22px rgba(230,140,20,.10);}
+.cc-dark .cc-lvl-top-amber{background:linear-gradient(160deg, rgba(230,140,20,.14) 0%, rgba(255,255,255,.08) 55%);border-color:rgba(240,160,40,.2);box-shadow:0 6px 22px rgba(0,0,0,.28);}
 .cc-lvl-mid{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
 .cc-dark .cc-lvl-mid{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 .cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
@@ -11968,15 +11973,24 @@ function pickPooledAction(ctx) {
     pool.push(`Abona lo que puedas a tu meta hoy, aunque sea poco. Cada peso cuenta.`);
   }
 
-  // Acciones genéricas de respaldo (solo si no hay nada urgente)
+  // Acciones genéricas de respaldo — variadas, algunas reflexivas o de escritura
   if (deficitPct === 0 && !hasDebt) {
     pool.push(
-      "Antes de tu próxima compra, pregúntate: ¿lo necesito o lo quiero?",
-      "Revisa tus suscripciones activas. ¿Usas todas las que pagas?",
-      "Registra cada gasto de hoy, por pequeño que sea.",
-      "Guarda el cambio de hoy: redondea tus compras y ahorra la diferencia.",
-      "Revisa tu saldo antes de dormir. Conocer tu número te da control.",
+      "Antes de tu próxima compra, respira y pregúntate: ¿lo necesito o solo lo quiero?",
+      "Abre tus suscripciones y cancela una que no hayas usado este mes. Dinero que recuperas al instante.",
+      "Anota tus tres gastos más grandes de la semana pasada. Ver el patrón es el primer paso para cambiarlo.",
+      "Escribe dos cosas en las que gastaste de más la semana pasada. Reconocerlas te ayuda a no repetirlas.",
+      "Ponle nombre a un gasto que te haya dejado mal sabor de boca. La próxima vez lo pensarás dos veces.",
+      "Redondea cada compra de hoy hacia arriba y guarda la diferencia. Ahorro invisible que suma.",
+      "Antes de dormir, revisa tu saldo. Conocer tu número exacto te devuelve el control.",
+      "Elige una categoría y ponte el reto de no gastar en ella hoy. Un día a la vez.",
+      "Piensa en una compra reciente de más de $500: ¿la volverías a hacer? Anota tu respuesta.",
+      "Revisa tu última quincena y encuentra un gasto que puedas convertir en ahorro el próximo mes.",
     );
+  }
+  // Reflexión de escritura también cuando hay categoría dominante
+  if (topExpCat && deficitPct === 0) {
+    pool.push(`Escribe qué te llevó a gastar tanto en ${topExpCat} este periodo. Entender el porqué te ayuda a ajustar.`);
   }
 
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
@@ -12646,9 +12660,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const dark = useDarkMode();
   const [configuring, setConfiguring] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
+  // La clave incluye la cuenta para que el colapso sea individual por cuenta.
+  const expandKey = (id) => `${accView}:${id}`;
+  const isExpanded = (id) => expandedSections.has(expandKey(id));
   const toggleExpanded = (id) => setExpandedSections((prev) => {
     const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
+    const k = expandKey(id);
+    next.has(k) ? next.delete(k) : next.add(k);
     return next;
   });
   const [catFilter, setCatFilter] = useState(null); // null | "dashExpCats"
@@ -12978,11 +12996,15 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         const onLockedClick = () => setUpgradeFeature && setUpgradeFeature(requiredPlan);
         // Nivel de presencia visual según prioridad:
         // idx 0 = protagonista (más presente), 1-2 = opaco, resto = sutil.
-        // El glow del protagonista combina con el color de su sección.
+        // El protagonista lleva un tinte de color acorde a su sección/estado.
+        // La calificación usa semáforo según el score adaptativo.
+        const scoreTint = adaptiveScore < 45 ? "cc-lvl-top-red"
+          : adaptiveScore < 65 ? "cc-lvl-top-amber"
+          : "cc-lvl-top-green";
         const topTintById = {
           debts: "cc-lvl-top-red", opportunities: "cc-lvl-top-green",
-          goals: "cc-lvl-top-blue", financialScore: "cc-lvl-top-blue",
-          balance: "cc-lvl-top-blue", financialTips: "cc-lvl-top-amber",
+          goals: "cc-lvl-top-blue", financialScore: scoreTint,
+          balance: (headerBalance >= 0 ? "cc-lvl-top-green" : "cc-lvl-top-red"), financialTips: "cc-lvl-top-amber",
         };
         const lvlClass = idx === 0
           ? `${topTintById[s.id] || "cc-lvl-top-blue"} cc-sheen`
@@ -12999,7 +13021,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         // se muestran como una línea resumen, para no saturar. El usuario expande al tocar.
         // La acción, el protagonista y los 2 primeros nunca se auto-colapsan.
         const autoCollapsible = ["balance", "financialTips", "financialScore", "opportunities"];
-        const shouldAutoCollapse = idx >= 3 && autoCollapsible.includes(s.id) && !expandedSections.has(s.id);
+        const shouldAutoCollapse = idx >= 3 && autoCollapsible.includes(s.id) && !isExpanded(s.id);
         if (shouldAutoCollapse) {
           const summaries = {
             balance: { tone: headerBalance >= 0 ? "green" : "amber", text: headerBalance >= 0 ? "Flujo positivo" : "Flujo en déficit",
@@ -13294,8 +13316,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             statTxs(txsInRange(scopedTxs, dateRange)).all,
             config, dateRange, inc, exp, goalsInView.length > 0, accView
           );
-          // Colapsar cuando no hay oportunidades (buena noticia) y no está expandido
-          if (opps.length === 0 && !expandedSections.has("opportunities")) {
+          // Colapsar cuando no hay oportunidades (buena noticia) y no está expandido —
+          // salvo que sea protagonista (idx 0), que siempre va en grande.
+          if (opps.length === 0 && !isExpanded("opportunities") && idx !== 0) {
             return (
               <div key={s.id} className="cc-card cc-lvl-faint">
                 <CollapsedSection dark={dark} iconTone="green" expanded={false}
@@ -13306,7 +13329,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             );
           }
           // Si está vacío pero expandido, permitir re-colapsar
-          const oppCollapsible = opps.length === 0 ? (
+          const oppCollapsible = (opps.length === 0 && idx !== 0) ? (
             <button onClick={() => toggleExpanded("opportunities")}
               style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
                 color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
@@ -13360,7 +13383,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             const acc = g.accountId || "general";
             return accView === "all" || acc === "general" || acc === accView;
           });
-          if (goalsHere.length === 0 && !expandedSections.has("goals")) {
+          if (goalsHere.length === 0 && !isExpanded("goals") && idx !== 0) {
             return (
               <div key={s.id} className="cc-card cc-lvl-faint">
                 <CollapsedSection dark={dark} iconTone="blue" expanded={false}
@@ -13370,7 +13393,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </div>
             );
           }
-          const goalsCollapsible = goalsHere.length === 0 ? (
+          const goalsCollapsible = (goalsHere.length === 0 && idx !== 0) ? (
             <button onClick={() => toggleExpanded("goals")}
               style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
                 color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
@@ -13392,7 +13415,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             const acc = d.accountId || "general";
             return accView === "all" || acc === "general" || acc === accView;
           });
-          if (debtsHere.length === 0 && !expandedSections.has("debts")) {
+          if (debtsHere.length === 0 && !isExpanded("debts") && idx !== 0) {
             return (
               <div key={s.id} className="cc-card cc-lvl-faint">
                 <CollapsedSection dark={dark} iconTone="green" expanded={false}
@@ -13402,7 +13425,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </div>
             );
           }
-          const debtsCollapsible = debtsHere.length === 0 ? (
+          const debtsCollapsible = (debtsHere.length === 0 && idx !== 0) ? (
             <button onClick={() => toggleExpanded("debts")}
               style={{ display: "block", margin: "0 auto", marginTop: -4, marginBottom: 8, background: "none", border: "none",
                 color: dark ? "rgba(245,245,247,.4)" : "#8B95A6", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat', sans-serif" }}>
@@ -13423,7 +13446,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         };
         const rendered = applyLvl(renderSection());
         // Si es una sección auto-colapsable expandida, añadir botón para re-colapsar
-        if (idx >= 3 && autoCollapsible.includes(s.id) && expandedSections.has(s.id) && rendered) {
+        if (idx >= 3 && autoCollapsible.includes(s.id) && isExpanded(s.id) && rendered) {
           return (
             <div key={s.id}>
               {rendered}
