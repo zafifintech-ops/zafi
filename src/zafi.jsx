@@ -770,31 +770,19 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
   background:#ffffff;overflow:hidden;}
 @media(prefers-color-scheme:dark){.cc-loading:not(.cc-light){background:#0D0F14;}}
 .cc-loading.cc-dark{background:#0D0F14;}
-.cc-loading-ring{position:relative;width:72px;height:72px;
+/* Trazo circular zen: la línea se dibuja y se borra continuamente. */
+.cc-zafi-loader{position:relative;width:56px;height:56px;
   display:flex;align-items:center;justify-content:center;}
-.cc-loading-ring svg{position:absolute;inset:0;transform:rotate(-90deg);}
-.cc-loading-arc{fill:none;stroke:#1E6FE0;stroke-width:5;stroke-linecap:round;
-  stroke-dasharray:188;
-  animation:ccRingFill 2s cubic-bezier(.6,0,.4,1) infinite;}
-.cc-loading.cc-dark .cc-loading-arc{stroke:#5B9BFF;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-arc{stroke:#5B9BFF;}}
-@keyframes ccRingFill{
-  0%  {stroke-dashoffset:188;opacity:.4;}
-  45% {stroke-dashoffset:0;  opacity:1;}
-  55% {stroke-dashoffset:0;  opacity:1;}
-  100%{stroke-dashoffset:-188;opacity:.4;}
-}
-.cc-loading-track{fill:none;stroke:rgba(30,111,224,.12);stroke-width:5;stroke-linecap:round;}
-.cc-loading.cc-dark .cc-loading-track{stroke:rgba(91,155,255,.12);}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-track{stroke:rgba(91,155,255,.12);}}
-.cc-loading-center{width:4px;height:4px;border-radius:50%;background:#1E6FE0;
-  position:relative;z-index:2;
-  animation:ccCenterDot 2s ease-in-out infinite;}
-.cc-loading.cc-dark .cc-loading-center{background:#5B9BFF;}
-@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-loading-center{background:#5B9BFF;}}
-@keyframes ccCenterDot{
-  0%,100%{transform:scale(.7);opacity:.4;}
-  50%{transform:scale(1.2);opacity:1;}
+.cc-zafi-loader svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.cc-zafi-arc{fill:none;stroke:#1E6FE0;stroke-width:3;stroke-linecap:round;
+  stroke-dasharray:138;
+  animation:ccZafiTrace 2.4s ease-in-out infinite;}
+.cc-dark .cc-zafi-arc{stroke:#5B9BFF;}
+@media(prefers-color-scheme:dark){.cc-loading:not(.cc-light) .cc-zafi-arc{stroke:#5B9BFF;}}
+@keyframes ccZafiTrace{
+  0%  {stroke-dashoffset:138;}
+  50% {stroke-dashoffset:0;}
+  100%{stroke-dashoffset:-138;}
 }
 
 .cc-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));z-index:60;
@@ -5193,6 +5181,18 @@ function detectEarlyDark() {
   return sysDark; // "auto" o sin preferencia
 }
 
+// Loader zen reutilizable: trazo circular que se dibuja y borra (color zafiro).
+// Se usa en todas las pantallas de carga para mantener consistencia.
+function ZafiLoader() {
+  return (
+    <div className="cc-zafi-loader">
+      <svg viewBox="0 0 56 56" width="56" height="56">
+        <circle className="cc-zafi-arc" cx="28" cy="28" r="22" />
+      </svg>
+    </div>
+  );
+}
+
 function SplashScreen({ onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 1100);
@@ -7381,13 +7381,7 @@ export default function App() {
   if (user === undefined) return (
     <div className={`cc-loading${isLoadDark ? " cc-dark" : " cc-light"}`}>
       <style>{STYLE}</style>
-      <div className="cc-loading-ring">
-        <svg viewBox="0 0 72 72" width="72" height="72">
-          <circle className="cc-loading-track" cx="36" cy="36" r="30" />
-          <circle className="cc-loading-arc" cx="36" cy="36" r="30" />
-        </svg>
-        <div className="cc-loading-center" />
-      </div>
+      <ZafiLoader />
     </div>
   );
 
@@ -7432,7 +7426,7 @@ export default function App() {
           />
         </div>}
         {!showVideo && <div className="cc-solid-bg" />}
-        <div className="cc-dots"><span /><span /><span /></div>
+        <ZafiLoader />
       </div>
     );
 
