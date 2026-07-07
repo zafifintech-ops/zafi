@@ -11994,14 +11994,25 @@ function OpportunitiesCard({ config, saveConfig, opportunities, dark, className 
 // Pool curado de acciones para Free/Lite — se elige según datos del usuario
 function pickPooledAction(ctx) {
   const { topExpCat, topExpPct, spendRatio, uncatPct, hasGoal, daysSinceLastTx,
-    hasDebt, worstDebtName, worstDebtRate, hasEmergencyFund, positiveFlow, deficitPct } = ctx;
+    hasDebt, worstDebtName, worstDebtRate, hasEmergencyFund, positiveFlow, deficitPct,
+    todayDowName, todayIsHeavy, todayTopCat } = ctx;
   const pool = [];
+
+  // Prioridad de hábito por día: si HOY sueles gastar de más (y en qué), avisar
+  // en el día correcto — no un consejo genérico que no cae en tu patrón real.
+  if (todayIsHeavy && todayTopCat) {
+    pool.push(`Los ${todayDowName} sueles gastar más en ${todayTopCat}. Hoy pon un límite antes de salir.`);
+    pool.push(`Ojo: el ${todayDowName} es tu día fuerte de gasto en ${todayTopCat}. Piénsalo dos veces hoy.`);
+  } else if (todayIsHeavy) {
+    pool.push(`Los ${todayDowName} sueles gastar más que otros días. Hoy ve con cuidado con tus compras.`);
+  }
 
   // Prioridad máxima: déficit (gastas más de lo que ganas)
   if (deficitPct > 0) {
     pool.push(`Estás gastando ${deficitPct}% más de lo que ganas. Hoy revisa tus 3 gastos más grandes y corta uno.`);
-    if (topExpCat) {
-      pool.push(`Tu déficit viene en parte de ${topExpCat}. Hoy no gastes nada en esa categoría.`);
+    // Solo sugerir "no gastes en X" si HOY realmente sueles gastar en esa categoría.
+    if (topExpCat && todayTopCat === topExpCat) {
+      pool.push(`Tu déficit viene en parte de ${topExpCat}, y hoy sueles gastar ahí. Intenta no hacerlo.`);
     }
   }
 
@@ -12089,7 +12100,7 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 
   // Clave de caché que distingue la cuenta y el estado financiero, no solo el día.
   // Así cada cuenta tiene su propia acción coherente con SU situación.
-  const actionKey = `${actionCtx.accKey || "all"}|${actionCtx.deficitPct}|${actionCtx.positiveFlow ? 1 : 0}|${actionCtx.topExpCat || ""}|${actionCtx.hasDebt ? 1 : 0}`;
+  const actionKey = `${actionCtx.accKey || "all"}|${actionCtx.deficitPct}|${actionCtx.positiveFlow ? 1 : 0}|${actionCtx.topExpCat || ""}|${actionCtx.hasDebt ? 1 : 0}|${actionCtx.todayDowName || ""}|${actionCtx.todayTopCat || ""}`;
 
   useEffect(() => {
     if (!isPro) return;
@@ -12103,6 +12114,7 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
     // Generar nueva acción con IA
     setLoadingAi(true);
     const prompt = `Eres un coach financiero. Genera UNA sola acción concreta y sencilla que el usuario pueda hacer HOY para mejorar sus finanzas, basada en sus datos:
+- Hoy es: ${actionCtx.todayDowName || "hoy"}
 - Gasto principal: ${actionCtx.topExpCat || "N/A"} (${actionCtx.topExpPct || 0}% del total)
 - % de ingresos gastado: ${actionCtx.spendRatio || 0}%
 - Días sin registrar: ${actionCtx.daysSinceLastTx || 0}
@@ -12111,8 +12123,9 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 - Tiene deudas: ${actionCtx.hasDebt ? `sí (la más cara: "${actionCtx.worstDebtName}" al ${actionCtx.worstDebtRate}% anual)` : "no"}
 - Flujo positivo este periodo: ${actionCtx.positiveFlow ? "sí" : "no"}
 - Déficit: ${actionCtx.deficitPct > 0 ? `sí, gasta ${actionCtx.deficitPct}% más de lo que gana` : "no"}
+- Hábito de HOY: ${actionCtx.todayIsHeavy ? `los ${actionCtx.todayDowName} suele gastar más que otros días${actionCtx.todayTopCat ? `, sobre todo en ${actionCtx.todayTopCat}` : ""}` : `los ${actionCtx.todayDowName} NO es un día donde gaste de más`}
 
-Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. IMPORTANTE: no menciones déficit si el flujo es positivo, ni al revés — sé coherente con los datos. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. MUY IMPORTANTE sobre hábitos: solo sugiere "no gastes en X hoy" o "cuidado con X" si el hábito de HOY indica que este día suele gastar en esa categoría. NUNCA le digas que evite una categoría en un día donde no suele gastar en ella (por ejemplo, no le digas "no gastes en Compras el lunes" si los lunes no compra). Si hoy no es un día de gasto fuerte, enfócate en registrar, ahorrar, abonar a metas o reflexionar. No menciones déficit si el flujo es positivo, ni al revés. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
 
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -13533,6 +13546,39 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           const debtsList = (config.debts || []).filter(inAcc);
           const goalsInAcc = (config.goals || []).filter(inAcc);
           const worstDebt = debtsList.length ? [...debtsList].sort((a, b) => (b.rate || 0) - (a.rate || 0))[0] : null;
+
+          // ── Análisis de hábitos por DÍA DE LA SEMANA ──
+          // Detecta en qué día sueles gastar más (y en qué categoría), para que
+          // la acción de hoy caiga en el día correcto según tu patrón real.
+          const DOW_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+          const todayDow = new Date(today() + "T12:00:00").getDay();
+          // Usamos historial amplio (no solo el rango) para captar el patrón.
+          const habitTxs = scopedTxs.filter((t) => t.type === "expense" && !t.synthetic);
+          // gasto total por día de la semana
+          const spendByDow = [0, 0, 0, 0, 0, 0, 0];
+          // gasto por (día de la semana + categoría) para saber QUÉ gastas ese día
+          const spendByDowCat = {}; // `${dow}|${catName}` -> monto
+          habitTxs.forEach((t) => {
+            const d = new Date(t.date + "T12:00:00").getDay();
+            spendByDow[d] += t.amount;
+            const cat = t.categoryId ? config.categories.find((c) => c.id === t.categoryId) : null;
+            const name = (cat && cat.type === "expense") ? cat.name : "Sin categoría";
+            const k = `${d}|${name}`;
+            spendByDowCat[k] = (spendByDowCat[k] || 0) + t.amount;
+          });
+          const totalHabitSpend = spendByDow.reduce((a, b) => a + b, 0);
+          const avgPerDow = totalHabitSpend / 7;
+          // ¿Hoy es un día donde gastas notablemente más que el promedio? (≥40% más)
+          const todayIsHeavy = totalHabitSpend > 0 && spendByDow[todayDow] > avgPerDow * 1.4;
+          // ¿Qué categoría domina HOY (por día de semana)?
+          let todayTopCat = null, todayTopCatAmount = 0;
+          Object.entries(spendByDowCat).forEach(([k, amt]) => {
+            const [d, name] = k.split("|");
+            if (Number(d) === todayDow && amt > todayTopCatAmount) {
+              todayTopCatAmount = amt; todayTopCat = name;
+            }
+          });
+
           const actionCtx = {
             topExpCat: topExp ? topExp[0] : null,
             topExpPct: topExp && exp > 0 ? Math.round((topExp[1] / exp) * 100) : 0,
@@ -13547,6 +13593,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             positiveFlow: (inc - exp) > 0,
             deficitPct: inc > 0 && (inc - exp) < 0 ? Math.round((Math.abs(inc - exp) / inc) * 100) : 0,
             accKey: accView,
+            // Hábitos por día de la semana
+            todayDowName: DOW_ES[todayDow],
+            todayIsHeavy,
+            todayTopCat: todayIsHeavy ? todayTopCat : null,
           };
           return (
             <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
