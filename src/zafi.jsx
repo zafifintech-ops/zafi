@@ -112,9 +112,9 @@ body{
   --shadow-lg:0 8px 32px rgba(30,40,60,.10);
   --shadow-xl:0 16px 48px rgba(30,40,60,.13);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.7);
-  --glass:rgba(255,255,255,.12);
-  --glass-border:rgba(255,255,255,.55);
-  --blur:blur(5px);
+  --glass:rgba(255,255,255,.62);
+  --glass-border:rgba(255,255,255,.7);
+  --blur:blur(12px);
 }
 
 /* Dark theme override */
@@ -155,8 +155,8 @@ body{
   --shadow-lg:0 8px 32px rgba(0,0,0,.35);
   --shadow-xl:0 16px 48px rgba(0,0,0,.4);
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.1);
-  --glass:rgba(255,255,255,.07);
-  --glass-border:rgba(255,255,255,.15);
+  --glass:rgba(38,40,46,.55);
+  --glass-border:rgba(255,255,255,.13);
 }
 .cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border-top:1px solid rgba(255,255,255,.08);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
@@ -321,18 +321,18 @@ body{
    legibilidad del texto incluso cuando el WKWebView apila mal los backdrop-filter
    sobre el video de fondo. El glass se logra con el blur del fondo, no con
    transparencia extrema de la tarjeta. */
-.cc-lvl-top{background:rgba(255,255,255,.82);border-color:rgba(255,255,255,.9);
+.cc-lvl-top{background:rgba(255,255,255,.78);border-color:rgba(255,255,255,.9);
   box-shadow:0 10px 34px rgba(0,0,0,.1);
-  backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);}
-.cc-dark .cc-lvl-top{background:rgba(28,30,34,.8);border-color:rgba(255,255,255,.14);
+  backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);}
+.cc-dark .cc-lvl-top{background:rgba(44,46,52,.7);border-color:rgba(255,255,255,.14);
   box-shadow:0 10px 34px rgba(0,0,0,.34);
-  backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);}
+  backdrop-filter:blur(16px) saturate(130%);-webkit-backdrop-filter:blur(16px) saturate(130%);}
 /* Nivel medio: glass estándar. */
-.cc-lvl-mid{background:rgba(255,255,255,.78);border-color:rgba(255,255,255,.85);box-shadow:0 4px 18px rgba(0,0,0,.05);}
-.cc-dark .cc-lvl-mid{background:rgba(28,30,34,.66);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
+.cc-lvl-mid{background:rgba(255,255,255,.6);border-color:rgba(255,255,255,.75);box-shadow:0 4px 18px rgba(0,0,0,.05);}
+.cc-dark .cc-lvl-mid{background:rgba(38,40,46,.5);border-color:rgba(255,255,255,.1);box-shadow:0 4px 18px rgba(0,0,0,.18);}
 /* Nivel tenue: glass sutil, casi fundido con el fondo. */
-.cc-lvl-faint{background:rgba(255,255,255,.35);border-color:rgba(255,255,255,.45);box-shadow:none;}
-.cc-dark .cc-lvl-faint{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.05);box-shadow:none;}
+.cc-lvl-faint{background:rgba(255,255,255,.42);border-color:rgba(255,255,255,.5);box-shadow:none;}
+.cc-dark .cc-lvl-faint{background:rgba(38,40,46,.32);border-color:rgba(255,255,255,.07);box-shadow:none;}
 .cc-lvl-wrapper{display:block;}
 .cc-card-boxed{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   border:1px solid var(--glass-border);
@@ -8126,6 +8126,20 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     const archivedTxs = rawTxs.filter((t) => archivedIds.has(t.accountId));
     saveTxs([...nextTxs, ...archivedTxs]);
   };
+
+  // Fix iOS WKWebView: al primer render con video de fondo, las capas de
+  // backdrop-filter a veces se componen mal (texto "quemado"). Forzamos un
+  // repaint mínimo justo después de montar para que iOS recomponga bien.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const root = document.querySelector(".cc-root");
+      if (root) {
+        root.style.opacity = "0.999";
+        requestAnimationFrame(() => { root.style.opacity = ""; });
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Parallax del fondo de video (con límite para no mostrar el borde)
   useEffect(() => {
