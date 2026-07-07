@@ -115,7 +115,8 @@ body{
   --glass:rgba(255,255,255,.5);
   --glass-border:rgba(255,255,255,.65);
   --blur:blur(14px);
-  --page-fade:#DCE1E8;
+  --page-fade:#E8ECF4;
+  --page-fade-0:rgba(232,236,244,0);
 }
 
 /* Dark theme override */
@@ -158,7 +159,8 @@ body{
   --shadow-inset:inset 0 1px 0 rgba(255,255,255,.1);
   --glass:rgba(38,40,46,.5);
   --glass-border:rgba(255,255,255,.1);
-  --page-fade:#0D0F14;
+  --page-fade:#13161D;
+  --page-fade-0:rgba(19,22,29,0);
 }
 .cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border-top:1px solid rgba(255,255,255,.08);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
@@ -555,14 +557,16 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-scroll-x::-webkit-scrollbar{display:none;}
 .cc-scroll-x > *{scroll-snap-align:start;}
 /* Desvanece suavemente los bordes para insinuar que hay más contenido y
-   evitar el "corte seco" cuando hay muchas cuentas. */
+   evitar el corte seco cuando hay muchas cuentas. Muy sutil.
+   Nota: el gradiente va de color solido a ese MISMO color con alpha 0
+   (no a transparent, que en WebKit interpola hacia negro y ensucia). */
 .cc-scroll-fade{position:relative;}
 .cc-scroll-fade::before,.cc-scroll-fade::after{content:"";position:absolute;top:0;bottom:10px;
-  width:24px;pointer-events:none;z-index:2;opacity:0;transition:opacity .2s ease;}
-.cc-scroll-fade::before{left:0;background:linear-gradient(90deg,var(--page-fade),transparent);}
-.cc-scroll-fade::after{right:0;background:linear-gradient(270deg,var(--page-fade),transparent);}
-.cc-scroll-fade.fade-left::before{opacity:1;}
-.cc-scroll-fade.fade-right::after{opacity:1;}
+  width:36px;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s ease;}
+.cc-scroll-fade::before{left:0;background:linear-gradient(90deg,var(--page-fade),var(--page-fade-0));}
+.cc-scroll-fade::after{right:0;background:linear-gradient(270deg,var(--page-fade),var(--page-fade-0));}
+.cc-scroll-fade.fade-left::before{opacity:.85;}
+.cc-scroll-fade.fade-right::after{opacity:.85;}
 
 /* configurar */
 .cc-gear{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
