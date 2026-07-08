@@ -3044,6 +3044,104 @@ function recurringDatesBetween(rule, fromDate, toDate) {
   return dates;
 }
 
+/* ===== Feedback háptico + sonoro ========================================
+   Vibración vía @capacitor/haptics (nativo) con fallback a navigator.vibrate.
+   Sonidos sintetizados con Web Audio (sin archivos): tonos suaves, categoría
+   "ambient" para que iOS respete el switch de silencio automáticamente.
+   El usuario puede apagar cada canal en Ajustes (config.feedbackPrefs). */
+
+let _hapticsMod = null;
+let _hapticsTried = false;
+async function _getHaptics() {
+  if (_hapticsTried) return _hapticsMod;
+  _hapticsTried = true;
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const mod = await import("@capacitor/haptics");
+      _hapticsMod = mod;
+    }
+  } catch (e) { _hapticsMod = null; }
+  return _hapticsMod;
+}
+
+// AudioContext perezoso (se crea al primer sonido, tras interacción del usuario)
+let _audioCtx = null;
+function _getAudioCtx() {
+  if (typeof window === "undefined") return null;
+  if (!_audioCtx) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) _audioCtx = new AC();
+    } catch (e) { return null; }
+  }
+  if (_audioCtx && _audioCtx.state === "suspended") _audioCtx.resume().catch(() => {});
+  return _audioCtx;
+}
+
+// Preferencias en memoria (espejadas desde config para acceso rápido)
+const _fbPrefs = { haptics: true, sound: true };
+function setFeedbackPrefs(prefs) {
+  if (!prefs) return;
+  if (typeof prefs.haptics === "boolean") _fbPrefs.haptics = prefs.haptics;
+  if (typeof prefs.sound === "boolean") _fbPrefs.sound = prefs.sound;
+}
+
+// Toca un tono suave. type controla la "forma" del sonido.
+function _playTone({ freq = 440, dur = 0.12, type = "sine", gain = 0.09, slideTo = null }) {
+  if (!_fbPrefs.sound) return;
+  const ctx = _getAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + dur);
+    // envolvente suave (ataque + decay) para que no suene "clic" duro
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(gain, ctx.currentTime + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + dur + 0.02);
+  } catch (e) { /* silencioso */ }
+}
+
+async function _vibrate(style) {
+  if (!_fbPrefs.haptics) return;
+  const h = await _getHaptics();
+  try {
+    if (h && h.Haptics) {
+      if (style === "success" || style === "warning" || style === "error") {
+        await h.Haptics.notification({ type: style.charAt(0).toUpperCase() + style.slice(1) });
+      } else if (style === "heavy" || style === "medium" || style === "light") {
+        await h.Haptics.impact({ style: style.charAt(0).toUpperCase() + style.slice(1) });
+      } else {
+        await h.Haptics.impact({ style: "Light" });
+      }
+      return;
+    }
+  } catch (e) { /* cae al fallback */ }
+  // Fallback web
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    const map = { light: 12, medium: 22, heavy: 35, success: [15, 40, 15], warning: [22, 30, 22], error: [35, 50, 35] };
+    try { navigator.vibrate(map[style] || 15); } catch (e) {}
+  }
+}
+
+/* API pública — un evento por acción. Combina vibración + sonido acordes. */
+const feedback = {
+  tap()        { _vibrate("light");  _playTone({ freq: 520, dur: 0.06, type: "sine", gain: 0.05 }); },
+  addExpense() { _vibrate("medium"); _playTone({ freq: 330, dur: 0.13, type: "sine", gain: 0.08, slideTo: 247 }); },
+  addIncome()  { _vibrate("success"); _playTone({ freq: 523, dur: 0.14, type: "sine", gain: 0.09, slideTo: 784 }); },
+  goalUpdate() { _vibrate("success"); _playTone({ freq: 659, dur: 0.16, type: "triangle", gain: 0.08, slideTo: 988 }); },
+  debtDown()   { _vibrate("success"); _playTone({ freq: 587, dur: 0.15, type: "sine", gain: 0.08, slideTo: 880 }); },
+  counter()    { _vibrate("light");  _playTone({ freq: 620, dur: 0.05, type: "triangle", gain: 0.045 }); },
+  complete()   { _vibrate("success"); _playTone({ freq: 659, dur: 0.1, type: "sine", gain: 0.08 });
+                 setTimeout(() => _playTone({ freq: 988, dur: 0.14, type: "sine", gain: 0.08 }), 90); },
+  warning()    { _vibrate("warning"); _playTone({ freq: 300, dur: 0.14, type: "sine", gain: 0.07 }); },
+};
+
 /* ===== Notificaciones locales (iOS/Android vía Capacitor) ================
    Todo LOCAL — no requiere servidor ni Cloud Functions (evitamos el costo del
    plan Blaze). El contenido se recalcula con los datos más recientes cada vez
@@ -8230,6 +8328,7 @@ REGLAS DE RESPUESTA:
 /* =============================== MAIN ==================================== */
 function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, resetAll }) {
   setAppLang(rawConfig.language || "es");
+  setFeedbackPrefs(rawConfig.feedbackPrefs || { haptics: true, sound: true });
 
   // ============= Filtrar cuentas archivadas del config visible =============
   // Las cuentas archivadas (rawConfig.archivedAccountIds) no aparecen en la UI:
@@ -9495,6 +9594,14 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("lang"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
               {ROW(IconBell, t("notifications"), notifPrefsSummary(config), () => setSection("notifications"))}
+              {ROW(
+                () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>,
+                "Vibración y sonido",
+                (() => { const fp = config.feedbackPrefs || { haptics: true, sound: true };
+                  const h = fp.haptics !== false, s = fp.sound !== false;
+                  return h && s ? "Activados" : (!h && !s ? "Apagados" : (h ? "Solo vibración" : "Solo sonido")); })(),
+                () => setSection("feedback")
+              )}
               {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
               {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
@@ -9529,6 +9636,50 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
           <>
             {BACK("Face ID / Biometría")}
             <FaceIDSettings />
+          </>
+        )}
+
+        {section === "feedback" && (
+          <>
+            {BACK("Vibración y sonido")}
+            <div style={{ minHeight: 200 }}>
+              <div style={{ fontSize: 12.5, color: "var(--ink-faint)", marginBottom: 16, lineHeight: 1.5 }}>
+                Zafi responde con una vibración y un sonido sutil cuando registras movimientos, abonas a una meta o completas la acción del día. Los sonidos respetan el modo silencio de tu teléfono.
+              </div>
+              {(() => {
+                const fp = config.feedbackPrefs || { haptics: true, sound: true };
+                const rows = [
+                  { key: "haptics", title: "Vibración", desc: "Un pequeño toque háptico al registrar acciones." },
+                  { key: "sound",   title: "Sonido",    desc: "Un tono suave que acompaña cada acción. Se silencia con el switch del teléfono." },
+                ];
+                return rows.map((item, idx) => {
+                  const isOn = fp[item.key] !== false;
+                  return (
+                    <div key={item.key} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                      padding: "14px 0", borderBottom: idx < rows.length - 1 ? "1px solid var(--line-soft)" : "none",
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>{item.title}</div>
+                        <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.4 }}>{item.desc}</div>
+                      </div>
+                      <label className={`cc-switch ${isOn ? "on" : ""}`}>
+                        <input type="checkbox" checked={isOn}
+                          onChange={() => {
+                            const nextPrefs = { ...fp, [item.key]: !isOn };
+                            setFeedbackPrefs(nextPrefs);
+                            saveConfig({ ...config, feedbackPrefs: nextPrefs });
+                            // Dar un ejemplo del feedback al activar
+                            if (!isOn) { if (item.key === "haptics") feedback.tap(); else feedback.addIncome(); }
+                          }} />
+                        <span className="cc-switch-track" />
+                        <span className="cc-switch-thumb" />
+                      </label>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </>
         )}
 
@@ -12835,6 +12986,7 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
       newCurrent = 1; // racha reinicia
     }
     const newBest = Math.max(streak.best || 0, newCurrent);
+    feedback.complete();
     saveConfig({
       ...config,
       actionStreak: { current: newCurrent, best: newBest, lastDone: todayK },
@@ -12907,7 +13059,7 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
                 const color = done ? "#3CBE60" : "#E08010";
                 return (
                   <button
-                    onClick={() => { if (counterCount < counterTarget) setCounterCount((c) => c + 1); }}
+                    onClick={() => { if (counterCount < counterTarget) { setCounterCount((c) => c + 1); const willComplete = counterCount + 1 >= counterTarget; if (willComplete) feedback.complete(); else feedback.counter(); } }}
                     disabled={done}
                     style={{ position: "relative", width: 128, height: 128, borderRadius: "50%", border: "none",
                       background: "none", padding: 0, cursor: done ? "default" : "pointer",
@@ -13135,6 +13287,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 
   const apply = () => {
     if (mode !== "set" && num <= 0) return;
+    feedback.goalUpdate();
     onApply(newSaved);
   };
 
@@ -13270,7 +13423,10 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   };
 
   const updateDebtBalance = (debtId, newBalance) => {
+    const prev = allDebts.find((d) => d.id === debtId);
     const newDebts = allDebts.map((d) => d.id === debtId ? { ...d, balance: Math.max(0, newBalance) } : d);
+    // Feedback solo si la deuda efectivamente bajó (progreso)
+    if (prev && newBalance < prev.balance) feedback.debtDown();
     saveConfig({ ...config, debts: newDebts });
   };
 
@@ -16762,6 +16918,8 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
       learnedCats,
       null
     );
+    // Feedback háptico + sonoro distinto para gasto vs ingreso
+    if (type === "income") feedback.addIncome(); else feedback.addExpense();
   }
 
   async function handleSave() {
