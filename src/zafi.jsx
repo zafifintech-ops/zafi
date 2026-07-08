@@ -13285,7 +13285,7 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
 function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
-  const [closing, setClosing] = useState(false);
+  const [closing, close] = useSheetClose(onClose);
   const [mode, setMode] = useState("add"); // add | withdraw | set
   const [amount, setAmount] = useState("");
 
@@ -13293,7 +13293,6 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
-  const close = () => { setClosing(true); setTimeout(onClose, 250); };
   const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
 
   const newSaved = (() => {
@@ -13316,15 +13315,15 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: "50vh" }}>
         <div className="cc-grip" />
 
         {(() => {
           const curPct = goal.target > 0 ? Math.min(100, Math.round((goal.saved / goal.target) * 100)) : 0;
           const faltaAntes = Math.max(0, goal.target - goal.saved);
           const faltaDespues = Math.max(0, goal.target - newSaved);
-          const willComplete = goal.target > 0 && newSaved >= goal.target;
-          const previewing = num > 0 || mode === "set";
+          const previewing = num > 0;
+          const willComplete = previewing && goal.target > 0 && newSaved >= goal.target;
           const shownPct = previewing ? pct : curPct;
           const accent = "#1E6FE0";
           return (
@@ -13409,7 +13408,8 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
               </label>
               <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
-                inputMode="numeric" placeholder="$0" autoFocus
+                onFocus={(e) => { const el = e.target; setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300); }}
+                inputMode="numeric" placeholder="$0"
                 style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
                   border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
                   background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 20, fontWeight: 700, fontFamily: FONT, color: ink, outline: "none" }} />
@@ -13461,7 +13461,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 function DebtPaymentModal({ debt, onClose, onApply }) {
   const dark = useDarkMode();
   const FONT = "'Montserrat', sans-serif";
-  const [closing, setClosing] = useState(false);
+  const [closing, close] = useSheetClose(onClose);
   const [mode, setMode] = useState("pay"); // pay | add | set
   const [amount, setAmount] = useState("");
 
@@ -13469,11 +13469,11 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
-  const close = () => { setClosing(true); setTimeout(onClose, 250); };
   const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
 
   // El "objetivo" de una deuda es llegar a 0. El progreso es lo ya pagado.
   const original = debt.original && debt.original > 0 ? debt.original : debt.balance;
+  const hasInput = num > 0;
   const newBalance = (() => {
     if (mode === "pay") return Math.max(0, debt.balance - num);   // abonar: baja saldo
     if (mode === "add") return debt.balance + num;                 // creció la deuda
@@ -13484,8 +13484,10 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   const paidAfter = Math.max(0, original - newBalance);
   const pctBefore = original > 0 ? Math.min(100, Math.round((paidBefore / original) * 100)) : 0;
   const pctAfter = original > 0 ? Math.min(100, Math.round((paidAfter / original) * 100)) : 0;
-  const willClear = newBalance <= 0;
-  const previewing = num > 0 || mode === "set";
+  // Solo "previsualizamos" (y celebramos liquidación) cuando el usuario ya escribió algo.
+  // En "Corregir saldo" con el campo vacío NO debe verse como si liquidara la deuda.
+  const previewing = hasInput;
+  const willClear = hasInput && newBalance <= 0;
   const shownPct = previewing ? pctAfter : pctBefore;
   const accent = "#2A9048"; // verde: progreso de pago
 
@@ -13497,7 +13499,7 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: "50vh" }}>
         <div className="cc-grip" />
 
         {/* Cabecera */}
@@ -13578,7 +13580,8 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
         </label>
         <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
-          inputMode="numeric" placeholder="$0" autoFocus
+          onFocus={(e) => { const el = e.target; setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300); }}
+          inputMode="numeric" placeholder="$0"
           style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
             border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
             background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 20, fontWeight: 700, fontFamily: FONT, color: ink, outline: "none" }} />
