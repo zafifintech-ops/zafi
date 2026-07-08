@@ -1681,6 +1681,32 @@ function useSheetClose(onClose) {
   return [closing, close];
 }
 
+/* Ajusta un ref de sheet cuando aparece el teclado en iOS/Capacitor.
+   El teclado reduce el viewport visual, y sin esto el sheet (anclado abajo)
+   se sube y choca con la barra de estado. Usamos la Visual Viewport API para
+   fijar la altura del sheet al espacio realmente visible. */
+function useKeyboardSafeSheet(sheetRef) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      const el = sheetRef.current;
+      if (!el) return;
+      // Altura visible real (descontando el teclado)
+      const visible = vv.height;
+      // Limitamos el alto del sheet al 92% del área visible actual
+      el.style.maxHeight = `${Math.round(visible * 0.92)}px`;
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+    };
+  }, [sheetRef]);
+}
+
 /* Lee si la app está en modo oscuro mirando la clase del .cc-root.
    Útil para modales montados via createPortal en document.body, que
    no heredan el contexto de .cc-dark. */
@@ -6395,7 +6421,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
                   <input value={efAlreadySaved ? `$${Number(String(efAlreadySaved).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
                     onChange={(e) => setEfAlreadySaved(e.target.value.replace(/[^\d]/g, ""))}
                     inputMode="numeric" placeholder="$0 · opcional"
-                    style={{ width: "100%", padding: "11px 13px", borderRadius: 10,
+                    style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 10,
                       border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
                       background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 15, fontFamily: FONT, color: ink, outline: "none" }} />
                   {efAlreadyNum > 0 && (
@@ -13302,6 +13328,8 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   })();
 
   const pct = goal.target > 0 ? Math.min(100, Math.round((newSaved / goal.target) * 100)) : 0;
+  const sheetRef = useRef(null);
+  useKeyboardSafeSheet(sheetRef);
 
   const apply = () => {
     if (mode !== "set" && num <= 0) return;
@@ -13314,8 +13342,8 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: 120 }}>
+      <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
         {(() => {
@@ -13408,7 +13436,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
               </label>
               <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
-                onFocus={(e) => { const el = e.target; setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300); }}
+                onFocus={(e) => { const sheet = e.target.closest(".cc-sheet"); if (sheet) setTimeout(() => { sheet.scrollTop = 0; }, 50); }}
                 inputMode="numeric" placeholder="$0"
                 style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
                   border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
@@ -13470,6 +13498,8 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
 
   const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
+  const sheetRef = useRef(null);
+  useKeyboardSafeSheet(sheetRef);
 
   // El "objetivo" de una deuda es llegar a 0. El progreso es lo ya pagado.
   const original = debt.original && debt.original > 0 ? debt.original : debt.balance;
@@ -13498,8 +13528,8 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: 120 }}>
+      <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
         {/* Cabecera */}
@@ -13580,7 +13610,7 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
         </label>
         <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
-          onFocus={(e) => { const el = e.target; setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300); }}
+          onFocus={(e) => { const sheet = e.target.closest(".cc-sheet"); if (sheet) setTimeout(() => { sheet.scrollTop = 0; }, 50); }}
           inputMode="numeric" placeholder="$0"
           style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
             border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
