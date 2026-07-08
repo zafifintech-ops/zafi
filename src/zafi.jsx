@@ -7057,7 +7057,7 @@ function DebtWizard({ debt, accounts, onClose, onSave }) {
     <input value={money && val ? `$${Number(String(val).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : val}
       onChange={(e) => setter(e.target.value.replace(money ? /[^\d]/g : /[^\d.]/g, ""))}
       inputMode={money ? "numeric" : "decimal"} placeholder={ph}
-      style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+      style={{ width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12,
         border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
         background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 16, fontFamily: FONT, color: ink, outline: "none" }} />
   );
@@ -7260,11 +7260,11 @@ function DebtWizard({ debt, accounts, onClose, onSave }) {
               {inp(balance, setBalance, "$0", true)}
             </div>
             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Tasa % anual</label>
                 {inp(rate, setRate, "45", false)}
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6, display: "block", fontFamily: FONT }}>Pago mínimo</label>
                 {inp(minPayment, setMinPayment, "$0", true)}
               </div>
@@ -13315,76 +13315,306 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: dark ? "rgba(30,111,224,.15)" : "rgba(30,111,224,.08)",
+        {(() => {
+          const curPct = goal.target > 0 ? Math.min(100, Math.round((goal.saved / goal.target) * 100)) : 0;
+          const faltaAntes = Math.max(0, goal.target - goal.saved);
+          const faltaDespues = Math.max(0, goal.target - newSaved);
+          const willComplete = goal.target > 0 && newSaved >= goal.target;
+          const previewing = num > 0 || mode === "set";
+          const shownPct = previewing ? pct : curPct;
+          const accent = "#1E6FE0";
+          return (
+            <>
+              {/* Cabecera: icono + nombre + estado */}
+              <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 18 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(30,111,224,.16)" : "rgba(30,111,224,.09)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <GoalTypeIcon type={goal.type} size={26} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 500, color: ink,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{goal.name}</div>
+                  <div style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT, marginTop: 1 }}>
+                    Estás abonando a tu meta
+                  </div>
+                </div>
+              </div>
+
+              {/* PROGRESO PROTAGONISTA — barra grande + cuánto falta */}
+              <div style={{ padding: "18px 18px 16px", borderRadius: 18, marginBottom: 20,
+                background: dark ? "rgba(255,255,255,.04)" : "rgba(30,111,224,.05)",
+                border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(30,111,224,.1)"}` }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                    <span className="cc-serif" style={{ fontSize: 30, fontWeight: 600, color: ink, letterSpacing: "-.02em", lineHeight: 1 }}>
+                      {fmtBare(previewing ? newSaved : goal.saved)}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: inkSoft, fontFamily: FONT }}>
+                      / {fmtBare(goal.target)}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: willComplete ? "#2A9048" : accent, fontFamily: FONT }}>
+                    {shownPct}%
+                  </span>
+                </div>
+
+                {/* Barra con relleno actual + incremento resaltado */}
+                <div style={{ height: 14, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", position: "relative", display: "flex" }}>
+                  <div style={{ height: "100%", width: `${curPct}%`, borderRadius: "99px 0 0 99px",
+                    background: willComplete ? "#2A9048" : accent, transition: "width .4s ease", flexShrink: 0 }} />
+                  {previewing && pct > curPct && (
+                    <div style={{ height: "100%", width: `${pct - curPct}%`,
+                      background: willComplete ? "#3CBE60" : "#5B9BFF", transition: "width .4s ease",
+                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,.25) 5px, rgba(255,255,255,.25) 10px)" }} />
+                  )}
+                </div>
+
+                {/* Cuánto falta / mensaje de logro */}
+                <div style={{ marginTop: 12, textAlign: "center" }}>
+                  {willComplete ? (
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#2A9048", fontFamily: FONT }}>
+                      🎉 ¡Alcanzas tu meta completa!
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: inkSoft, fontFamily: FONT }}>
+                      Te {previewing ? "faltarían" : "faltan"} <b style={{ color: ink }}>{fmtMxn(previewing ? faltaDespues : faltaAntes)}</b> para lograrlo
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Selector de acción */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                {[
+                  { v: "add", label: "Agregué" },
+                  { v: "withdraw", label: "Retiré" },
+                  { v: "set", label: "Corregir total" },
+                ].map((o) => (
+                  <button key={o.v} onClick={() => { setMode(o.v); setAmount(""); }}
+                    style={{ flex: 1, padding: 11, borderRadius: 12,
+                      border: `1px solid ${mode === o.v ? accent : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                      background: mode === o.v ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
+                      color: mode === o.v ? accent : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
+                {mode === "add" ? "¿Cuánto agregaste?" : mode === "withdraw" ? "¿Cuánto retiraste?" : "¿Cuánto llevas en total?"}
+              </label>
+              <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+                inputMode="numeric" placeholder="$0" autoFocus
+                style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
+                  border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                  background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 20, fontWeight: 700, fontFamily: FONT, color: ink, outline: "none" }} />
+
+              {/* Chips de montos rápidos (solo en modo agregar) */}
+              {mode === "add" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {[100, 500, 1000].concat(faltaAntes > 0 && faltaAntes <= 100000 ? [Math.round(faltaAntes)] : []).map((amt, i, arr) => {
+                    const isFalta = i === arr.length - 1 && faltaAntes > 0 && faltaAntes <= 100000 && arr.length > 3;
+                    return (
+                      <button key={amt + "-" + i} onClick={() => setAmount(String(amt))}
+                        style={{ flex: isFalta ? "1 0 100%" : 1, padding: "9px 10px", borderRadius: 10,
+                          border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                          background: isFalta ? "rgba(30,111,224,.08)" : "transparent",
+                          color: isFalta ? accent : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                        {isFalta ? `Completar meta · ${fmtMxn(amt)}` : `+${fmtBare(amt)}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button onClick={apply} disabled={mode !== "set" && num <= 0}
+                style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", marginTop: 20,
+                  background: (mode === "set" || num > 0) ? (willComplete ? "#2A9048" : accent) : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+                  color: (mode === "set" || num > 0) ? "#fff" : inkFaint, fontSize: 15, fontWeight: 700, fontFamily: FONT,
+                  cursor: (mode === "set" || num > 0) ? "pointer" : "default", transition: "background .2s ease" }}>
+                {willComplete ? "🎉 Completar mi meta" : mode === "withdraw" ? "Registrar retiro" : "Abonar a mi meta"}
+              </button>
+
+              <button onClick={() => { if (confirm(`¿Eliminar la meta "${goal.name}"?`)) onDelete(); }}
+                style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: "none",
+                  color: "#E23535", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginTop: 6 }}>
+                Eliminar meta
+              </button>
+            </>
+          );
+        })()}
+
+        <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* Modal para abonar a una deuda — reemplaza el prompt() nativo.
+   Barra de progreso "cuánto has pagado" + cuánto falta para liquidarla. */
+function DebtPaymentModal({ debt, onClose, onApply }) {
+  const dark = useDarkMode();
+  const FONT = "'Montserrat', sans-serif";
+  const [closing, setClosing] = useState(false);
+  const [mode, setMode] = useState("pay"); // pay | add | set
+  const [amount, setAmount] = useState("");
+
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
+  const inkFaint = dark ? "rgba(245,245,247,.4)" : "#8B95A6";
+
+  const close = () => { setClosing(true); setTimeout(onClose, 250); };
+  const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
+
+  // El "objetivo" de una deuda es llegar a 0. El progreso es lo ya pagado.
+  const original = debt.original && debt.original > 0 ? debt.original : debt.balance;
+  const newBalance = (() => {
+    if (mode === "pay") return Math.max(0, debt.balance - num);   // abonar: baja saldo
+    if (mode === "add") return debt.balance + num;                 // creció la deuda
+    return num;                                                    // corregir saldo
+  })();
+
+  const paidBefore = Math.max(0, original - debt.balance);
+  const paidAfter = Math.max(0, original - newBalance);
+  const pctBefore = original > 0 ? Math.min(100, Math.round((paidBefore / original) * 100)) : 0;
+  const pctAfter = original > 0 ? Math.min(100, Math.round((paidAfter / original) * 100)) : 0;
+  const willClear = newBalance <= 0;
+  const previewing = num > 0 || mode === "set";
+  const shownPct = previewing ? pctAfter : pctBefore;
+  const accent = "#2A9048"; // verde: progreso de pago
+
+  const apply = () => {
+    if (mode !== "set" && num <= 0) return;
+    onApply(newBalance);
+  };
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        <div className="cc-grip" />
+
+        {/* Cabecera */}
+        <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 18 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: dark ? "rgba(226,53,53,.14)" : "rgba(226,53,53,.08)",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <GoalTypeIcon type={goal.type} size={24} />
+            <svg viewBox="0 0 24 24" style={{ width: 26, height: 26, stroke: "#E23535", fill: "none", strokeWidth: 1.8 }}>
+              <rect x="2" y="6" width="20" height="13" rx="2" /><path d="M2 10h20M6 15h4" strokeLinecap="round" />
+            </svg>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 500, color: ink }}>{goal.name}</div>
-            <div style={{ fontSize: 12, color: inkSoft, fontFamily: FONT }}>
-              {fmtMxn(goal.saved)} de {fmtMxn(goal.target)}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 500, color: ink,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{debt.name}</div>
+            <div style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT, marginTop: 1 }}>
+              {willClear && previewing ? "¡Estás por liquidarla!" : "Estás abonando a tu deuda"}
             </div>
           </div>
         </div>
 
+        {/* PROGRESO PROTAGONISTA */}
+        <div style={{ padding: "18px 18px 16px", borderRadius: 18, marginBottom: 20,
+          background: dark ? "rgba(255,255,255,.04)" : "rgba(42,144,72,.05)",
+          border: `1px solid ${dark ? "rgba(255,255,255,.06)" : "rgba(42,144,72,.12)"}` }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ fontSize: 11.5, color: inkSoft, fontFamily: FONT }}>Saldo restante</span>
+              <span className="cc-serif" style={{ fontSize: 28, fontWeight: 600, color: willClear ? accent : "#E23535", letterSpacing: "-.02em", lineHeight: 1 }}>
+                {fmtBare(previewing ? newBalance : debt.balance)}
+              </span>
+            </div>
+            <span style={{ fontSize: 20, fontWeight: 700, color: accent, fontFamily: FONT }}>
+              {shownPct}%
+            </span>
+          </div>
+
+          <div style={{ height: 14, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden", display: "flex" }}>
+            <div style={{ height: "100%", width: `${pctBefore}%`, borderRadius: "99px 0 0 99px",
+              background: accent, transition: "width .4s ease", flexShrink: 0 }} />
+            {previewing && pctAfter > pctBefore && (
+              <div style={{ height: "100%", width: `${pctAfter - pctBefore}%`,
+                background: "#3CBE60", transition: "width .4s ease",
+                backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,.25) 5px, rgba(255,255,255,.25) 10px)" }} />
+            )}
+          </div>
+
+          <div style={{ marginTop: 12, textAlign: "center" }}>
+            {willClear ? (
+              <div style={{ fontSize: 14, fontWeight: 700, color: accent, fontFamily: FONT }}>
+                🎉 ¡Liquidas esta deuda por completo!
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: inkSoft, fontFamily: FONT }}>
+                Te {previewing ? "faltarían" : "faltan"} <b style={{ color: ink }}>{fmtMxn(previewing ? newBalance : debt.balance)}</b> para liquidarla
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Selector de acción */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {[
-            { v: "add", label: "Agregué" },
-            { v: "withdraw", label: "Retiré" },
-            { v: "set", label: "Corregir total" },
+            { v: "pay", label: "Aboné" },
+            { v: "add", label: "Aumentó" },
+            { v: "set", label: "Corregir saldo" },
           ].map((o) => (
             <button key={o.v} onClick={() => { setMode(o.v); setAmount(""); }}
               style={{ flex: 1, padding: 11, borderRadius: 12,
-                border: `1px solid ${mode === o.v ? "#1E6FE0" : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
-                background: mode === o.v ? "rgba(30,111,224,.08)" : (dark ? "#1A1C22" : "#fff"),
-                color: mode === o.v ? "#1E6FE0" : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                border: `1px solid ${mode === o.v ? accent : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)")}`,
+                background: mode === o.v ? "rgba(42,144,72,.08)" : (dark ? "#1A1C22" : "#fff"),
+                color: mode === o.v ? accent : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
               {o.label}
             </button>
           ))}
         </div>
 
         <label style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8, display: "block", fontFamily: FONT }}>
-          {mode === "add" ? "¿Cuánto agregaste?" : mode === "withdraw" ? "¿Cuánto retiraste?" : "¿Cuánto llevas en total?"}
+          {mode === "pay" ? "¿Cuánto abonaste?" : mode === "add" ? "¿Cuánto aumentó?" : "¿Cuál es el saldo real?"}
         </label>
         <input value={amount ? `$${Number(String(amount).replace(/[^\d]/g, "")).toLocaleString("en-US")}` : ""}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
           inputMode="numeric" placeholder="$0" autoFocus
-          style={{ width: "100%", padding: "13px 14px", borderRadius: 12,
+          style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", borderRadius: 14,
             border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
-            background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 18, fontWeight: 600, fontFamily: FONT, color: ink, outline: "none" }} />
+            background: dark ? "rgba(255,255,255,.05)" : "#fff", fontSize: 20, fontWeight: 700, fontFamily: FONT, color: ink, outline: "none" }} />
 
-        {/* Vista previa del resultado */}
-        {(num > 0 || mode === "set") && (
-          <div style={{ marginTop: 16, padding: 14, borderRadius: 14,
-            background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT }}>Nuevo total</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: ink, fontFamily: FONT }}>{fmtMxn(newSaved)}</span>
-            </div>
-            <div style={{ height: 8, borderRadius: 99, background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: "linear-gradient(90deg,#1E6FE0,#5B9BFF)", transition: "width .4s ease" }} />
-            </div>
-            <div style={{ fontSize: 11, color: inkFaint, marginTop: 6, fontFamily: FONT, textAlign: "right" }}>{pct}% de tu meta</div>
+        {/* Chips rápidos en modo abonar */}
+        {mode === "pay" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            {[500, 1000].concat(debt.minPayment > 0 ? [Math.round(debt.minPayment)] : []).map((amt, i, arr) => {
+              const isMin = debt.minPayment > 0 && i === arr.length - 1;
+              return (
+                <button key={amt + "-" + i} onClick={() => setAmount(String(amt))}
+                  style={{ flex: 1, padding: "9px 10px", borderRadius: 10,
+                    border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                    background: isMin ? "rgba(42,144,72,.08)" : "transparent",
+                    color: isMin ? accent : inkSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  {isMin ? `Mínimo · ${fmtBare(amt)}` : `${fmtBare(amt)}`}
+                </button>
+              );
+            })}
+            {debt.balance > 0 && debt.balance <= 100000 && (
+              <button onClick={() => setAmount(String(Math.round(debt.balance)))}
+                style={{ flex: "1 0 100%", padding: "9px 10px", borderRadius: 10,
+                  border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                  background: "rgba(42,144,72,.08)", color: accent, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                Liquidar todo · {fmtMxn(Math.round(debt.balance))}
+              </button>
+            )}
           </div>
         )}
 
         <button onClick={apply} disabled={mode !== "set" && num <= 0}
-          style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 18,
-            background: (mode === "set" || num > 0) ? "#1E6FE0" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
-            color: (mode === "set" || num > 0) ? "#fff" : inkFaint, fontSize: 14, fontWeight: 600, fontFamily: FONT,
-            cursor: (mode === "set" || num > 0) ? "pointer" : "default" }}>
-          Guardar
-        </button>
-
-        <button onClick={() => { if (confirm(`¿Eliminar la meta "${goal.name}"?`)) onDelete(); }}
-          style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: "none",
-            color: "#E23535", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginTop: 6 }}>
-          Eliminar meta
+          style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", marginTop: 20,
+            background: (mode === "set" || num > 0) ? accent : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.1)"),
+            color: (mode === "set" || num > 0) ? "#fff" : inkFaint, fontSize: 15, fontWeight: 700, fontFamily: FONT,
+            cursor: (mode === "set" || num > 0) ? "pointer" : "default", transition: "background .2s ease" }}>
+          {willClear ? "🎉 Liquidar deuda" : mode === "add" ? "Registrar aumento" : "Abonar a mi deuda"}
         </button>
 
         <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
@@ -13400,6 +13630,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const [updatingGoal, setUpdatingGoal] = useState(null);
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState(null);
+  const [payingDebt, setPayingDebt] = useState(null);
   const [debtMethod, setDebtMethod] = useState(config.debtMethod || "avalanche");
   const allGoals = config.goals || [];
   const allDebts = config.debts || [];
@@ -13766,16 +13997,10 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button onClick={() => {
-                        const val = prompt(`Nuevo saldo de ${d.name}:`, String(d.balance));
-                        if (val !== null) {
-                          const num = parseFloat(val.replace(/[^\d.]/g, ""));
-                          if (!isNaN(num)) updateDebtBalance(d.id, num);
-                        }
-                      }}
-                        style={{ flex: 1, background: "rgba(30,111,224,.1)", border: "none", color: "#1E6FE0",
+                      <button onClick={() => setPayingDebt(d)}
+                        style={{ flex: 1, background: "rgba(42,144,72,.1)", border: "none", color: "#2A9048",
                           fontSize: 11.5, fontWeight: 600, padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>
-                        Actualizar saldo
+                        Abonar
                       </button>
                       <button onClick={() => { setEditingDebt(d); setDebtModalOpen(true); }}
                         style={{ background: dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)", border: "none", color: inkSoft,
@@ -13819,6 +14044,13 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
           onClose={() => setUpdatingGoal(null)}
           onApply={(newSaved) => { updateSaved(updatingGoal.id, newSaved); setUpdatingGoal(null); }}
           onDelete={() => { deleteGoal(updatingGoal.id); setUpdatingGoal(null); }}
+        />
+      )}
+      {payingDebt && (
+        <DebtPaymentModal
+          debt={payingDebt}
+          onClose={() => setPayingDebt(null)}
+          onApply={(newBalance) => { updateDebtBalance(payingDebt.id, newBalance); setPayingDebt(null); }}
         />
       )}
     </div>
