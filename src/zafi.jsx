@@ -2245,6 +2245,204 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
   );
 }
 
+/* ===== Modal legal: Términos de Uso y Aviso de Privacidad =================
+   Contenido estándar para app de finanzas personales en México (LFPDPPP).
+   IMPORTANTE: los campos entre corchetes [ASÍ] son placeholders — Luis debe
+   reemplazarlos con sus datos legales reales antes de publicar. NO es asesoría
+   legal; conviene revisarlo con un abogado. */
+const LEGAL_CONTACT_EMAIL = "zafi.fintech@gmail.com"; // email de contacto público
+const LEGAL_LAST_UPDATE = "[FECHA DE ÚLTIMA ACTUALIZACIÓN]";
+
+function LegalModal({ doc, onClose }) {
+  // doc: "terms" | "privacy"
+  const [closing, close] = useSheetClose(onClose);
+  const dark = useDarkMode();
+  const FONT = "'Montserrat', sans-serif";
+  const ink = dark ? "#F5F5F7" : "#1B2230";
+  const inkSoft = dark ? "rgba(245,245,247,.66)" : "#5B6472";
+
+  const sheetRef = useRef(null);
+
+  const H = ({ children }) => (
+    <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16.5, fontWeight: 600, color: ink,
+      margin: "22px 0 8px", letterSpacing: "-.01em" }}>{children}</div>
+  );
+  const P = ({ children }) => (
+    <p style={{ fontSize: 13.5, lineHeight: 1.62, color: inkSoft, fontFamily: FONT, margin: "0 0 10px" }}>{children}</p>
+  );
+  const LI = ({ children }) => (
+    <li style={{ fontSize: 13.5, lineHeight: 1.6, color: inkSoft, fontFamily: FONT, marginBottom: 6 }}>{children}</li>
+  );
+
+  const title = doc === "terms" ? "Términos de Uso" : "Aviso de Privacidad";
+
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
+      <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        <div className="cc-grip" />
+
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: 11.5, color: inkSoft, fontFamily: FONT, marginBottom: 4 }}>
+          Última actualización: {LEGAL_LAST_UPDATE}
+        </div>
+
+        {doc === "terms" ? (
+          <>
+            <P>
+              Bienvenido a Zafi. Estos Términos de Uso ("Términos") regulan el acceso y uso de la
+              aplicación móvil Zafi (la "App"), operada por [NOMBRE LEGAL O RAZÓN SOCIAL]
+              ("nosotros", "Zafi"), con domicilio en [DOMICILIO] y RFC [RFC]. Al crear una cuenta o
+              usar la App, aceptas estos Términos en su totalidad.
+            </P>
+
+            <H>1. Descripción del servicio</H>
+            <P>
+              Zafi es una herramienta de finanzas personales que te permite registrar movimientos,
+              organizar categorías, dar seguimiento a metas y deudas, y visualizar estadísticas.
+              Zafi es una herramienta informativa y de organización; no somos una institución
+              financiera, no ofrecemos asesoría financiera, fiscal, contable ni de inversión
+              profesional, y no ejecutamos operaciones con tu dinero.
+            </P>
+
+            <H>2. Registro y cuenta</H>
+            <P>
+              Para usar ciertas funciones debes crear una cuenta con un correo válido o mediante un
+              proveedor de identidad (Google o Apple). Eres responsable de mantener la
+              confidencialidad de tus credenciales y de toda actividad realizada en tu cuenta. Debes
+              tener al menos 18 años, o la mayoría de edad en tu jurisdicción, para usar la App.
+            </P>
+
+            <H>3. Planes y suscripciones</H>
+            <P>
+              Zafi ofrece un plan gratuito y planes de pago (Lite y Pro). Las suscripciones de pago
+              se contratan y cobran a través de la App Store de Apple, sujetas a sus términos. La
+              renovación es automática salvo que la canceles al menos 24 horas antes del fin del
+              periodo, desde los ajustes de tu cuenta de Apple. Los precios pueden cambiar con aviso
+              previo.
+            </P>
+
+            <H>4. Uso aceptable</H>
+            <P>Te comprometes a no:</P>
+            <ul style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+              <LI>Usar la App con fines ilícitos o no autorizados.</LI>
+              <LI>Intentar acceder a cuentas o datos de otros usuarios.</LI>
+              <LI>Descompilar, aplicar ingeniería inversa o interferir con la App.</LI>
+              <LI>Introducir malware o realizar acciones que dañen el servicio.</LI>
+            </ul>
+
+            <H>5. Tus datos y contenido</H>
+            <P>
+              La información que registras en Zafi es tuya. Nos otorgas una licencia limitada para
+              procesarla y mostrártela con el fin de operar la App, conforme a nuestro Aviso de
+              Privacidad. Puedes exportar o eliminar tus datos en cualquier momento desde la
+              sección "Datos y privacidad".
+            </P>
+
+            <H>6. Limitación de responsabilidad</H>
+            <P>
+              La App se ofrece "tal cual". En la medida permitida por la ley, no seremos responsables
+              por decisiones financieras que tomes con base en la información mostrada, ni por
+              pérdidas derivadas del uso o imposibilidad de uso de la App. Las cifras y proyecciones
+              son estimaciones informativas.
+            </P>
+
+            <H>7. Modificaciones</H>
+            <P>
+              Podemos actualizar estos Términos. Si los cambios son relevantes, te avisaremos dentro
+              de la App. El uso continuado tras la actualización implica tu aceptación.
+            </P>
+
+            <H>8. Contacto</H>
+            <P>
+              Para dudas sobre estos Términos, escríbenos a {LEGAL_CONTACT_EMAIL}.
+            </P>
+          </>
+        ) : (
+          <>
+            <P>
+              Este Aviso de Privacidad se emite en cumplimiento de la Ley Federal de Protección de
+              Datos Personales en Posesión de los Particulares (LFPDPPP). [NOMBRE LEGAL O RAZÓN
+              SOCIAL], con domicilio en [DOMICILIO] ("Zafi", "nosotros"), es responsable del
+              tratamiento de tus datos personales.
+            </P>
+
+            <H>1. Datos que recabamos</H>
+            <P>Para brindarte el servicio podemos recabar:</P>
+            <ul style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+              <LI>Datos de identificación y contacto: nombre, correo electrónico.</LI>
+              <LI>Datos de tu cuenta: nombre para mostrar, foto de perfil (opcional), preferencias.</LI>
+              <LI>Datos financieros que tú registras: movimientos, categorías, metas y deudas. Estos
+                datos los capturas tú; Zafi no se conecta a tus cuentas bancarias.</LI>
+              <LI>Datos técnicos: identificadores del dispositivo y de uso, para operar y mejorar la App.</LI>
+            </ul>
+
+            <H>2. Finalidades del tratamiento</H>
+            <P>Usamos tus datos para:</P>
+            <ul style={{ paddingLeft: 20, margin: "0 0 10px" }}>
+              <LI>Crear y administrar tu cuenta y autenticarte.</LI>
+              <LI>Operar las funciones de la App (registro, estadísticas, metas, etc.).</LI>
+              <LI>Procesar suscripciones a través de la App Store.</LI>
+              <LI>Mejorar la App y brindarte soporte.</LI>
+            </ul>
+
+            <H>3. Almacenamiento y seguridad</H>
+            <P>
+              Tus datos se almacenan en servicios de nube (Google Firebase) con medidas de seguridad
+              técnicas y administrativas. Tus credenciales de acceso, cuando activas Face ID, se
+              guardan cifradas en el llavero seguro de tu dispositivo, no en nuestros servidores.
+            </P>
+
+            <H>4. Compartir datos con terceros</H>
+            <P>
+              No vendemos tus datos personales. Podemos compartirlos con proveedores que nos ayudan a
+              operar la App (por ejemplo, infraestructura de nube de Google, procesamiento de pagos de
+              Apple, y servicios de inteligencia artificial para funciones específicas), únicamente
+              para las finalidades descritas y bajo obligaciones de confidencialidad.
+            </P>
+
+            <H>5. Tus derechos ARCO</H>
+            <P>
+              Tienes derecho a Acceder, Rectificar, Cancelar u Oponerte al tratamiento de tus datos
+              (derechos ARCO), así como a revocar tu consentimiento. Puedes ejercer estos derechos
+              desde la sección "Datos y privacidad" de la App (exportar o eliminar tu cuenta y datos),
+              o enviando una solicitud a {LEGAL_CONTACT_EMAIL}.
+            </P>
+
+            <H>6. Conservación y eliminación</H>
+            <P>
+              Conservamos tus datos mientras tu cuenta esté activa. Si eliminas tu cuenta, borramos tu
+              información personal de nuestros sistemas de forma irreversible, salvo la que debamos
+              conservar por obligaciones legales.
+            </P>
+
+            <H>7. Cambios al aviso</H>
+            <P>
+              Podemos actualizar este Aviso de Privacidad. Te notificaremos los cambios relevantes
+              dentro de la App.
+            </P>
+
+            <H>8. Contacto</H>
+            <P>
+              Para cualquier duda sobre tus datos personales, contáctanos en {LEGAL_CONTACT_EMAIL}.
+            </P>
+          </>
+        )}
+
+        <div style={{ height: 8 }} />
+        <button onClick={close}
+          style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 8,
+            background: "#5B6EE8", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: FONT, cursor: "pointer" }}>
+          Entendido
+        </button>
+
+        <button className="cc-sheet-close" onClick={close} style={{ position: "absolute", top: 16, right: 16 }}>×</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ===== Modal de upgrade (paywall) ======================================== */
 function UpgradeModal({ config, onClose, feature }) {
   const [closing, close] = useSheetClose(onClose);
@@ -4761,6 +4959,7 @@ function AuthScreen() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [showForgot, setShowForgot] = useState(false);
+  const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
 
   // Limpiar chat al mostrar la pantalla de login (nueva sesión)
   useEffect(() => {
@@ -4930,6 +5129,40 @@ function AuthScreen() {
         // Usuario canceló, no mostrar error
       } else {
         setErr("No se pudo iniciar sesión con Google. Intenta de nuevo.");
+      }
+    }
+    finally { setBusy(false); }
+  }
+
+  async function doAppleSignIn() {
+    setBusy(true); setErr("");
+    try {
+      // Usar FirebaseAuthentication plugin de Capacitor
+      const result = await FirebaseAuthentication.signInWithApple();
+      // Apple usa OAuthProvider con nonce para verificar el idToken
+      const provider = new OAuthProvider("apple.com");
+      const credential = provider.credential({
+        idToken: result.credential?.idToken,
+        rawNonce: result.credential?.nonce,
+      });
+      const sdkResult = await signInWithCredential(auth, credential).catch(() => null);
+      const uid = sdkResult?.user?.uid || result.user?.uid;
+      const email = sdkResult?.user?.email || result.user?.email;
+      // Apple solo entrega el nombre la PRIMERA vez; lo componemos si viene
+      const appleName = result.user?.displayName
+        || [result.user?.givenName, result.user?.familyName].filter(Boolean).join(" ")
+        || sdkResult?.user?.displayName || "";
+      if (!uid) throw new Error("No se pudo obtener el usuario de Apple.");
+      const idToken = result.credential?.idToken;
+      const restUser = { uid, email, displayName: appleName, getIdToken: async () => idToken };
+      window.__zafiCurrentUser = sdkResult?.user || restUser;
+      if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
+    } catch (e) {
+      console.error("Apple Sign In error:", e);
+      if (e?.message?.includes("cancel") || e?.code === "CANCELLED" || e?.code === "1001") {
+        // Usuario canceló, no mostrar error
+      } else {
+        setErr("No se pudo iniciar sesión con Apple. Intenta de nuevo.");
       }
     }
     finally { setBusy(false); }
@@ -5127,14 +5360,13 @@ function AuthScreen() {
                 Google
               </button>
               {/* Apple */}
-              <button disabled
+              <button onClick={doAppleSignIn} disabled={busy} className="cc-press"
                 style={{ flex:1, padding:"11px 10px", borderRadius:12,
                   border:"1px solid rgba(26,24,21,.15)",
-                  background:"rgba(26,24,21,.08)", cursor:"not-allowed",
+                  background:"rgba(26,24,21,.04)", cursor:"pointer",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
                   fontFamily:"'Montserrat',sans-serif", fontSize:15, fontWeight:500,
-                  color:"rgba(26,24,21,.35)", opacity:.5 }}
-                title="Próximamente">
+                  color:"rgba(26,24,21,.75)" }}>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
                 </svg>
@@ -5186,14 +5418,13 @@ function AuthScreen() {
                 </svg>
                 Google
               </button>
-              <button disabled
+              <button onClick={doAppleSignIn} disabled={busy} className="cc-press"
                 style={{ flex:1, padding:"13px 10px", borderRadius:12,
                   border:"1px solid rgba(26,24,21,.15)",
-                  background:"rgba(26,24,21,.08)", cursor:"not-allowed",
+                  background:"rgba(26,24,21,.04)", cursor:"pointer",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
                   fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
-                  color:"rgba(26,24,21,.35)", opacity:.5 }}
-                title="Próximamente">
+                  color:"rgba(26,24,21,.75)" }}>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
                 </svg>
@@ -5203,12 +5434,21 @@ function AuthScreen() {
             <p style={{ textAlign:"center", fontSize:11, color:"rgba(26,24,21,.35)",
               lineHeight:1.6, fontFamily:"'Montserrat',sans-serif", fontWeight:300,
               marginTop:8, marginBottom:0 }}>
-              Al crear una cuenta aceptas nuestros términos de uso y política de privacidad.
+              Al crear una cuenta aceptas nuestros{" "}
+              <span onClick={() => setLegalDoc("terms")}
+                style={{ textDecoration:"underline", cursor:"pointer", color:"rgba(26,24,21,.6)", fontWeight:400 }}>
+                términos de uso
+              </span>{" "}y{" "}
+              <span onClick={() => setLegalDoc("privacy")}
+                style={{ textDecoration:"underline", cursor:"pointer", color:"rgba(26,24,21,.6)", fontWeight:400 }}>
+                aviso de privacidad
+              </span>.
             </p>
           </div>
         )}
         </div>
       </div>
+      {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
     </div>
   );
 }
@@ -9476,6 +9716,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
   const [saved, setSaved] = useState(true);
   const [defaultHome, setDefaultHome] = useState(config.defaultHomeView || "all");
 
@@ -10059,6 +10300,22 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
           <>
             {BACK(t("dataPrivacy"))}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <button onClick={() => setLegalDoc("terms")}
+                style={{ padding: "14px 0", background: "transparent", border: "none",
+                  borderBottom: "1px solid var(--line-soft)", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left", width: "100%", display: "flex",
+                  justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>Términos de Uso</span>
+                <span style={{ fontSize: 16, color: "var(--ink-faint)" }}>›</span>
+              </button>
+              <button onClick={() => setLegalDoc("privacy")}
+                style={{ padding: "14px 0", background: "transparent", border: "none",
+                  borderBottom: "1px solid var(--line-soft)", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left", width: "100%", display: "flex",
+                  justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>Aviso de Privacidad</span>
+                <span style={{ fontSize: 16, color: "var(--ink-faint)" }}>›</span>
+              </button>
               <div style={{ padding: "14px 0", borderBottom: "1px solid var(--line-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>{t("exportData")}</span>
                 <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{t("comingSoon")}</span>
@@ -10116,6 +10373,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
         {avatarOpen && (
           <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
         )}
+        {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
         </div>
       </div>
     </div>,
