@@ -13315,7 +13315,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: "50vh" }}>
+        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: 120 }}>
         <div className="cc-grip" />
 
         {(() => {
@@ -13499,7 +13499,7 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: "50vh" }}>
+        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: 120 }}>
         <div className="cc-grip" />
 
         {/* Cabecera */}
