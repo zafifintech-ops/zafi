@@ -12655,6 +12655,29 @@ function pickPooledAction(ctx) {
     pool.push(`[[contar:5]] Toca 5 veces celebrando tu flujo positivo. Vas bien — hoy decide guardar una parte.`);
   }
 
+  // ── Acciones interactivas nuevas (identifica / reflexiona / elige) ──
+  // [[identifica]] — revisar el historial y señalar un gasto evitable.
+  pool.push(
+    `[[identifica]] Encuentra un movimiento de estos días que pudiste no hacer. Solo reconocerlo ya cambia tu próxima decisión.`,
+    `[[identifica]] Elige el gasto que menos disfrutaste de tu historial reciente. La próxima vez lo pensarás dos veces.`,
+  );
+  if (topExpCat) {
+    pool.push(`[[identifica]] Busca un gasto de "${topExpCat}" que no era necesario. Es tu categoría más pesada — vale la pena mirarla.`);
+  }
+  // [[reflexiona]] — pausa de conciencia por escrito.
+  pool.push(
+    `[[reflexiona]] ¿Qué sentiste la última vez que gastaste de más? Escríbelo — ponerle palabras le quita fuerza al impulso.`,
+    `[[reflexiona]] En una línea: ¿para qué estás cuidando tu dinero? Tener claro el "para qué" hace más fácil el "no" de hoy.`,
+  );
+  if (deficitPct > 0) {
+    pool.push(`[[reflexiona]] Escribe una cosa que puedes dejar de comprar esta semana para cerrar tu déficit. Nombrarlo es el primer paso.`);
+  }
+  // [[elige:...]] — micro-compromiso del día.
+  pool.push(
+    `[[elige:Hoy no compro nada que no tenía planeado|Solo gasto en lo esencial de hoy|Antes de cada compra, espero 10 minutos] ¿Con qué te comprometes hoy?`,
+    `[[elige:Reviso mis suscripciones|Anoto todos mis gastos de hoy|Guardo algo, aunque sea poco] Elige tu movimiento de hoy.`,
+  );
+
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
   if (pool.length === 0) {
     pool.push("Registra cada gasto de hoy, por pequeño que sea.");
@@ -12668,7 +12691,7 @@ function pickPooledAction(ctx) {
   return pool[idx];
 }
 
-function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className = "", isHero = false }) {
+function DailyActionCard({ config, saveConfig, txs = [], actionCtx, dark, isPro, className = "", isHero = false }) {
   const FONT = "'Montserrat', sans-serif";
   const ink = dark ? "#F5F5F7" : "#1B2230";
   const inkSoft = dark ? "rgba(245,245,247,.6)" : "#6B7585";
@@ -12713,7 +12736,16 @@ function DailyActionCard({ config, saveConfig, actionCtx, dark, isPro, className
 - Déficit: ${actionCtx.deficitPct > 0 ? `sí, gasta ${actionCtx.deficitPct}% más de lo que gana` : "no"}
 - Hábito de HOY: ${actionCtx.todayIsHeavy ? `los ${actionCtx.todayDowName} suele gastar más que otros días${actionCtx.todayTopCat ? `, sobre todo en ${actionCtx.todayTopCat}` : ""}` : `los ${actionCtx.todayDowName} NO es un día donde gaste de más`}
 
-Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. MUY IMPORTANTE sobre hábitos: solo sugiere "no gastes en X hoy" o "cuidado con X" si el hábito de HOY indica que este día suele gastar en esa categoría. NUNCA le digas que evite una categoría en un día donde no suele gastar en ella (por ejemplo, no le digas "no gastes en Compras el lunes" si los lunes no compra). Si hoy no es un día de gasto fuerte, enfócate en registrar, ahorrar, abonar a metas o reflexionar. No menciones déficit si el flujo es positivo, ni al revés. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual. Responde SOLO con la acción, sin comillas ni markdown.`;
+Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. MUY IMPORTANTE sobre hábitos: solo sugiere "no gastes en X hoy" o "cuidado con X" si el hábito de HOY indica que este día suele gastar en esa categoría. NUNCA le digas que evite una categoría en un día donde no suele gastar en ella (por ejemplo, no le digas "no gastes en Compras el lunes" si los lunes no compra). Si hoy no es un día de gasto fuerte, enfócate en registrar, ahorrar, abonar a metas o reflexionar. No menciones déficit si el flujo es positivo, ni al revés. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual.
+
+Puedes usar OPCIONALMENTE uno de estos formatos interactivos al inicio (solo si encaja natural con la acción):
+- [[contar:N]] — para acciones de repetir un gesto consciente N veces (N entre 3 y 12).
+- [[identifica]] — SOLO si la acción es revisar el historial y señalar un gasto (ej: "encuentra un movimiento que pudiste evitar").
+- [[reflexiona]] — para pausas de conciencia por escrito (ej: "escribe qué sentiste al gastar de más").
+- [[elige:opción A|opción B|opción C]] — para un micro-compromiso; da 2-3 opciones cortas de compromiso concreto.
+Si ninguno encaja natural, no uses ningún marcador. No inventes otros marcadores.
+
+Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni markdown.`;
 
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -12745,13 +12777,52 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
   const counterMatch = (actionText || "").match(/^\s*\[\[contar:(\d+)\]\]\s*/);
   const isCounterAction = !!counterMatch;
   const counterTarget = counterMatch ? parseInt(counterMatch[1], 10) : 0;
-  const cleanActionText = isCounterAction ? actionText.replace(/^\s*\[\[contar:\d+\]\]\s*/, "") : actionText;
+  const cleanActionText = (actionText || "")
+    .replace(/^\s*\[\[contar:\d+\]\]\s*/, "")
+    .replace(/^\s*\[\[(identifica|reflexiona)\]\]\s*/, "")
+    .replace(/^\s*\[\[elige:[^\]]+\]\]\s*/, "");
   const [counterCount, setCounterCount] = useState(0);
+  const [showWhy, setShowWhy] = useState(false);
+  // Explicación de por qué el gesto repetido funciona (rota por día para variar)
+  const whyReasons = [
+    "Repetir un gesto ancla la decisión. No es magia — es cómo se forman los hábitos.",
+    "Cada toque vuelve física una intención. Lo que tu cuerpo hace, tu mente lo recuerda.",
+    "No cuenta el número: cuenta que en cada toque hagas una pausa consciente. Ese instante de atención es el que cambia tu decisión de hoy.",
+  ];
+  const whyText = whyReasons[(new Date(todayK + "T12:00:00").getDate()) % whyReasons.length];
 
   // ¿La acción invita a escribir/anotar algo? Si es así, mostramos un campo
   // para que el usuario lo haga ahí mismo (más accionable que solo leer).
   const isWriteAction = !isCounterAction && /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
   const [writeText, setWriteText] = useState("");
+
+  // ── Tipos interactivos con marcador [[tipo]] al inicio ──
+  // [[identifica]] — el usuario elige un movimiento de su historial reciente.
+  // [[reflexiona]] — campo de reflexión (conciencia sobre un gasto/hábito).
+  // [[elige:a|b|c]] — botones de compromiso rápido.
+  const identifyMatch = (actionText || "").match(/^\s*\[\[identifica\]\]\s*/);
+  const isIdentifyAction = !!identifyMatch;
+  const reflectMatch = (actionText || "").match(/^\s*\[\[reflexiona\]\]\s*/);
+  const isReflectAction = !!reflectMatch;
+  const chooseMatch = (actionText || "").match(/^\s*\[\[elige:([^\]]+)\]\]\s*/);
+  const isChooseAction = !!chooseMatch;
+  const chooseOptions = chooseMatch ? chooseMatch[1].split("|").map((s) => s.trim()).filter(Boolean) : [];
+
+  const [identifiedTxId, setIdentifiedTxId] = useState("");
+  const [reflectText, setReflectText] = useState("");
+  const [chosenOption, setChosenOption] = useState("");
+
+  // Movimientos recientes (últimos 14 días, gastos) para [[identifica]]
+  const recentTxsForIdentify = useMemo(() => {
+    if (!isIdentifyAction) return [];
+    const cutoff = dateKeyDaysAfter(todayK, -14);
+    const accId = actionCtx.accKey && actionCtx.accKey !== "all" ? actionCtx.accKey : null;
+    return (txs || [])
+      .filter((t) => t.type === "expense" && t.date >= cutoff && t.date <= todayK
+        && (!accId || t.accountId === accId))
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.amount - a.amount))
+      .slice(0, 40);
+  }, [isIdentifyAction, txs, actionCtx.accKey, todayK]);
 
   const markDone = () => {
     const yesterday = dateKeyDaysAfter(todayK, -1);
@@ -12878,6 +12949,23 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
                 marginTop: 12, fontFamily: FONT }}>
                 {counterCount >= counterTarget ? "¡Listo! Buen gesto." : "Toca el círculo"}
               </div>
+              {/* ¿Por qué funciona? — explicación breve, tocable */}
+              <button onClick={() => setShowWhy((v) => !v)}
+                style={{ marginTop: 8, background: "none", border: "none", cursor: "pointer",
+                  fontFamily: FONT, fontSize: 11.5, fontWeight: 500, color: inkFaint,
+                  display: "flex", alignItems: "center", gap: 4, padding: "2px 4px",
+                  WebkitTapHighlightColor: "transparent" }}>
+                ¿Por qué funciona?
+                <span style={{ display: "inline-block", transition: "transform .25s ease",
+                  transform: showWhy ? "rotate(180deg)" : "rotate(0deg)", fontSize: 9 }}>▾</span>
+              </button>
+              {showWhy && (
+                <p style={{ margin: "6px 20px 0", fontSize: 12, lineHeight: 1.55, textAlign: "center",
+                  color: inkSoft, fontFamily: FONT, fontWeight: 300, maxWidth: 280,
+                  animation: "ccTipIn .25s ease both" }}>
+                  {whyText}
+                </p>
+              )}
             </div>
           )}
           {isWriteAction && !loadingAi && (
@@ -12893,14 +12981,101 @@ Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 
                 outline: "none", boxSizing: "border-box" }}
             />
           )}
+          {/* [[identifica]] — elegir un movimiento del historial reciente */}
+          {isIdentifyAction && !loadingAi && (
+            <div style={{ marginBottom: 12 }}>
+              {recentTxsForIdentify.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: inkSoft, fontFamily: FONT, textAlign: "center",
+                  padding: "12px 8px", lineHeight: 1.5 }}>
+                  No hay movimientos recientes para revisar. Sigue registrando y vuelve mañana.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200,
+                  overflowY: "auto", paddingRight: 2 }}>
+                  {recentTxsForIdentify.map((t) => {
+                    const cat = (config.categories || []).find((c) => c.id === t.categoryId);
+                    const sel = identifiedTxId === t.id;
+                    return (
+                      <button key={t.id}
+                        onClick={() => setIdentifiedTxId(sel ? "" : t.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%",
+                          padding: "10px 12px", borderRadius: 11, cursor: "pointer", textAlign: "left",
+                          fontFamily: FONT, transition: "all .15s ease",
+                          border: `1.5px solid ${sel ? "#E08010" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
+                          background: sel ? (dark ? "rgba(224,128,16,.14)" : "rgba(224,128,16,.08)")
+                            : (dark ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.55)"),
+                          WebkitTapHighlightColor: "transparent" }}>
+                        <span style={{ fontSize: 17, flexShrink: 0 }}>{cat?.emoji || "💸"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: ink,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {t.description || cat?.name || "Movimiento"}
+                          </div>
+                          <div style={{ fontSize: 11, color: inkFaint, marginTop: 1 }}>
+                            {dayLabel(t.date)}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--coral)", flexShrink: 0 }}>
+                          {fmt(t.amount)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+          {/* [[reflexiona]] — campo de reflexión de conciencia */}
+          {isReflectAction && !loadingAi && (
+            <textarea
+              value={reflectText}
+              onChange={(e) => setReflectText(e.target.value)}
+              placeholder="Tómate un momento y escríbelo aquí…"
+              rows={3}
+              style={{ width: "100%", resize: "none", borderRadius: 12, padding: "11px 13px",
+                border: `1px solid ${dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"}`,
+                background: dark ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.6)",
+                color: ink, fontSize: 13.5, fontFamily: FONT, lineHeight: 1.45, marginBottom: 12,
+                outline: "none", boxSizing: "border-box" }}
+            />
+          )}
+          {/* [[elige:a|b|c]] — botones de compromiso rápido */}
+          {isChooseAction && !loadingAi && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {chooseOptions.map((opt, i) => {
+                const sel = chosenOption === opt;
+                return (
+                  <button key={i}
+                    onClick={() => setChosenOption(sel ? "" : opt)}
+                    style={{ width: "100%", padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                      fontFamily: FONT, fontSize: 13.5, fontWeight: sel ? 600 : 500, textAlign: "left",
+                      color: sel ? "#fff" : ink, transition: "all .15s ease",
+                      border: `1.5px solid ${sel ? "#E08010" : (dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.08)")}`,
+                      background: sel ? "#E08010" : (dark ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.55)"),
+                      WebkitTapHighlightColor: "transparent" }}>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <button onClick={markDone}
-            disabled={(isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)}
+            disabled={(isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)
+              || (isIdentifyAction && recentTxsForIdentify.length > 0 && !identifiedTxId)
+              || (isReflectAction && !reflectText.trim())
+              || (isChooseAction && !chosenOption)}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600,
-              color: "#fff", background: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)) ? (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)") : "#E08010",
+              color: "#fff", background: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)
+                || (isIdentifyAction && recentTxsForIdentify.length > 0 && !identifiedTxId)
+                || (isReflectAction && !reflectText.trim())
+                || (isChooseAction && !chosenOption)) ? (dark ? "rgba(255,255,255,.15)" : "rgba(0,0,0,.15)") : "#E08010",
               padding: "10px 18px", borderRadius: 11, border: "none",
-              cursor: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)) ? "default" : "pointer", fontFamily: FONT,
+              cursor: ((isWriteAction && !writeText.trim()) || (isCounterAction && counterCount < counterTarget)
+                || (isIdentifyAction && recentTxsForIdentify.length > 0 && !identifiedTxId)
+                || (isReflectAction && !reflectText.trim())
+                || (isChooseAction && !chosenOption)) ? "default" : "pointer", fontFamily: FONT,
               transition: "background .2s ease" }}>
-            {isWriteAction ? "✓ Guardar" : "✓ Marcar como hecho"}
+            {isWriteAction || isReflectAction ? "✓ Guardar" : isChooseAction ? "✓ Me comprometo" : isIdentifyAction ? "✓ Lo identifiqué" : "✓ Marcar como hecho"}
           </button>
         </>
       )}
@@ -14277,7 +14452,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             todayTopCat: todayIsHeavy ? todayTopCat : null,
           };
           return (
-            <DailyActionCard key={s.id} config={config} saveConfig={saveConfig}
+            <DailyActionCard key={s.id} config={config} saveConfig={saveConfig} txs={txs}
               actionCtx={actionCtx} dark={dark} isPro={getUserPlan(config) === "pro"} isHero={idx === 0} />
           );
         }
