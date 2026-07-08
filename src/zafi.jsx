@@ -630,6 +630,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
   color:var(--ink);
+  overflow-x:hidden;overscroll-behavior:contain;
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
@@ -640,11 +641,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
-  min-height:40vh;max-height:92vh;overflow-y:auto;padding:10px 20px 28px;
+  min-height:40vh;max-height:92vh;overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.7);
   box-shadow:0 -4px 24px rgba(0,0,0,.06);
-  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+  overscroll-behavior:contain;overscroll-behavior-x:none;-webkit-overflow-scrolling:touch;
+  touch-action:pan-y;}
 /* Cuando hay un modal abierto, bloquear scroll del body */
 body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
@@ -4598,7 +4600,7 @@ function AuthInput({ icon, type, placeholder, value, onChange, right, contentTyp
       <input type={type} placeholder={placeholder} value={value} onChange={onChange}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{ flex: 1, border: "none", background: "transparent", outline: "none",
-          fontSize: 14, color: "#1A1815", fontFamily: "'Montserrat', sans-serif",
+          fontSize: 16, color: "#1A1815", fontFamily: "'Montserrat', sans-serif",
           fontWeight: 300, letterSpacing: "-.01em" }}
         autoCapitalize="off" autoCorrect="off" spellCheck={false}
         autoComplete={autoComplete || (type === "email" ? "email" : type === "password" ? "current-password" : "off")} />
@@ -4842,16 +4844,16 @@ function AuthScreen() {
   const videoSrc = isCapacitor ? "./zafi-auth.mp4" : "/zafi-auth.mp4";
 
   const btnMain = {
-    width: "100%", padding: "13px", borderRadius: 12, border: "none",
+    width: "100%", padding: "15px", borderRadius: 12, border: "none",
     background: "rgba(26,24,21,.82)", color: "#fff",
-    fontSize: 14, fontWeight: 400, fontFamily: "'Montserrat', sans-serif",
+    fontSize: 16, fontWeight: 400, fontFamily: "'Montserrat', sans-serif",
     cursor: busy ? "not-allowed" : "pointer", opacity: busy ? .65 : 1,
     transition: "opacity .2s", letterSpacing: ".02em",
   };
 
   const softLink = {
     background: "none", border: "none", fontFamily: "'Montserrat', sans-serif",
-    cursor: "pointer", padding: 0, fontWeight: 300, fontSize: 13,
+    cursor: "pointer", padding: 0, fontWeight: 300, fontSize: 15,
   };
 
   return (
@@ -4892,15 +4894,15 @@ function AuthScreen() {
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center",
-          justifyContent: "space-between", marginBottom: 14 }}>
+          justifyContent: "space-between", marginBottom: 16 }}>
           <span key={showForgot ? "forgot" : tab} className="cc-auth-title"
             style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
-            fontSize: 19, letterSpacing: "-.02em", color: "#1A1815" }}>
+            fontSize: 22, letterSpacing: "-.02em", color: "#1A1815" }}>
             {showForgot ? "Olvidé mi contraseña" : tab === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </span>
           {!showForgot && (
             <button onClick={() => switchTab(tab === "login" ? "register" : "login")}
-              style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 13 }}>
+              style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 15 }}>
               {tab === "login" ? "Registrarse" : "Iniciar sesión"}
             </button>
           )}
@@ -4961,7 +4963,7 @@ function AuthScreen() {
             )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"6px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
-              <span style={{ fontSize:11, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
+              <span style={{ fontSize:12, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
             </div>
             <div style={{ display:"flex", gap:10, marginTop:6 }}>
@@ -4971,7 +4973,7 @@ function AuthScreen() {
                   border:"1px solid rgba(26,24,21,.15)",
                   background:"rgba(255,255,255,.55)", cursor:"pointer",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:15, fontWeight:500,
                   color:"#1A1815", backdropFilter:"blur(4px)" }}>
                 <svg width="18" height="18" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -4987,7 +4989,7 @@ function AuthScreen() {
                   border:"1px solid rgba(26,24,21,.15)",
                   background:"rgba(26,24,21,.08)", cursor:"not-allowed",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-                  fontFamily:"'Montserrat',sans-serif", fontSize:13, fontWeight:500,
+                  fontFamily:"'Montserrat',sans-serif", fontSize:15, fontWeight:500,
                   color:"rgba(26,24,21,.35)", opacity:.5 }}
                 title="Próximamente">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
@@ -22388,34 +22390,36 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
                 <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
                   <input type="checkbox" checked={d.selected}
                     onChange={(e) => updateDraft(d.tempId, { selected: e.target.checked })}
-                    style={{ width: 18, height: 18, accentColor: "var(--green)" }} />
+                    style={{ width: 18, height: 18, accentColor: "var(--green)", flexShrink: 0 }} />
                   <input className="cc-input" value={d.description} placeholder="Concepto"
                     onChange={(e) => updateDraft(d.tempId, { description: e.target.value })}
-                    style={{ flex: 1, fontSize: 14, padding: "7px 10px", fontWeight: 600 }} />
+                    style={{ flex: 1, minWidth: 0, fontSize: 14, padding: "7px 10px", fontWeight: 600 }} />
                   <input className="cc-input cc-num" type="number" value={d.amount}
                     onChange={(e) => updateDraft(d.tempId, { amount: parseFloat(e.target.value) || 0 })}
-                    style={{ width: 95, fontSize: 14, padding: "7px 10px", fontWeight: 700,
+                    style={{ width: 88, flexShrink: 0, fontSize: 14, padding: "7px 10px", fontWeight: 700,
                       color: d.type === "income" ? "var(--green)" : "var(--coral)" }} />
                 </div>
-                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 7, marginBottom: 7 }}>
                   <select className="cc-select" value={d.type}
                     onChange={(e) => updateDraft(d.tempId, { type: e.target.value, categoryId: "" })}
-                    style={{ flex: "0 0 100px", fontSize: 13, padding: "6px 9px" }}>
+                    style={{ flex: "0 0 40%", minWidth: 0, fontSize: 13, padding: "8px 9px" }}>
                     <option value="expense">Gasto</option>
                     <option value="income">Ingreso</option>
                   </select>
-                  <DateButton value={d.date}
-                    onChange={(v) => updateDraft(d.tempId, { date: v })} />
-                  <select className="cc-select" value={d.categoryId}
-                    onChange={(e) => updateDraft(d.tempId, { categoryId: e.target.value })}
-                    style={{ flex: 1, fontSize: 13, padding: "6px 9px",
-                      borderColor: !d.categoryId ? "var(--gold)" : "var(--line)" }}>
-                    <option value="">⚠️ Elige categoría</option>
-                    {accCats(d.type).map((c) => (
-                      <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-                    ))}
-                  </select>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <DateButton value={d.date}
+                      onChange={(v) => updateDraft(d.tempId, { date: v })} />
+                  </div>
                 </div>
+                <select className="cc-select" value={d.categoryId}
+                  onChange={(e) => updateDraft(d.tempId, { categoryId: e.target.value })}
+                  style={{ width: "100%", fontSize: 13, padding: "8px 11px",
+                    borderColor: !d.categoryId ? "var(--gold)" : "var(--line)" }}>
+                  <option value="">⚠️ Elige categoría</option>
+                  {accCats(d.type).map((c) => (
+                    <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
+                  ))}
+                </select>
               </div>
             );
           })}
