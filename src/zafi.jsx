@@ -2611,9 +2611,10 @@ function applyPlanChange(prevConfig, newPlan, allTxs) {
 function hasFeature(config, feature) {
   const plan = getUserPlan(config);
   const FREE = ["basic_stats", "manual_capture", "custom_categories", "ai_5",
+                "auto_category",
                 "dashboard_kpis", "dashboard_by_category", "customize_sections",
                 "stats_summary", "sankey"];
-  const LITE = [...FREE, "recurring", "ai_suggestions", "auto_category", "all_charts",
+  const LITE = [...FREE, "recurring", "ai_suggestions", "all_charts",
                 "unlimited_txs", "3_accounts", "excel_export", "full_stats",
                 "dashboard_recent", "dashboard_balance",
                 "date_week", "date_year",
@@ -10320,8 +10321,8 @@ const HOME_SECTION_PLANS = {
   balance: "free",
   dailyAction: "free",
   opportunities: "free",
-  debts: "free",
-  goals: "free",
+  debts: "lite",
+  goals: "lite",
   financialScore: "pro",
   financialTips: "pro",
 };
@@ -14220,7 +14221,14 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       )}
 
       {/* === secciones según orden y on/off === */}
-      {sections.filter((s) => s.on).map((s, idx) => {
+      {/* Filtramos también las bloqueadas por plan: NO se renderizan en el
+         dashboard real (aunque el usuario las tenga en on). Solo aparecen en el
+         menú de Personalizar con candado, invitando al upgrade. */}
+      {sections.filter((s) => {
+        if (!s.on) return false;
+        const requiredPlan = HOME_SECTION_PLANS[s.id] || "free";
+        return planMeets(getUserPlan(config), requiredPlan);
+      }).map((s, idx) => {
         const delay = `${idx * 60}ms`;
         const userPlan = getUserPlan(config);
         const requiredPlan = HOME_SECTION_PLANS[s.id] || "free";
@@ -14730,6 +14738,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           }}
           onClose={() => setConfiguring(false)}
           onSave={(newSections) => saveConfig(setPersonalize(config, "homeSections", newSections, accView))}
+          onUpgrade={(plan) => { setConfiguring(false); setUpgradeFeature && setUpgradeFeature(plan); }}
         />
       )}
 
@@ -14872,7 +14881,7 @@ function useDragSort(items, onApply) {
   return { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps };
 }
 
-function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, autoOrderOn = true, onToggleAutoOrder, onClose, onSave }) {
+function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, accounts, hiddenAccountCards, onToggleAccountCard, autoOrderOn = true, onToggleAutoOrder, onClose, onSave, onUpgrade }) {
   const [items, setItems] = useState(sections);
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
@@ -14880,7 +14889,21 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
   const apply = (next) => { setItems(next); onSave(next); };
   const { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps } = useDragSort(items, apply);
 
-  const toggle = (id) => apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
+  const userPlan = config ? getUserPlan(config) : "free";
+  const isSectionLocked = (id) => {
+    const needed = HOME_SECTION_PLANS[id] || "free";
+    return needed !== "free" && !planMeets(userPlan, needed);
+  };
+
+  const toggle = (id) => {
+    // Si la sección está bloqueada por plan, en vez de prenderla llevamos al upgrade
+    if (isSectionLocked(id)) {
+      const needed = HOME_SECTION_PLANS[id] || "free";
+      onUpgrade && onUpgrade(needed);
+      return;
+    }
+    apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
+  };
 
   const move = (i, dir) => {
     const j = i + dir;
@@ -14987,11 +15010,23 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
                   return null;
                 })()}
               </div>
-              <label className={`cc-switch ${s.on ? "on" : ""}`}>
-                <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
-                <span className="cc-switch-track" />
-                <span className="cc-switch-thumb" />
-              </label>
+              {isSectionLocked(s.id) ? (
+                <button onClick={() => toggle(s.id)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center",
+                    width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer",
+                    background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", flexShrink: 0 }}
+                  aria-label="Función bloqueada — mejora tu plan">
+                  <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: "var(--ink-faint)", fill: "none", strokeWidth: 2 }}>
+                    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
+                  </svg>
+                </button>
+              ) : (
+                <label className={`cc-switch ${s.on ? "on" : ""}`}>
+                  <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
+                  <span className="cc-switch-track" />
+                  <span className="cc-switch-thumb" />
+                </label>
+              )}
             </div>
           ))}
         </div>
