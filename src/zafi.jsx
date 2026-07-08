@@ -3135,7 +3135,25 @@ const feedback = {
   addExpense() { _vibrate("medium"); _playTone({ freq: 330, dur: 0.13, type: "sine", gain: 0.08, slideTo: 247 }); },
   addIncome()  { _vibrate("success"); _playTone({ freq: 523, dur: 0.14, type: "sine", gain: 0.09, slideTo: 784 }); },
   goalUpdate() { _vibrate("success"); _playTone({ freq: 659, dur: 0.16, type: "triangle", gain: 0.08, slideTo: 988 }); },
+  // Meta alcanzada al 100% — pequeña fanfarria de celebración (arpegio ascendente Do-Mi-Sol-Do)
+  goalReached() {
+    _vibrate("success");
+    setTimeout(() => _vibrate("medium"), 180);
+    _playTone({ freq: 523, dur: 0.14, type: "triangle", gain: 0.08 });               // Do
+    setTimeout(() => _playTone({ freq: 659, dur: 0.14, type: "triangle", gain: 0.08 }), 110); // Mi
+    setTimeout(() => _playTone({ freq: 784, dur: 0.14, type: "triangle", gain: 0.08 }), 220); // Sol
+    setTimeout(() => _playTone({ freq: 1047, dur: 0.28, type: "triangle", gain: 0.09 }), 330); // Do agudo
+  },
   debtDown()   { _vibrate("success"); _playTone({ freq: 587, dur: 0.15, type: "sine", gain: 0.08, slideTo: 880 }); },
+  // Deuda liquidada por completo (balance a 0) — misma celebración
+  debtCleared() {
+    _vibrate("success");
+    setTimeout(() => _vibrate("medium"), 180);
+    _playTone({ freq: 523, dur: 0.14, type: "triangle", gain: 0.08 });
+    setTimeout(() => _playTone({ freq: 659, dur: 0.14, type: "triangle", gain: 0.08 }), 110);
+    setTimeout(() => _playTone({ freq: 784, dur: 0.14, type: "triangle", gain: 0.08 }), 220);
+    setTimeout(() => _playTone({ freq: 1047, dur: 0.28, type: "triangle", gain: 0.09 }), 330);
+  },
   counter()    { _vibrate("light");  _playTone({ freq: 620, dur: 0.05, type: "triangle", gain: 0.045 }); },
   complete()   { _vibrate("success"); _playTone({ freq: 659, dur: 0.1, type: "sine", gain: 0.08 });
                  setTimeout(() => _playTone({ freq: 988, dur: 0.14, type: "sine", gain: 0.08 }), 90); },
@@ -13287,7 +13305,10 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 
   const apply = () => {
     if (mode !== "set" && num <= 0) return;
-    feedback.goalUpdate();
+    // Si este abono alcanza (o supera) la meta por primera vez → celebración especial
+    const justReached = goal.target > 0 && newSaved >= goal.target && goal.saved < goal.target;
+    if (justReached) feedback.goalReached();
+    else feedback.goalUpdate();
     onApply(newSaved);
   };
 
@@ -13425,8 +13446,11 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const updateDebtBalance = (debtId, newBalance) => {
     const prev = allDebts.find((d) => d.id === debtId);
     const newDebts = allDebts.map((d) => d.id === debtId ? { ...d, balance: Math.max(0, newBalance) } : d);
-    // Feedback solo si la deuda efectivamente bajó (progreso)
-    if (prev && newBalance < prev.balance) feedback.debtDown();
+    // Feedback: si quedó liquidada por completo → celebración; si solo bajó → progreso
+    if (prev && newBalance < prev.balance) {
+      if (newBalance <= 0 && prev.balance > 0) feedback.debtCleared();
+      else feedback.debtDown();
+    }
     saveConfig({ ...config, debts: newDebts });
   };
 
@@ -15643,11 +15667,11 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
 function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onCancel, onConfirm }) {
   const dark = useDarkMode();
   return createPortal(
-    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onCancel} style={{ alignItems: "center" }}>
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onCancel} style={{ alignItems: "center", padding: "0 32px" }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ background: "var(--bg)", borderRadius: 18, maxWidth: 400, width: "90%", padding: 22, animation: "ccUp .25s" }}>
-        <h3 className="cc-serif" style={{ fontSize: 19, fontWeight: 600, marginBottom: 8 }}>{title}</h3>
-        {message && <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 18 }}>{message}</p>}
+        style={{ background: "var(--bg)", borderRadius: 20, maxWidth: 320, width: "100%", padding: "24px 22px", animation: "ccUp .25s" }}>
+        <h3 className="cc-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, lineHeight: 1.25 }}>{title}</h3>
+        {message && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.5 }}>{message}</p>}
         <div style={{ display: "flex", gap: 8 }}>
           <button className="cc-btn" style={{ flex: 1, padding: 12 }} onClick={onCancel}>Cancelar</button>
           <button
