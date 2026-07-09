@@ -8220,6 +8220,37 @@ export default function App() {
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
   }, [isDarkTheme]);
+
+  /* Sincronizar el plan con RevenueCat.
+     RevenueCat es la fuente de verdad: si el usuario canceló, se le venció la
+     tarjeta o pidió reembolso, su entitlement desaparece y hay que bajarlo a
+     free. Si compró en otro dispositivo, hay que subirlo. Solo tocamos
+     config.plan cuando RevenueCat responde con certeza (no en web, no si falla).
+     OJO: este hook DEBE estar antes de los `return` condicionales de abajo;
+     si no, React ve distinto número de hooks entre renders y truena. */
+  useEffect(() => {
+    if (!user || !config) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const listo = await rcInicializar(user.uid);
+        if (!listo || !vivo) return;
+        const planReal = await rcPlanActual();
+        if (!vivo || planReal === null) return; // null = no sabemos, no degradar
+        if (planReal !== getUserPlan(config)) {
+          setConfig((prev) => {
+            const next = { ...prev, plan: planReal };
+            persist("cc:config", next);
+            return next;
+          });
+        }
+      } catch (e) {
+        console.error("Fallo la sincronización de plan:", e);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [user?.uid, config?.plan]);
+
   // Síncrono: garantiza que el fondo esté pintado antes del primer paint de
   // cualquier loader, así no aparece un "cuadrado" de otro color un instante.
   if (typeof document !== "undefined") {
@@ -8263,27 +8294,6 @@ export default function App() {
     });
   };
   const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
-
-  /* Sincronizar el plan con RevenueCat.
-     RevenueCat es la fuente de verdad: si el usuario canceló, se le venció la
-     tarjeta o pidió reembolso, su entitlement desaparece y hay que bajarlo a
-     free. Si compró en otro dispositivo, hay que subirlo. Solo tocamos
-     config.plan cuando RevenueCat responde con certeza (no en web, no si falla). */
-  useEffect(() => {
-    if (!user || !config) return;
-    let vivo = true;
-    (async () => {
-      const listo = await rcInicializar(user.uid);
-      if (!listo || !vivo) return;
-      const planReal = await rcPlanActual();
-      if (!vivo || planReal === null) return; // null = no sabemos, no degradar
-      const planLocal = getUserPlan(config);
-      if (planReal !== planLocal) {
-        saveConfig((prev) => ({ ...prev, plan: planReal }));
-      }
-    })();
-    return () => { vivo = false; };
-  }, [user?.uid, config?.plan]);
 
   const resetAll = async () => {
     const u = auth.currentUser;
