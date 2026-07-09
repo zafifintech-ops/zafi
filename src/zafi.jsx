@@ -20,6 +20,30 @@ const GOOGLE_CLIENT_ID = "308516673564-ju957earku47i36hav3m14epkld3ti91.apps.goo
 const BIOMETRIC_SERVER = "zafi.app"; // clave para keychain
 const BIOMETRIC_USERNAME = "zafi_user";
 const FIREBASE_API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
+const APP_VERSION = "1.0"; // se muestra en Ajustes y se adjunta a los reportes
+
+/* Consulta si el correo del usuario ya está verificado. Funciona con el usuario
+   del SDK (usa reload) y con el restUser de Capacitor (endpoint accounts:lookup),
+   que no tiene reload y por eso se quedaría con el dato congelado del login. */
+async function estaEmailVerificado(user) {
+  if (!user) return false;
+  try {
+    if (typeof user.reload === "function") {
+      await reload(user);
+      return !!user.emailVerified;
+    }
+    const idToken = typeof user.getIdToken === "function" ? await user.getIdToken() : null;
+    if (!idToken) return false;
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    const data = await res.json();
+    return !!data?.users?.[0]?.emailVerified;
+  } catch (e) {
+    return false;
+  }
+}
 
 /* Envía el correo de verificación. Intenta primero con el SDK (si hay usuario
    del SDK disponible) y si no, cae al endpoint REST de Firebase, igual que el
@@ -5007,17 +5031,21 @@ function EmailVerifyBanner() {
   // Revisar el estado real de verificación al montar y al volver del correo
   useEffect(() => {
     if (!user) return;
+    let vivo = true;
     const revisar = async () => {
-      try {
-        if (user.reload) { await reload(user); }
-        if (user.emailVerified) setVerificado(true);
-      } catch (_) {}
+      const ok = await estaEmailVerificado(user);
+      if (vivo && ok) setVerificado(true);
     };
     revisar();
     // Al volver a la app (p.ej. tras darle clic al enlace), revisamos otra vez
     const onFocus = () => revisar();
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      vivo = false;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [user]);
 
   // No mostrar si: no hay usuario, ya verificó, lo ocultó, o entró con Google/Apple
@@ -5030,7 +5058,11 @@ function EmailVerifyBanner() {
     setEnviando(true);
     const ok = await enviarVerificacionEmail(user);
     setEnviando(false);
-    if (ok) setEnviado(true);
+    if (ok) {
+      setEnviado(true);
+      // Tras 30s dejamos volver a reenviar: el correo pudo perderse o irse a spam
+      setTimeout(() => setEnviado(false), 30000);
+    }
   };
 
   return (
@@ -10110,7 +10142,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               </button>
             </div>
             <div style={{ textAlign: "center", fontSize: 11, color: "var(--ink-faint)", padding: "6px 0 4px" }}>
-              Zafi · Finanzas personales con IA · v1.0
+              Zafi · Finanzas personales con IA · v{APP_VERSION}
             </div>
           </>
         )}
@@ -10535,33 +10567,40 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                 resize: "vertical", lineHeight: 1.5 }} />
 
             <p style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10, lineHeight: 1.5 }}>
-              Incluiremos tu correo y datos del dispositivo para poder ayudarte. No mandamos tus
-              transacciones ni información financiera.
+              Guardamos tu mensaje junto con tu correo, plan y datos del dispositivo para poder
+              ayudarte. Nunca enviamos tus transacciones ni tu información financiera.
             </p>
 
-            <button onClick={() => {
-              if (!reportTexto.trim()) return;
+            <button onClick={async () => {
+              if (!reportTexto.trim() || reportEnviando) return;
               setReportEnviando(true);
               const tipoLabel = { bug: "Problema", idea: "Sugerencia", cuenta: "Cuenta o pago", otro: "Otro" }[reportTipo];
-              // Datos técnicos que ayudan a diagnosticar, sin tocar datos financieros
-              const meta = [
-                `Tipo: ${tipoLabel}`,
-                `Usuario: ${email || "(sin correo)"}`,
-                `Plan: ${getUserPlan(config)}`,
-                `Idioma: ${lang}`,
-                `Dispositivo: ${navigator.userAgent}`,
-                `Fecha: ${new Date().toISOString()}`,
-              ].join("\n");
-              const cuerpo = `${reportTexto.trim()}\n\n---\nDatos técnicos (no borrar, nos ayudan a diagnosticar):\n${meta}`;
-              const asunto = `[Zafi · ${tipoLabel}] ${reportTexto.trim().slice(0, 50)}`;
-              const mailto = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
-              window.location.href = mailto;
-              setTimeout(() => {
-                setReportEnviando(false);
+              try {
+                // Guardamos en Firestore. Solo metadatos técnicos: nada de
+                // transacciones ni datos financieros del usuario.
+                const id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+                await setDoc(doc(db, "reportes", id), {
+                  tipo: reportTipo,
+                  tipoLabel,
+                  mensaje: reportTexto.trim(),
+                  uid: user?.uid || null,
+                  email: email || null,
+                  plan: getUserPlan(config),
+                  idioma: lang,
+                  userAgent: navigator.userAgent,
+                  appVersion: APP_VERSION,
+                  creadoEn: new Date().toISOString(),
+                  estado: "nuevo",
+                });
                 setReportTexto("");
-                showToast("Abriendo tu correo…");
+                showToast("Reporte enviado · Gracias");
                 setSection("menu");
-              }, 600);
+              } catch (e) {
+                console.error("No se pudo guardar el reporte:", e);
+                showToast("No se pudo enviar. Intenta por correo.");
+              } finally {
+                setReportEnviando(false);
+              }
             }}
               disabled={!reportTexto.trim() || reportEnviando}
               style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 20,
@@ -10569,11 +10608,31 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                 color: reportTexto.trim() ? "#fff" : "var(--ink-faint)",
                 fontSize: 15, fontWeight: 600, fontFamily: "inherit",
                 cursor: reportTexto.trim() ? "pointer" : "default" }}>
-              {reportEnviando ? "Abriendo correo…" : "Enviar reporte"}
+              {reportEnviando ? "Enviando…" : "Enviar reporte"}
             </button>
 
-            <div style={{ textAlign: "center", marginTop: 16, fontSize: 12, color: "var(--ink-faint)" }}>
-              También puedes escribirnos a {LEGAL_CONTACT_EMAIL}
+            {/* Escape para quien prefiera correo o si algo falla */}
+            <button onClick={() => {
+              const tipoLabel = { bug: "Problema", idea: "Sugerencia", cuenta: "Cuenta o pago", otro: "Otro" }[reportTipo];
+              const meta = [
+                `Tipo: ${tipoLabel}`,
+                `Usuario: ${email || "(sin correo)"}`,
+                `Plan: ${getUserPlan(config)}`,
+                `Versión: ${APP_VERSION}`,
+                `Dispositivo: ${navigator.userAgent}`,
+              ].join("\n");
+              const cuerpo = `${reportTexto.trim() || "(describe tu problema aquí)"}\n\n---\nDatos técnicos:\n${meta}`;
+              const asunto = `[Zafi · ${tipoLabel}] ${(reportTexto.trim() || "Reporte").slice(0, 50)}`;
+              window.location.href = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+            }}
+              style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent",
+                border: "none", color: "var(--ink-soft)", fontSize: 13, fontWeight: 500,
+                cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}>
+              O escríbenos por correo
+            </button>
+
+            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11.5, color: "var(--ink-faint)" }}>
+              {LEGAL_CONTACT_EMAIL}
             </div>
           </>
         )}
