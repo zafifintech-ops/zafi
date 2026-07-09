@@ -2459,7 +2459,7 @@ function UpgradeModal({ config, onClose, feature }) {
     ai_unlimited: { label: "IA ilimitada", plan: "pro", icon: "✨" },
     recurring: { label: "Movimientos recurrentes", plan: "lite", icon: "🔄" },
     ai_suggestions: { label: "Sugerencias IA", plan: "lite", icon: "💡" },
-    auto_category: { label: "Detección automática", plan: "lite", icon: "🎯" },
+    auto_category: { label: "Detección automática", plan: "free", icon: "🎯" },
     unlimited_txs: { label: "Transacciones ilimitadas", plan: "lite", icon: "♾️" },
     "3_accounts": { label: "Hasta 3 cuentas", plan: "lite", icon: "🏦" },
     excel_export: { label: "Exportar a Excel", plan: "lite", icon: "📊" },
@@ -9767,6 +9767,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
+  const [upgradeFeature, setUpgradeFeature] = useState(null); // abre el paywall de compra
   const [saved, setSaved] = useState(true);
   const [defaultHome, setDefaultHome] = useState(config.defaultHomeView || "all");
 
@@ -10069,9 +10070,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                 const labels = { free: "Free", lite: "Lite", pro: "✦ Pro" };
                 const prices = { free: "Gratis", lite: "$59/mes · $499/año", pro: "$129/mes · $999/año" };
                 const feats = {
-                  free: ["1 cuenta", "50 transacciones/mes", "Categorías personalizables", "Estadísticas básicas", "Diagrama Sankey", "Con anuncios"],
-                  lite: ["3 cuentas", "Transacciones ilimitadas", "Movimientos recurrentes", "Sugerencias IA", "Reportes Excel y PDF", "Sin anuncios"],
-                  pro: ["Cuentas ilimitadas", "Captura por foto", "IA ilimitada", "Ingresos vs Gastos", "Calificación financiera", "Consejos con IA"],
+                  free: ["1 cuenta", "Transacciones ilimitadas", "Categoría automática", "Saldo y Acción de hoy", "Áreas de oportunidad", "Diagrama Sankey"],
+                  lite: ["3 cuentas", "Deudas y Metas", "Movimientos recurrentes", "Sugerencias IA", "Estadísticas completas", "Reportes Excel y PDF"],
+                  pro: ["Cuentas ilimitadas", "Calificación financiera IA", "Consejos con IA", "Captura por foto", "IA ilimitada", "Rangos personalizados"],
                 };
                 return (
                   <div key={p} style={{ borderRadius: 16, border: `1.5px solid ${isCurrent ? "#1E6FE0" : "var(--line)"}`,
@@ -10092,22 +10093,24 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                     </div>
                     {!isCurrent && (
                       <button onClick={() => {
-                        // Patrón funcional + auto-restore determinista: cambia el
-                        // plan Y restaura cuentas archivadas que vuelvan a caber,
-                        // en el MISMO guardado — no depende de un useEffect
-                        // reactivo separado que podría no dispararse a tiempo.
-                        const saver = saveConfigRaw || saveConfig;
-                        let restoredCount = 0;
-                        saver((prev) => {
-                          const result = applyPlanChange(prev, p, rawTxs || []);
-                          restoredCount = result.restoredCount;
-                          return result.config;
-                        });
-                        const planMsg = p === "free" ? "Plan Free activado" : p === "lite" ? "Plan Lite activado ✓" : "✦ Plan Pro activado";
-                        showToast(restoredCount > 0
-                          ? `${planMsg} · ${restoredCount} cuenta${restoredCount === 1 ? "" : "s"} restaurada${restoredCount === 1 ? "" : "s"}`
-                          : planMsg);
-                        setSection("menu");
+                        if (p === "free") {
+                          // Bajar a Free no es una compra: se aplica directo.
+                          // (Al integrar pagos, esto será "cancelar suscripción".)
+                          const saver = saveConfigRaw || saveConfig;
+                          let restoredCount = 0;
+                          saver((prev) => {
+                            const result = applyPlanChange(prev, p, rawTxs || []);
+                            restoredCount = result.restoredCount;
+                            return result.config;
+                          });
+                          showToast(restoredCount > 0
+                            ? `Plan Free activado · ${restoredCount} cuenta${restoredCount === 1 ? "" : "s"} restaurada${restoredCount === 1 ? "" : "s"}`
+                            : "Plan Free activado");
+                          setSection("menu");
+                        } else {
+                          // Lite y Pro son de pago → abrir el paywall.
+                          setUpgradeFeature(p);
+                        }
                       }}
                         style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
                           background: p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
@@ -10426,6 +10429,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
           <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
         )}
         {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
+        {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
         </div>
       </div>
     </div>,

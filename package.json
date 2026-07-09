@@ -20,6 +20,8 @@
     "@capacitor/ios": "^8.4.1",
     "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/share": "^8.0.1",
+    "@revenuecat/purchases-capacitor": "^13.2.2",
+    "@revenuecat/purchases-capacitor-ui": "^13.2.2",
     "capacitor-native-biometric": "^4.2.2",
     "firebase": "^12.14.0",
     "react": "^19.2.6",
