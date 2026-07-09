@@ -667,7 +667,11 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
-  min-height:40vh;max-height:92vh;overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
+  min-height:40vh;
+  /* Restamos el safe-area superior (notch / Dynamic Island) para que el sheet
+     nunca invada la barra de estado. Los 12px extra dejan aire visual. */
+  max-height:calc(100vh - env(safe-area-inset-top) - 12px);
+  overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.7);
   box-shadow:0 -4px 24px rgba(0,0,0,.06);
@@ -2026,7 +2030,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
       animation: "ccFadeIn .3s ease",
     }}>
       <div style={{
-        width: "100%", maxWidth: 480, maxHeight: "92vh",
+        width: "100%", maxWidth: 480, maxHeight: "calc(100vh - env(safe-area-inset-top) - 24px)",
         background: dark ? "#1c1e22" : "#fff",
         borderRadius: 24, overflow: "hidden",
         display: "flex", flexDirection: "column",
@@ -2305,7 +2309,7 @@ function LegalModal({ doc, onClose }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        style={{ maxHeight: "calc(100vh - env(safe-area-inset-top) - 12px)", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>{title}</div>
@@ -2555,7 +2559,7 @@ function UpgradeModal({ config, onClose, feature }) {
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={e => e.stopPropagation()}
         style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom))", padding: "0", overflow: "hidden",
-          maxHeight: "92vh" }}>
+          maxHeight: "calc(100vh - env(safe-area-inset-top) - 12px)" }}>
 
         {/* Botón cerrar absoluto */}
         <button onClick={close} aria-label="Cerrar"
@@ -4979,11 +4983,26 @@ function AuthInput({ icon, type, placeholder, value, onChange, right, contentTyp
 /* Banner discreto que invita a verificar el correo. Solo aparece si el usuario
    se registró con correo/contraseña y aún no verificó. Google y Apple llegan
    ya verificados, así que a ellos nunca les sale. No bloquea nada. */
-function EmailVerifyBanner({ user }) {
+function EmailVerifyBanner() {
   const [oculto, setOculto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [verificado, setVerificado] = useState(false);
+  // El usuario vive en App; lo leemos del global que mantiene el flujo de auth.
+  // Como el global no es reactivo, lo sincronizamos a estado local.
+  const [user, setUser] = useState(() =>
+    typeof window !== "undefined" ? window.__zafiCurrentUser : null);
+
+  useEffect(() => {
+    if (user) return;
+    // El usuario puede llegar unos ms después del montaje (REST vs SDK)
+    const t = setInterval(() => {
+      const u = window.__zafiCurrentUser;
+      if (u) { setUser(u); clearInterval(t); }
+    }, 400);
+    const stop = setTimeout(() => clearInterval(t), 6000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [user]);
 
   // Revisar el estado real de verificación al montar y al volver del correo
   useEffect(() => {
@@ -6590,7 +6609,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
 
         {/* ─── PICK: elegir meta (dos secciones) ─── */}
@@ -7477,7 +7496,7 @@ function DebtWizard({ debt, accounts, onClose, onSave }) {
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
 
         {/* Indicador de paso (solo si es nueva) */}
@@ -9150,7 +9169,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       <StickyHeader config={config} saveConfig={saveConfigWrapped} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
 
       <div className="cc-wrap">
-        <EmailVerifyBanner user={user} />
+        <EmailVerifyBanner />
         <div key={tab} className="cc-page">
           {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={true} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
@@ -9853,7 +9872,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const email = user?.email || "";
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
-  const [section, setSection] = useState("menu"); // menu | personal | lang | currency | theme | legal | data | plan
+  const [section, setSection] = useState("menu"); // menu | personal | lang | currency | theme | legal | data | plan | report | faceid | feedback | notifications | home
   const [userName, setUserName] = useState(config.userName || "");
   const [phone, setPhone] = useState(config.phone || "");
   const [age, setAge] = useState(config.userAge ? String(config.userAge) : "");
@@ -9866,6 +9885,10 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
   const [upgradeFeature, setUpgradeFeature] = useState(null); // abre el paywall de compra
+  // Reportar un problema
+  const [reportTipo, setReportTipo] = useState("bug"); // bug | idea | cuenta | otro
+  const [reportTexto, setReportTexto] = useState("");
+  const [reportEnviando, setReportEnviando] = useState(false);
   const [saved, setSaved] = useState(true);
   const [defaultHome, setDefaultHome] = useState(config.defaultHomeView || "all");
 
@@ -9956,6 +9979,16 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
     </button>
   );
 
+  /* Encabezado de grupo para agrupar las filas del menú y que no se vea
+     una lista plana e interminable. */
+  const GROUP = (label) => (
+    <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-faint)",
+      textTransform: "uppercase", letterSpacing: ".06em",
+      padding: "22px 0 6px", fontFamily: "'Montserrat',sans-serif" }}>
+      {label}
+    </div>
+  );
+
   const BACK = (title) => (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
       <button onClick={() => setSection("menu")}
@@ -9985,7 +10018,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "88vh", overflowY: "auto", minHeight: "auto" }}>
+        style={{ minHeight: "auto" }}>
         <div className="cc-grip" />
 
         <div key={section} className={`cc-settings-section ${section === "menu" ? "is-menu" : ""}`}>
@@ -10022,14 +10055,20 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               </div>
             </div>
 
-            {/* Menu rows */}
+            {/* Menu rows agrupadas */}
             <div style={{ display: "flex", flexDirection: "column" }}>
+
+              {GROUP("Cuenta")}
               {ROW(() => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
                 "Mi plan", getUserPlan(config) === "pro" ? "✦ Pro" : getUserPlan(config) === "lite" ? "Lite" : "Free",
                 () => setSection("plan"))}
               {ROW(IconPerson, t("personalInfo"), "", () => setSection("personal"))}
+              {ROW(IconShield, "Face ID / Biometría", "", () => setSection("faceid"))}
+
+              {GROUP("Preferencias")}
               {ROW(IconLang, t("language"), lang === "es" ? "Español" : "English", () => setSection("lang"))}
               {ROW(IconCoin, t("currency"), currency, () => setSection("currency"))}
+              {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {ROW(IconBell, t("notifications"), notifPrefsSummary(config), () => setSection("notifications"))}
               {ROW(
                 () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>,
@@ -10039,11 +10078,14 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   return h && s ? "Activados" : (!h && !s ? "Apagados" : (h ? "Solo vibración" : "Solo sonido")); })(),
                 () => setSection("feedback")
               )}
-              {ROW(IconTheme, "Tema", themeLabel, () => setSection("theme"))}
               {config.accounts.length > 1 && ROW(IconPerson, "Cuenta de inicio", defaultHome === "all" ? "General" : (config.accounts.find((a) => a.id === defaultHome)?.name || "General"), () => setSection("home"))}
-              {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
-              {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
-              {ROW(IconShield, "Face ID / Biometría", "", () => setSection("faceid"))}
+
+              {GROUP("Ayuda y soporte")}
+              {ROW(
+                () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+                "Reportar un problema", "",
+                () => setSection("report")
+              )}
               {ROW(
                 () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
                 "Ver tour de bienvenida", "",
@@ -10054,6 +10096,10 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   close();
                 }
               )}
+
+              {GROUP("Legal")}
+              {ROW(IconDoc, "Aviso legal", "", () => setSection("legal"))}
+              {ROW(IconShield, t("dataPrivacy"), "", () => setSection("data"))}
             </div>
 
             {/* Sign out */}
@@ -10445,6 +10491,89 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                   ¿Preguntas o sugerencias? Escríbenos a zafi.fintech@gmail.com
                 </div>
               </div>
+            </div>
+          </>
+        )}
+
+        {section === "report" && (
+          <>
+            {BACK("Reportar un problema")}
+            <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 18 }}>
+              Cuéntanos qué pasó. Se abrirá tu app de correo con el mensaje listo para enviar.
+            </p>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 8, display: "block" }}>
+              ¿De qué se trata?
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
+              {[
+                { v: "bug", label: "Algo no funciona" },
+                { v: "idea", label: "Tengo una idea" },
+                { v: "cuenta", label: "Mi cuenta o pago" },
+                { v: "otro", label: "Otra cosa" },
+              ].map((o) => (
+                <button key={o.v} onClick={() => setReportTipo(o.v)}
+                  style={{ padding: "12px 10px", borderRadius: 12,
+                    border: `1px solid ${reportTipo === o.v ? "#5B6EE8" : "var(--line-soft)"}`,
+                    background: reportTipo === o.v ? "rgba(91,110,232,.08)" : "transparent",
+                    color: reportTipo === o.v ? "#5B6EE8" : "var(--ink-soft)",
+                    fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 8, display: "block" }}>
+              Descríbelo con tus palabras
+            </label>
+            <textarea value={reportTexto} onChange={(e) => setReportTexto(e.target.value)}
+              placeholder="Ejemplo: al abonar a una meta, el modal se cierra solo…"
+              rows={5}
+              style={{ width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12,
+                border: "1px solid var(--line-soft)", background: "var(--surface)",
+                fontSize: 14, fontFamily: "inherit", color: "var(--ink)", outline: "none",
+                resize: "vertical", lineHeight: 1.5 }} />
+
+            <p style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10, lineHeight: 1.5 }}>
+              Incluiremos tu correo y datos del dispositivo para poder ayudarte. No mandamos tus
+              transacciones ni información financiera.
+            </p>
+
+            <button onClick={() => {
+              if (!reportTexto.trim()) return;
+              setReportEnviando(true);
+              const tipoLabel = { bug: "Problema", idea: "Sugerencia", cuenta: "Cuenta o pago", otro: "Otro" }[reportTipo];
+              // Datos técnicos que ayudan a diagnosticar, sin tocar datos financieros
+              const meta = [
+                `Tipo: ${tipoLabel}`,
+                `Usuario: ${email || "(sin correo)"}`,
+                `Plan: ${getUserPlan(config)}`,
+                `Idioma: ${lang}`,
+                `Dispositivo: ${navigator.userAgent}`,
+                `Fecha: ${new Date().toISOString()}`,
+              ].join("\n");
+              const cuerpo = `${reportTexto.trim()}\n\n---\nDatos técnicos (no borrar, nos ayudan a diagnosticar):\n${meta}`;
+              const asunto = `[Zafi · ${tipoLabel}] ${reportTexto.trim().slice(0, 50)}`;
+              const mailto = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+              window.location.href = mailto;
+              setTimeout(() => {
+                setReportEnviando(false);
+                setReportTexto("");
+                showToast("Abriendo tu correo…");
+                setSection("menu");
+              }, 600);
+            }}
+              disabled={!reportTexto.trim() || reportEnviando}
+              style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", marginTop: 20,
+                background: reportTexto.trim() ? "#5B6EE8" : "var(--surface-2)",
+                color: reportTexto.trim() ? "#fff" : "var(--ink-faint)",
+                fontSize: 15, fontWeight: 600, fontFamily: "inherit",
+                cursor: reportTexto.trim() ? "pointer" : "default" }}>
+              {reportEnviando ? "Abriendo correo…" : "Enviar reporte"}
+            </button>
+
+            <div style={{ textAlign: "center", marginTop: 16, fontSize: 12, color: "var(--ink-faint)" }}>
+              También puedes escribirnos a {LEGAL_CONTACT_EMAIL}
             </div>
           </>
         )}
@@ -12975,7 +13104,7 @@ function OpportunityDetailSheet({ opp, dark, toneColor, toneBg, onClose }) {
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
-      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "86vh", overflowY: "auto" }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <div style={{ width: 44, height: 44, borderRadius: 13, background: toneBg[opp.tone] || "rgba(30,111,224,.12)",
@@ -13761,7 +13890,7 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        style={{ maxHeight: "calc(100vh - env(safe-area-inset-top) - 12px)", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
         {(() => {
@@ -13947,7 +14076,7 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} onClick={close}>
       <div className="cc-sheet" ref={sheetRef} onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(92vh - env(safe-area-inset-top))", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
+        style={{ maxHeight: "calc(100vh - env(safe-area-inset-top) - 12px)", overflowY: "auto", overflowX: "hidden", touchAction: "pan-y" }}>
         <div className="cc-grip" />
 
         {/* Cabecera */}
