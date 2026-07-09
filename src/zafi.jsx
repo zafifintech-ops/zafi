@@ -12,13 +12,39 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail, signInWithCredential, GoogleAuthProvider,
-  OAuthProvider, deleteUser } from "firebase/auth";
+  OAuthProvider, deleteUser, sendEmailVerification, reload } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
 /* ── Constantes de autenticación ── */
 const GOOGLE_CLIENT_ID = "308516673564-ju957earku47i36hav3m14epkld3ti91.apps.googleusercontent.com";
 const BIOMETRIC_SERVER = "zafi.app"; // clave para keychain
 const BIOMETRIC_USERNAME = "zafi_user";
+const FIREBASE_API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
+
+/* Envía el correo de verificación. Intenta primero con el SDK (si hay usuario
+   del SDK disponible) y si no, cae al endpoint REST de Firebase, igual que el
+   resto del flujo de auth en Capacitor. Devuelve true si se envió. */
+async function enviarVerificacionEmail(user) {
+  try {
+    // Camino SDK: el usuario viene de createUserWithEmailAndPassword
+    if (user && typeof user.getIdToken === "function" && user.reload) {
+      await sendEmailVerification(user);
+      return true;
+    }
+    // Camino REST: usamos el idToken del restUser
+    const idToken = user && typeof user.getIdToken === "function" ? await user.getIdToken() : null;
+    if (!idToken) return false;
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestType: "VERIFY_EMAIL", idToken }),
+    });
+    const data = await res.json();
+    return !data.error;
+  } catch (e) {
+    console.error("No se pudo enviar la verificación:", e);
+    return false;
+  }
+}
 
 /* Firebase config */
 const firebaseApp = initializeApp({
@@ -4950,6 +4976,74 @@ function AuthInput({ icon, type, placeholder, value, onChange, right, contentTyp
   );
 }
 
+/* Banner discreto que invita a verificar el correo. Solo aparece si el usuario
+   se registró con correo/contraseña y aún no verificó. Google y Apple llegan
+   ya verificados, así que a ellos nunca les sale. No bloquea nada. */
+function EmailVerifyBanner({ user }) {
+  const [oculto, setOculto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [verificado, setVerificado] = useState(false);
+
+  // Revisar el estado real de verificación al montar y al volver del correo
+  useEffect(() => {
+    if (!user) return;
+    const revisar = async () => {
+      try {
+        if (user.reload) { await reload(user); }
+        if (user.emailVerified) setVerificado(true);
+      } catch (_) {}
+    };
+    revisar();
+    // Al volver a la app (p.ej. tras darle clic al enlace), revisamos otra vez
+    const onFocus = () => revisar();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [user]);
+
+  // No mostrar si: no hay usuario, ya verificó, lo ocultó, o entró con Google/Apple
+  const esProveedorExterno = user?.providerData?.some?.(
+    (p) => p.providerId === "google.com" || p.providerId === "apple.com"
+  );
+  if (!user || verificado || user.emailVerified || oculto || esProveedorExterno) return null;
+
+  const reenviar = async () => {
+    setEnviando(true);
+    const ok = await enviarVerificacionEmail(user);
+    setEnviando(false);
+    if (ok) setEnviado(true);
+  };
+
+  return (
+    <div style={{ margin: "0 16px 12px", padding: "12px 14px", borderRadius: 14,
+      background: "rgba(201,168,76,.1)", border: "1px solid rgba(201,168,76,.25)",
+      display: "flex", alignItems: "center", gap: 12 }}>
+      <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, flexShrink: 0, stroke: "#C9A84C", fill: "none", strokeWidth: 1.8 }}>
+        <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" strokeLinecap="round" />
+      </svg>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", fontFamily: "'Montserrat',sans-serif" }}>
+          {enviado ? "Correo enviado" : "Verifica tu correo"}
+        </div>
+        <div style={{ fontSize: 11.5, color: "var(--ink-soft)", fontFamily: "'Montserrat',sans-serif", marginTop: 1 }}>
+          {enviado ? `Revisa ${user.email} y toca el enlace.` : "Te mandamos un enlace para confirmar tu cuenta."}
+        </div>
+      </div>
+      {!enviado && (
+        <button onClick={reenviar} disabled={enviando}
+          style={{ padding: "7px 12px", borderRadius: 9, border: "none", background: "rgba(201,168,76,.18)",
+            color: "#8A6D0B", fontSize: 11.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+            fontFamily: "'Montserrat',sans-serif" }}>
+          {enviando ? "…" : "Reenviar"}
+        </button>
+      )}
+      <button onClick={() => setOculto(true)}
+        style={{ background: "transparent", border: "none", color: "var(--ink-faint)", fontSize: 18,
+          cursor: "pointer", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>×</button>
+    </div>
+  );
+}
+
 function AuthScreen() {
   const [tab, setTab] = useState("login");
   const [email, setEmail] = useState("");
@@ -5101,9 +5195,12 @@ function AuthScreen() {
       ]);
       if (sdkResult?.user) {
         window.__zafiCurrentUser = sdkResult.user;
+        // Mandar correo de verificación (no bloquea el acceso)
+        enviarVerificacionEmail(sdkResult.user);
         if (window.__zafiSetUser) window.__zafiSetUser(sdkResult.user);
       } else {
         // SDK falló o timeout — usar restUser directamente
+        enviarVerificacionEmail(restUser);
         if (window.__zafiSetUser) window.__zafiSetUser(restUser);
       }
     } catch (e) {
@@ -9053,6 +9150,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       <StickyHeader config={config} saveConfig={saveConfigWrapped} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
 
       <div className="cc-wrap">
+        <EmailVerifyBanner user={user} />
         <div key={tab} className="cc-page">
           {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={true} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
@@ -10666,6 +10764,12 @@ const HOME_SECTION_PLANS = {
   financialScore: "pro",
   financialTips: "pro",
 };
+
+/* Secciones que, aunque estén bloqueadas por plan, SÍ se muestran en el
+   dashboard — difuminadas con LockedBlur y datos de demo. Sirven de gancho
+   para el upgrade y evitan que el dashboard Free se sienta vacío.
+   Ojo: solo secciones cuyo demoMode NO gaste llamadas de IA reales. */
+const TEASER_SECTIONS = ["financialScore"];
 
 // Orden adaptativo del Dashboard. El PROTAGONISTA (primera sección) cambia
 // según la situación financiera:
@@ -14800,13 +14904,13 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       )}
 
       {/* === secciones según orden y on/off === */}
-      {/* Filtramos también las bloqueadas por plan: NO se renderizan en el
-         dashboard real (aunque el usuario las tenga en on). Solo aparecen en el
-         menú de Personalizar con candado, invitando al upgrade. */}
+      {/* Las bloqueadas por plan NO se renderizan, salvo las de TEASER_SECTIONS,
+         que se muestran difuminadas (LockedBlur) como gancho de upgrade. */}
       {sections.filter((s) => {
         if (!s.on) return false;
         const requiredPlan = HOME_SECTION_PLANS[s.id] || "free";
-        return planMeets(getUserPlan(config), requiredPlan);
+        if (planMeets(getUserPlan(config), requiredPlan)) return true;
+        return TEASER_SECTIONS.includes(s.id);
       }).map((s, idx) => {
         const delay = `${idx * 60}ms`;
         const userPlan = getUserPlan(config);
@@ -15475,8 +15579,16 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
   };
 
   const toggle = (id) => {
-    // Si la sección está bloqueada por plan, en vez de prenderla llevamos al upgrade
     if (isSectionLocked(id)) {
+      const item = items.find((s) => s.id === id);
+      const esTeaser = TEASER_SECTIONS.includes(id);
+      // Las teaser se muestran difuminadas en el dashboard. Si el usuario ya la
+      // ve y quiere quitarla, lo dejamos apagarla — es su dashboard. Pero si
+      // está apagada, prenderla equivale a querer la función → upgrade.
+      if (esTeaser && item?.on) {
+        apply(items.map((s) => (s.id === id ? { ...s, on: false } : s)));
+        return;
+      }
       const needed = HOME_SECTION_PLANS[id] || "free";
       onUpgrade && onUpgrade(needed);
       return;
@@ -15589,7 +15701,7 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
                   return null;
                 })()}
               </div>
-              {isSectionLocked(s.id) ? (
+              {isSectionLocked(s.id) && !(TEASER_SECTIONS.includes(s.id) && s.on) ? (
                 <button onClick={() => toggle(s.id)}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center",
                     width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer",
