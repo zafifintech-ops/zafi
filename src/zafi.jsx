@@ -4960,10 +4960,39 @@ function AuthScreen() {
   const [ok, setOk] = useState("");
   const [showForgot, setShowForgot] = useState(false);
   const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
+  const [hasFaceCreds, setHasFaceCreds] = useState(false); // ¿hay credenciales Face ID guardadas?
 
   // Limpiar chat al mostrar la pantalla de login (nueva sesión)
   useEffect(() => {
     if (window.__zafiClearChat) window.__zafiClearChat();
+  }, []);
+
+  // Face ID automático al abrir: si ya hay credenciales guardadas en el llavero
+  // y el dispositivo tiene biometría, lanzamos Face ID de una vez. Como son tus
+  // finanzas, tiene sentido pedir identidad al entrar sin tener que tocar el botón.
+  // Solo se intenta una vez por montaje y respeta si el usuario canceló.
+  const autoFaceTried = useRef(false);
+  useEffect(() => {
+    if (autoFaceTried.current) return;
+    autoFaceTried.current = true;
+    // Solo en la app nativa; en web el plugin no existe.
+    const nativo = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+    if (!nativo) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const avail = await NativeBiometric.isAvailable().catch(() => ({ isAvailable: false }));
+        if (!avail?.isAvailable) return;
+        const creds = await NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER }).catch(() => null);
+        if (cancelled || !creds?.username || !creds?.password) return;
+        setHasFaceCreds(true);
+        // Hay credenciales → lanzar el mismo flujo que el botón Face ID
+        doFaceID();
+      } catch (e) {
+        // Silencioso: si algo falla, el usuario puede usar el botón manual
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   function reset() { setEmail(""); setPassword(""); setConfirmPassword(""); setErr(""); setOk(""); }
@@ -5193,7 +5222,13 @@ function AuthScreen() {
         body: JSON.stringify({ email: savedEmail, password: savedPassword, returnSecureToken: true })
       });
       const data = await res.json();
-      if (data.error) throw new Error("Credenciales inválidas");
+      if (data.error) {
+        // Las credenciales guardadas ya no sirven (contraseña cambiada, cuenta
+        // eliminada, etc.). Limpiamos el llavero para no reintentar en bucle.
+        try { await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER }); } catch (_) {}
+        setHasFaceCreds(false);
+        throw new Error("Credenciales inválidas");
+      }
       const restUser = { uid: data.localId, email: data.email, getIdToken: async () => data.idToken };
       window.__zafiCurrentUser = restUser;
       const sdkResult = await Promise.race([
@@ -5209,6 +5244,8 @@ function AuthScreen() {
     } catch (e) {
       if (e?.message?.includes("Cancel") || e?.message?.includes("cancel") || e?.code === -128) {
         // Usuario canceló, no mostrar error
+      } else if (e?.message === "Credenciales inválidas") {
+        setErr("Tus datos guardados ya no son válidos. Inicia sesión con tu contraseña para reactivar Face ID.");
       } else {
         setErr("No se pudo verificar Face ID. Intenta con contraseña.");
       }
@@ -5335,6 +5372,19 @@ function AuthScreen() {
             ) : (
               <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doLogin} disabled={busy}>
                 Iniciar sesión →
+              </button>
+            )}
+            {hasFaceCreds && !busy && (
+              <button onClick={doFaceID} className="cc-press"
+                style={{ marginTop: 2, padding: "12px", borderRadius: 12, border: "1px solid rgba(26,24,21,.15)",
+                  background: "rgba(255,255,255,.45)", cursor: "pointer", display: "flex",
+                  alignItems: "center", justifyContent: "center", gap: 8,
+                  fontFamily: "'Montserrat',sans-serif", fontSize: 14, fontWeight: 500, color: "#1A1815" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" />
+                  <path d="M9 9v1M15 9v1M9.5 15a3.5 3.5 0 0 0 5 0M12 9v4h-1" />
+                </svg>
+                Desbloquear con Face ID
               </button>
             )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"6px 0 0" }}>
@@ -9745,10 +9795,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
     window.__zafiCurrentUser = null;
     // Limpiar chat al cerrar sesión
     if (window.__zafiClearChat) window.__zafiClearChat();
-    // Limpiar credenciales de Face ID al cerrar sesión
-    try {
-      await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER });
-    } catch (e) { /* silencioso */ }
+    // NO borramos las credenciales de Face ID: cerrar sesión no debe desactivarlo.
+    // Al reabrir, Face ID entra directo; si quieres otra cuenta, cancela el prompt
+    // y usa correo/contraseña. Para desactivarlo de verdad: Configuración → Face ID.
     // Forzar recarga limpia de la app
     window.location.reload();
   };
@@ -9764,6 +9813,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
       }
       // borrar la cuenta de Firebase Auth
       if (user) await deleteUser(user);
+      // La cuenta ya no existe → limpiar credenciales de Face ID del llavero,
+      // si no, el Face ID automático intentaría entrar con una cuenta muerta.
+      try { await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER }); } catch (e) {}
     } catch (e) {
       showToast("Error al eliminar. Cierra sesión, vuelve a entrar e intenta de nuevo.");
     }
