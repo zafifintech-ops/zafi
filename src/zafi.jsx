@@ -41,7 +41,14 @@ const RC_PACKAGES = {
 
 // ¿Corremos dentro de la app nativa? En web no existe el plugin.
 function esAppNativa() {
-  return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.Capacitor?.isNativePlatform?.() === true) return true;
+    // Fallback: Capacitor sirve la app bajo el esquema capacitor://
+    return window.location.protocol === "capacitor:";
+  } catch (_) {
+    return false;
+  }
 }
 
 let _rcListo = false;
@@ -86,19 +93,30 @@ async function rcPlanActual() {
    Devuelve { lite: {monthly, annual}, pro: {monthly, annual} } donde cada
    valor es el objeto package de RevenueCat (o null si no existe). */
 async function rcCargarOfertas() {
-  if (!esAppNativa()) return null;
+  if (!esAppNativa()) { console.log("[RC] no es app nativa, sin ofertas"); return null; }
   try {
+    // Si el SDK aún no se configuró (el modal abrió antes que el efecto de App),
+    // lo configuramos aquí. rcInicializar es idempotente.
+    if (!_rcListo) await rcInicializar(window.__zafiCurrentUser?.uid);
     const { Purchases } = await import("@revenuecat/purchases-capacitor");
     const { current } = await Purchases.getOfferings();
-    if (!current?.availablePackages?.length) return null;
+    if (!current) { console.warn("[RC] no hay offering 'current' marcado en el dashboard"); return null; }
+    const ids = (current.availablePackages || []).map((p) => p.identifier);
+    console.log("[RC] packages encontrados:", ids);
+    if (!ids.length) { console.warn("[RC] el offering current no tiene packages"); return null; }
     const porId = {};
     current.availablePackages.forEach((p) => { porId[p.identifier] = p; });
+    const faltantes = [
+      RC_PACKAGES.lite.monthly, RC_PACKAGES.lite.annual,
+      RC_PACKAGES.pro.monthly, RC_PACKAGES.pro.annual,
+    ].filter((id) => !porId[id]);
+    if (faltantes.length) console.warn("[RC] faltan estos packages:", faltantes);
     return {
       lite: { monthly: porId[RC_PACKAGES.lite.monthly] || null, annual: porId[RC_PACKAGES.lite.annual] || null },
       pro:  { monthly: porId[RC_PACKAGES.pro.monthly]  || null, annual: porId[RC_PACKAGES.pro.annual]  || null },
     };
   } catch (e) {
-    console.error("No se pudieron cargar las ofertas:", e);
+    console.error("[RC] no se pudieron cargar las ofertas:", e);
     return null;
   }
 }
@@ -2621,6 +2639,7 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
 
   // Ofertas reales de Apple (precios localizados) y estado de la compra
   const [ofertas, setOfertas] = useState(null);
+  const [cargandoOfertas, setCargandoOfertas] = useState(esAppNativa());
   const [comprando, setComprando] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [errorCompra, setErrorCompra] = useState("");
@@ -2629,7 +2648,12 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
     let vivo = true;
     (async () => {
       const o = await rcCargarOfertas();
-      if (vivo) setOfertas(o);
+      if (!vivo) return;
+      setOfertas(o);
+      setCargandoOfertas(false);
+      if (esAppNativa() && !o) {
+        setErrorCompra("No pudimos cargar los planes. Revisa tu conexión.");
+      }
     })();
     return () => { vivo = false; };
   }, []);
@@ -2692,7 +2716,25 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
 
   // Ejecuta la compra del package seleccionado
   const comprar = async () => {
-    if (comprando || !pkgActual) return;
+    if (comprando || restaurando) return;
+    if (!esAppNativa()) {
+      setErrorCompra("Las compras solo funcionan desde la app de iPhone.");
+      return;
+    }
+    if (!pkgActual) {
+      // Sin package no hay nada que comprar. Reintentamos cargar las ofertas
+      // por si fue un fallo temporal de red.
+      setErrorCompra("Cargando planes…");
+      const o = await rcCargarOfertas();
+      setOfertas(o);
+      const reintento = o?.[targetPlan]?.[billingCycle];
+      if (!reintento) {
+        setErrorCompra("Este plan no está disponible ahora. Intenta más tarde.");
+        return;
+      }
+      setErrorCompra("");
+      return; // el usuario vuelve a tocar, ya con el package cargado
+    }
     setErrorCompra("");
     setComprando(true);
     const r = await rcComprar(pkgActual);
@@ -2749,7 +2791,7 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
         {/* Botón cerrar absoluto */}
         <button onClick={close} aria-label="Cerrar"
           style={{
-            position: "absolute", top: 14, right: 14, zIndex: 100,
+            position: "absolute", top: "calc(14px + env(safe-area-inset-top))", right: 14, zIndex: 100,
             width: 36, height: 36, borderRadius: "50%",
             background: dark ? "rgba(0,0,0,.5)" : "rgba(255,255,255,.85)",
             border: `1px solid ${dark ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.06)"}`,
@@ -2927,23 +2969,23 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
         <div style={{ padding: "8px 22px 0" }}>
           <button
             onClick={comprar}
-            disabled={comprando || restaurando || (esAppNativa() && !pkgActual)}
+            disabled={comprando || restaurando || cargandoOfertas}
             style={{
             width: "100%", padding: "16px 18px", borderRadius: 16, border: "none",
             background: planColors.gradient,
             color: "#fff", fontSize: 15, fontWeight: 600,
             fontFamily: "'Montserrat', sans-serif",
-            cursor: (comprando || restaurando) ? "default" : "pointer", letterSpacing: "-.005em",
+            cursor: (comprando || restaurando || cargandoOfertas) ? "default" : "pointer", letterSpacing: "-.005em",
             boxShadow: `0 8px 24px ${planColors.glowColor}`,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transition: "transform .15s ease, box-shadow .15s ease",
-            opacity: (comprando || restaurando || (esAppNativa() && !pkgActual)) ? .6 : 1,
+            opacity: (comprando || restaurando || cargandoOfertas) ? .6 : 1,
           }}
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(.98)"}
           onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
           >
-            {comprando ? "Procesando…" : <><span>✦</span> Activar {planName}</>}
+            {cargandoOfertas ? "Cargando…" : comprando ? "Procesando…" : <><span>✦</span> Activar {planName}</>}
           </button>
 
           {errorCompra && (
