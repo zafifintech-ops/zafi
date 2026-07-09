@@ -22,6 +22,121 @@ const BIOMETRIC_USERNAME = "zafi_user";
 const FIREBASE_API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
 const APP_VERSION = "1.0"; // se muestra en Ajustes y se adjunta a los reportes
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGOS — RevenueCat
+   Apple obliga a usar StoreKit para suscripciones digitales. RevenueCat es la
+   capa que valida recibos, escucha cancelaciones/renovaciones vía webhooks, y
+   nos dice en todo momento qué entitlement tiene activo el usuario.
+
+   La fuente de verdad del plan es RevenueCat, NO config.plan. Al arrancar
+   sincronizamos: si RevenueCat dice que no tiene nada, el plan baja a free.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const RC_API_KEY_IOS = "appl_JQmHIlXmurTgpjtXmIpcztbWFdw";
+
+// Identifiers de los packages en el offering "default" de RevenueCat
+const RC_PACKAGES = {
+  lite: { monthly: "lite_monthly", annual: "lite_annual" },
+  pro:  { monthly: "pro_monthly",  annual: "pro_annual"  },
+};
+
+// ¿Corremos dentro de la app nativa? En web no existe el plugin.
+function esAppNativa() {
+  return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
+}
+
+let _rcListo = false;
+
+/* Inicializa el SDK. Idempotente: llamarlo dos veces no hace daño. */
+async function rcInicializar(uid) {
+  if (!esAppNativa()) return false;
+  try {
+    const { Purchases, LOG_LEVEL } = await import("@revenuecat/purchases-capacitor");
+    if (!_rcListo) {
+      await Purchases.setLogLevel({ level: LOG_LEVEL.WARN });
+      await Purchases.configure({ apiKey: RC_API_KEY_IOS, appUserID: uid || null });
+      _rcListo = true;
+    } else if (uid) {
+      // Cambió el usuario logueado → asociar sus compras
+      await Purchases.logIn({ appUserID: uid });
+    }
+    return true;
+  } catch (e) {
+    console.error("RevenueCat no pudo inicializar:", e);
+    return false;
+  }
+}
+
+/* Lee el plan REAL desde RevenueCat. Devuelve "pro" | "lite" | "free". */
+async function rcPlanActual() {
+  if (!esAppNativa()) return null; // en web no sabemos; no tocar config.plan
+  try {
+    const { Purchases } = await import("@revenuecat/purchases-capacitor");
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    const activos = customerInfo?.entitlements?.active || {};
+    if (activos["pro"]) return "pro";
+    if (activos["lite"]) return "lite";
+    return "free";
+  } catch (e) {
+    console.error("No se pudo leer el plan de RevenueCat:", e);
+    return null; // null = no sabemos, mejor no degradar al usuario
+  }
+}
+
+/* Trae los packages del offering actual, con precios REALES de Apple.
+   Devuelve { lite: {monthly, annual}, pro: {monthly, annual} } donde cada
+   valor es el objeto package de RevenueCat (o null si no existe). */
+async function rcCargarOfertas() {
+  if (!esAppNativa()) return null;
+  try {
+    const { Purchases } = await import("@revenuecat/purchases-capacitor");
+    const { current } = await Purchases.getOfferings();
+    if (!current?.availablePackages?.length) return null;
+    const porId = {};
+    current.availablePackages.forEach((p) => { porId[p.identifier] = p; });
+    return {
+      lite: { monthly: porId[RC_PACKAGES.lite.monthly] || null, annual: porId[RC_PACKAGES.lite.annual] || null },
+      pro:  { monthly: porId[RC_PACKAGES.pro.monthly]  || null, annual: porId[RC_PACKAGES.pro.annual]  || null },
+    };
+  } catch (e) {
+    console.error("No se pudieron cargar las ofertas:", e);
+    return null;
+  }
+}
+
+/* Ejecuta la compra. Devuelve { ok, plan, cancelado, error }. */
+async function rcComprar(pkg) {
+  if (!esAppNativa()) return { ok: false, error: "Las compras solo funcionan en la app." };
+  try {
+    const { Purchases } = await import("@revenuecat/purchases-capacitor");
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    const activos = customerInfo?.entitlements?.active || {};
+    const plan = activos["pro"] ? "pro" : activos["lite"] ? "lite" : "free";
+    return { ok: true, plan };
+  } catch (e) {
+    // El usuario canceló el diálogo de Apple: no es un error real
+    if (e?.code === "1" || e?.userCancelled || /cancel/i.test(e?.message || "")) {
+      return { ok: false, cancelado: true };
+    }
+    console.error("Error en la compra:", e);
+    return { ok: false, error: "No se pudo completar la compra. Intenta de nuevo." };
+  }
+}
+
+/* Restaurar compras. Apple EXIGE este botón para aprobar la app. */
+async function rcRestaurar() {
+  if (!esAppNativa()) return { ok: false, error: "Solo disponible en la app." };
+  try {
+    const { Purchases } = await import("@revenuecat/purchases-capacitor");
+    const { customerInfo } = await Purchases.restorePurchases();
+    const activos = customerInfo?.entitlements?.active || {};
+    const plan = activos["pro"] ? "pro" : activos["lite"] ? "lite" : "free";
+    return { ok: true, plan };
+  } catch (e) {
+    console.error("Error al restaurar:", e);
+    return { ok: false, error: "No se pudieron restaurar tus compras." };
+  }
+}
+
 /* Consulta si el correo del usuario ya está verificado. Funciona con el usuario
    del SDK (usa reload) y con el restUser de Capacitor (endpoint accounts:lookup),
    que no tiene reload y por eso se quedaría con el dato congelado del login. */
@@ -2498,11 +2613,26 @@ function LegalModal({ doc, onClose }) {
 }
 
 /* ===== Modal de upgrade (paywall) ======================================== */
-function UpgradeModal({ config, onClose, feature }) {
+function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
   const currentPlan = getUserPlan(config);
   const [billingCycle, setBillingCycle] = useState("annual"); // monthly | annual
+
+  // Ofertas reales de Apple (precios localizados) y estado de la compra
+  const [ofertas, setOfertas] = useState(null);
+  const [comprando, setComprando] = useState(false);
+  const [restaurando, setRestaurando] = useState(false);
+  const [errorCompra, setErrorCompra] = useState("");
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const o = await rcCargarOfertas();
+      if (vivo) setOfertas(o);
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const FEATURES = {
     income_vs_expense: { label: "Ingresos vs Gastos", plan: "pro", icon: "📊" },
@@ -2526,36 +2656,67 @@ function UpgradeModal({ config, onClose, feature }) {
   const targetPlan = info.plan;
 
   const LITE_FEATURES = [
-    { icon: "♾️", label: "Transacciones ilimitadas" },
+    { icon: "💳", label: "Deudas: avalancha y bola de nieve" },
+    { icon: "🎯", label: "Metas y planes de ahorro" },
     { icon: "🔄", label: "Movimientos recurrentes" },
     { icon: "💡", label: "Sugerencias inteligentes al capturar" },
-    { icon: "🎯", label: "Detección automática de categorías" },
     { icon: "🏦", label: "Hasta 3 cuentas bancarias" },
     { icon: "📊", label: "Estadísticas completas" },
     { icon: "📄", label: "Reportes Excel y PDF" },
-    { icon: "🚫", label: "Sin anuncios" },
   ];
   const PRO_FEATURES = [
     { icon: "✦", label: "Todo lo de Lite incluido", highlight: true },
-    { icon: "🏦", label: "Cuentas ilimitadas" },
-    { icon: "📊", label: "Ingresos vs Gastos avanzado" },
-    { icon: "📈", label: "Acumulado de ingresos vs gastos" },
     { icon: "⭐", label: "Calificación financiera con IA" },
     { icon: "💡", label: "Consejos financieros con IA" },
+    { icon: "🏦", label: "Cuentas ilimitadas" },
     { icon: "📷", label: "Captura por foto (OCR)" },
     { icon: "✨", label: "Asistente IA ilimitado" },
-    { icon: "⚡", label: "Acceso anticipado a features" },
+    { icon: "📈", label: "Acumulado de ingresos vs gastos" },
+    { icon: "📅", label: "Rangos de fecha personalizados" },
   ];
   const features = targetPlan === "pro" ? PRO_FEATURES : LITE_FEATURES;
 
-  // Precios
-  const PRICES = {
+  // Precios: si RevenueCat ya trajo las ofertas usamos los precios REALES de
+  // Apple (localizados por país). Si no (web, o falla la red), caemos a los
+  // precios de referencia en MXN.
+  const PRICES_FALLBACK = {
     lite: { monthly: 59, annual: 499, monthlyEq: 41.6 },
     pro:  { monthly: 129, annual: 999, monthlyEq: 83.3 },
   };
-  const price = PRICES[targetPlan];
+  const price = PRICES_FALLBACK[targetPlan];
+
+  const pkgActual = ofertas?.[targetPlan]?.[billingCycle] || null;
+  const precioApple = pkgActual?.product?.priceString || null;
   const currentPrice = billingCycle === "annual" ? price.annual : price.monthly;
   const priceLabel = billingCycle === "annual" ? "MXN / año" : "MXN / mes";
+
+  // Ejecuta la compra del package seleccionado
+  const comprar = async () => {
+    if (comprando || !pkgActual) return;
+    setErrorCompra("");
+    setComprando(true);
+    const r = await rcComprar(pkgActual);
+    setComprando(false);
+    if (r.cancelado) return; // el usuario cerró el diálogo de Apple
+    if (!r.ok) { setErrorCompra(r.error || "No se pudo completar la compra."); return; }
+    // La compra funcionó: RevenueCat ya tiene la verdad. Sincronizamos config.
+    saveConfig && saveConfig({ ...config, plan: r.plan });
+    showToast && showToast(r.plan === "pro" ? "✦ Plan Pro activado" : "Plan Lite activado");
+    close();
+  };
+
+  const restaurar = async () => {
+    if (restaurando) return;
+    setErrorCompra("");
+    setRestaurando(true);
+    const r = await rcRestaurar();
+    setRestaurando(false);
+    if (!r.ok) { setErrorCompra(r.error || "No se pudieron restaurar tus compras."); return; }
+    if (r.plan === "free") { setErrorCompra("No encontramos compras previas con tu cuenta de Apple."); return; }
+    saveConfig && saveConfig({ ...config, plan: r.plan });
+    showToast && showToast(`Compras restauradas · Plan ${r.plan === "pro" ? "Pro" : "Lite"}`);
+    close();
+  };
 
   // Colores del plan
   const planColors = targetPlan === "pro"
@@ -2696,19 +2857,26 @@ function UpgradeModal({ config, onClose, feature }) {
         <div style={{ padding: "8px 22px 24px", textAlign: "center" }}>
           <div style={{
             fontFamily: "'Fraunces', serif",
-            fontSize: 56, fontWeight: 500, color: "var(--ink)",
+            fontSize: precioApple ? 44 : 56, fontWeight: 500, color: "var(--ink)",
             letterSpacing: "-.04em", lineHeight: 1,
             display: "inline-flex", alignItems: "baseline", gap: 4,
           }}>
-            <span style={{ fontSize: 26, color: "var(--ink-soft)", fontWeight: 400 }}>$</span>
-            {currentPrice}
+            {precioApple ? (
+              // Precio real de Apple, ya localizado y con símbolo de moneda
+              <span>{precioApple}</span>
+            ) : (
+              <>
+                <span style={{ fontSize: 26, color: "var(--ink-soft)", fontWeight: 400 }}>$</span>
+                {currentPrice}
+              </>
+            )}
           </div>
           <div style={{
             fontSize: 12, color: "var(--ink-soft)", marginTop: 6,
             fontFamily: "'Montserrat', sans-serif",
           }}>
-            {priceLabel}
-            {billingCycle === "annual" && (
+            {precioApple ? (billingCycle === "annual" ? "por año" : "por mes") : priceLabel}
+            {billingCycle === "annual" && !precioApple && (
               <span style={{ marginLeft: 6, color: "#10B981", fontWeight: 600 }}>
                 · equivale a ${price.monthlyEq.toFixed(0)}/mes
               </span>
@@ -2757,28 +2925,49 @@ function UpgradeModal({ config, onClose, feature }) {
 
         {/* CTA */}
         <div style={{ padding: "8px 22px 0" }}>
-          <button style={{
+          <button
+            onClick={comprar}
+            disabled={comprando || restaurando || (esAppNativa() && !pkgActual)}
+            style={{
             width: "100%", padding: "16px 18px", borderRadius: 16, border: "none",
             background: planColors.gradient,
             color: "#fff", fontSize: 15, fontWeight: 600,
             fontFamily: "'Montserrat', sans-serif",
-            cursor: "pointer", letterSpacing: "-.005em",
+            cursor: (comprando || restaurando) ? "default" : "pointer", letterSpacing: "-.005em",
             boxShadow: `0 8px 24px ${planColors.glowColor}`,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transition: "transform .15s ease, box-shadow .15s ease",
+            opacity: (comprando || restaurando || (esAppNativa() && !pkgActual)) ? .6 : 1,
           }}
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(.98)"}
           onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
           >
-            <span>✦</span> Activar {planName}
+            {comprando ? "Procesando…" : <><span>✦</span> Activar {planName}</>}
+          </button>
+
+          {errorCompra && (
+            <div style={{ textAlign: "center", fontSize: 12, color: "#E23535",
+              marginTop: 10, fontFamily: "'Montserrat', sans-serif" }}>
+              {errorCompra}
+            </div>
+          )}
+
+          {/* Apple EXIGE un botón de restaurar compras para aprobar la app */}
+          <button onClick={restaurar} disabled={comprando || restaurando}
+            style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent",
+              border: "none", color: "var(--ink-soft)", fontSize: 13, fontWeight: 500,
+              cursor: "pointer", fontFamily: "'Montserrat', sans-serif", marginTop: 8 }}>
+            {restaurando ? "Restaurando…" : "Restaurar compras"}
           </button>
 
           <div style={{
             textAlign: "center", fontSize: 11.5, color: "var(--ink-faint)",
-            marginTop: 14, fontFamily: "'Montserrat', sans-serif",
+            marginTop: 10, fontFamily: "'Montserrat', sans-serif", lineHeight: 1.6,
           }}>
-            Cancela cuando quieras · Sin compromisos · 7 días gratis
+            Se cobra a tu cuenta de Apple. Se renueva automáticamente salvo que
+            canceles al menos 24 h antes del fin del periodo. Puedes gestionarla
+            en los ajustes de tu Apple ID.
           </div>
         </div>
       </div>
@@ -8074,6 +8263,28 @@ export default function App() {
     });
   };
   const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
+
+  /* Sincronizar el plan con RevenueCat.
+     RevenueCat es la fuente de verdad: si el usuario canceló, se le venció la
+     tarjeta o pidió reembolso, su entitlement desaparece y hay que bajarlo a
+     free. Si compró en otro dispositivo, hay que subirlo. Solo tocamos
+     config.plan cuando RevenueCat responde con certeza (no en web, no si falla). */
+  useEffect(() => {
+    if (!user || !config) return;
+    let vivo = true;
+    (async () => {
+      const listo = await rcInicializar(user.uid);
+      if (!listo || !vivo) return;
+      const planReal = await rcPlanActual();
+      if (!vivo || planReal === null) return; // null = no sabemos, no degradar
+      const planLocal = getUserPlan(config);
+      if (planReal !== planLocal) {
+        saveConfig((prev) => ({ ...prev, plan: planReal }));
+      }
+    })();
+    return () => { vivo = false; };
+  }, [user?.uid, config?.plan]);
+
   const resetAll = async () => {
     const u = auth.currentUser;
     if (u) {
@@ -9317,7 +9528,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
         />
       )}
 
-      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} saveConfig={saveConfig} showToast={showToast} onClose={() => setUpgradeFeature(null)} />}
 
       {settingsOpen && (
         <SettingsModal
@@ -10270,8 +10481,14 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                     {!isCurrent && (
                       <button onClick={() => {
                         if (p === "free") {
-                          // Bajar a Free no es una compra: se aplica directo.
-                          // (Al integrar pagos, esto será "cancelar suscripción".)
+                          // Si tiene una suscripción de pago activa, NO podemos
+                          // bajarlo aquí: Apple le seguiría cobrando. Hay que
+                          // mandarlo a cancelar en los ajustes de su Apple ID.
+                          if (getUserPlan(config) !== "free" && esAppNativa()) {
+                            showToast("Gestiona tu suscripción en Ajustes de Apple");
+                            window.open("https://apps.apple.com/account/subscriptions", "_blank");
+                            return;
+                          }
                           const saver = saveConfigRaw || saveConfig;
                           let restoredCount = 0;
                           saver((prev) => {
@@ -10291,7 +10508,8 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                         style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
                           background: p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
                           color: p === "free" ? "var(--ink)" : "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
-                        {p === "pro" ? "✦ Activar Pro" : p === "lite" ? "Activar Lite" : "Cambiar a Free"}
+                        {p === "pro" ? "✦ Activar Pro" : p === "lite" ? "Activar Lite"
+                          : (getUserPlan(config) !== "free" ? "Gestionar suscripción" : "Cambiar a Free")}
                       </button>
                     )}
                   </div>
@@ -10715,7 +10933,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
           <AvatarPickerModal config={config} saveConfig={saveConfig} onClose={() => setAvatarOpen(false)} showToast={showToast} />
         )}
         {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
-        {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+        {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} saveConfig={saveConfig} showToast={showToast} onClose={() => setUpgradeFeature(null)} />}
         </div>
       </div>
     </div>,
@@ -15627,7 +15845,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         />
       )}
 
-      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} saveConfig={saveConfig} onClose={() => setUpgradeFeature(null)} />}
       {globalCustomizeOpen && (
         <GlobalCustomizeModal
           config={config}
@@ -20185,7 +20403,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           onClose={() => setDetail(null)}
           onEditTx={(t) => { setDetail(null); onEdit(t); }} />
       )}
-      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} onClose={() => setUpgradeFeature(null)} />}
+      {upgradeFeature && <UpgradeModal config={config} feature={upgradeFeature} saveConfig={saveConfig} onClose={() => setUpgradeFeature(null)} />}
       {globalCustomizeOpen && (
         <GlobalCustomizeModal
           config={config}
