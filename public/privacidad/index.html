@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aviso de Privacidad · Zafi</title>
+<meta name="description" content="Aviso de Privacidad de Zafi, app de finanzas personales. Cómo tratamos tus datos conforme a la LFPDPPP.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1B2230;
+    --ink-soft: #5B6472;
+    --ink-faint: #8B95A6;
+    --azul: #1E6FE0;
+    --linea: rgba(27,34,48,.09);
+    --fondo: #FBFBFC;
+    --papel: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    background: var(--fondo);
+    color: var(--ink);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .barra {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .barra-inner {
+    max-width: 720px; margin: 0 auto;
+    padding: 18px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .marca {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 400;
+    letter-spacing: -.04em; color: var(--ink);
+    text-decoration: none;
+  }
+  .barra a.volver {
+    font-size: 13px; color: var(--ink-soft);
+    text-decoration: none; font-weight: 500;
+  }
+  .barra a.volver:hover { color: var(--azul); }
+
+  main { max-width: 720px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(32px, 5vw, 44px);
+    font-weight: 500; letter-spacing: -.03em;
+    line-height: 1.15; margin-bottom: 12px;
+  }
+  .meta {
+    font-size: 13px; color: var(--ink-faint);
+    padding-bottom: 32px; margin-bottom: 40px;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .intro {
+    font-size: 16px; color: var(--ink-soft);
+    margin-bottom: 44px;
+  }
+
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 21px; font-weight: 600;
+    letter-spacing: -.015em;
+    margin: 48px 0 14px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  h2 .num {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px; font-weight: 600;
+    color: var(--azul); letter-spacing: .04em;
+    flex-shrink: 0;
+  }
+
+  p { font-size: 15px; color: var(--ink-soft); margin-bottom: 14px; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
+  li {
+    font-size: 15px; color: var(--ink-soft);
+    margin-bottom: 10px; padding-left: 22px;
+    position: relative;
+  }
+  li::before {
+    content: ""; position: absolute;
+    left: 4px; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--azul); opacity: .45;
+  }
+
+  a { color: var(--azul); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .ficha {
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: 16px;
+    padding: 24px 26px;
+    margin: 32px 0;
+  }
+  .ficha dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 24px; }
+  .ficha dt {
+    font-size: 12px; font-weight: 600;
+    color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: .05em;
+    padding-top: 2px;
+  }
+  .ficha dd { font-size: 15px; color: var(--ink); }
+
+  .cierre {
+    margin-top: 64px; padding-top: 28px;
+    border-top: 1px solid var(--linea);
+    font-size: 13px; color: var(--ink-faint);
+  }
+
+  @media (max-width: 560px) {
+    .ficha dl { grid-template-columns: 1fr; gap: 4px 0; }
+    .ficha dd { margin-bottom: 14px; }
+    h2 { flex-direction: column; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="barra-inner">
+    <a href="/" class="marca">zafi</a>
+    <a href="/terminos" class="volver">Términos de Uso</a>
+  </div>
+</header>
+
+<main>
+  <h1>Aviso de Privacidad</h1>
+  <p class="meta">Última actualización: 9 de julio de 2026</p>
+
+  <p class="intro">
+    Este Aviso explica qué datos recabamos en Zafi, para qué los usamos y cómo puedes
+    controlarlos. Se emite conforme a la Ley Federal de Protección de Datos Personales
+    en Posesión de los Particulares (LFPDPPP).
+  </p>
+
+  <div class="ficha">
+    <dl>
+      <dt>Responsable</dt>
+      <dd>Luis Ángel Ramos León</dd>
+      <dt>Domicilio</dt>
+      <dd>Tijuana, Baja California, México</dd>
+      <dt>Contacto</dt>
+      <dd><a href="mailto:zafi.fintech@gmail.com">zafi.fintech@gmail.com</a></dd>
+    </dl>
+  </div>
+
+  <h2><span class="num">01</span> Datos que recabamos</h2>
+  <p>Para operar la app recabamos lo siguiente:</p>
+  <ul>
+    <li><strong>Identificación y contacto.</strong> Nombre y correo electrónico, cuando creas tu cuenta.</li>
+    <li><strong>Datos de tu cuenta.</strong> Nombre para mostrar, foto de perfil opcional, y tus preferencias de la app.</li>
+    <li><strong>Información financiera que tú registras.</strong> Movimientos, categorías, metas y deudas. <strong>Zafi no se conecta a tus cuentas bancarias.</strong> Todo lo capturas tú.</li>
+    <li><strong>Datos técnicos.</strong> Identificadores del dispositivo y datos de uso, para operar la app y diagnosticar problemas.</li>
+  </ul>
+
+  <h2><span class="num">02</span> Para qué los usamos</h2>
+  <ul>
+    <li>Crear y administrar tu cuenta, y autenticarte al iniciar sesión.</li>
+    <li>Operar las funciones de la app: registro de movimientos, estadísticas, metas y deudas.</li>
+    <li>Procesar suscripciones a través de la App Store de Apple.</li>
+    <li>Responder tus reportes de problemas y brindarte soporte.</li>
+    <li>Mejorar la app con base en cómo se usa.</li>
+  </ul>
+
+  <h2><span class="num">03</span> Dónde se guardan y cómo los protegemos</h2>
+  <p>
+    Tus datos se almacenan en los servicios de nube de Google Firebase, con medidas de
+    seguridad técnicas y administrativas.
+  </p>
+  <p>
+    Si activas Face ID, tus credenciales de acceso se guardan cifradas en el llavero
+    seguro de tu dispositivo, <strong>no en nuestros servidores</strong>.
+  </p>
+
+  <h2><span class="num">04</span> Con quién los compartimos</h2>
+  <p>
+    <strong>No vendemos tus datos personales.</strong> Los compartimos únicamente con
+    proveedores que nos ayudan a operar la app, y solo para las finalidades descritas
+    aquí, bajo obligaciones de confidencialidad:
+  </p>
+  <ul>
+    <li><strong>Google Firebase</strong> — infraestructura de nube y autenticación.</li>
+    <li><strong>Apple</strong> — procesamiento de suscripciones.</li>
+    <li><strong>RevenueCat</strong> — gestión de suscripciones.</li>
+    <li><strong>Anthropic</strong> — funciones de inteligencia artificial. Los datos que enviamos para estas funciones no se usan para entrenar modelos.</li>
+  </ul>
+
+  <h2><span class="num">05</span> Tus derechos ARCO</h2>
+  <p>
+    Tienes derecho a <strong>Acceder</strong> a tus datos, <strong>Rectificarlos</strong>
+    cuando sean inexactos, <strong>Cancelarlos</strong> cuando no los quieras conservar,
+    y <strong>Oponerte</strong> a su tratamiento. También puedes revocar tu consentimiento
+    en cualquier momento.
+  </p>
+  <p>
+    Puedes ejercer estos derechos directamente desde la app, en
+    <strong>Configuración → Datos y privacidad</strong>, donde puedes exportar todos tus
+    datos o eliminar tu cuenta de forma permanente. También puedes escribirnos a
+    <a href="mailto:zafi.fintech@gmail.com">zafi.fintech@gmail.com</a>.
+  </p>
+
+  <h2><span class="num">06</span> Cuánto tiempo los conservamos</h2>
+  <p>
+    Conservamos tus datos mientras tu cuenta esté activa. Si eliminas tu cuenta, borramos
+    tu información de nuestros sistemas de forma irreversible, salvo aquella que debamos
+    conservar por obligaciones legales.
+  </p>
+
+  <h2><span class="num">07</span> Menores de edad</h2>
+  <p>
+    Zafi está dirigida a personas mayores de 18 años. No recabamos intencionalmente datos
+    de menores. Si detectamos una cuenta de un menor, la eliminaremos.
+  </p>
+
+  <h2><span class="num">08</span> Cambios a este Aviso</h2>
+  <p>
+    Podemos actualizar este Aviso. Cuando los cambios sean relevantes, te lo haremos saber
+    dentro de la app y actualizaremos la fecha al inicio de esta página.
+  </p>
+
+  <h2><span class="num">09</span> Contacto</h2>
+  <p>
+    Para cualquier duda sobre tus datos personales, escríbenos a
+    <a href="mailto:zafi.fintech@gmail.com">zafi.fintech@gmail.com</a>. Respondemos en un
+    plazo máximo de 20 días hábiles, conforme a la LFPDPPP.
+  </p>
+
+  <p class="cierre">
+    Zafi · Finanzas personales · Tijuana, Baja California, México
+  </p>
+</main>
+
+</body>
+</html>

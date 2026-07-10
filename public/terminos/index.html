@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Términos de Uso · Zafi</title>
+<meta name="description" content="Términos de Uso de Zafi, app de finanzas personales.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1B2230;
+    --ink-soft: #5B6472;
+    --ink-faint: #8B95A6;
+    --azul: #1E6FE0;
+    --linea: rgba(27,34,48,.09);
+    --fondo: #FBFBFC;
+    --papel: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    background: var(--fondo);
+    color: var(--ink);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .barra {
+    border-bottom: 1px solid var(--linea);
+    background: var(--papel);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .barra-inner {
+    max-width: 720px; margin: 0 auto;
+    padding: 18px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .marca {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 400;
+    letter-spacing: -.04em; color: var(--ink);
+    text-decoration: none;
+  }
+  .barra a.volver {
+    font-size: 13px; color: var(--ink-soft);
+    text-decoration: none; font-weight: 500;
+  }
+  .barra a.volver:hover { color: var(--azul); }
+
+  main { max-width: 720px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(32px, 5vw, 44px);
+    font-weight: 500; letter-spacing: -.03em;
+    line-height: 1.15; margin-bottom: 12px;
+  }
+  .meta {
+    font-size: 13px; color: var(--ink-faint);
+    padding-bottom: 32px; margin-bottom: 40px;
+    border-bottom: 1px solid var(--linea);
+  }
+
+  .intro {
+    font-size: 16px; color: var(--ink-soft);
+    margin-bottom: 44px;
+  }
+
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 21px; font-weight: 600;
+    letter-spacing: -.015em;
+    margin: 48px 0 14px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  h2 .num {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px; font-weight: 600;
+    color: var(--azul); letter-spacing: .04em;
+    flex-shrink: 0;
+  }
+
+  p { font-size: 15px; color: var(--ink-soft); margin-bottom: 14px; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
+  li {
+    font-size: 15px; color: var(--ink-soft);
+    margin-bottom: 10px; padding-left: 22px;
+    position: relative;
+  }
+  li::before {
+    content: ""; position: absolute;
+    left: 4px; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--azul); opacity: .45;
+  }
+
+  a { color: var(--azul); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .ficha {
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: 16px;
+    padding: 24px 26px;
+    margin: 32px 0;
+  }
+  .ficha dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 24px; }
+  .ficha dt {
+    font-size: 12px; font-weight: 600;
+    color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: .05em;
+    padding-top: 2px;
+  }
+  .ficha dd { font-size: 15px; color: var(--ink); }
+
+  /* Aviso destacado: Zafi no es una institución financiera */
+  .aviso {
+    border-left: 3px solid var(--azul);
+    background: rgba(30,111,224,.04);
+    padding: 20px 24px;
+    border-radius: 0 12px 12px 0;
+    margin: 28px 0;
+  }
+  .aviso p:last-child { margin-bottom: 0; }
+
+  .cierre {
+    margin-top: 64px; padding-top: 28px;
+    border-top: 1px solid var(--linea);
+    font-size: 13px; color: var(--ink-faint);
+  }
+
+  @media (max-width: 560px) {
+    .ficha dl { grid-template-columns: 1fr; gap: 4px 0; }
+    .ficha dd { margin-bottom: 14px; }
+    h2 { flex-direction: column; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="barra-inner">
+    <a href="/" class="marca">zafi</a>
+    <a href="/privacidad" class="volver">Aviso de Privacidad</a>
+  </div>
+</header>
+
+<main>
+  <h1>Términos de Uso</h1>
+  <p class="meta">Última actualización: 9 de julio de 2026</p>
+
+  <p class="intro">
+    Estos Términos regulan el uso de Zafi. Al crear una cuenta o usar la app, los aceptas
+    en su totalidad. Léelos con calma.
+  </p>
+
+  <div class="ficha">
+    <dl>
+      <dt>Operador</dt>
+      <dd>Luis Ángel Ramos León</dd>
+      <dt>Domicilio</dt>
+      <dd>Tijuana, Baja California, México</dd>
+      <dt>Contacto</dt>
+      <dd><a href="mailto:zafi.fintech@gmail.com">zafi.fintech@gmail.com</a></dd>
+    </dl>
+  </div>
+
+  <h2><span class="num">01</span> Qué es Zafi</h2>
+  <p>
+    Zafi es una herramienta de finanzas personales que te permite registrar movimientos,
+    organizar categorías, dar seguimiento a metas y deudas, y visualizar estadísticas
+    sobre tu dinero.
+  </p>
+
+  <div class="aviso">
+    <p>
+      <strong>Zafi no es una institución financiera.</strong> No ofrecemos asesoría
+      financiera, fiscal, contable ni de inversión profesional. No custodiamos ni movemos
+      tu dinero. Las cifras, proyecciones y sugerencias que ves en la app son
+      informativas, y las decisiones sobre tus finanzas son tuyas.
+    </p>
+  </div>
+
+  <h2><span class="num">02</span> Tu cuenta</h2>
+  <p>
+    Para usar la app necesitas crear una cuenta con un correo válido, o mediante Google o
+    Apple. Eres responsable de mantener seguras tus credenciales y de la actividad que
+    ocurra en tu cuenta.
+  </p>
+  <p>
+    Debes tener al menos <strong>18 años</strong> para usar Zafi.
+  </p>
+
+  <h2><span class="num">03</span> Planes y suscripciones</h2>
+  <p>
+    Zafi ofrece un plan gratuito y planes de pago (Lite y Pro). Las suscripciones se
+    contratan y cobran a través de la <strong>App Store de Apple</strong>, sujetas a sus
+    términos.
+  </p>
+  <ul>
+    <li>El pago se carga a tu cuenta de Apple al confirmar la compra.</li>
+    <li>La suscripción <strong>se renueva automáticamente</strong> salvo que la canceles al menos 24 horas antes de que termine el periodo en curso.</li>
+    <li>Puedes cancelar en cualquier momento desde los ajustes de tu cuenta de Apple. La cancelación surte efecto al final del periodo pagado.</li>
+    <li>Los precios pueden cambiar. Si eso ocurre, te avisaremos antes de que aplique.</li>
+  </ul>
+
+  <h2><span class="num">04</span> Uso aceptable</h2>
+  <p>Al usar Zafi te comprometes a no:</p>
+  <ul>
+    <li>Usar la app con fines ilícitos o no autorizados.</li>
+    <li>Intentar acceder a cuentas o datos de otras personas.</li>
+    <li>Descompilar, aplicar ingeniería inversa o interferir con el funcionamiento de la app.</li>
+    <li>Introducir código malicioso o realizar acciones que dañen el servicio.</li>
+  </ul>
+  <p>
+    Podemos suspender cuentas que incumplan estos términos.
+  </p>
+
+  <h2><span class="num">05</span> Tus datos y tu contenido</h2>
+  <p>
+    <strong>La información que registras en Zafi es tuya.</strong> Nos otorgas una licencia
+    limitada para procesarla y mostrártela, con el único fin de operar la app, conforme a
+    nuestro <a href="/privacidad">Aviso de Privacidad</a>.
+  </p>
+  <p>
+    Puedes exportar o eliminar todos tus datos cuando quieras, desde
+    <strong>Configuración → Datos y privacidad</strong>.
+  </p>
+
+  <h2><span class="num">06</span> Funciones de inteligencia artificial</h2>
+  <p>
+    Algunas funciones de Zafi usan modelos de inteligencia artificial para generar
+    sugerencias, calificaciones y consejos. Estas salidas son <strong>orientativas y
+    pueden contener errores</strong>. No las tomes como asesoría profesional ni como la
+    única base para decisiones importantes.
+  </p>
+
+  <h2><span class="num">07</span> Disponibilidad del servicio</h2>
+  <p>
+    Hacemos lo posible por mantener Zafi funcionando, pero no garantizamos disponibilidad
+    ininterrumpida. Puede haber mantenimiento, fallas o interrupciones fuera de nuestro
+    control.
+  </p>
+
+  <h2><span class="num">08</span> Limitación de responsabilidad</h2>
+  <p>
+    La app se ofrece <strong>"tal cual"</strong>. En la medida que permita la ley, no somos
+    responsables por decisiones financieras que tomes con base en la información que
+    muestra la app, ni por pérdidas derivadas de su uso o de la imposibilidad de usarla.
+  </p>
+
+  <h2><span class="num">09</span> Cambios a estos Términos</h2>
+  <p>
+    Podemos actualizar estos Términos. Si los cambios son relevantes, te avisaremos dentro
+    de la app. Si sigues usando Zafi después de la actualización, se entiende que los
+    aceptas.
+  </p>
+
+  <h2><span class="num">10</span> Ley aplicable</h2>
+  <p>
+    Estos Términos se rigen por las leyes de los Estados Unidos Mexicanos. Cualquier
+    controversia se someterá a los tribunales competentes de Tijuana, Baja California.
+  </p>
+
+  <h2><span class="num">11</span> Contacto</h2>
+  <p>
+    Si tienes dudas sobre estos Términos, escríbenos a
+    <a href="mailto:zafi.fintech@gmail.com">zafi.fintech@gmail.com</a>.
+  </p>
+
+  <p class="cierre">
+    Zafi · Finanzas personales · Tijuana, Baja California, México
+  </p>
+</main>
+
+</body>
+</html>
