@@ -2438,7 +2438,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
    reemplazarlos con sus datos legales reales antes de publicar. NO es asesoría
    legal; conviene revisarlo con un abogado. */
 const LEGAL_CONTACT_EMAIL = "zafi.fintech@gmail.com"; // email de contacto público
-const LEGAL_LAST_UPDATE = "[FECHA DE ÚLTIMA ACTUALIZACIÓN]";
+const LEGAL_LAST_UPDATE = "9 de julio de 2026";
 
 function LegalModal({ doc, onClose }) {
   // doc: "terms" | "privacy"
@@ -2478,9 +2478,9 @@ function LegalModal({ doc, onClose }) {
           <>
             <P>
               Bienvenido a Zafi. Estos Términos de Uso ("Términos") regulan el acceso y uso de la
-              aplicación móvil Zafi (la "App"), operada por [NOMBRE LEGAL O RAZÓN SOCIAL]
-              ("nosotros", "Zafi"), con domicilio en [DOMICILIO] y RFC [RFC]. Al crear una cuenta o
-              usar la App, aceptas estos Términos en su totalidad.
+              aplicación móvil Zafi (la "App"), operada por Luis Ángel Ramos León
+              ("nosotros", "Zafi"), con domicilio en Tijuana, Baja California, México.
+              Al crear una cuenta o usar la App, aceptas estos Términos en su totalidad.
             </P>
 
             <H>1. Descripción del servicio</H>
@@ -2549,9 +2549,9 @@ function LegalModal({ doc, onClose }) {
           <>
             <P>
               Este Aviso de Privacidad se emite en cumplimiento de la Ley Federal de Protección de
-              Datos Personales en Posesión de los Particulares (LFPDPPP). [NOMBRE LEGAL O RAZÓN
-              SOCIAL], con domicilio en [DOMICILIO] ("Zafi", "nosotros"), es responsable del
-              tratamiento de tus datos personales.
+              Datos Personales en Posesión de los Particulares (LFPDPPP). Luis Ángel Ramos León,
+              con domicilio en Tijuana, Baja California, México ("Zafi", "nosotros"), es responsable
+              del tratamiento de tus datos personales.
             </P>
 
             <H>1. Datos que recabamos</H>
@@ -2561,6 +2561,11 @@ function LegalModal({ doc, onClose }) {
               <LI>Datos de tu cuenta: nombre para mostrar, foto de perfil (opcional), preferencias.</LI>
               <LI>Datos financieros que tú registras: movimientos, categorías, metas y deudas. Estos
                 datos los capturas tú; Zafi no se conecta a tus cuentas bancarias.</LI>
+              <LI>Fotos que tú subes: cuando usas la captura por foto, la imagen del ticket o recibo
+                se envía a un servicio de inteligencia artificial para leer sus datos. La imagen no
+                se guarda en nuestros servidores.</LI>
+              <LI>Reportes de problemas: el mensaje que escribes, tu correo, tu plan y datos técnicos
+                del dispositivo.</LI>
               <LI>Datos técnicos: identificadores del dispositivo y de uso, para operar y mejorar la App.</LI>
             </ul>
 
@@ -2583,9 +2588,16 @@ function LegalModal({ doc, onClose }) {
             <H>4. Compartir datos con terceros</H>
             <P>
               No vendemos tus datos personales. Podemos compartirlos con proveedores que nos ayudan a
-              operar la App (por ejemplo, infraestructura de nube de Google, procesamiento de pagos de
-              Apple, y servicios de inteligencia artificial para funciones específicas), únicamente
-              para las finalidades descritas y bajo obligaciones de confidencialidad.
+              operar la App, únicamente para las finalidades descritas y bajo obligaciones de
+              confidencialidad: Google Firebase (infraestructura y autenticación), Apple
+              (procesamiento de suscripciones), RevenueCat (gestión de suscripciones) y Anthropic
+              (funciones de inteligencia artificial).
+            </P>
+            <P>
+              Cuando usas las funciones de IA, enviamos a Anthropic el contexto necesario para
+              responderte (por ejemplo, un resumen de tus movimientos recientes) y, si usas la
+              captura por foto, la imagen que subiste. Anthropic no usa estos datos para entrenar
+              sus modelos. Las imágenes no se almacenan en nuestros servidores.
             </P>
 
             <H>5. Tus derechos ARCO</H>
