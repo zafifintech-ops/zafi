@@ -569,7 +569,7 @@ body{
 .cc-btn:disabled:hover{background:var(--paper);border-color:var(--line);}
 
 /* ============== INPUTS ============== */
-.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;padding:12px 16px;border-radius:16px;
+.cc-input,.cc-select{font-family:inherit;font-size:14.5px;width:100%;box-sizing:border-box;padding:12px 16px;border-radius:16px;
   border:1px solid var(--glass-border);background:var(--glass);color:var(--ink);outline:none;
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   transition:border-color .15s ease;}
@@ -679,7 +679,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-personalize-btn svg{color:var(--ink-faint);}
 /* Buscador de movimientos */
 .cc-search-wrap{position:relative;display:flex;align-items:center;flex:1;}
-.cc-search-input{width:100%;padding:11px 38px 11px 38px;border:1px solid var(--line);
+.cc-search-input{width:100%;box-sizing:border-box;padding:11px 38px 11px 38px;border:1px solid var(--line);
   border-radius:14px;background:var(--paper);color:var(--ink);
   font-family:'Montserrat',sans-serif;font-size:14px;font-weight:500;
   letter-spacing:-.005em;outline:none;transition:border-color .15s,background .15s;}
@@ -857,7 +857,7 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
 .cc-tag-chip .x{font-size:14px;line-height:1;opacity:.7;}
 .cc-dark .cc-tag-chip.suggest{background:rgba(255,255,255,.04);}
 /* Combobox: button con popup de búsqueda */
-.cc-combobox-btn{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;
+.cc-combobox-btn{width:100%;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line);border-radius:12px;
   background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;
   text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
   gap:8px;transition:border-color .15s;}
@@ -873,10 +873,10 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
   -webkit-backdrop-filter:blur(28px) saturate(160%);
   border-color:rgba(255,255,255,.08);
   box-shadow:0 12px 36px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);}
-.cc-combobox-search{width:100%;padding:11px 14px;border:none;border-bottom:1px solid var(--line);
+.cc-combobox-search{width:100%;box-sizing:border-box;padding:11px 14px;border:none;border-bottom:1px solid var(--line);
   background:transparent;color:var(--ink);font-family:inherit;font-size:13.5px;outline:none;}
 .cc-combobox-list{max-height:240px;overflow-y:auto;padding:4px 0;}
-.cc-combobox-opt{width:100%;padding:10px 14px;background:transparent;border:none;
+.cc-combobox-opt{width:100%;box-sizing:border-box;padding:10px 14px;background:transparent;border:none;
   text-align:left;cursor:pointer;font-family:inherit;font-size:14px;color:var(--ink);
   display:flex;align-items:center;gap:8px;transition:background .12s;}
 .cc-combobox-opt:hover{background:var(--surface);}
@@ -12613,9 +12613,13 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const expCatsHidden = getPersonalize(config, "globalExpCatsHidden", accView) || [];
 
   const baseData = (() => {
-    let filtered = txsInRange(txs, dateRange).filter(t =>
-      accView === "all" ? true : t.accountId === accView
-    );
+    // IMPORTANTE: debe usar EXACTAMENTE los mismos filtros que el cálculo de la
+    // Calificación financiera (statTxs + excluir saldo inicial). Si no, ambas
+    // tarjetas muestran números distintos en la misma pantalla: una dice
+    // "déficit" y la otra "ahorro".
+    let filtered = statTxs(txsInRange(txs, dateRange)).all
+      .filter(t => !(t.synthetic && String(t.id).startsWith("__initial_")))
+      .filter(t => accView === "all" ? true : t.accountId === accView);
     if (accView === "all" && accHidden.length > 0) {
       filtered = filtered.filter(t => !accHidden.includes(t.accountId));
     }
@@ -13875,11 +13879,6 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
   ];
   const whyText = whyReasons[(new Date(todayK + "T12:00:00").getDate()) % whyReasons.length];
 
-  // ¿La acción invita a escribir/anotar algo? Si es así, mostramos un campo
-  // para que el usuario lo haga ahí mismo (más accionable que solo leer).
-  const isWriteAction = !isCounterAction && /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
-  const [writeText, setWriteText] = useState("");
-
   // ── Tipos interactivos con marcador [[tipo]] al inicio ──
   // [[identifica]] — el usuario elige un movimiento de su historial reciente.
   // [[reflexiona]] — campo de reflexión (conciencia sobre un gasto/hábito).
@@ -13891,6 +13890,13 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
   const chooseMatch = (actionText || "").match(/^\s*\[\[elige:([^\]]+)\]\]\s*/);
   const isChooseAction = !!chooseMatch;
   const chooseOptions = chooseMatch ? chooseMatch[1].split("|").map((s) => s.trim()).filter(Boolean) : [];
+
+  // ¿La acción invita a escribir/anotar algo? Es una heurística por palabras,
+  // así que solo aplica cuando NO hay un marcador explícito. Si no, una acción
+  // como "[[reflexiona]] Escribe una cosa..." pintaría DOS campos de texto.
+  const isWriteAction = !isCounterAction && !isIdentifyAction && !isReflectAction && !isChooseAction
+    && /\b(escribe|anota|ponle nombre|piensa en)\b/i.test(actionText || "");
+  const [writeText, setWriteText] = useState("");
 
   const [identifiedTxId, setIdentifiedTxId] = useState("");
   const [reflectText, setReflectText] = useState("");
@@ -17160,7 +17166,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
           onEditTx={(t) => { setCatDetail(null); if (onEdit) onEdit(t); }} />
       )}
       {recurringOpen && (
-        <RecurringModal config={config} onClose={() => setRecurringOpen(false)} onSave={saveRecurring}
+        <RecurringModal config={config} accView={accView} onClose={() => setRecurringOpen(false)} onSave={saveRecurring}
           onUpgrade={() => setUpgradeFeature && setUpgradeFeature("recurring")} />
       )}
       {confirmDel && (
@@ -17379,12 +17385,12 @@ function CatModal({ cat, accounts, onClose, onSave }) {
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 76 }}>
+          <div style={{ width: 76, flexShrink: 0 }}>
             <label className="cc-label">Emoji</label>
             <input className="cc-input" style={{ textAlign: "center", fontSize: 22 }} value={emoji}
               onChange={(e) => setEmoji(e.target.value.slice(0, 2) || "📦")} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <label className="cc-label">Nombre</label>
             <input className="cc-input" value={name} placeholder="Ej. Mascotas" onChange={(e) => setName(e.target.value)} />
           </div>
@@ -18800,8 +18806,11 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
 }
 
 /* ===================== MODAL: MOVIMIENTOS RECURRENTES =================== */
-function RecurringModal({ config, prefill, onClose, onSave, onUpgrade }) {
-  const rules = config.recurring || [];
+function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView = "all" }) {
+  // Solo mostramos los recurrentes de la cuenta en la que está el usuario.
+  // Si está en la vista "General" (todas), mostramos todos.
+  const allRules = config.recurring || [];
+  const rules = accView === "all" ? allRules : allRules.filter((r) => r.accountId === accView);
   const [view, setView] = useState(rules.length && !prefill ? "list" : "form"); // list | form
   const [editingId, setEditingId] = useState(null);
   const [closing, close] = useSheetClose(onClose);
@@ -18813,8 +18822,12 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade }) {
   const [type, setType] = useState(prefill?.type || "expense");
   const [amount, setAmount] = useState(prefill?.amount ? String(prefill.amount) : "");
   const [desc, setDesc] = useState(prefill?.description || "");
+  // Preseleccionamos la cuenta en la que está el usuario; si está en "General",
+  // y solo hay una cuenta, esa. Si no, que elija.
   const [accountId, setAccountId] = useState(
-    prefill?.accountId || (config.accounts.length === 1 ? config.accounts[0].id : "")
+    prefill?.accountId
+    || (accView !== "all" ? accView : "")
+    || (config.accounts.length === 1 ? config.accounts[0].id : "")
   );
   const [catId, setCatId] = useState(prefill?.categoryId || "auto");
   const [freq, setFreq] = useState("monthly");
@@ -21437,17 +21450,14 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-sheet-handle" />
         <div style={{ padding: "8px 22px 20px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600,
-                color: "var(--ink)", letterSpacing: "-.02em", lineHeight: 1.2, marginBottom: 4,
-              }}>
-                Personalizar vista
-              </div>
-              <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5 }}>
-                Elige qué cuentas y categorías quieres considerar en todas las gráficas y KPIs del Dashboard y Estadísticas para <b>{scopeLbl}</b>. Los montos de categorías son del periodo actual; el de cuentas es el saldo real.
-              </div>
+          {/* El título comparte fila con "Restablecer"; el texto explicativo va
+             abajo, a todo el ancho, para que no se comprima a media pantalla. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{
+              fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600,
+              color: "var(--ink)", letterSpacing: "-.02em", lineHeight: 1.2,
+            }}>
+              Personalizar vista
             </div>
             {anyHidden && (
               <button onClick={resetAll} style={{
@@ -21459,6 +21469,10 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                 Restablecer
               </button>
             )}
+          </div>
+
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.5, marginTop: 6 }}>
+            Elige qué incluir en las gráficas y KPIs de <b>{scopeLbl}</b>.
           </div>
 
           <div style={{ maxHeight: "68vh", overflowY: "auto", marginTop: 16 }}>
