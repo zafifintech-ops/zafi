@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, cloneElement } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo, cloneElement } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
@@ -3098,12 +3098,22 @@ function needsAccountDowngrade(config) {
    Devuelve { config, restoredCount } — restoredCount es solo informativo
    (para el toast), nunca se guarda en el config persistido. */
 function applyPlanChange(prevConfig, newPlan, allTxs) {
-  const archived = prevConfig.archivedAccountIds || [];
-  const activeCount = prevConfig.accounts.filter((a) => !archived.includes(a.id)).length;
+  const rawArchived = prevConfig.archivedAccountIds || [];
+  const accountIds = new Set((prevConfig.accounts || []).map((a) => a.id));
+  // Defensa: ignorar IDs archivados cuya cuenta ya no existe en el array
+  // (huérfanos por bugs previos). Si los "restauráramos", desaparecerían para
+  // siempre: saldrían de archivedAccountIds sin tener cuenta que mostrar.
+  const archived = rawArchived.filter((id) => accountIds.has(id));
+  const huerfanos = rawArchived.filter((id) => !accountIds.has(id));
+  const activeCount = (prevConfig.accounts || []).filter((a) => !archived.includes(a.id)).length;
   const max = getMaxAccountsForPlan(newPlan);
 
   if (archived.length === 0 || activeCount >= max) {
-    return { config: { ...prevConfig, plan: newPlan }, restoredCount: 0 };
+    // Aun sin restaurar, limpiamos los huérfanos del array persistido.
+    return {
+      config: { ...prevConfig, plan: newPlan, archivedAccountIds: archived },
+      restoredCount: 0,
+    };
   }
 
   const slots = max - activeCount;
@@ -9188,10 +9198,10 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     saveConfig((prevRaw) => mergeArchivedBack(next, prevRaw));
   };
 
-  // Reincorpora al config las cuentas/categorías/archivedAccountIds archivadas
-  // que los componentes hijos no ven (para que un guardado desde un hijo nunca
-  // borre datos archivados del array). Preserva un archivedAccountIds explícito
-  // si el que guarda lo trae (ej: el propio modal de archivar/restaurar).
+  // Reincorpora al config las cuentas/categorías archivadas que los componentes
+  // hijos no ven (para que un guardado desde un hijo nunca borre datos
+  // archivados del array). Preserva un archivedAccountIds explícito si el que
+  // guarda lo trae (ej: el modal de downgrade/restauración).
   function mergeArchivedBack(computed, prevRaw) {
     const prevArchived = prevRaw.archivedAccountIds || [];
     // Si el que guarda define explícitamente archivedAccountIds, respetamos ese
@@ -9199,21 +9209,24 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     const nextArchived = computed.archivedAccountIds !== undefined
       ? computed.archivedAccountIds
       : prevArchived;
-    if (prevArchived.length === 0 && nextArchived.length === 0) {
+    if (prevArchived.length === 0) {
+      // El hijo vio TODO: no hay nada oculto que reincorporar.
       return { ...computed, archivedAccountIds: nextArchived };
     }
-    const nextArchivedSet = new Set(nextArchived);
-    // Cuentas archivadas que el hijo no vio: las que están en prevRaw y su id
-    // sigue marcado como archivado en el resultado.
-    const archivedAccounts = (prevRaw.accounts || []).filter((a) => nextArchivedSet.has(a.id));
+    // CRÍTICO: lo que el hijo NO vio son las cuentas archivadas ANTES del
+    // guardado (prevArchived), sin importar si ahora se restauran. Usar
+    // nextArchived aquí haría que al restaurar (nextArchived vacío) no se
+    // reincorpore nada y las cuentas desaparecieran del array para siempre.
+    const ocultasSet = new Set(prevArchived);
+    const cuentasOcultas = (prevRaw.accounts || []).filter((a) => ocultasSet.has(a.id));
     const childAccounts = computed.accounts || [];
     const childAccIds = new Set(childAccounts.map((a) => a.id));
-    const mergedAccounts = [...childAccounts, ...archivedAccounts.filter((a) => !childAccIds.has(a.id))];
+    const mergedAccounts = [...childAccounts, ...cuentasOcultas.filter((a) => !childAccIds.has(a.id))];
 
-    const archivedCats = (prevRaw.categories || []).filter((c) => nextArchivedSet.has(c.accountId));
+    const catsOcultas = (prevRaw.categories || []).filter((c) => ocultasSet.has(c.accountId));
     const childCats = computed.categories || [];
     const childCatIds = new Set(childCats.map((c) => c.id));
-    const mergedCats = [...childCats, ...archivedCats.filter((c) => !childCatIds.has(c.id))];
+    const mergedCats = [...childCats, ...catsOcultas.filter((c) => !childCatIds.has(c.id))];
 
     return {
       ...computed,
@@ -12580,7 +12593,18 @@ INSTRUCCIONES CRÍTICAS:
           const deficit = Math.abs(flujoFallback);
           fallback.push(`Tu mayor problema es el déficit de ${fmtMxn(deficit)} — necesitas reducir gastos o aumentar ingresos para salir de números rojos.`);
         } else {
-          fallback.push(`Vas bien con flujo positivo de ${fmtMxn(flujoFallback)} — intenta llevarlo al 20% de tus ingresos para subir tu calificación.`);
+          // Comparar el flujo contra el 20% de los ingresos ANTES de sugerir
+          // "llévalo al 20%": si ya lo superó, ese consejo no tiene sentido.
+          const pctFlujo = baseData.totalIn > 0
+            ? Math.round((flujoFallback / baseData.totalIn) * 100)
+            : 0;
+          if (pctFlujo >= 20) {
+            fallback.push(`Tu flujo positivo es el ${pctFlujo}% de tus ingresos (${fmtMxn(flujoFallback)}) — arriba del 20% recomendado. Mantén ese ritmo y considera invertir el excedente.`);
+          } else {
+            const meta20 = baseData.totalIn * 0.2;
+            const falta = meta20 - flujoFallback;
+            fallback.push(`Vas bien con flujo positivo de ${fmtMxn(flujoFallback)} (${pctFlujo}% de tus ingresos) — te faltan ${fmtMxn(falta)} para llegar al 20% recomendado.`);
+          }
         }
 
         if (topCat && topCat.pct > 50) {
@@ -17087,7 +17111,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
     });
   };
 
-  const save = (cat) => {
+  const save = useCallback((cat) => {
     // Patrón funcional: calcula sobre el ÚLTIMO config real, no sobre el prop
     // capturado al abrir el modal — evita perder ediciones si el usuario
     // guarda varias categorías seguidas rápido.
@@ -17099,7 +17123,8 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
     });
     setEditing(null);
     showToast("Categoría guardada");
-  };
+  }, [saveConfig, showToast]);
+  const closeCatModal = useCallback(() => setEditing(null), []);
   const askDel = (cat) => setConfirmDel(cat);
   const doDel = () => {
     if (!confirmDel) return;
@@ -17329,7 +17354,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
         </div>
       )}
 
-      {editing && <CatModal cat={editing} accounts={config.accounts} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <CatModal cat={editing} accounts={config.accounts} onClose={closeCatModal} onSave={save} />}
       {catDetail && (
         <DetailModal config={config} detail={catDetail} dateRange={dateRange}
           onClose={() => setCatDetail(null)}
@@ -17539,11 +17564,12 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
 }
 
 
-function CatModal({ cat, accounts, onClose, onSave }) {
+const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
   const [name, setName] = useState(cat.name || "");
   const [emoji, setEmoji] = useState(cat.emoji || "📦");
   const [type, setType] = useState(cat.type || "expense");
   const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const dark = useDarkMode();
 
   return createPortal(
@@ -17554,17 +17580,44 @@ function CatModal({ cat, accounts, onClose, onSave }) {
           <h2>{cat.id ? "Editar categoría" : "Nueva categoría"}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "flex-end" }}>
           <div style={{ width: 76, flexShrink: 0 }}>
             <label className="cc-label">Emoji</label>
-            <input className="cc-input" style={{ textAlign: "center", fontSize: 22 }} value={emoji}
-              onChange={(e) => setEmoji(e.target.value.slice(0, 2) || "📦")} />
+            {/* Botón que abre el picker visual — evita tener que buscar el
+               emoji en el teclado del sistema, que era tedioso. */}
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              className="cc-input"
+              style={{ textAlign: "center", fontSize: 22, cursor: "pointer",
+                width: "100%", lineHeight: 1, padding: "10px 0",
+                border: pickerOpen ? "1.5px solid var(--gold)" : undefined }}>
+              {emoji}
+            </button>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <label className="cc-label">Nombre</label>
             <input className="cc-input" value={name} placeholder="Ej. Mascotas" onChange={(e) => setName(e.target.value)} />
           </div>
         </div>
+
+        {pickerOpen && (
+          <div style={{ marginBottom: 14, padding: 10, borderRadius: 12,
+            background: "var(--surface-2)", border: "1px solid var(--line)",
+            display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 4,
+            maxHeight: 168, overflowY: "auto" }}>
+            {EMOJI_PICKER.map((e, i) => (
+              <button key={`${e}-${i}`}
+                onClick={() => { setEmoji(e); setPickerOpen(false); }}
+                style={{ fontSize: 20, padding: "6px 0", borderRadius: 8, cursor: "pointer",
+                  border: emoji === e ? "1.5px solid var(--gold)" : "1.5px solid transparent",
+                  background: emoji === e ? "rgba(30,111,224,.10)" : "transparent",
+                  lineHeight: 1 }}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+
         {accounts.length > 1 && (
           <div style={{ marginBottom: 14 }}>
             <label className="cc-label">Cuenta</label>
@@ -17588,7 +17641,7 @@ function CatModal({ cat, accounts, onClose, onSave }) {
     </div>,
     document.body
   );
-}
+});
 
 /* ================== MODAL: GESTIONAR CUENTAS ============================= */
 function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigRaw, showToast, resetAll, setAccView, onClose }) {
