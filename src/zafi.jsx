@@ -2303,7 +2303,11 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
                   </div>
                 </div>
 
-                {/* Botones de acción */}
+                {/* Botones de acción — solo Mantener / Archivar.
+                   Eliminar se quitó a propósito: bajar de plan NUNCA debe poder
+                   borrar datos de forma permanente. Archivar es reversible. Si
+                   el usuario quiere borrar una cuenta, lo hace desde la gestión
+                   normal de cuentas, con su propia confirmación. */}
                 <div style={{ display: "flex", gap: 6, padding: "0 10px 10px" }}>
                   <button onClick={() => setAction(account.id, "keep")}
                     style={{
@@ -2311,7 +2315,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
                       border: `1px solid ${action === "keep" ? "#1E6FE0" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
                       background: action === "keep" ? "#1E6FE0" : "transparent",
                       color: action === "keep" ? "#fff" : (dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)"),
-                      fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                       letterSpacing: "-.005em",
                     }}>
                     ✓ Mantener
@@ -2322,29 +2326,11 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
                       border: `1px solid ${action === "archive" ? (dark ? "rgba(245,245,247,.3)" : "rgba(26,26,31,.3)") : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
                       background: action === "archive" ? (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.05)") : "transparent",
                       color: dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)",
-                      fontSize: 11.5, fontWeight: action === "archive" ? 600 : 500,
+                      fontSize: 12, fontWeight: action === "archive" ? 600 : 500,
                       cursor: "pointer", fontFamily: "inherit",
                       letterSpacing: "-.005em",
                     }}>
                     📦 Archivar
-                  </button>
-                  <button onClick={() => {
-                      if (action === "delete") {
-                        setAction(account.id, "archive");
-                      } else {
-                        setConfirmingDelete(account.id);
-                      }
-                    }}
-                    style={{
-                      flex: 1, padding: "8px 6px", borderRadius: 9,
-                      border: `1px solid ${action === "delete" ? "rgba(239,68,68,.5)" : (dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)")}`,
-                      background: action === "delete" ? "rgba(239,68,68,.15)" : "transparent",
-                      color: action === "delete" ? "#EF4444" : (dark ? "rgba(245,245,247,.75)" : "rgba(26,26,31,.7)"),
-                      fontSize: 11.5, fontWeight: action === "delete" ? 600 : 500,
-                      cursor: "pointer", fontFamily: "inherit",
-                      letterSpacing: "-.005em",
-                    }}>
-                    🗑 Eliminar
                   </button>
                 </div>
               </div>
@@ -2359,8 +2345,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
             fontSize: 12, lineHeight: 1.55,
             color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
           }}>
-            <strong style={{ color: "#1E6FE0" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan ocultos. Si subes a un plan superior se restauran automáticamente.<br/>
-            <strong style={{ color: "#EF4444" }}>🗑 Eliminar:</strong> borra la cuenta, sus movimientos y categorías para siempre. No se puede deshacer.
+            <strong style={{ color: "#1E6FE0" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan guardados y ocultos. Si subes a un plan superior se restauran automáticamente. Nada se borra.
           </div>
         </div>
 
@@ -9191,17 +9176,52 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
           categories: (prevRaw.categories || []).filter((c) => !prevArchived.includes(c.accountId)),
         };
         const computed = next(prevFiltered);
-        if (computed.archivedAccountIds !== undefined) return computed;
-        return { ...computed, archivedAccountIds: prevRaw.archivedAccountIds };
+        // CRÍTICO: los hijos ven accounts/categories SIN las archivadas. Al
+        // guardar, hay que RE-INCORPORAR las cuentas y categorías archivadas
+        // que el hijo nunca vio, o se borrarían del array permanentemente.
+        return mergeArchivedBack(computed, prevRaw);
       });
       return;
     }
-    if (next.archivedAccountIds !== undefined) {
-      saveConfig(next);
-    } else {
-      saveConfig({ ...next, archivedAccountIds: rawConfig.archivedAccountIds });
-    }
+    // Objeto directo: el hijo lo construyó a partir del config FILTRADO, así
+    // que su accounts/categories NO incluye las archivadas. Hay que devolverlas.
+    saveConfig((prevRaw) => mergeArchivedBack(next, prevRaw));
   };
+
+  // Reincorpora al config las cuentas/categorías/archivedAccountIds archivadas
+  // que los componentes hijos no ven (para que un guardado desde un hijo nunca
+  // borre datos archivados del array). Preserva un archivedAccountIds explícito
+  // si el que guarda lo trae (ej: el propio modal de archivar/restaurar).
+  function mergeArchivedBack(computed, prevRaw) {
+    const prevArchived = prevRaw.archivedAccountIds || [];
+    // Si el que guarda define explícitamente archivedAccountIds, respetamos ese
+    // (viene del modal de downgrade/restauración, que sí maneja el set completo).
+    const nextArchived = computed.archivedAccountIds !== undefined
+      ? computed.archivedAccountIds
+      : prevArchived;
+    if (prevArchived.length === 0 && nextArchived.length === 0) {
+      return { ...computed, archivedAccountIds: nextArchived };
+    }
+    const nextArchivedSet = new Set(nextArchived);
+    // Cuentas archivadas que el hijo no vio: las que están en prevRaw y su id
+    // sigue marcado como archivado en el resultado.
+    const archivedAccounts = (prevRaw.accounts || []).filter((a) => nextArchivedSet.has(a.id));
+    const childAccounts = computed.accounts || [];
+    const childAccIds = new Set(childAccounts.map((a) => a.id));
+    const mergedAccounts = [...childAccounts, ...archivedAccounts.filter((a) => !childAccIds.has(a.id))];
+
+    const archivedCats = (prevRaw.categories || []).filter((c) => nextArchivedSet.has(c.accountId));
+    const childCats = computed.categories || [];
+    const childCatIds = new Set(childCats.map((c) => c.id));
+    const mergedCats = [...childCats, ...archivedCats.filter((c) => !childCatIds.has(c.id))];
+
+    return {
+      ...computed,
+      accounts: mergedAccounts,
+      categories: mergedCats,
+      archivedAccountIds: nextArchived,
+    };
+  }
 
   // Wrapper de saveTxs que preserva movimientos de cuentas archivadas
   // (los hijos ven txs filtrado; si guardan filtrado, perderían las archivadas)
@@ -10607,13 +10627,25 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                         </div>
                       ))}
                     </div>
-                    {!isCurrent && (
-                      <button onClick={() => {
+                    {!isCurrent && (() => {
+                      const planActual = getUserPlan(config);
+                      const orden = { free: 0, lite: 1, pro: 2 };
+                      // ¿Este plan (p) es INFERIOR al que ya tiene el usuario?
+                      const esBajada = orden[p] < orden[planActual];
+                      // Cambiar a un plan de pago inferior (ej: Pro→Lite) o a Free
+                      // teniendo suscripción activa: en Apple esto se hace desde
+                      // Ajustes (aplica al final del periodo pagado). No compramos
+                      // de nuevo ni cambiamos el plan aquí.
+                      const requiereAjustesApple = esBajada && planActual !== "free" && esAppNativa();
+
+                      const handleClick = () => {
+                        if (requiereAjustesApple) {
+                          showToast("Tu cambio de plan se aplica al terminar tu periodo actual. Gestiónalo en Ajustes de Apple.");
+                          window.open("https://apps.apple.com/account/subscriptions", "_blank");
+                          return;
+                        }
                         if (p === "free") {
-                          // Si tiene una suscripción de pago activa, NO podemos
-                          // bajarlo aquí: Apple le seguiría cobrando. Hay que
-                          // mandarlo a cancelar en los ajustes de su Apple ID.
-                          if (getUserPlan(config) !== "free" && esAppNativa()) {
+                          if (planActual !== "free" && esAppNativa()) {
                             showToast("Gestiona tu suscripción en Ajustes de Apple");
                             window.open("https://apps.apple.com/account/subscriptions", "_blank");
                             return;
@@ -10630,17 +10662,32 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                             : "Plan Free activado");
                           setSection("menu");
                         } else {
-                          // Lite y Pro son de pago → abrir el paywall.
+                          // Upgrade a un plan de pago superior → paywall de compra.
                           setUpgradeFeature(p);
                         }
-                      }}
-                        style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
-                          background: p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
-                          color: p === "free" ? "var(--ink)" : "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
-                        {p === "pro" ? "✦ Activar Pro" : p === "lite" ? "Activar Lite"
-                          : (getUserPlan(config) !== "free" ? "Gestionar suscripción" : "Cambiar a Free")}
-                      </button>
-                    )}
+                      };
+
+                      // Etiqueta del botón según sea subida, bajada o Free
+                      let label;
+                      if (requiereAjustesApple) {
+                        label = "Gestionar suscripción";
+                      } else if (p === "pro") {
+                        label = "✦ Activar Pro";
+                      } else if (p === "lite") {
+                        label = "Activar Lite";
+                      } else {
+                        label = planActual !== "free" ? "Gestionar suscripción" : "Cambiar a Free";
+                      }
+
+                      return (
+                        <button onClick={handleClick}
+                          style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
+                            background: requiereAjustesApple ? "rgba(0,0,0,.08)" : p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
+                            color: (requiereAjustesApple || p === "free") ? "var(--ink)" : "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+                          {label}
+                        </button>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -18999,19 +19046,21 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
       description: desc.trim(), accountId,
       categoryId: finalCat,
       freq, startDate,
-      lastRun: editingId ? (rules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
+      lastRun: editingId ? (allRules.find((r) => r.id === editingId)?.lastRun ?? null) : null,
       active: true,
       paused: false,
     };
+    // Guardar SOBRE allRules (todas las cuentas), no sobre rules (filtrada),
+    // para no borrar los recurrentes de las demás cuentas al estar viendo una.
     const next = editingId
-      ? rules.map((r) => (r.id === editingId ? rule : r))
-      : [...rules, rule];
+      ? allRules.map((r) => (r.id === editingId ? rule : r))
+      : [...allRules, rule];
     onSave(next);
     onClose();
   };
 
   const toggleActive = (id) => {
-    onSave(rules.map((r) => {
+    onSave(allRules.map((r) => {
       if (r.id !== id) return r;
       const nowActive = !isRecActive(r);
       return { ...r, active: nowActive, paused: !nowActive };
@@ -19019,7 +19068,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
   };
 
   const remove = (id) => {
-    onSave(rules.filter((r) => r.id !== id));
+    onSave(allRules.filter((r) => r.id !== id));
   };
 
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
