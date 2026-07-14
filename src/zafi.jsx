@@ -837,9 +837,14 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
   border-radius:24px 24px 0 0;width:100%;max-width:760px;
   min-height:40vh;
-  /* Restamos el safe-area superior (notch / Dynamic Island) para que el sheet
-     nunca invada la barra de estado. Los 12px extra dejan aire visual. */
-  max-height:calc(100vh - env(safe-area-inset-top) - 12px);
+  /* El sheet nunca debe invadir la barra de estado (hora / Dynamic Island).
+     En el WebView de Capacitor env(safe-area-inset-top) a veces devuelve 0px,
+     así que NO podemos depender solo de él: usamos max() para garantizar un
+     tope mínimo de 68px (Dynamic Island ~59px + aire) aunque el safe-area
+     falle. Si el safe-area sí reporta, sumamos 24px de margen visible. */
+  --cc-sheet-gap: max(68px, calc(env(safe-area-inset-top, 0px) + 24px));
+  max-height:calc(100vh - var(--cc-sheet-gap));
+  max-height:calc(100dvh - var(--cc-sheet-gap));
   overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border-top:1px solid rgba(255,255,255,.7);
@@ -8393,7 +8398,21 @@ export default function App() {
       return next;
     });
   };
-  const saveTxs = (t) => { setTxs(t); persist("cc:txs", t); };
+  // Acepta un array o un updater (prevTxs) => nextTxs, igual que setState. El
+  // patrón funcional es necesario para que los wrappers puedan leer el último
+  // estado real y no un closure viejo (evita perder movimientos).
+  const saveTxs = (t) => {
+    if (typeof t === "function") {
+      setTxs((prev) => {
+        const next = t(prev);
+        persist("cc:txs", next);
+        return next;
+      });
+      return;
+    }
+    setTxs(t);
+    persist("cc:txs", t);
+  };
 
   const resetAll = async () => {
     const u = auth.currentUser;
@@ -9153,6 +9172,10 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
   // ni en listas, ni en stats, ni en balances. Sus movimientos también se ocultan.
   // El modal de downgrade recibe rawConfig por separado para poder gestionarlas.
   const archivedIds = useMemo(() => new Set(rawConfig.archivedAccountIds || []), [rawConfig.archivedAccountIds]);
+  // Ref al último rawConfig, para que los wrappers de guardado lean el estado
+  // actual (archivedAccountIds) y no uno capturado en un closure viejo.
+  const configRefMain = useRef(rawConfig);
+  useEffect(() => { configRefMain.current = rawConfig; }, [rawConfig]);
   const config = useMemo(() => {
     if (archivedIds.size === 0) return rawConfig;
     return {
@@ -9236,16 +9259,21 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     };
   }
 
-  // Wrapper de saveTxs que preserva movimientos de cuentas archivadas
-  // (los hijos ven txs filtrado; si guardan filtrado, perderían las archivadas)
+  // Wrapper de saveTxs: los hijos ven las txs SIN las de cuentas archivadas,
+  // así que al guardar hay que reincorporar esas txs ocultas o se borrarían.
+  // CRÍTICO: hay que usar `archivedIds` (lo que estaba oculto CUANDO el hijo
+  // leyó los datos), no las archivadas del config actual. Al restaurar una
+  // cuenta, las actuales quedan vacías y las txs de esa cuenta se perdían.
   const saveTxsWrapped = (nextTxs) => {
-    if (archivedIds.size === 0) {
-      saveTxs(nextTxs);
-      return;
-    }
-    // Mantener las txs de cuentas archivadas intactas
-    const archivedTxs = rawTxs.filter((t) => archivedIds.has(t.accountId));
-    saveTxs([...nextTxs, ...archivedTxs]);
+    const ocultasAlLeer = archivedIds; // Set capturado en este render
+    saveTxs((prevRawTxs) => {
+      const prevRaw = Array.isArray(prevRawTxs) ? prevRawTxs : rawTxs;
+      if (ocultasAlLeer.size === 0) return nextTxs;
+      // Las txs de cuentas que el hijo nunca vio: preservarlas siempre.
+      const txsOcultas = prevRaw.filter((t) => ocultasAlLeer.has(t.accountId));
+      const nextIds = new Set(nextTxs.map((t) => t.id));
+      return [...nextTxs, ...txsOcultas.filter((t) => !nextIds.has(t.id))];
+    });
   };
 
   // Fix iOS WKWebView: al primer render con video de fondo, las capas de
