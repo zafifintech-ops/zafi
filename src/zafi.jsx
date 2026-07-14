@@ -2757,8 +2757,12 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
     setComprando(false);
     if (r.cancelado) return; // el usuario cerró el diálogo de Apple
     if (!r.ok) { setErrorCompra(r.error || "No se pudo completar la compra."); return; }
-    // La compra funcionó: RevenueCat ya tiene la verdad. Sincronizamos config.
-    saveConfig && saveConfig({ ...config, plan: r.plan });
+    // La compra funcionó: RevenueCat ya tiene la verdad. Cambiamos SOLO el
+    // plan con patrón funcional — seguro tanto via saveConfig crudo como via
+    // saveConfigWrapped (que reincorpora lo archivado). La restauración de
+    // cuentas archivadas la hace la red de seguridad de Main al detectar el
+    // cambio de plan (useEffect sobre [plan, archivedAccountIds]).
+    saveConfig && saveConfig((prev) => ({ ...prev, plan: r.plan }));
     showToast && showToast(r.plan === "pro" ? "✦ Plan Pro activado" : "Plan Lite activado");
     close();
   };
@@ -2771,7 +2775,9 @@ function UpgradeModal({ config, onClose, feature, saveConfig, showToast }) {
     setRestaurando(false);
     if (!r.ok) { setErrorCompra(r.error || "No se pudieron restaurar tus compras."); return; }
     if (r.plan === "free") { setErrorCompra("No encontramos compras previas con tu cuenta de Apple."); return; }
-    saveConfig && saveConfig({ ...config, plan: r.plan });
+    // Cambiar solo el plan (patrón funcional). La red de seguridad de Main
+    // restaura las cuentas archivadas al detectar el cambio.
+    saveConfig && saveConfig((prev) => ({ ...prev, plan: r.plan }));
     showToast && showToast(`Compras restauradas · Plan ${r.plan === "pro" ? "Pro" : "Lite"}`);
     close();
   };
@@ -9510,7 +9516,9 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       transferPairId,
       transferFromAccountId: fromAccountId,
     };
-    saveTxs([txOut, txIn, ...txs]);
+    // Patrón funcional sobre las txs crudas (el `txs` del closure está
+    // filtrado y puede estar desactualizado — mismo bug que recurrentes).
+    saveTxs((prevRaw) => [txOut, txIn, ...(prevRaw || [])]);
     setTransferOpen(false);
     showToast(`Transferencia de ${fromAcc.name} a ${toAcc.name}`);
   };
@@ -9531,8 +9539,12 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     const { newTxs, updatedRecurring } = runRecurringRules(rules);
     if (newTxs.length > 0) {
       recurringRanRef.current = true;
-      saveTxs([...newTxs, ...txs]);
-      saveConfig({ ...config, recurring: updatedRecurring });
+      // CRÍTICO: patrón funcional sobre las txs CRUDAS. Antes se hacía
+      // saveTxs([...newTxs, ...txs]) con el `txs` filtrado del closure, que
+      // podía estar vacío o parcial (si el snapshot aún no llegaba) o sin las
+      // txs de cuentas archivadas — y sobrescribía TODO, borrando movimientos.
+      saveTxs((prevRaw) => [...newTxs, ...(prevRaw || [])]);
+      saveConfig((prev) => ({ ...prev, recurring: updatedRecurring }));
       showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9542,54 +9554,72 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     // al guardar reglas, corre inmediatamente las que ya tengan fechas vencidas
     const { newTxs, updatedRecurring } = runRecurringRules(rules);
     if (newTxs.length > 0) {
-      saveTxs([...newTxs, ...txs]);
+      // Patrón funcional sobre las txs crudas — mismo motivo que arriba.
+      saveTxs((prevRaw) => [...newTxs, ...(prevRaw || [])]);
       showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} recurrente${newTxs.length === 1 ? "" : "s"} generado${newTxs.length === 1 ? "" : "s"}`);
     }
-    saveConfig({ ...config, recurring: updatedRecurring });
+    saveConfig((prev) => ({ ...prev, recurring: updatedRecurring }));
   };
 
   const upsertTx = (tx, learnedCats, linkInfo) => {
-    const exists = txs.some((t) => t.id === tx.id);
-    let nextTxs = exists ? txs.map((t) => (t.id === tx.id ? tx : t)) : [tx, ...txs];
+    // Todo dentro del updater funcional: opera sobre las txs CRUDAS más
+    // recientes (nunca el closure filtrado, que omite cuentas archivadas y
+    // puede estar desactualizado). saveTxsWrapped no aplica aquí porque esta
+    // función corre en Main con acceso al estado raíz via saveTxs funcional.
+    let exists = false;
+    let created = tx;
+    saveTxs((prevRaw) => {
+      const base = prevRaw || [];
+      exists = base.some((t) => t.id === tx.id);
+      let nextTxs = exists ? base.map((t) => (t.id === tx.id ? tx : t)) : [tx, ...base];
 
-    // Si nos pasaron información de vinculación, también marcamos a los demás
-    // miembros del grupo como passThrough con el mismo groupId
-    if (linkInfo && linkInfo.linkIds && linkInfo.linkIds.length && linkInfo.groupIdToUse) {
-      const ids = new Set(linkInfo.linkIds);
-      nextTxs = nextTxs.map((t) =>
-        ids.has(t.id)
-          ? { ...t, passThrough: true, groupId: linkInfo.groupIdToUse, categoryId: null }
-          : t
-      );
-    }
+      // Si nos pasaron información de vinculación, también marcamos a los demás
+      // miembros del grupo como passThrough con el mismo groupId
+      if (linkInfo && linkInfo.linkIds && linkInfo.linkIds.length && linkInfo.groupIdToUse) {
+        const ids = new Set(linkInfo.linkIds);
+        nextTxs = nextTxs.map((t) =>
+          ids.has(t.id)
+            ? { ...t, passThrough: true, groupId: linkInfo.groupIdToUse, categoryId: null }
+            : t
+        );
+      }
 
-    // Si dejamos de ser passThrough y antes estábamos en un grupo:
-    // quitamos también del grupo a los huérfanos del grupo si quedan menos de 2
-    if (exists && tx.passThrough === false) {
-      const old = txs.find((t) => t.id === tx.id);
-      if (old?.groupId) {
-        const others = nextTxs.filter((t) => t.id !== tx.id && t.groupId === old.groupId);
-        if (others.length <= 1) {
-          // grupo de 1 ya no tiene sentido: quitar passThrough y groupId al solitario
-          nextTxs = nextTxs.map((t) =>
-            t.groupId === old.groupId && t.id !== tx.id
-              ? { ...t, passThrough: false, groupId: null }
-              : t
-          );
+      // Si dejamos de ser passThrough y antes estábamos en un grupo:
+      // quitamos también del grupo a los huérfanos del grupo si quedan menos de 2
+      if (exists && tx.passThrough === false) {
+        const old = base.find((t) => t.id === tx.id);
+        if (old?.groupId) {
+          const others = nextTxs.filter((t) => t.id !== tx.id && t.groupId === old.groupId);
+          if (others.length <= 1) {
+            nextTxs = nextTxs.map((t) =>
+              t.groupId === old.groupId && t.id !== tx.id
+                ? { ...t, passThrough: false, groupId: null }
+                : t
+            );
+          }
         }
       }
-    }
-
-    saveTxs(nextTxs);
-    if (learnedCats) saveConfig({ ...config, categories: learnedCats });
+      return nextTxs;
+    });
+    // learnedCats viene del config FILTRADO del hijo (sin categorías de
+    // cuentas archivadas). Hacemos merge por ID: actualizamos las que vienen
+    // y preservamos las que el hijo no vio — nunca reemplazo directo.
+    if (learnedCats) saveConfig((prev) => {
+      const byId = new Map(learnedCats.map((c) => [c.id, c]));
+      return { ...prev, categories: (prev.categories || []).map((c) => byId.get(c.id) || c) };
+    });
     setAdding(false);
     setEditingTx(null);
     showToast(exists ? "Movimiento actualizado" : `${tx.type === "income" ? "Ingreso" : "Gasto"} registrado`);
   };
 
   const saveManyTxs = (newTxs, learnedCats) => {
-    saveTxs([...newTxs, ...txs]);
-    if (learnedCats) saveConfig({ ...config, categories: learnedCats });
+    // Patrón funcional sobre las txs crudas (mismo motivo que upsertTx).
+    saveTxs((prevRaw) => [...newTxs, ...(prevRaw || [])]);
+    if (learnedCats) saveConfig((prev) => {
+      const byId = new Map(learnedCats.map((c) => [c.id, c]));
+      return { ...prev, categories: (prev.categories || []).map((c) => byId.get(c.id) || c) };
+    });
     setImportOpen(false);
     showToast(`${newTxs.length} movimiento${newTxs.length === 1 ? "" : "s"} importado${newTxs.length === 1 ? "" : "s"}`);
   };
