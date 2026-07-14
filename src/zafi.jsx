@@ -9,7 +9,8 @@ import { NativeBiometric } from "capacitor-native-biometric";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { App as CapacitorApp } from "@capacitor/app";
 import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut,
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence,
+  onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail, signInWithCredential, GoogleAuthProvider,
   OAuthProvider, deleteUser, sendEmailVerification, reload } from "firebase/auth";
@@ -212,7 +213,18 @@ const firebaseApp = initializeApp({
   messagingSenderId: "308516673564",
   appId: "1:308516673564:web:9410954d5fc50fd56667d9"
 });
-const auth = getAuth(firebaseApp);
+// Persistencia robusta: en Capacitor el getAuth por defecto a veces pierde la
+// sesión entre reinicios. initializeAuth con indexedDBLocalPersistence (con
+// fallback a browserLocal) mantiene al usuario logueado hasta que cierre sesión
+// manualmente. Si initializeAuth ya se llamó (hot reload), caemos a getAuth.
+let auth;
+try {
+  auth = initializeAuth(firebaseApp, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  });
+} catch (_) {
+  auth = getAuth(firebaseApp);
+}
 const db = getFirestore(firebaseApp);
 
 /* =========================================================================
@@ -1213,7 +1225,9 @@ function buildSuggestions(rawTexts, kind) {
 }
 
 /* ===== Sistema de idiomas (i18n) ===== */
-let _lang = (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) ? "es" : "en";
+// Auto-detect del dispositivo: español si el locale empieza con "es", inglés en cualquier otro caso
+const _deviceLang = (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) ? "es" : "en";
+let _lang = _deviceLang;
 const setAppLang = (l) => { _lang = l; };
 const STRINGS = {
   // Tabs
@@ -3158,39 +3172,41 @@ function planMeets(userPlan, requiredPlan) {
   return (order[userPlan] ?? 0) >= (order[requiredPlan] ?? 0);
 }
 
-/* Hook reactivo — se actualiza cuando el tema cambia */
-/* ====== FaceIDSettings — componente de configuración de Face ID ====== */
-function FaceIDSettings() {
+/* ====== FaceIDSettings — candado biométrico opcional de la app ======
+   Modelo: la sesión SIEMPRE persiste. Face ID es un candado extra opcional.
+   Cuando está activo (config.faceIdLock), al abrir la app se pide Face ID para
+   desbloquear (ver FaceIDLock). Aquí solo se activa/desactiva la preferencia,
+   confirmando identidad una vez para evitar que alguien más lo active. */
+function FaceIDSettings({ config, saveConfig }) {
   const [available, setAvailable] = useState(null); // null=cargando, true/false
-  const [enrolled, setEnrolled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const dark = useDarkMode();
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  const enrolled = !!config?.faceIdLock;
 
   useEffect(() => {
     if (!isCapacitor) { setAvailable(false); return; }
     NativeBiometric.isAvailable()
       .then((res) => setAvailable(res.isAvailable))
       .catch(() => setAvailable(false));
-    // Verificar si ya hay credenciales guardadas
-    NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER })
-      .then((c) => setEnrolled(!!c?.username))
-      .catch(() => setEnrolled(false));
   }, []);
 
   const enable = async () => {
     setBusy(true); setMsg("");
     try {
+      // Confirmar identidad una vez antes de activar el candado
       await NativeBiometric.verifyIdentity({
-        reason: "Confirma tu identidad para activar Face ID en Zafi",
+        reason: "Confirma tu identidad para activar el bloqueo con Face ID",
         title: "Activar Face ID",
       });
-      // Pedir al usuario su contraseña para guardarla
-      setMsg("Face ID activado. La próxima vez que inicies sesión con correo y contraseña, quedará guardado automáticamente.");
-      setEnrolled(true);
+      saveConfig({ ...config, faceIdLock: true });
+      // Ya estamos dentro y autenticados: marcar como desbloqueado para que el
+      // candado no aparezca de inmediato. Se activará en el próximo arranque.
+      if (window.__zafiSetUnlocked) window.__zafiSetUnlocked(true);
+      setMsg("Bloqueo con Face ID activado. La próxima vez que abras Zafi, te pedirá Face ID para entrar.");
     } catch (e) {
-      setMsg("No se pudo activar Face ID.");
+      setMsg("No se pudo activar Face ID. Intenta de nuevo.");
     }
     setBusy(false);
   };
@@ -3198,11 +3214,15 @@ function FaceIDSettings() {
   const disable = async () => {
     setBusy(true); setMsg("");
     try {
-      await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER });
-      setEnrolled(false);
-      setMsg("Face ID desactivado.");
+      // Confirmar identidad antes de quitar el candado (seguridad)
+      await NativeBiometric.verifyIdentity({
+        reason: "Confirma tu identidad para desactivar el bloqueo",
+        title: "Desactivar Face ID",
+      });
+      saveConfig({ ...config, faceIdLock: false });
+      setMsg("Bloqueo con Face ID desactivado.");
     } catch (e) {
-      setMsg("Error al desactivar.");
+      setMsg("No se pudo desactivar. Intenta de nuevo.");
     }
     setBusy(false);
   };
@@ -3246,7 +3266,7 @@ function FaceIDSettings() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)" }}>Face ID</div>
             <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 2 }}>
-              {enrolled ? "Activado — puedes entrar sin contraseña" : "Desactivado"}
+              {enrolled ? "Activado — se pide al abrir la app" : "Desactivado"}
             </div>
           </div>
           <div style={{ fontSize: 12, fontWeight: 600,
@@ -3260,8 +3280,8 @@ function FaceIDSettings() {
 
       <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 20 }}>
         {enrolled
-          ? "Con Face ID activado, puedes entrar a Zafi tocando el botón Face ID en la pantalla de inicio de sesión — sin escribir tu contraseña."
-          : "Activa Face ID para entrar a Zafi sin contraseña. Tus credenciales se guardan de forma segura en el llavero de iOS."}
+          ? "Cada vez que abras Zafi, te pediremos Face ID para desbloquear. Tu sesión sigue activa — el Face ID es solo un candado extra para proteger tu información."
+          : "Activa Face ID como candado extra. Tu sesión siempre queda iniciada; con esto, además, pedimos Face ID cada vez que abres la app para que solo tú veas tus finanzas."}
       </p>
 
       {msg && (
@@ -5317,10 +5337,12 @@ function EmailVerifyBanner() {
       </svg>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", fontFamily: "'Montserrat',sans-serif" }}>
-          {enviado ? "Correo enviado" : "Verifica tu correo"}
+          {enviado ? (_lang === "es" ? "Correo enviado" : "Email sent") : (_lang === "es" ? "Verifica tu correo" : "Verify your email")}
         </div>
         <div style={{ fontSize: 11.5, color: "var(--ink-soft)", fontFamily: "'Montserrat',sans-serif", marginTop: 1 }}>
-          {enviado ? `Revisa ${user.email} y toca el enlace.` : "Te mandamos un enlace para confirmar tu cuenta."}
+          {enviado
+            ? (_lang === "es" ? `Revisa ${user.email} y toca el enlace.` : `Check ${user.email} and tap the link.`)
+            : (_lang === "es" ? "Te mandamos un enlace para confirmar tu cuenta." : "We sent you a link to confirm your account.")}
         </div>
       </div>
       {!enviado && (
@@ -5328,7 +5350,7 @@ function EmailVerifyBanner() {
           style={{ padding: "7px 12px", borderRadius: 9, border: "none", background: "rgba(201,168,76,.18)",
             color: "#8A6D0B", fontSize: 11.5, fontWeight: 600, cursor: "pointer", flexShrink: 0,
             fontFamily: "'Montserrat',sans-serif" }}>
-          {enviando ? "…" : "Reenviar"}
+          {enviando ? "…" : (_lang === "es" ? "Reenviar" : "Resend")}
         </button>
       )}
       <button onClick={() => setOculto(true)}
@@ -5348,46 +5370,17 @@ function AuthScreen() {
   const [ok, setOk] = useState("");
   const [showForgot, setShowForgot] = useState(false);
   const [legalDoc, setLegalDoc] = useState(null); // "terms" | "privacy" | null
-  const [hasFaceCreds, setHasFaceCreds] = useState(false); // ¿hay credenciales Face ID guardadas?
 
   // Limpiar chat al mostrar la pantalla de login (nueva sesión)
   useEffect(() => {
     if (window.__zafiClearChat) window.__zafiClearChat();
   }, []);
 
-  // Face ID automático al abrir: si ya hay credenciales guardadas en el llavero
-  // y el dispositivo tiene biometría, lanzamos Face ID de una vez. Como son tus
-  // finanzas, tiene sentido pedir identidad al entrar sin tener que tocar el botón.
-  // Solo se intenta una vez por montaje y respeta si el usuario canceló.
-  const autoFaceTried = useRef(false);
-  useEffect(() => {
-    if (autoFaceTried.current) return;
-    autoFaceTried.current = true;
-    // Solo en la app nativa; en web el plugin no existe.
-    const nativo = typeof window !== "undefined" && window.location.protocol === "capacitor:";
-    if (!nativo) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const avail = await NativeBiometric.isAvailable().catch(() => ({ isAvailable: false }));
-        if (!avail?.isAvailable) return;
-        const creds = await NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER }).catch(() => null);
-        if (cancelled || !creds?.username || !creds?.password) return;
-        setHasFaceCreds(true);
-        // Hay credenciales → lanzar el mismo flujo que el botón Face ID
-        doFaceID();
-      } catch (e) {
-        // Silencioso: si algo falla, el usuario puede usar el botón manual
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   function reset() { setEmail(""); setPassword(""); setConfirmPassword(""); setErr(""); setOk(""); }
   function switchTab(t) { reset(); setTab(t); setShowForgot(false); }
 
   function ferr(code) {
-    const map = {
+    const es = {
       "auth/email-already-in-use": "Ya existe una cuenta con ese correo.",
       "auth/invalid-email": "El correo no es válido.",
       "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
@@ -5398,7 +5391,19 @@ function AuthScreen() {
       "auth/network-request-failed": "Sin conexión a internet.",
       "auth/timeout": "No se pudo conectar. Verifica tu conexión.",
     };
-    return map[code] || "Algo salió mal. Intenta de nuevo.";
+    const en = {
+      "auth/email-already-in-use": "An account with that email already exists.",
+      "auth/invalid-email": "That email address is not valid.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/user-not-found": "No account found with that email.",
+      "auth/wrong-password": "Incorrect password.",
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/too-many-requests": "Too many attempts. Please wait a moment.",
+      "auth/network-request-failed": "No internet connection.",
+      "auth/timeout": "Could not connect. Check your connection.",
+    };
+    const map = _lang === "es" ? es : en;
+    return map[code] || (_lang === "es" ? "Algo salió mal. Intenta de nuevo." : "Something went wrong. Please try again.");
   }
 
   function withTimeout(p, ms = 15000) {
@@ -5406,7 +5411,7 @@ function AuthScreen() {
   }
 
   async function doLogin() {
-    if (!email || !password) { setErr("Llena todos los campos."); return; }
+    if (!email || !password) { setErr(_lang === "es" ? "Llena todos los campos." : "Please fill in all fields."); return; }
     setBusy(true); setErr("");
     try {
       // Primero verificar via REST (funciona en Capacitor sin gapi)
@@ -5437,28 +5442,14 @@ function AuthScreen() {
       } else {
         if (window.__zafiSetUser) window.__zafiSetUser(restUser);
       }
-      // Guardar credenciales en keychain para Face ID (solo en Capacitor)
-      const isCapNow = typeof window !== "undefined" && window.location.protocol === "capacitor:";
-      if (isCapNow) {
-        try {
-          const biometricAvailable = await NativeBiometric.isAvailable().catch(() => ({ isAvailable: false }));
-          if (biometricAvailable?.isAvailable) {
-            await NativeBiometric.setCredentials({
-              username: email,
-              password: password,
-              server: BIOMETRIC_SERVER,
-            });
-          }
-        } catch (e) { /* silencioso */ }
-      }
     } catch (e) { setErr(ferr(e.code)); }
     finally { setBusy(false); }
   }
 
   async function doRegister() {
-    if (!email || !password || !confirmPassword) { setErr("Llena todos los campos."); return; }
-    if (password !== confirmPassword) { setErr("Las contraseñas no coinciden."); return; }
-    if (password.length < 6) { setErr("Mínimo 6 caracteres."); return; }
+    if (!email || !password || !confirmPassword) { setErr(_lang === "es" ? "Llena todos los campos." : "Please fill in all fields."); return; }
+    if (password !== confirmPassword) { setErr(_lang === "es" ? "Las contraseñas no coinciden." : "Passwords don't match."); return; }
+    if (password.length < 6) { setErr(_lang === "es" ? "Mínimo 6 caracteres." : "Minimum 6 characters."); return; }
     setBusy(true); setErr("");
     try {
       // Usar REST API primero (funciona en Capacitor sin gapi)
@@ -5509,7 +5500,7 @@ function AuthScreen() {
   }
 
   async function doForgot() {
-    if (!email) { setErr("Escribe tu correo primero."); return; }
+    if (!email) { setErr(_lang === "es" ? "Escribe tu correo primero." : "Please enter your email first."); return; }
     setBusy(true); setErr(""); setOk("");
     try {
       // Configuración de deep link para que el correo redirija a la app
@@ -5521,7 +5512,7 @@ function AuthScreen() {
         },
       };
       await withTimeout(sendPasswordResetEmail(auth, email, actionCodeSettings));
-      setOk("✓ Correo enviado. Revisa tu bandeja y toca el enlace para cambiar tu contraseña.");
+      setOk(_lang === "es" ? "✓ Correo enviado. Revisa tu bandeja y toca el enlace para cambiar tu contraseña." : "✓ Email sent. Check your inbox and tap the link to reset your password.");
       setShowForgot(false);
     } catch (e) { setErr(ferr(e.code)); }
     finally { setBusy(false); }
@@ -5548,7 +5539,7 @@ function AuthScreen() {
       if (e?.message?.includes("cancelled") || e?.code === "CANCELLED") {
         // Usuario canceló, no mostrar error
       } else {
-        setErr("No se pudo iniciar sesión con Google. Intenta de nuevo.");
+        setErr(_lang === "es" ? "No se pudo iniciar sesión con Google. Intenta de nuevo." : "Could not sign in with Google. Please try again.");
       }
     }
     finally { setBusy(false); }
@@ -5582,63 +5573,7 @@ function AuthScreen() {
       if (e?.message?.includes("cancel") || e?.code === "CANCELLED" || e?.code === "1001") {
         // Usuario canceló, no mostrar error
       } else {
-        setErr("No se pudo iniciar sesión con Apple. Intenta de nuevo.");
-      }
-    }
-    finally { setBusy(false); }
-  }
-
-  async function doFaceID() {
-    setBusy(true); setErr("");
-    try {
-      // Verificar si hay credenciales guardadas
-      const creds = await NativeBiometric.getCredentials({ server: BIOMETRIC_SERVER }).catch(() => null);
-      if (!creds?.username || !creds?.password) {
-        setErr("Primero inicia sesión con correo y contraseña para activar Face ID.");
-        setBusy(false); return;
-      }
-      // Verificar biometría
-      await NativeBiometric.verifyIdentity({
-        reason: "Confirma tu identidad para entrar a Zafi",
-        title: "Face ID",
-        subtitle: "Usa Face ID para acceder",
-        description: "Toca el sensor para continuar",
-      });
-      // Usar las credenciales guardadas para hacer login
-      const savedEmail = creds.username;
-      const savedPassword = creds.password;
-      const API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: savedEmail, password: savedPassword, returnSecureToken: true })
-      });
-      const data = await res.json();
-      if (data.error) {
-        // Las credenciales guardadas ya no sirven (contraseña cambiada, cuenta
-        // eliminada, etc.). Limpiamos el llavero para no reintentar en bucle.
-        try { await NativeBiometric.deleteCredentials({ server: BIOMETRIC_SERVER }); } catch (_) {}
-        setHasFaceCreds(false);
-        throw new Error("Credenciales inválidas");
-      }
-      const restUser = { uid: data.localId, email: data.email, getIdToken: async () => data.idToken };
-      window.__zafiCurrentUser = restUser;
-      const sdkResult = await Promise.race([
-        signInWithEmailAndPassword(auth, savedEmail, savedPassword).catch(() => null),
-        new Promise(resolve => setTimeout(() => resolve(null), 3000))
-      ]);
-      if (sdkResult?.user) {
-        window.__zafiCurrentUser = sdkResult.user;
-        if (window.__zafiSetUser) window.__zafiSetUser(sdkResult.user);
-      } else {
-        if (window.__zafiSetUser) window.__zafiSetUser(restUser);
-      }
-    } catch (e) {
-      if (e?.message?.includes("Cancel") || e?.message?.includes("cancel") || e?.code === -128) {
-        // Usuario canceló, no mostrar error
-      } else if (e?.message === "Credenciales inválidas") {
-        setErr("Tus datos guardados ya no son válidos. Inicia sesión con tu contraseña para reactivar Face ID.");
-      } else {
-        setErr("No se pudo verificar Face ID. Intenta con contraseña.");
+        setErr(_lang === "es" ? "No se pudo iniciar sesión con Apple. Intenta de nuevo." : "Could not sign in with Apple. Please try again.");
       }
     }
     finally { setBusy(false); }
@@ -5702,12 +5637,18 @@ function AuthScreen() {
           <span key={showForgot ? "forgot" : tab} className="cc-auth-title"
             style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 500,
             fontSize: 22, letterSpacing: "-.02em", color: "#1A1815" }}>
-            {showForgot ? "Olvidé mi contraseña" : tab === "login" ? "Iniciar sesión" : "Crear cuenta"}
+            {showForgot
+              ? (_lang === "es" ? "Olvidé mi contraseña" : "Forgot password")
+              : tab === "login"
+                ? (_lang === "es" ? "Iniciar sesión" : "Sign in")
+                : (_lang === "es" ? "Crear cuenta" : "Create account")}
           </span>
           {!showForgot && (
             <button onClick={() => switchTab(tab === "login" ? "register" : "login")}
               style={{ ...softLink, color: "#1E6FE0", fontWeight: 500, fontSize: 15 }}>
-              {tab === "login" ? "Registrarse" : "Iniciar sesión"}
+              {tab === "login"
+                ? (_lang === "es" ? "Registrarse" : "Sign up")
+                : (_lang === "es" ? "Iniciar sesión" : "Sign in")}
             </button>
           )}
         </div>
@@ -5717,29 +5658,29 @@ function AuthScreen() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <p style={{ fontSize: 13.5, color: "rgba(26,24,21,.55)", lineHeight: 1.6,
               fontFamily: "'Montserrat', sans-serif", fontWeight: 300, margin: 0 }}>
-              Escribe tu correo y te mandamos un enlace para restablecer tu contraseña.
+              {_lang === "es" ? "Escribe tu correo y te mandamos un enlace para restablecer tu contraseña." : "Enter your email and we'll send you a link to reset your password."}
             </p>
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder="Correo electrónico"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder={_lang === "es" ? "Correo electrónico" : "Email address"}
               value={email} onChange={e => setEmail(e.target.value)} />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
             {ok && <p style={{ fontSize: 13, color: "#2D6F4E", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{ok}</p>}
             <button className="cc-press" style={{ ...btnMain, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doForgot} disabled={busy}>
-              {busy ? <><BtnSpinner /> Enviando…</> : "Enviar correo"}
+              {busy ? <><BtnSpinner /> {_lang === "es" ? "Enviando…" : "Sending…"}</> : (_lang === "es" ? "Enviar correo" : "Send email")}
             </button>
             <div style={{ textAlign: "center" }}>
               <button onClick={() => { setShowForgot(false); setErr(""); setOk(""); }}
                 style={{ ...softLink, color: "rgba(26,24,21,.45)" }}>
-                ← Regresar
+                {_lang === "es" ? "← Regresar" : "← Back"}
               </button>
             </div>
           </div>
         ) : tab === "login" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder="Correo electrónico"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder={_lang === "es" ? "Correo electrónico" : "Email address"}
               value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" />
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder="Contraseña"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder={_lang === "es" ? "Contraseña" : "Password"}
               value={password} onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
               right={
@@ -5747,7 +5688,7 @@ function AuthScreen() {
                   style={{ ...softLink, color: "rgba(26,24,21,.45)", fontSize: 12,
                     background: "rgba(255,255,255,.4)", padding: "4px 9px",
                     borderRadius: 7, whiteSpace: "nowrap" }}>
-                  Olvidé
+                  {_lang === "es" ? "Olvidé" : "Forgot"}
                 </button>
               } />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
@@ -5758,29 +5699,16 @@ function AuthScreen() {
                 background: "rgba(26,24,21,.06)" }}>
                 <MidSpinner />
                 <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(26,24,21,.55)",
-                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>Entrando…</span>
+                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>{_lang === "es" ? "Entrando…" : "Signing in…"}</span>
               </div>
             ) : (
               <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doLogin} disabled={busy}>
-                Iniciar sesión →
-              </button>
-            )}
-            {hasFaceCreds && !busy && (
-              <button onClick={doFaceID} className="cc-press"
-                style={{ marginTop: 2, padding: "12px", borderRadius: 12, border: "1px solid rgba(26,24,21,.15)",
-                  background: "rgba(255,255,255,.45)", cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", gap: 8,
-                  fontFamily: "'Montserrat',sans-serif", fontSize: 14, fontWeight: 500, color: "#1A1815" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" />
-                  <path d="M9 9v1M15 9v1M9.5 15a3.5 3.5 0 0 0 5 0M12 9v4h-1" />
-                </svg>
-                Desbloquear con Face ID
+                {_lang === "es" ? "Iniciar sesión →" : "Sign in →"}
               </button>
             )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"6px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
-              <span style={{ fontSize:12, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>o continúa con</span>
+              <span style={{ fontSize:12, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif", fontWeight:400 }}>{_lang === "es" ? "o continúa con" : "or continue with"}</span>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
             </div>
             <div style={{ display:"flex", gap:10, marginTop:6 }}>
@@ -5817,11 +5745,11 @@ function AuthScreen() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder="Correo electrónico"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>} type="email" placeholder={_lang === "es" ? "Correo electrónico" : "Email address"}
               value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" />
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder="Contraseña (mín. 6 caracteres)"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} type="password" placeholder={_lang === "es" ? "Contraseña (mín. 6 caracteres)" : "Password (min. 6 characters)"}
               value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" />
-            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>} type="password" placeholder="Confirmar contraseña"
+            <AuthInput icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>} type="password" placeholder={_lang === "es" ? "Confirmar contraseña" : "Confirm password"}
               value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
             {err && <p style={{ fontSize: 13, color: "#B8482A", fontWeight: 400,
               fontFamily: "'Montserrat', sans-serif", margin: 0 }}>{err}</p>}
@@ -5831,16 +5759,16 @@ function AuthScreen() {
                 background: "rgba(26,24,21,.06)" }}>
                 <MidSpinner />
                 <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(26,24,21,.55)",
-                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>Creando cuenta…</span>
+                  fontFamily: "'Montserrat', sans-serif", letterSpacing: ".01em" }}>{_lang === "es" ? "Creando cuenta…" : "Creating account…"}</span>
               </div>
             ) : (
               <button className="cc-press" style={{ ...btnMain, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} onClick={doRegister} disabled={busy}>
-                Crear cuenta gratis →
+                {_lang === "es" ? "Crear cuenta gratis →" : "Create free account →"}
               </button>
             )}
             <div style={{ display:"flex", alignItems:"center", gap:10, margin:"8px 0 0" }}>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
-              <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif" }}>o regístrate con</span>
+              <span style={{ fontSize:11.5, color:"rgba(26,24,21,.4)", fontFamily:"'Montserrat',sans-serif" }}>{_lang === "es" ? "o regístrate con" : "or sign up with"}</span>
               <div style={{ flex:1, height:1, background:"rgba(26,24,21,.15)" }} />
             </div>
             <div style={{ display:"flex", gap:10, marginTop:4 }}>
@@ -6091,6 +6019,98 @@ function BtnSpinner() {
     <svg className="cc-btn-spin" viewBox="0 0 20 20" aria-hidden="true">
       <circle cx="10" cy="10" r="7" />
     </svg>
+  );
+}
+
+/* ====== FaceIDLock — candado biométrico al abrir la app ======
+   Se muestra ENCIMA de la app cuando config.faceIdLock está activo y aún no se
+   ha desbloqueado en esta apertura. La sesión de Firebase sigue activa detrás;
+   esto solo tapa el contenido hasta que el usuario pasa Face ID. Si falla o
+   cancela, se queda bloqueado con opción de reintentar o cerrar sesión. */
+function FaceIDLock({ onUnlock, onSignOut }) {
+  const isDark = detectEarlyDark();
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const tried = useRef(false);
+
+  const intentar = async () => {
+    if (busy) return;
+    setBusy(true); setError(false);
+    try {
+      await NativeBiometric.verifyIdentity({
+        reason: "Confirma tu identidad para entrar a Zafi",
+        title: "Zafi bloqueada",
+        subtitle: "Usa Face ID para desbloquear",
+        description: "Toca para continuar",
+      });
+      onUnlock();
+    } catch (e) {
+      setError(true);
+    }
+    setBusy(false);
+  };
+
+  // Auto-lanzar Face ID una vez al montar
+  useEffect(() => {
+    if (tried.current) return;
+    tried.current = true;
+    intentar();
+  }, []);
+
+  const bg = isDark ? "#0D0F14" : "#DCE1E8";
+  const ink = isDark ? "#F5F5F7" : "#1A1815";
+  const inkSoft = isDark ? "rgba(245,245,247,.55)" : "rgba(26,24,21,.55)";
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 999999, background: bg,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "24px 20px", gap: 24 }}>
+      <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 400, fontSize: 52,
+        letterSpacing: "-.05em", color: ink, opacity: .9 }}>zafi</span>
+
+      <div style={{ width: 64, height: 64, borderRadius: 18,
+        background: isDark ? "rgba(245,245,247,.06)" : "rgba(26,24,21,.05)",
+        display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+          stroke={ink} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .8 }}>
+          <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" />
+          <path d="M9 9v1M15 9v1M9.5 15a3.5 3.5 0 0 0 5 0M12 9v4h-1" />
+        </svg>
+      </div>
+
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 16, fontWeight: 500, color: ink }}>
+          {error ? "Bloqueada" : "Desbloqueando…"}
+        </div>
+        <div style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 13.5, color: inkSoft, marginTop: 6, lineHeight: 1.5, maxWidth: 260 }}>
+          {error ? "Usa Face ID para entrar a tus finanzas." : "Confirma tu identidad para continuar."}
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 280 }}>
+          <button onClick={intentar} disabled={busy} className="cc-press"
+            style={{ width: "100%", padding: 15, borderRadius: 12, border: "none",
+              background: isDark ? "rgba(245,245,247,.9)" : "rgba(26,24,21,.85)",
+              color: isDark ? "#0D0F14" : "#fff", fontFamily: "'Montserrat',sans-serif",
+              fontSize: 15, fontWeight: 500, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" />
+              <path d="M9 9v1M15 9v1M9.5 15a3.5 3.5 0 0 0 5 0M12 9v4h-1" />
+            </svg>
+            Intentar de nuevo
+          </button>
+          <button onClick={onSignOut}
+            style={{ width: "100%", padding: 12, borderRadius: 12, border: "none",
+              background: "transparent", color: inkSoft, fontFamily: "'Montserrat',sans-serif",
+              fontSize: 14, fontWeight: 400, cursor: "pointer" }}>
+            Cerrar sesión y entrar con contraseña
+          </button>
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }
 
@@ -8003,6 +8023,15 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(undefined); // undefined=cargando, null=no logueado
   const [profileDone, setProfileDone] = useState(false); // did user complete profile?
+  // Candado biométrico: cuando config.faceIdLock está activo, la app arranca
+  // bloqueada hasta que el usuario pase Face ID. Se resetea en cada apertura.
+  const [unlocked, setUnlocked] = useState(false);
+  // Exponer para que al activar Face ID desde ajustes (ya dentro de la app) no
+  // se dispare el candado de inmediato — el usuario ya está autenticado.
+  useEffect(() => {
+    window.__zafiSetUnlocked = setUnlocked;
+    return () => { window.__zafiSetUnlocked = null; };
+  }, []);
   const [pendingWrites, setPendingWrites] = useState(0);
 
   // Conectar el contador global de escrituras (ver persist()) para mostrar un
@@ -8048,6 +8077,19 @@ export default function App() {
   const txsRef = useRef(txs);
   useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => { txsRef.current = txs; }, [txs]);
+
+  // Re-bloquear con Face ID al volver del background: si el candado está activo,
+  // cada vez que la app pasa a segundo plano marcamos como bloqueada de nuevo,
+  // así al regresar vuelve a pedir Face ID (comportamiento tipo banco).
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.protocol !== "capacitor:") return;
+    const sub = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (!isActive && configRef.current?.faceIdLock) {
+        setUnlocked(false);
+      }
+    });
+    return () => { sub.then((s) => s.remove()); };
+  }, []);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -8373,6 +8415,20 @@ export default function App() {
   // Si el usuario no tiene perfil (Google/Apple sin nombre), pedir datos
   if (!profileDone)
     return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
+
+  // Candado biométrico: si el usuario activó Face ID como candado y aún no
+  // desbloqueó en esta apertura, tapamos todo hasta que pase Face ID. La sesión
+  // sigue viva detrás; esto solo protege la vista. Solo aplica en la app nativa.
+  const esNativo = typeof window !== "undefined" && window.location.protocol === "capacitor:";
+  if (esNativo && config?.faceIdLock && !unlocked) {
+    const lockSignOut = async () => {
+      try { await signOut(auth); } catch (e) {}
+      window.__zafiCurrentUser = null;
+      if (window.__zafiClearChat) window.__zafiClearChat();
+      window.location.reload();
+    };
+    return <FaceIDLock onUnlock={() => setUnlocked(true)} onSignOut={lockSignOut} />;
+  }
 
   return (
     <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}>
@@ -9085,7 +9141,7 @@ REGLAS DE RESPUESTA:
 
 /* =============================== MAIN ==================================== */
 function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, resetAll }) {
-  setAppLang(rawConfig.language || "es");
+  setAppLang(rawConfig.language || _deviceLang);
   setFeedbackPrefs(rawConfig.feedbackPrefs || { haptics: true, sound: true });
 
   // ============= Filtrar cuentas archivadas del config visible =============
@@ -10184,7 +10240,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
   const [phone, setPhone] = useState(config.phone || "");
   const [age, setAge] = useState(config.userAge ? String(config.userAge) : "");
   const [country, setCountry] = useState(config.userCountry || "");
-  const [lang, setLang] = useState(config.language || "es");
+  const [lang, setLang] = useState(config.language || _deviceLang);
   const [currency, setCurrency] = useState(config.currency || "MXN");
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
@@ -10425,7 +10481,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
         {section === "faceid" && (
           <>
             {BACK("Face ID / Biometría")}
-            <FaceIDSettings />
+            <FaceIDSettings config={config} saveConfig={saveConfig} />
           </>
         )}
 
@@ -13629,142 +13685,177 @@ function pickPooledAction(ctx) {
   // Prioridad de hábito por día: si HOY sueles gastar de más (y en qué), avisar
   // en el día correcto — no un consejo genérico que no cae en tu patrón real.
   if (todayIsHeavy && todayTopCat) {
-    pool.push(`Los ${todayDowName} sueles gastar más en ${todayTopCat}. Hoy pon un límite antes de salir.`);
-    pool.push(`Ojo: el ${todayDowName} es tu día fuerte de gasto en ${todayTopCat}. Piénsalo dos veces hoy.`);
+    pool.push(`Los ${todayDowName} sueles gastar más en ${todayTopCat}. Hoy no compres nada que caiga en ${todayTopCat}.`);
+    pool.push(`El ${todayDowName} es tu día fuerte de gasto en ${todayTopCat}. Antes de cualquier compra en esa categoría, espera 10 minutos.`);
+    pool.push(`[[identifica]] Los ${todayDowName} sueles gastar de más en ${todayTopCat}. Busca en tu historial un gasto reciente de esa categoría que no necesitabas — hoy evita repetirlo.`);
   } else if (todayIsHeavy) {
-    pool.push(`Los ${todayDowName} sueles gastar más que otros días. Hoy ve con cuidado con tus compras.`);
+    pool.push(`Los ${todayDowName} sueles gastar más que otros días. Hoy revisa cada compra antes de hacerla.`);
+    pool.push(`[[elige:Hoy no hago compras no planeadas|Reviso el historial antes de gastar|Espero 10 min antes de cualquier compra]] El ${todayDowName} tiendes a gastar de más. ¿Cómo lo manejas hoy?`);
   }
 
   // Prioridad máxima: déficit (gastas más de lo que ganas)
   if (deficitPct > 0) {
-    pool.push(`Estás gastando ${deficitPct}% más de lo que ganas. Hoy revisa tus 3 gastos más grandes y corta uno.`);
-    // Solo sugerir "no gastes en X" si HOY realmente sueles gastar en esa categoría.
+    pool.push(`Estás gastando ${deficitPct}% más de lo que ganas. Hoy revisa tus 3 gastos más grandes y elimina uno.`);
     if (topExpCat && todayTopCat === topExpCat) {
-      pool.push(`Tu déficit viene en parte de ${topExpCat}, y hoy sueles gastar ahí. Intenta no hacerlo.`);
+      pool.push(`Tu déficit viene en parte de ${topExpCat}, y hoy sueles gastar ahí. Hoy no compres nada en esa categoría.`);
     }
+    const deficitTaps = Math.max(3, Math.min(15, Math.round(deficitPct / 10)));
+    pool.push(`[[contar:${deficitTaps}]] Gastas ${deficitPct}% más de lo que ganas. Toca ${deficitTaps} ${deficitTaps === 1 ? "vez" : "veces"} — una por cada 10% de más — y en cada toque piensa en un gasto que puedes eliminar hoy.`);
+    pool.push(`[[contar:3]] Toca 3 veces. En cada una, nombra mentalmente un gasto grande que revisarás hoy para cerrar tu déficit.`);
+    pool.push(`[[reflexiona]] Escribe una compra que harías esta semana y que puedes posponer. Nombrarlo es el primer paso para no hacerla.`);
+    pool.push(`[[reflexiona]] ¿En qué momento del día sueles gastar sin pensarlo? Escríbelo — identificar el momento lo hace más fácil de frenar.`);
+    pool.push(`[[identifica]] Abre tu historial y encuentra el gasto de esta semana que menos valió la pena. Ese es el primero que eliminas.`);
   }
 
   // Prioridad alta: deudas caras
   if (hasDebt && worstDebtRate >= 40) {
-    pool.push(`Tu deuda "${worstDebtName}" tiene ${worstDebtRate}% de interés. Abona lo que puedas hoy, aunque sea poco.`);
+    pool.push(`Tu deuda "${worstDebtName}" tiene ${worstDebtRate}% de interés anual. Abona lo que puedas hoy — cada peso que pagas te ahorra intereses mañana.`);
+    const rateTaps = Math.max(3, Math.min(12, Math.round(worstDebtRate / 10)));
+    pool.push(`[[contar:${rateTaps}]] "${worstDebtName}" te cobra ${worstDebtRate}% de interés. Toca ${rateTaps} ${rateTaps === 1 ? "vez" : "veces"} — una por cada 10% — y en cada toque recuerda: cada peso que no gastas hoy puede ir a bajar esa deuda.`);
   } else if (hasDebt && positiveFlow) {
-    pool.push(`Hoy abona algo extra a tus deudas. Reducir el saldo baja los intereses que pagas.`);
+    pool.push(`Tienes flujo positivo este mes. Es buen momento para abonar extra a tus deudas y bajar el saldo.`);
+  }
+  if (hasDebt && worstDebtName) {
+    pool.push(`[[contar:5]] Toca 5 veces recordando tu objetivo: quedar libre de "${worstDebtName}". En cada toque, piensa qué gasto de hoy puedes sacrificar para acercarte.`);
+    pool.push(`[[reflexiona]] ¿Cómo te sentirías sin la deuda "${worstDebtName}"? Escríbelo en una línea — tener claro ese alivio hace más fácil no sumar más deuda hoy.`);
+    pool.push(`[[elige:Hoy no agrego deuda nueva|Abono algo extra aunque sea poco|Reviso mis gastos para liberar dinero para la deuda]] ¿Cuál es tu movimiento de hoy con tu deuda?`);
   }
 
   if (daysSinceLastTx >= 2) {
-    pool.push(`Llevas ${daysSinceLastTx} días sin registrar. Anota tus gastos de hoy para no perder el control.`);
+    pool.push(`Llevas ${daysSinceLastTx} días sin registrar. Anota los gastos de hoy — lo que no ves, no lo puedes controlar.`);
   }
   if (topExpCat && topExpPct > 40 && deficitPct === 0) {
-    pool.push(`${topExpCat} es el ${topExpPct}% de tus gastos. Hoy intenta no gastar en esa categoría.`);
+    pool.push(`${topExpCat} representa el ${topExpPct}% de tus gastos. Hoy pon un límite: nada en esa categoría.`);
+    const catTaps = Math.max(3, Math.min(12, Math.round(topExpPct / 10)));
+    pool.push(`[[contar:${catTaps}]] ${topExpCat} es el ${topExpPct}% de tus gastos. Toca ${catTaps} ${catTaps === 1 ? "vez" : "veces"} — una por cada 10% — y en cada toque pregúntate si realmente necesitas gastar ahí hoy.`);
+    pool.push(`[[identifica]] Abre tu historial y señala un gasto reciente de ${topExpCat} que no era necesario. Tu categoría más grande merece ese análisis.`);
+    pool.push(`[[reflexiona]] ¿Qué te lleva a gastar tanto en ${topExpCat}? Escribe la razón honesta — no para juzgarte, sino para entenderte.`);
   }
   if (spendRatio > 90 && deficitPct === 0) {
-    pool.push(`Estás gastando el ${spendRatio}% de tus ingresos. Busca un gasto que puedas evitar hoy.`);
+    pool.push(`Estás usando el ${spendRatio}% de tus ingresos. Busca un gasto esta semana que puedas recortar o eliminar.`);
+    const ratioTaps = Math.max(3, Math.min(10, Math.round(spendRatio / 10)));
+    pool.push(`[[contar:${ratioTaps}]] Gastas el ${spendRatio}% de lo que ganas. Toca ${ratioTaps} ${ratioTaps === 1 ? "vez" : "veces"} — una por cada 10% — y en cada toque piensa en dónde puedes recortar.`);
   }
   if (uncatPct > 20) {
-    pool.push(`Tienes ${uncatPct}% de gastos sin categoría. Ordénalos para ver a dónde va tu dinero.`);
+    pool.push(`Tienes ${uncatPct}% de gastos sin categoría. Categorízalos hoy — no puedes mejorar lo que no puedes ver.`);
+    pool.push(`[[identifica]] Abre tu historial y categoriza los movimientos que tienen "Sin categoría". Cinco minutos hoy te dan claridad para todo el mes.`);
   }
 
-  // Sin fondo de emergencia y sin deudas → invitar a crearlo (solo si no hay déficit)
+  // Sin fondo de emergencia → invitar a crearlo
   if (!hasEmergencyFund && !hasDebt && positiveFlow && deficitPct === 0) {
-    pool.push(`¿Ya tienes fondo de emergencia? Es la base de todo. Créalo hoy en Metas y planes.`);
+    pool.push(`No tienes fondo de emergencia registrado. Es la base de todo — créalo hoy en Metas y planes, aunque sea con una cantidad pequeña.`);
+    pool.push(`[[reflexiona]] ¿Qué pasaría si hoy tuvieras un gasto inesperado de $10,000? Escribe cómo lo resolverías — esa respuesta te dice si necesitas un fondo de emergencia.`);
   }
-  // Sin metas ni deudas → crear una meta
+  // Sin metas → crear una
   if (!hasGoal && !hasDebt && positiveFlow && deficitPct === 0) {
-    pool.push(`Dale rumbo a tu ahorro: crea una meta hoy (un viaje, un fondo, lo que quieras).`);
+    pool.push(`Tu dinero va bien pero no tiene destino. Crea una meta hoy — un viaje, un fondo, lo que quieras — y dale rumbo.`);
+    pool.push(`[[reflexiona]] ¿Qué es lo que más quisieras comprar o lograr en los próximos 12 meses? Escríbelo — puede convertirse en tu próxima meta.`);
   }
   if (hasGoal && positiveFlow) {
-    pool.push(`Abona lo que puedas a tu meta hoy, aunque sea poco. Cada peso cuenta.`);
+    pool.push(`Tienes flujo positivo este mes. Es el momento ideal para abonar a tu meta — cada peso que apartás hoy es progreso real.`);
+    pool.push(`[[contar:8]] Toca 8 veces visualizando tu meta cumplida. En cada toque, siente lo que se va a sentir lograrlo. Ese impulso es el que hoy te ayuda a no gastar de más.`);
+  }
+  if (hasEmergencyFund) {
+    pool.push(`[[contar:6]] Toca 6 veces valorando tu fondo de emergencia. En cada toque, recuerda que ese dinero es tu red de seguridad — hoy cuídalo no gastando de más.`);
   }
 
-  // Acciones genéricas de respaldo — variadas, algunas reflexivas o de escritura
+  // ── Acciones genéricas de respaldo (aplican cuando la situación es buena) ──
   if (deficitPct === 0 && !hasDebt) {
     pool.push(
       "Antes de tu próxima compra, pregúntate: ¿lo necesito o solo lo quiero?",
-      "Cancela una suscripción que no usaste este mes. Dinero recuperado al instante.",
-      "Anota tus 3 gastos más grandes de la semana. Ver el patrón es el primer paso.",
-      "Escribe 2 cosas en las que gastaste de más la semana pasada.",
-      "Redondea cada compra de hoy y guarda la diferencia. Ahorro invisible.",
-      "Antes de dormir, revisa tu saldo. Conocer tu número te da control.",
-      "Reto de hoy: no gastes en una categoría que elijas. Un día a la vez.",
-      "Piensa en una compra reciente de +$500: ¿la volverías a hacer?",
-      "Encuentra un gasto de la quincena pasada que puedas recortar el próximo mes.",
+      "Revisa tus suscripciones activas. Cancela una que no hayas usado este mes.",
+      "Anota tus 3 gastos más grandes de esta semana. Ver el patrón es el primer paso para cambiarlo.",
+      "Redondea cada compra de hoy al siguiente $50 y guarda la diferencia. Ahorro invisible.",
+      "Antes de dormir, abre Zafi y revisa tu saldo. Conocer tu número te da control.",
+      "Reto de hoy: elige una categoría y no gastes en ella. Un día a la vez.",
+      "Piensa en una compra reciente de más de $500: ¿la volverías a hacer hoy?",
+      "Busca un gasto fijo de la quincena pasada que puedas reducir el próximo mes.",
     );
   }
-  // Reflexión de escritura también cuando hay categoría dominante
-  if (topExpCat && deficitPct === 0) {
-    pool.push(`Escribe qué te llevó a gastar tanto en ${topExpCat} este periodo.`);
-  }
 
-  // ── Acciones de CONTADOR (interactivas) ──
-  // Formato: [[contar:N]] al inicio. DailyActionCard muestra un contador táctil.
-  // IMPORTANTE: el número de toques está LIGADO al dato del mensaje, no es
-  // arbitrario. Ej: gastas 6% más → toca 6; gastas 120% más → 12 (1 por cada 10%).
-  if (deficitPct > 0) {
-    // 1 toque por cada 10% de exceso, mínimo 3, máximo 15 (para que sea alcanzable).
-    const deficitTaps = Math.max(3, Math.min(15, Math.round(deficitPct / 10)));
-    pool.push(`[[contar:${deficitTaps}]] Tomemos conciencia: gastas ${deficitPct}% más de lo que ganas. Toca ${deficitTaps} ${deficitTaps === 1 ? "vez" : "veces"} (una por cada 10% de más) y hoy frénalo.`);
-    pool.push(`[[contar:3]] Toca 3 veces, una por cada gasto grande que revisarás hoy para cerrar tu déficit.`);
-  }
-  if (topExpPct > 0 && topExpCat) {
-    // 1 toque por cada 10% que representa la categoría, mínimo 3, máximo 12.
-    const catTaps = Math.max(3, Math.min(12, Math.round(topExpPct / 10)));
-    pool.push(`[[contar:${catTaps}]] ${topExpCat} es el ${topExpPct}% de tus gastos. Toca ${catTaps} ${catTaps === 1 ? "vez" : "veces"} (una por cada 10%) tomando conciencia de eso.`);
-  }
-  if (topExpCat) {
-    pool.push(`[[contar:5]] Toca 5 veces, una por cada vez que hoy te preguntarás si de verdad necesitas gastar en ${topExpCat}.`);
-  }
-  if (hasDebt && worstDebtRate > 0) {
-    // 1 toque por cada 10% de interés de la deuda más cara, mínimo 3, máximo 12.
-    const rateTaps = Math.max(3, Math.min(12, Math.round(worstDebtRate / 10)));
-    pool.push(`[[contar:${rateTaps}]] Tu deuda "${worstDebtName}" cobra ${worstDebtRate}% de interés. Toca ${rateTaps} ${rateTaps === 1 ? "vez" : "veces"} (una por cada 10%) y hoy no sumes deuda.`);
-  } else if (hasDebt && worstDebtName) {
-    pool.push(`[[contar:5]] Toca 5 veces recordando tu meta: quedar libre de "${worstDebtName}". Hoy no sumes deuda.`);
-  }
-  if (hasGoal) {
-    pool.push(`[[contar:8]] Toca 8 veces visualizando tu meta cumplida. Ese impulso te ayuda a no gastar de más hoy.`);
-  }
-  if (hasEmergencyFund) {
-    pool.push(`[[contar:6]] Toca 6 veces valorando tu fondo de emergencia. Tenerlo es tranquilidad — hoy cuídalo.`);
-  }
-  if (spendRatio > 0 && deficitPct === 0) {
-    // 1 toque por cada 10% de ingreso gastado, mínimo 3, máximo 10.
-    const ratioTaps = Math.max(3, Math.min(10, Math.round(spendRatio / 10)));
-    pool.push(`[[contar:${ratioTaps}]] Gastas el ${spendRatio}% de lo que ganas. Toca ${ratioTaps} ${ratioTaps === 1 ? "vez" : "veces"} (una por cada 10%) y busca dónde recortar.`);
-  }
-  if (deficitPct === 0 && !hasDebt) {
+  // ── Acciones cuando todo va bien: motivar, conscienciar y mejorar aún más ──
+  if (deficitPct === 0 && !hasDebt && positiveFlow) {
     pool.push(
-      `[[contar:12]] Toca 12 veces, una por cada mes del año, comprometiéndote a ahorrar algo en cada uno.`,
-      `[[contar:5]] Antes de tu próxima compra, toca 5 veces y en cada una pregúntate: ¿lo necesito?`,
-      `[[contar:3]] Toca 3 veces y nombra en tu mente 3 gastos que puedes evitar esta semana.`,
-      `[[contar:7]] Toca 7 veces, una por cada día de la semana en que evitarás una compra impulsiva.`,
+      "Vas bien con tus finanzas. Hoy el reto es no bajar la guardia — un gasto impulsivo puede romper el ritmo.",
+      "Estás en números positivos. Aprovecha el momento para adelantar algo a tu ahorro o meta.",
+      "Tus finanzas están en orden. La siguiente jugada: haz que tu dinero trabaje, no solo que descanse.",
+    );
+    pool.push(
+      `[[reflexiona]] Estás manejando bien tu dinero. Escribe qué hábito te ha ayudado más a llegar aquí — reconocerlo lo hace más fácil de mantener.`,
+      `[[reflexiona]] ¿Qué le dirías a tu yo de hace 6 meses sobre el manejo del dinero? Escríbelo en una línea.`,
+      `[[reflexiona]] ¿Hay algo que sigues postergando hacer con tu dinero? Escribe qué es y por qué lo has dejado para después.`,
+    );
+    pool.push(
+      `[[elige:Separo un % fijo de ahorro hoy|Reviso si puedo invertir algo|Adelanto un abono a mi meta]] Vas bien. ¿Cuál es tu siguiente movimiento?`,
+      `[[elige:Busco reducir un gasto fijo|Creo o actualizo una meta|Reviso mis suscripciones]] Momento de optimizar. ¿Por dónde empiezas?`,
+    );
+    pool.push(
+      `[[contar:5]] Toca 5 veces celebrando que tus gastos están bajo control. En cada toque, piensa en cómo seguir así el resto del mes.`,
+      `[[contar:12]] Toca 12 veces, una por cada mes del año que te comprometes a mantener este ritmo. Es un hábito, no un golpe de suerte.`,
+    );
+    pool.push(
+      `[[identifica]] Abre tu historial y encuentra el gasto del que más te enorgulleces haber hecho esta semana. Reconocer tus buenas decisiones también cuenta.`,
+      `[[identifica]] Busca en tu historial algún gasto que puedas convertir en recurrente para no olvidarlo. Automatizar lo bueno es finanzas inteligentes.`,
     );
   }
-  if (positiveFlow) {
-    pool.push(`[[contar:5]] Toca 5 veces celebrando tu flujo positivo. Vas bien — hoy decide guardar una parte.`);
-  }
 
-  // ── Acciones interactivas nuevas (identifica / reflexiona / elige) ──
-  // [[identifica]] — revisar el historial y señalar un gasto evitable.
+  // ── Acciones de identificar (abren historial) ──
   pool.push(
-    `[[identifica]] Encuentra un movimiento de estos días que pudiste no hacer. Solo reconocerlo ya cambia tu próxima decisión.`,
+    `[[identifica]] Encuentra un movimiento de estos días que pudiste no haber hecho. Solo reconocerlo ya cambia tu próxima decisión.`,
     `[[identifica]] Elige el gasto que menos disfrutaste de tu historial reciente. La próxima vez lo pensarás dos veces.`,
+    `[[identifica]] Busca en tu historial el gasto más pequeño y repetido de la semana. Los gastos hormiga se comen el presupuesto sin que los veas.`,
+    `[[identifica]] Abre tu historial y encuentra un gasto de más de $500 que no tenías planeado. ¿Valió la pena?`,
+    `[[identifica]] Revisa tus movimientos de la semana pasada. ¿Hay alguno que no recuerdas haber hecho?`,
   );
   if (topExpCat) {
-    pool.push(`[[identifica]] Busca un gasto de "${topExpCat}" que no era necesario. Es tu categoría más pesada — vale la pena mirarla.`);
+    pool.push(
+      `[[identifica]] Busca en tu historial un gasto de "${topExpCat}" que no era necesario. Es tu categoría más pesada — vale la pena analizarla.`,
+      `[[identifica]] Encuentra en tu historial el gasto más alto de "${topExpCat}" de este mes. ¿Lo repetirías hoy?`,
+    );
   }
-  // [[reflexiona]] — pausa de conciencia por escrito.
+
+  // ── Acciones de reflexionar (campo de escritura) ──
   pool.push(
     `[[reflexiona]] ¿Qué sentiste la última vez que gastaste de más? Escríbelo — ponerle palabras le quita fuerza al impulso.`,
-    `[[reflexiona]] En una línea: ¿para qué estás cuidando tu dinero? Tener claro el "para qué" hace más fácil el "no" de hoy.`,
+    `[[reflexiona]] En una línea: ¿para qué estás cuidando tu dinero? Tener claro el "para qué" hace más fácil decir que no hoy.`,
+    `[[reflexiona]] ¿Cuál es el gasto que más se te va sin darte cuenta? Escríbelo y ponle nombre — el primer paso para controlarlo es reconocerlo.`,
+    `[[reflexiona]] ¿Qué comprarías si tuvieras $5,000 extra hoy? Escríbelo — te dice algo sobre tus prioridades reales.`,
+    `[[reflexiona]] Escribe una regla de dinero que te funciona. Algo tuyo, no de un libro. Tus propias reglas son las que se mantienen.`,
+    `[[reflexiona]] ¿Hay algún gasto que sabes que deberías eliminar pero no lo has hecho? Escríbelo. Hoy puede ser el día.`,
+    `[[reflexiona]] ¿En qué momento del día eres más vulnerable a gastar impulsivamente? Escríbelo para estar alerta la próxima vez.`,
+    `[[reflexiona]] Piensa en la última compra que hiciste y no necesitabas. ¿Qué la desencadenó? Escríbelo en una línea.`,
   );
   if (deficitPct > 0) {
-    pool.push(`[[reflexiona]] Escribe una cosa que puedes dejar de comprar esta semana para cerrar tu déficit. Nombrarlo es el primer paso.`);
+    pool.push(`[[reflexiona]] Estás gastando más de lo que ganas. Escribe una cosa concreta que puedes dejar de comprar esta semana para empezar a revertirlo.`);
   }
-  // [[elige:...]] — micro-compromiso del día.
+  if (topExpCat) {
+    pool.push(`[[reflexiona]] Escribe qué es lo que más te gusta de gastar en ${topExpCat} — y si eso justifica que sea tu categoría más alta.`);
+  }
+
+  // ── Micro-compromisos del día (elige) ──
   pool.push(
-    `[[elige:Hoy no compro nada que no tenía planeado|Solo gasto en lo esencial de hoy|Antes de cada compra, espero 10 minutos] ¿Con qué te comprometes hoy?`,
-    `[[elige:Reviso mis suscripciones|Anoto todos mis gastos de hoy|Guardo algo, aunque sea poco] Elige tu movimiento de hoy.`,
+    `[[elige:Hoy no compro nada que no tenía planeado|Solo gasto en lo esencial|Antes de cada compra espero 10 minutos]] ¿Con qué te comprometes hoy?`,
+    `[[elige:Reviso y cancelo una suscripción|Anoto todos mis gastos en tiempo real|Guardo algo hoy, aunque sea poco]] Elige tu movimiento financiero de hoy.`,
+    `[[elige:No abro apps de compras hoy|Cocino en casa en vez de pedir|Transfiero algo a mi ahorro antes de gastar]] ¿Cuál es tu reto de hoy?`,
+    `[[elige:Reviso mis gastos de la semana|Le pongo categoría a mis movimientos sin categoría|Actualizo el saldo de una cuenta]] Cinco minutos de orden financiero. ¿Por dónde empiezas?`,
+    `[[elige:Busco un gasto fijo que pueda bajar|Planeo mis compras de la semana|Calculo cuánto puedo ahorrar este mes]] Elige la acción que más impacto tiene hoy.`,
+    `[[elige:Hoy no uso tarjeta de crédito|Solo efectivo o débito|Reviso el saldo antes de cada compra]] ¿Cómo manejas tu dinero hoy?`,
   );
+  if (hasDebt) {
+    pool.push(`[[elige:Abono algo extra a mi deuda|Busco un gasto que pueda eliminar para liberar dinero|No agrego deuda nueva hoy]] ¿Cuál es tu movimiento con tus deudas hoy?`);
+  }
+  if (hasGoal) {
+    pool.push(`[[elige:Abono algo a mi meta hoy|Reviso qué tan cerca estoy de mi meta|Busco cómo acelerar mi progreso]] Tu meta está esperando. ¿Qué haces hoy?`);
+  }
+
+  // Contador genéricos
+  if (deficitPct === 0 && !hasDebt) {
+    pool.push(
+      `[[contar:5]] Antes de tu próxima compra, toca 5 veces y en cada una pregúntate: ¿lo necesito o lo quiero?`,
+      `[[contar:3]] Toca 3 veces y nombra mentalmente 3 gastos que puedes evitar esta semana.`,
+      `[[contar:7]] Toca 7 veces, una por cada día de la semana. En cada toque, comprométete a revisar tus gastos ese día.`,
+    );
+  }
 
   // Si por alguna razón el pool quedó vacío, respaldo mínimo
   if (pool.length === 0) {
@@ -13817,14 +13908,23 @@ function DailyActionCard({ config, saveConfig, txs = [], actionCtx, dark, isPro,
 - Gasto principal: ${actionCtx.topExpCat || "N/A"} (${actionCtx.topExpPct || 0}% del total)
 - % de ingresos gastado: ${actionCtx.spendRatio || 0}%
 - Días sin registrar: ${actionCtx.daysSinceLastTx || 0}
-- Tiene meta activa: ${actionCtx.hasGoal ? "sí" : "no"}
+- Tiene meta activa: ${actionCtx.hasGoal ? "sí" : "no"}${actionCtx.metaName ? ` — su meta principal es "${actionCtx.metaName}", va al ${actionCtx.metaPct}% (le falta ${fmtMxn(actionCtx.metaFalta)})` : ""}
 - Tiene fondo de emergencia: ${actionCtx.hasEmergencyFund ? "sí" : "no"}
 - Tiene deudas: ${actionCtx.hasDebt ? `sí (la más cara: "${actionCtx.worstDebtName}" al ${actionCtx.worstDebtRate}% anual)` : "no"}
 - Flujo positivo este periodo: ${actionCtx.positiveFlow ? "sí" : "no"}
 - Déficit: ${actionCtx.deficitPct > 0 ? `sí, gasta ${actionCtx.deficitPct}% más de lo que gana` : "no"}
 - Hábito de HOY: ${actionCtx.todayIsHeavy ? `los ${actionCtx.todayDowName} suele gastar más que otros días${actionCtx.todayTopCat ? `, sobre todo en ${actionCtx.todayTopCat}` : ""}` : `los ${actionCtx.todayDowName} NO es un día donde gaste de más`}
 
-Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una. MUY IMPORTANTE sobre hábitos: solo sugiere "no gastes en X hoy" o "cuidado con X" si el hábito de HOY indica que este día suele gastar en esa categoría. NUNCA le digas que evite una categoría en un día donde no suele gastar en ella (por ejemplo, no le digas "no gastes en Compras el lunes" si los lunes no compra). Si hoy no es un día de gasto fuerte, enfócate en registrar, ahorrar, abonar a metas o reflexionar. No menciones déficit si el flujo es positivo, ni al revés. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual.
+Prioridades: si hay déficit (gasta más de lo que gana), esa es la urgencia #1 — sugiere revisar y cortar gastos grandes. Luego, si tiene deudas caras (≥40%), sugiere abonar a ellas. Si no tiene fondo de emergencia ni deudas, sugiere crear el fondo. Si no tiene metas, sugiere crear una.
+
+SOBRE METAS: si tiene una meta activa y sus finanzas van bien (flujo positivo, sin déficit urgente), a veces enfócate en la meta de forma motivadora y personal, no solo en abonar dinero. Ejemplos del tipo de acción que quiero (adáptalos a SU meta "${actionCtx.metaName || "su meta"}", no los copies literal):
+- "[[reflexiona]] Escribe por qué "${actionCtx.metaName || "tu meta"}" te importa. Recordar el porqué te mantiene firme."
+- "[[reflexiona]] Imagina el día que logres "${actionCtx.metaName || "tu meta"}". ¿Cómo te vas a sentir? Escríbelo."
+- "[[reflexiona]] Escribe una cosa que harás esta semana para acercarte a "${actionCtx.metaName || "tu meta"}"."
+- "[[elige:Abono $200 hoy|Reviso mi meta|Ajusto la fecha]] Tu meta va al ${actionCtx.metaPct}%. ¿Qué haces hoy por ella?"
+Usa este tipo de acción con moderación (no todos los días), y solo si ya tiene meta. Deben sentirse cálidas y personales, mencionando el nombre real de su meta.
+
+MUY IMPORTANTE sobre hábitos: solo sugiere "no gastes en X hoy" o "cuidado con X" si el hábito de HOY indica que este día suele gastar en esa categoría. NUNCA le digas que evite una categoría en un día donde no suele gastar en ella (por ejemplo, no le digas "no gastes en Compras el lunes" si los lunes no compra). Si hoy no es un día de gasto fuerte, enfócate en registrar, ahorrar, abonar a metas, trabajar en su meta o reflexionar. No menciones déficit si el flujo es positivo, ni al revés. La acción debe ser específica, accionable hoy, y motivadora. Máximo 22 palabras. En español mexicano casual.
 
 Puedes usar OPCIONALMENTE uno de estos formatos interactivos al inicio (solo si encaja natural con la acción):
 - [[contar:N]] — para acciones de repetir un gesto consciente N veces (N entre 3 y 12).
@@ -15779,6 +15879,16 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             }
           });
 
+          // Meta principal para el contexto de la acción: la más avanzada que
+          // aún no se completa (para invitar a escribir/reflexionar sobre ella).
+          const metaActiva = goalsInAcc
+            .filter((g) => (g.saved || 0) < (g.target || Infinity))
+            .sort((a, b) => ((b.saved || 0) / (b.target || 1)) - ((a.saved || 0) / (a.target || 1)))[0]
+            || goalsInAcc[0] || null;
+          const metaPct = metaActiva && metaActiva.target > 0
+            ? Math.round(((metaActiva.saved || 0) / metaActiva.target) * 100) : 0;
+          const metaFalta = metaActiva ? Math.max(0, (metaActiva.target || 0) - (metaActiva.saved || 0)) : 0;
+
           const actionCtx = {
             topExpCat: topExp ? topExp[0] : null,
             topExpPct: topExp && exp > 0 ? Math.round((topExp[1] / exp) * 100) : 0,
@@ -15793,6 +15903,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             positiveFlow: (inc - exp) > 0,
             deficitPct: inc > 0 && (inc - exp) < 0 ? Math.round((Math.abs(inc - exp) / inc) * 100) : 0,
             accKey: accView,
+            // Contexto de la meta principal (para acciones motivadoras sobre ella)
+            metaName: metaActiva ? metaActiva.name : null,
+            metaPct,
+            metaFalta,
             // Hábitos por día de la semana
             todayDowName: DOW_ES[todayDow],
             todayIsHeavy,
@@ -23770,6 +23884,31 @@ REGLAS:
           <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 16 }}>
             Sube un archivo de Excel (.xlsx, .xls) o CSV con tus movimientos. La IA detecta las columnas y los importa.
           </p>
+
+          {/* Notas guía sobre el formato */}
+          <div style={{ marginBottom: 16, padding: "14px 16px", borderRadius: 14,
+            background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Para que se lea bien</span>
+            </div>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                ["Fecha y monto", "son las columnas mínimas. La descripción ayuda a categorizar."],
+                ["Puedes subirlo tal cual", "el estado de cuenta de tu banco (BBVA, Santander, etc.) funciona sin reformatear."],
+                ["El orden no importa", "la IA detecta qué columna es cada cosa, con o sin encabezados."],
+                ["Gastos e ingresos", "acepta montos con signo (−300), una columna de tipo (cargo/abono), o columnas separadas."],
+                ["Solo la primera hoja", "si tu archivo tiene varias pestañas, pon los movimientos en la primera."],
+              ].map(([bold, rest], i) => (
+                <li key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, lineHeight: 1.5, color: "var(--ink-soft)" }}>
+                  <span style={{ color: "var(--gold)", flexShrink: 0, marginTop: 1 }}>•</span>
+                  <span><b style={{ color: "var(--ink)", fontWeight: 600 }}>{bold}</b> {rest}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           {config.accounts.length > 1 && (
             <div style={{ marginBottom: 14 }}>
