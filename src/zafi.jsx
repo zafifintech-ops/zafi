@@ -5536,8 +5536,18 @@ function AuthScreen() {
       if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
     } catch (e) {
       console.error("Google Sign In error:", e);
-      if (e?.message?.includes("cancelled") || e?.code === "CANCELLED") {
+      const code = e?.code || "";
+      const msg = e?.message || "";
+      if (msg.includes("cancelled") || code === "CANCELLED") {
         // Usuario canceló, no mostrar error
+      } else if (code === "auth/account-exists-with-different-credential"
+        || msg.includes("account-exists-with-different-credential")) {
+        // Ya existe una cuenta con ese correo creada con contraseña.
+        // Lo mandamos al login de correo para que entre por ahí.
+        setTab("login");
+        setErr(_lang === "es"
+          ? "Ya tienes una cuenta con ese correo. Inicia sesión con tu contraseña."
+          : "You already have an account with that email. Please sign in with your password.");
       } else {
         setErr(_lang === "es" ? "No se pudo iniciar sesión con Google. Intenta de nuevo." : "Could not sign in with Google. Please try again.");
       }
@@ -5570,8 +5580,16 @@ function AuthScreen() {
       if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
     } catch (e) {
       console.error("Apple Sign In error:", e);
-      if (e?.message?.includes("cancel") || e?.code === "CANCELLED" || e?.code === "1001") {
+      const code = e?.code || "";
+      const msg = e?.message || "";
+      if (msg.includes("cancel") || code === "CANCELLED" || code === "1001") {
         // Usuario canceló, no mostrar error
+      } else if (code === "auth/account-exists-with-different-credential"
+        || msg.includes("account-exists-with-different-credential")) {
+        setTab("login");
+        setErr(_lang === "es"
+          ? "Ya tienes una cuenta con ese correo. Inicia sesión con tu contraseña."
+          : "You already have an account with that email. Please sign in with your password.");
       } else {
         setErr(_lang === "es" ? "No se pudo iniciar sesión con Apple. Intenta de nuevo." : "Could not sign in with Apple. Please try again.");
       }

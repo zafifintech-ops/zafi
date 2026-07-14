@@ -1,5 +1,11 @@
 {
   "appId": "com.zafifintech.app",
   "appName": "Zafi",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com", "apple.com"]
+    }
+  }
 }
