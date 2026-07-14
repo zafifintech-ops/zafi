@@ -840,9 +840,9 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   /* El sheet nunca debe invadir la barra de estado (hora / Dynamic Island).
      En el WebView de Capacitor env(safe-area-inset-top) a veces devuelve 0px,
      así que NO podemos depender solo de él: usamos max() para garantizar un
-     tope mínimo de 68px (Dynamic Island ~59px + aire) aunque el safe-area
-     falle. Si el safe-area sí reporta, sumamos 24px de margen visible. */
-  --cc-sheet-gap: max(68px, calc(env(safe-area-inset-top, 0px) + 24px));
+     tope mínimo aunque el safe-area falle. 84px = isla (~59px) + aire real
+     debajo. Si el safe-area sí reporta, sumamos 24px de margen visible. */
+  --cc-sheet-gap: max(84px, calc(env(safe-area-inset-top, 0px) + 24px));
   max-height:calc(100vh - var(--cc-sheet-gap));
   max-height:calc(100dvh - var(--cc-sheet-gap));
   overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
