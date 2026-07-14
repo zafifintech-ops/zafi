@@ -4902,7 +4902,6 @@ async function callClaudeVision(system, userText, imagesB64) {
     { type: "text", text: userText },
   ];
   const body = { model: "claude-sonnet-4-6", max_tokens: 4000, system, messages: [{ role: "user", content }] };
-  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
 
   // En Capacitor usar CapacitorHttp
@@ -4919,17 +4918,8 @@ async function callClaudeVision(system, userText, imagesB64) {
     return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
   }
 
-  let res;
-  if (isLocal) {
-    const key = import.meta.env.VITE_ANTHROPIC_KEY;
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
-      body: JSON.stringify(body),
-    });
-  } else {
-    res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  }
+  // SIEMPRE via proxy /api/claude — nunca exponemos la API key en el frontend.
+  let res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error("vision " + res.status);
   const data = await res.json();
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -4953,7 +4943,6 @@ function fileToB64(file) {
 /* llamada a Claude */
 async function callClaude(system, messages) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
-  const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
 
   // En Capacitor usar CapacitorHttp (red nativa) — el fetch del WebView falla con CORS
@@ -4975,23 +4964,15 @@ async function callClaude(system, messages) {
     }
   }
 
-  // En web/local usa fetch normal
+  // En web/local: SIEMPRE via proxy /api/claude. Nunca exponemos la API key en
+  // el frontend. En local, correr con `vercel dev` para que el proxy responda.
   let res;
   try {
-    if (isLocal) {
-      const key = import.meta.env.VITE_ANTHROPIC_KEY;
-      res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-request-browser": "true" },
-        body: JSON.stringify(body),
-      });
-    } else {
-      res = await fetch("/api/claude", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    }
+    res = await fetch("/api/claude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       throw new Error(`api ${res.status}${errText ? ": " + errText.slice(0, 100) : ""}`);
