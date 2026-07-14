@@ -8334,8 +8334,18 @@ export default function App() {
         if (!vivo || planReal === null) return; // null = no sabemos, no degradar
         if (planReal !== getUserPlan(config)) {
           setConfig((prev) => {
-            const next = { ...prev, plan: planReal };
+            // Usar applyPlanChange para que, al subir de plan, se restauren las
+            // cuentas archivadas que ahora caben. Antes solo cambiaba el plan y
+            // dejaba las cuentas archivadas ocultas para siempre.
+            const result = applyPlanChange(prev, planReal, txsRef.current || []);
+            const next = result.config;
             persist("cc:config", next);
+            if (result.restoredCount > 0) {
+              setTimeout(() => {
+                setToast(`Se restauraron ${result.restoredCount} cuenta${result.restoredCount === 1 ? "" : "s"} con tu plan`);
+                setTimeout(() => setToast(null), 3000);
+              }, 800);
+            }
             return next;
           });
         }
