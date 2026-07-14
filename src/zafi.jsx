@@ -8464,7 +8464,19 @@ export default function App() {
       <style>{STYLE}</style>
       {showVideo && <div className="cc-video-bg">
         <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto" key={bgVideoSrc}
-          ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }}
+          ref={(el) => {
+            if (el) {
+              el.muted = true; el.loop = true; el.play().catch(() => {});
+              // Exponer el elemento para que Main pueda pausarlo cuando hay un
+              // overlay/sheet abierto encima: el video con blur + backdrop-filter
+              // de las sheets recomponiéndose a 60fps es la mayor carga de GPU
+              // de la app. Pausar el video mientras está tapado libera ese costo
+              // justo cuando las animaciones de sheets necesitan fluidez.
+              window.__zafiBgVideo = el;
+            } else {
+              window.__zafiBgVideo = null;
+            }
+          }}
         />
       </div>}
       {!showVideo && <div className="cc-solid-bg" />}
@@ -9296,15 +9308,24 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Parallax del fondo de video (con límite para no mostrar el borde)
+  // Parallax del fondo de video (con límite para no mostrar el borde).
+  // Throttled con rAF: los eventos de scroll en iOS se disparan más rápido que
+  // los frames; sin coalescing, cada evento invalida el transform del video
+  // (que tiene blur) y fuerza recomposiciones extra. Un update por frame basta.
   useEffect(() => {
+    let ticking = false;
     const onScroll = () => {
-      // Video es 100% del viewport, escalado 1.04 = ~104%.
-      // Solo hay ~2% de margen arriba/abajo, así que el parallax es muy sutil.
-      const maxY = window.innerHeight * 0.02;
-      const raw = window.scrollY * 0.04; // velocidad muy sutil
-      const clamped = Math.min(raw, maxY);
-      document.documentElement.style.setProperty("--parallax-y", `${-clamped}px`);
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        // Video es 100% del viewport, escalado 1.04 = ~104%.
+        // Solo hay ~2% de margen arriba/abajo, así que el parallax es muy sutil.
+        const maxY = window.innerHeight * 0.02;
+        const raw = window.scrollY * 0.04; // velocidad muy sutil
+        const clamped = Math.min(raw, maxY);
+        document.documentElement.style.setProperty("--parallax-y", `${-clamped}px`);
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -9528,7 +9549,10 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     saveConfigWrapped({ ...config, dateRange: newRange });
   };
 
-  const balance = grandTotal(config, txs);
+  // Memoizado: grandTotal recorre TODAS las txs. Main re-renderiza con cada
+  // toast, tecla en modales y cambio de tab — sin memo, ese recorrido corría
+  // decenas de veces por interacción.
+  const balance = useMemo(() => grandTotal(config, txs), [config, txs]);
 
   // === Motor de recurrentes: al cargar, genera movimientos pendientes ===
   const recurringRanRef = useRef(false);
@@ -9627,6 +9651,18 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
   const [customizeHomeOpen, setCustomizeHomeOpen] = useState(false);
   const overlayOpen = chatOpen || adding || !!editingTx || accountsOpen || importOpen || excelOpen || addMenuOpen || recurringOpen || settingsOpen || rangeOpen || customizeHomeOpen;
 
+  // Perf: pausar el video de fondo mientras hay un overlay/sheet encima.
+  // El video (con blur CSS) + los backdrop-filter de las sheets recomponiéndose
+  // a 60fps son la mayor carga de GPU. Con el video pausado, el fondo es un
+  // frame estático y el blur solo se calcula una vez — las animaciones de las
+  // sheets se sienten notablemente más fluidas.
+  useEffect(() => {
+    const v = window.__zafiBgVideo;
+    if (!v) return;
+    if (overlayOpen) { try { v.pause(); } catch (_) {} }
+    else { try { v.play().catch(() => {}); } catch (_) {} }
+  }, [overlayOpen]);
+
   return (
     <div>
       <StickyHeader config={config} saveConfig={saveConfigWrapped} balance={balance} dateRange={dateRange} onOpenRange={() => setRangeOpen(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} />
@@ -9722,6 +9758,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
           rawTxs={rawTxs}
           saveConfig={saveConfigWrapped}
           saveConfigRaw={saveConfig}
+          saveTxs={saveTxsWrapped}
           showToast={showToast}
           resetAll={resetAll}
           setAccView={setAccView}
@@ -12336,6 +12373,8 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+  // Id de ejecución para descartar respuestas IA de vistas anteriores (race).
+  const raceGuard = useRef(0);
 
   const [scoreStyle, setScoreStyle] = useState(() => {
     try { return localStorage.getItem("zafi_score_style") || "donut"; } catch { return "donut"; }
@@ -12546,6 +12585,9 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
     : "Crítico";
 
   useEffect(() => {
+    // Guard de race: cada ejecución del efecto tiene un id; si al resolver la
+    // llamada IA el id ya cambió (usuario cambió de cuenta/rango), se descarta.
+    const myRun = raceGuard.current;
     // No calcular hasta que los datos estén completamente cargados —
     // evita un score falso-alto (ej. 96) en el primer render cuando txs
     // aún no está listo y solo se ve el saldo inicial como ingreso.
@@ -12640,6 +12682,7 @@ INSTRUCCIONES CRÍTICAS:
         const json = await res.json();
         const text = (json.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
         const parsed = JSON.parse(text);
+        if (raceGuard.current !== myRun) return; // respuesta de vista anterior: descartar
         setData({ ...parsed, score: localScore, status: localStatus });
       } catch {
         // Fallback personalizado orientado a subir el score
@@ -12680,12 +12723,17 @@ INSTRUCCIONES CRÍTICAS:
           fallback.push("Mantén el flujo de ingresos y enfócate en reducir la categoría de gasto más alta para subir tu score.");
         }
 
+        if (raceGuard.current !== myRun) return; // vista anterior: descartar
         setData({ score: localScore, status: localStatus, analyses: fallback });
       } finally {
-        setLoading(false);
+        if (raceGuard.current === myRun) setLoading(false);
       }
     };
     callAI();
+    // Cancelación de race: si dataKey cambia (otra cuenta/rango) antes de que
+    // esta llamada resuelva, invalidamos su resultado para que no pise los
+    // datos de la vista nueva con los de la vieja.
+    return () => { raceGuard.current += 1; };
   }, [dataKey, dataLoaded]);
 
   useEffect(() => {
@@ -12800,6 +12848,8 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+  // Id de ejecución para descartar respuestas IA de vistas anteriores (race).
+  const raceGuard = useRef(0);
 
   // Filtros igual que score
   const accHidden = getPersonalize(config, "globalAccountsHidden", accView) || [];
@@ -12849,6 +12899,8 @@ function FinancialTipsCard({ config, txs, dateRange, accView, saveConfig, onOpen
   const dataKey = `${accView}|${dateRange?.start || ""}|${dateRange?.end || ""}|${baseData.totalIn}|${baseData.totalOut}|${baseData.txCount}|${demoMode}|${accHidden.join(",")}|${incCatsHidden.join(",")}|${expCatsHidden.join(",")}|${catIds}`;
 
   useEffect(() => {
+    // Guard de race: descartar respuestas de vistas anteriores (ver ScoreCard).
+    const myRun = raceGuard.current;
     const fallback = [
       "Aparta 10% de cada ingreso para tu fondo de emergencia.",
       "Revisa tus suscripciones mensuales y cancela las que no uses.",
@@ -12927,16 +12979,19 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
         const arr = JSON.parse(clean.slice(start, end + 1));
 
         const tipsArr = arr.slice(0, 5);
-        setTips(tipsArr);
         setFinancialCache("tips", accView, dataKey, { tips: tipsArr });
+        if (raceGuard.current !== myRun) return; // vista anterior: descartar
+        setTips(tipsArr);
         setLoading(false);
       } catch (e) {
+        if (raceGuard.current !== myRun) return; // vista anterior: descartar
         setTips(fallback);
         setLoading(false);
       }
     };
 
     callAI();
+    return () => { raceGuard.current += 1; };
   }, [dataKey]);
 
   // Rotación cada 10 segundos (los tips son más largos que los análisis del score)
@@ -17702,12 +17757,16 @@ const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
 });
 
 /* ================== MODAL: GESTIONAR CUENTAS ============================= */
-function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigRaw, showToast, resetAll, setAccView, onClose }) {
+function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigRaw, saveTxs, showToast, resetAll, setAccView, onClose }) {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
   // Cuenta recién creada esperando que el usuario elija sus categorías
   const [newAccountSetup, setNewAccountSetup] = useState(null); // { id, name } | null
+  // Preferencia de vista de inicio: se pregunta UNA sola vez, justo cuando el
+  // usuario crea su SEGUNDA cuenta (antes de eso la pregunta no tiene sentido).
+  const [askHomeView, setAskHomeView] = useState(false);
+  const homeViewPendingRef = useRef(false);
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
 
@@ -17725,6 +17784,11 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
       // manualmente (antes quedaba "escondida" si veías otra cuenta específica).
       if (setAccView) setAccView(nid);
       setNewAccountSetup({ id: nid, name: acc.name });
+      // ¿Es la segunda cuenta y nunca hemos preguntado la preferencia de vista?
+      // Marcamos pendiente; el prompt se muestra al cerrar el modal de categorías.
+      if (accounts.length === 2 && !config.homeViewAsked) {
+        homeViewPendingRef.current = true;
+      }
     }
     saveConfig({ ...config, accounts, categories, accountMode: accounts.length > 1 ? "multiple" : "single" });
     setEditing(null);
@@ -17743,6 +17807,10 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
     const accounts = config.accounts.filter((a) => a.id !== id);
     const categories = config.categories.filter((c) => c.accountId !== id);
     saveConfig({ ...config, accounts, categories, accountMode: accounts.length > 1 ? "multiple" : "single" });
+    // También eliminar sus transacciones: antes quedaban huérfanas en el array
+    // (sin cuenta que las mostrara), acumulando basura y desquadrando totales.
+    // saveTxs es el wrapped: reincorpora las txs de cuentas archivadas solo.
+    if (saveTxs) saveTxs(txs.filter((t) => t.accountId !== id));
     showToast("Cuenta eliminada");
     setConfirmDel(null);
   };
@@ -17916,9 +17984,73 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
           accountId={newAccountSetup.id}
           accountName={newAccountSetup.name}
           saveConfig={saveConfig}
-          onClose={() => setNewAccountSetup(null)}
+          onClose={() => {
+            setNewAccountSetup(null);
+            // Si quedó pendiente la pregunta de vista (segunda cuenta), mostrarla ahora.
+            if (homeViewPendingRef.current) {
+              homeViewPendingRef.current = false;
+              setAskHomeView(true);
+            }
+          }}
         />
       )}
+      {askHomeView && (() => {
+        const elegir = (view) => {
+          // view: "all" | id de la primera cuenta. Guardamos también homeViewAsked
+          // para no volver a preguntar nunca.
+          saveConfig((prev) => ({ ...prev, defaultHomeView: view, homeViewAsked: true }));
+          if (setAccView) setAccView(view);
+          setAskHomeView(false);
+          showToast(view === "all" ? "Tu inicio mostrará todas tus cuentas" : "Tu inicio abrirá por cuenta");
+        };
+        const primeraId = config.accounts[0]?.id;
+        return createPortal(
+          <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} style={{ zIndex: 100002 }}>
+            <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="cc-grip" />
+              <h2 className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>
+                ¿Cómo prefieres ver tu inicio?
+              </h2>
+              <p style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.55, marginBottom: 18 }}>
+                Ahora que tienes más de una cuenta: la calificación financiera, los consejos
+                y la acción del día se calculan según lo que estés viendo. Puedes cambiarlo
+                cuando quieras en Configuración → Cuenta de inicio.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 8 }}>
+                <button className="cc-card cc-press" onClick={() => elegir("all")}
+                  style={{ padding: "16px 14px", textAlign: "left", cursor: "pointer",
+                    border: "1.5px solid var(--gold)", display: "flex", gap: 12, alignItems: "flex-start",
+                    fontFamily: "inherit", width: "100%" }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>🧮</span>
+                  <span>
+                    <span style={{ display: "block", fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>
+                      Todas mis cuentas juntas
+                    </span>
+                    <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", marginTop: 3, lineHeight: 1.45 }}>
+                      El inicio muestra el panorama general: todo suma para tu calificación y consejos.
+                    </span>
+                  </span>
+                </button>
+                <button className="cc-card cc-press" onClick={() => elegir(primeraId || "all")}
+                  style={{ padding: "16px 14px", textAlign: "left", cursor: "pointer",
+                    border: "1px solid var(--line)", display: "flex", gap: 12, alignItems: "flex-start",
+                    fontFamily: "inherit", width: "100%" }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>🗂️</span>
+                  <span>
+                    <span style={{ display: "block", fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>
+                      Cada cuenta por separado
+                    </span>
+                    <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", marginTop: 3, lineHeight: 1.45 }}>
+                      El inicio abre en tu cuenta principal; cambias entre cuentas cuando quieras.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </div>,
     document.body
   );
