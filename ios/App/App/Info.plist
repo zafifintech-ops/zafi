@@ -23,8 +23,6 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key></key>
-			<string></string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
@@ -72,5 +70,15 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Zafi usa la cámara para tomar tu foto de perfil y capturar tickets de compra que la IA registra como movimientos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Zafi accede a tus fotos para elegir tu imagen de perfil y leer tickets de compra que la IA registra como movimientos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Zafi usa el micrófono para que dictes tus movimientos por voz al asistente.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Zafi usa el reconocimiento de voz para convertir tu dictado en texto y registrar movimientos.</string>
 </dict>
 </plist>

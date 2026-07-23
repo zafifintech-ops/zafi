@@ -18979,7 +18979,19 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
         lastHeardRef.current = full; // captura también lo provisional
         setInput(full);
       };
-      rec.onerror = () => { setListen(false); };
+      rec.onerror = (e) => {
+        setListen(false);
+        // Feedback claro en vez de fallar en silencio: si el permiso está
+        // denegado o el servicio no está disponible, decirle al usuario qué
+        // hacer (antes el botón parecía muerto — causa del rechazo de Apple).
+        const code = e?.error || "";
+        if (code === "not-allowed" || code === "service-not-allowed") {
+          setMsgs((prev) => [...prev, { role: "bot",
+            text: _lang === "es"
+              ? "Para dictar por voz, permite el acceso al micrófono y al reconocimiento de voz en Ajustes → Zafi."
+              : "To use voice dictation, allow microphone and speech recognition access in Settings → Zafi." }]);
+        }
+      };
       rec.onend = () => {
         setListen(false);
         // al terminar (tras soltar) ya están todos los resultados: enviar
