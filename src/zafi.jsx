@@ -5852,9 +5852,10 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
         userName: name.trim(), userGender: gender, userAge: Number(age),
         userCountry: country, ...(avatarId ? { avatarId } : {}),
       };
-      // merge into existing config or create minimal config
-      const updated = { ...(config || {}), ...profileData };
-      saveConfig(updated);
+      // Patrón funcional: merge sobre el ÚLTIMO config real, no el prop del
+      // closure — con Apple Sign-In (autenticación en dos fases) el prop puede
+      // estar desactualizado y el nombre se perdía ("User" en el header).
+      saveConfig((prev) => ({ ...(prev || {}), ...profileData }));
       onDone();
     } catch (e) { setErr(t("somethingWentWrong")); }
     setBusy(false);
@@ -8182,7 +8183,20 @@ export default function App() {
         if (c) {
           const m = migrate(c, t || []);
           const r = processRecurring(m.config, m.txs);
-          setConfig(r.config);
+          // Guard contra cargas tardías: con Apple/Google Sign-In (dos fases),
+          // este efecto puede re-correr y traer de Firestore un config VIEJO
+          // que aún no tiene lo que el usuario acaba de guardar localmente
+          // (ej. su nombre en ProfileSetup → quedaba "User"). Si el local ya
+          // tiene userName y el remoto no, conservamos el local.
+          setConfig((prevLocal) => {
+            if (prevLocal?.userName && !r.config?.userName) {
+              return { ...r.config, userName: prevLocal.userName,
+                userGender: prevLocal.userGender, userAge: prevLocal.userAge,
+                userCountry: prevLocal.userCountry,
+                ...(prevLocal.avatarId ? { avatarId: prevLocal.avatarId } : {}) };
+            }
+            return r.config;
+          });
           setTxs(r.txs);
           const configChanged = m.config !== c || r.generated > 0;
           const txsChanged = m.txs !== t || r.generated > 0;
@@ -8482,7 +8496,7 @@ export default function App() {
       {!showVideo && <div className="cc-solid-bg" />}
       <div className="cc-bg-wave" />
       {!config?.setupComplete ? (
-        <OnboardingFlow onDone={(built) => saveConfig({ ...config, ...built })} />
+        <OnboardingFlow onDone={(built) => saveConfig((prev) => ({ ...(prev || {}), ...built }))} />
       ) : (
         <Main config={config} txs={txs} saveConfig={saveConfig} saveTxs={saveTxs} showToast={showToast} resetAll={resetAll} />
       )}
@@ -10312,9 +10326,18 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
           </button>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
           <button className="cc-photo-btn" onClick={() => {
+            // El input DEBE estar adjunto al DOM: en el WebView de iOS, un
+            // input flotante puede ser recolectado durante el ciclo de cámara
+            // y su onchange nunca dispara ("Use this photo" no hacía nada).
             const inp = document.createElement("input");
             inp.type = "file"; inp.accept = "image/*"; inp.capture = "user";
-            inp.onchange = handlePhoto; inp.click();
+            inp.style.display = "none";
+            inp.onchange = (e) => {
+              handlePhoto(e);
+              setTimeout(() => { try { document.body.removeChild(inp); } catch (_) {} }, 1000);
+            };
+            document.body.appendChild(inp);
+            inp.click();
           }}>
             <span className="cc-photo-btn-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
