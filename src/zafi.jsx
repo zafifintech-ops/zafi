@@ -21,6 +21,35 @@ const GOOGLE_CLIENT_ID = "308516673564-ju957earku47i36hav3m14epkld3ti91.apps.goo
 const BIOMETRIC_SERVER = "zafi.app"; // clave para keychain
 const BIOMETRIC_USERNAME = "zafi_user";
 const FIREBASE_API_KEY = "AIzaSyCZTrJTGH8Jh5WBMhMrV39mjKddRj7p78w";
+
+/* Intercambia el token de un proveedor social (Apple/Google) por credenciales
+   de FIREBASE via REST. Necesario cuando signInWithCredential del SDK falla:
+   antes se guardaba el token del PROVEEDOR como si fuera de Firebase, y
+   Firestore lo rechazaba — el usuario no podía leer ni guardar NADA de su
+   sesión (pérdida total de datos con Apple Sign-In). El idToken que regresa
+   aquí SÍ es de Firebase y funciona con firestoreGet/firestoreSet. */
+async function restSignInWithIdp(providerId, providerIdToken, rawNonce) {
+  const postBody = `id_token=${encodeURIComponent(providerIdToken)}&providerId=${providerId}`
+    + (rawNonce ? `&nonce=${encodeURIComponent(rawNonce)}` : "");
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      postBody,
+      requestUri: "http://localhost",
+      returnIdpCredential: true,
+      returnSecureToken: true,
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "signInWithIdp failed");
+  return {
+    uid: data.localId,
+    email: data.email || "",
+    displayName: data.displayName || "",
+    getIdToken: async () => data.idToken,
+  };
+}
 const APP_VERSION = "1.0"; // se muestra en Ajustes y se adjunta a los reportes
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -5558,13 +5587,16 @@ function AuthScreen() {
       const result = await FirebaseAuthentication.signInWithGoogle();
       const credential = GoogleAuthProvider.credential(result.credential?.idToken);
       const sdkResult = await signInWithCredential(auth, credential).catch(() => null);
-      const uid = sdkResult?.user?.uid || result.user?.uid;
-      const email = sdkResult?.user?.email || result.user?.email;
       const displayName = sdkResult?.user?.displayName || result.user?.displayName || "";
+      let restUser = null;
+      if (!sdkResult?.user) {
+        // El SDK no completó: intercambiar el token de GOOGLE por credenciales
+        // REST de FIREBASE (el token del proveedor no sirve para Firestore).
+        restUser = await restSignInWithIdp("google.com", result.credential?.idToken);
+        restUser.displayName = displayName || restUser.displayName;
+      }
+      const uid = sdkResult?.user?.uid || restUser?.uid;
       if (!uid) throw new Error("No se pudo obtener el usuario de Google.");
-      // Crear restUser compatible con el sistema actual
-      const idToken = result.credential?.idToken;
-      const restUser = { uid, email, displayName, getIdToken: async () => idToken };
       window.__zafiCurrentUser = sdkResult?.user || restUser;
       if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
     } catch (e) {
@@ -5600,15 +5632,20 @@ function AuthScreen() {
         rawNonce: result.credential?.nonce,
       });
       const sdkResult = await signInWithCredential(auth, credential).catch(() => null);
-      const uid = sdkResult?.user?.uid || result.user?.uid;
-      const email = sdkResult?.user?.email || result.user?.email;
       // Apple solo entrega el nombre la PRIMERA vez; lo componemos si viene
       const appleName = result.user?.displayName
         || [result.user?.givenName, result.user?.familyName].filter(Boolean).join(" ")
         || sdkResult?.user?.displayName || "";
+      let restUser = null;
+      if (!sdkResult?.user) {
+        // El SDK no completó: intercambiar el token de APPLE por credenciales
+        // REST de FIREBASE. Antes se usaba el token de Apple directo y
+        // Firestore lo rechazaba — el usuario perdía todos sus datos.
+        restUser = await restSignInWithIdp("apple.com", result.credential?.idToken, result.credential?.nonce);
+        restUser.displayName = appleName || restUser.displayName;
+      }
+      const uid = sdkResult?.user?.uid || restUser?.uid;
       if (!uid) throw new Error("No se pudo obtener el usuario de Apple.");
-      const idToken = result.credential?.idToken;
-      const restUser = { uid, email, displayName: appleName, getIdToken: async () => idToken };
       window.__zafiCurrentUser = sdkResult?.user || restUser;
       if (window.__zafiSetUser) window.__zafiSetUser(sdkResult?.user || restUser);
     } catch (e) {
