@@ -4747,6 +4747,40 @@ async function firestoreGet(uid, idToken, docPath) {
   return obj;
 }
 
+/* Escritor REST de Firestore — el espejo de firestoreGet. Se usa cuando la
+   sesión vive solo en REST (auth.currentUser null): con Apple/Google Sign-In
+   el SDK a veces no completa y sin esto persist() no guardaba NADA (el perfil
+   y los datos de la sesión se perdían en silencio). Serializa al formato
+   tipado de Firestore, idéntico al que produce setDoc del SDK, así la
+   lectura (SDK o REST) funciona igual sin importar quién escribió. */
+async function firestoreSet(uid, idToken, docPath, obj) {
+  const PROJECT = "zafi-524b8";
+  function toValue(v) {
+    if (v === null || v === undefined) return { nullValue: null };
+    if (typeof v === "boolean") return { booleanValue: v };
+    if (typeof v === "number") {
+      return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+    }
+    if (typeof v === "string") return { stringValue: v };
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(toValue) } };
+    if (typeof v === "object") {
+      const fields = {};
+      for (const [k, x] of Object.entries(v)) fields[k] = toValue(x);
+      return { mapValue: { fields } };
+    }
+    return { nullValue: null };
+  }
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) fields[k] = toValue(v);
+  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/${docPath}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Authorization": `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) throw new Error(`firestoreSet ${res.status}`);
+}
+
 /* ── Compartir archivos en Capacitor (iOS/Android) ── */
 async function shareFile(filename, mimeType, dataBase64OrText, isBase64 = false) {
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
@@ -4860,7 +4894,13 @@ window.__zafiOnPersistError = null; // callback opcional que setea App para most
 
 async function persist(key, val) {
   const u = auth.currentUser;
-  if (!u) return;
+  // Fallback de sesión: con Apple/Google Sign-In el SDK puede no completar y
+  // la sesión vive solo en window.__zafiCurrentUser (REST). Antes, sin
+  // auth.currentUser persist() retornaba sin guardar NADA — el usuario perdía
+  // su perfil y todos sus datos de esa sesión en silencio.
+  const restUser = (!u && window.__zafiCurrentUser?.uid && window.__zafiCurrentUser?.getIdToken)
+    ? window.__zafiCurrentUser : null;
+  if (!u && !restUser) return;
   const field = key === "cc:config" ? "config" : "txs";
   bumpPending(1);
   // Sanitizar: Firestore RECHAZA la escritura COMPLETA del documento si CUALQUIER
@@ -4883,7 +4923,13 @@ async function persist(key, val) {
   let lastErr = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      await setDoc(doc(db, "users", u.uid, "data", field), { value: clean });
+      if (u) {
+        await setDoc(doc(db, "users", u.uid, "data", field), { value: clean });
+      } else {
+        // Camino REST: mismo documento, mismo formato que el SDK.
+        const token = await restUser.getIdToken();
+        await firestoreSet(restUser.uid, token, `users/${restUser.uid}/data/${field}`, { value: clean });
+      }
       lastErr = null;
       break;
     } catch (e) {
