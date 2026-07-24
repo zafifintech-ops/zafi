@@ -5590,10 +5590,29 @@ function AuthScreen() {
       const displayName = sdkResult?.user?.displayName || result.user?.displayName || "";
       let restUser = null;
       if (!sdkResult?.user) {
-        // El SDK no completó: intercambiar el token de GOOGLE por credenciales
-        // REST de FIREBASE (el token del proveedor no sirve para Firestore).
-        restUser = await restSignInWithIdp("google.com", result.credential?.idToken);
-        restUser.displayName = displayName || restUser.displayName;
+        // Sesión nativa del plugin primero (skipNativeAuth:false consume el
+        // token del proveedor); intercambio REST como fallback.
+        let nativeToken = null;
+        try {
+          const t = await FirebaseAuthentication.getIdToken();
+          nativeToken = t?.token || null;
+        } catch (_) {}
+        if (nativeToken && result.user?.uid) {
+          restUser = {
+            uid: result.user.uid,
+            email: result.user?.email || "",
+            displayName,
+            getIdToken: async () => {
+              try {
+                const r = await FirebaseAuthentication.getIdToken();
+                return r?.token || nativeToken;
+              } catch (_) { return nativeToken; }
+            },
+          };
+        } else {
+          restUser = await restSignInWithIdp("google.com", result.credential?.idToken);
+          restUser.displayName = displayName || restUser.displayName;
+        }
       }
       const uid = sdkResult?.user?.uid || restUser?.uid;
       if (!uid) throw new Error("No se pudo obtener el usuario de Google.");
@@ -5638,11 +5657,32 @@ function AuthScreen() {
         || sdkResult?.user?.displayName || "";
       let restUser = null;
       if (!sdkResult?.user) {
-        // El SDK no completó: intercambiar el token de APPLE por credenciales
-        // REST de FIREBASE. Antes se usaba el token de Apple directo y
-        // Firestore lo rechazaba — el usuario perdía todos sus datos.
-        restUser = await restSignInWithIdp("apple.com", result.credential?.idToken, result.credential?.nonce);
-        restUser.displayName = appleName || restUser.displayName;
+        // Con skipNativeAuth:false el plugin YA autenticó nativamente contra
+        // Firebase y el token de Apple quedó consumido (por eso el SDK web
+        // falla). La sesión nativa existe: pedirle su idToken de FIREBASE al
+        // plugin — válido para Firestore y con refresh automático.
+        let nativeToken = null;
+        try {
+          const t = await FirebaseAuthentication.getIdToken();
+          nativeToken = t?.token || null;
+        } catch (_) {}
+        if (nativeToken && result.user?.uid) {
+          restUser = {
+            uid: result.user.uid,
+            email: result.user?.email || "",
+            displayName: appleName,
+            getIdToken: async () => {
+              try {
+                const r = await FirebaseAuthentication.getIdToken();
+                return r?.token || nativeToken;
+              } catch (_) { return nativeToken; }
+            },
+          };
+        } else {
+          // Fallback (skipNativeAuth:true u otro entorno): intercambio REST.
+          restUser = await restSignInWithIdp("apple.com", result.credential?.idToken, result.credential?.nonce);
+          restUser.displayName = appleName || restUser.displayName;
+        }
       }
       const uid = sdkResult?.user?.uid || restUser?.uid;
       if (!uid) throw new Error("No se pudo obtener el usuario de Apple.");
