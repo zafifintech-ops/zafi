@@ -18263,9 +18263,8 @@ function DateButton({ value, onChange }) {
 
   return (
     <div style={{ position: "relative" }}>
-      {/* Botón visual */}
-      <button type="button"
-        onClick={() => inputRef.current?.showPicker?.() || inputRef.current?.click()}
+      {/* Botón visual (solo presentación — el input transparente encima recibe el tap) */}
+      <button type="button" tabIndex={-1}
         style={{
           width: "100%", padding: "12px 14px", borderRadius: 12,
           border: "1px solid var(--line)", background: "var(--paper)",
@@ -18288,13 +18287,19 @@ function DateButton({ value, onChange }) {
           <polyline points="6 9 12 15 18 9"/>
         </svg>
       </button>
-      {/* Input nativo invisible — solo abre el picker */}
+      {/* Input nativo TRANSPARENTE Y TOCABLE encima del botón: en iOS el
+         picker de fecha solo abre con un tap directo del usuario sobre el
+         input — .click() programático y showPicker() no funcionan en el
+         WebView (por eso en el teléfono el botón no hacía nada). */}
       <input ref={inputRef} type="date" value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
           position: "absolute", top: 0, left: 0,
           width: "100%", height: "100%",
-          opacity: 0, pointerEvents: "none",
+          opacity: 0, zIndex: 2, cursor: "pointer",
+          WebkitAppearance: "none", appearance: "none",
+          border: "none", padding: 0, margin: 0,
+          fontSize: 16, /* evita el zoom automático de iOS al enfocar */
         }} />
     </div>
   );
