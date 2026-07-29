@@ -4973,8 +4973,78 @@ async function persist(key, val) {
   bumpPending(-1);
 }
 
+/* ═══════════ Consentimiento de IA (Guidelines 5.1.1(i) / 5.1.2(i)) ═══════════
+   Apple exige que ANTES de enviar datos del usuario a un servicio de IA de
+   terceros la app: (1) explique qué datos se envían, (2) identifique a quién,
+   y (3) obtenga permiso explícito. La política de privacidad sola NO basta.
+   El flag vive en window.__zafiAiConsent (respaldado en localStorage y en
+   config.aiConsent) y callClaude/callClaudeVision lo exigen. */
+function initAiConsent(config) {
+  try {
+    window.__zafiAiConsent = config?.aiConsent === true
+      || localStorage.getItem("zafi_ai_consent") === "1";
+  } catch (_) { window.__zafiAiConsent = config?.aiConsent === true; }
+}
+function grantAiConsent() {
+  window.__zafiAiConsent = true;
+  try { localStorage.setItem("zafi_ai_consent", "1"); } catch (_) {}
+}
+
+function AIConsentSheet({ onAccept, onDecline }) {
+  const dark = useDarkMode();
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} style={{ zIndex: 100005 }}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cc-grip" />
+        <h2 className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 10 }}>
+          Funciones con inteligencia artificial
+        </h2>
+        <p style={{ fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 12 }}>
+          Zafi usa <b style={{ color: "var(--ink)" }}>Anthropic</b> (el proveedor del modelo Claude)
+          para el asistente, la lectura de tickets por foto, la categorización automática y los
+          análisis financieros.
+        </p>
+        <div style={{ padding: "12px 14px", borderRadius: 12, background: "var(--surface-2)",
+          border: "1px solid var(--line)", marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>
+            Cuando uses una función de IA, se enviará a Anthropic:
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.7 }}>
+            <li>Los mensajes que escribas o dictes al asistente</li>
+            <li>Un resumen de tus movimientos cuando pidas análisis o consejos</li>
+            <li>Las imágenes de tickets que subas voluntariamente</li>
+          </ul>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 16 }}>
+          Anthropic no usa estos datos para entrenar sus modelos. Nada se envía sin que uses una
+          función de IA. Más detalles en nuestra{" "}
+          <a href="https://zafi.vercel.app/privacidad" target="_blank" rel="noreferrer"
+            style={{ color: "var(--gold)", textDecoration: "underline" }}>
+            Política de Privacidad
+          </a>.
+        </p>
+        <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 14, fontSize: 15, fontWeight: 600, marginBottom: 8 }}
+          onClick={onAccept}>
+          Aceptar y usar funciones de IA
+        </button>
+        <button style={{ width: "100%", padding: 12, borderRadius: 12, border: "none",
+          background: "transparent", color: "var(--ink-soft)", fontSize: 14,
+          fontFamily: "inherit", cursor: "pointer" }}
+          onClick={onDecline}>
+          Ahora no
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* llamada a Claude con imágenes (visión) */
 async function callClaudeVision(system, userText, imagesB64) {
+  // Guideline 5.1.2(i): NUNCA enviar datos del usuario a Anthropic sin su
+  // consentimiento explícito previo (se otorga una vez en la app y se guarda
+  // en config.aiConsent). Sin permiso, las funciones IA caen a sus fallbacks.
+  if (!window.__zafiAiConsent) throw new Error("AI_CONSENT_REQUIRED");
   const content = [
     ...imagesB64.map((b) => ({
       type: "image",
@@ -5023,6 +5093,9 @@ function fileToB64(file) {
 
 /* llamada a Claude */
 async function callClaude(system, messages) {
+  // Guideline 5.1.2(i): sin consentimiento explícito, no se envía nada a
+  // Anthropic. Los llamadores caen a sus fallbacks locales.
+  if (!window.__zafiAiConsent) throw new Error("AI_CONSENT_REQUIRED");
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
 
@@ -5956,7 +6029,10 @@ function AuthScreen() {
 /* ===================== PROFILE SETUP (post-auth for Google/Apple) ======= */
 function ProfileSetup({ user, config, saveConfig, onDone }) {
   const FONT = "'Montserrat', sans-serif";
-  const [name, setName] = useState("");
+  // Guideline 4 (Sign in with Apple): si el proveedor ya entregó el nombre
+  // (Apple/Google lo dan en displayName), pre-llenarlo — Apple rechaza pedir
+  // de nuevo información que su framework ya proporcionó. Queda editable.
+  const [name, setName] = useState(user?.displayName?.trim() || "");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [country, setCountry] = useState("Mexico");
@@ -8338,9 +8414,14 @@ export default function App() {
         // Also accept existing users who have setupComplete but no userName yet
         const hasProfile = !!(c && (c.userName || c.setupComplete));
         if (!cancelled) setProfileDone(hasProfile);
+        // Inicializar el flag de consentimiento IA (5.1.1/5.1.2) desde el
+        // config remoto o el respaldo local — antes de que cualquier función
+        // IA pueda dispararse.
+        initAiConsent(c);
       } catch (e) {
         console.error("load error", e);
         if (!cancelled) setProfileDone(false);
+        initAiConsent(null);
       }
       if (!cancelled) setLoaded(true);
     })();
@@ -9471,6 +9552,21 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
   const [adding, setAdding] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // Consentimiento IA (5.1.1/5.1.2): pedirlo la primera vez que el usuario
+  // intenta usar el asistente. Sin permiso, el chat no se abre y ninguna
+  // llamada IA sale (candado duro en callClaude/callClaudeVision).
+  const [aiConsentOpen, setAiConsentOpen] = useState(false);
+  // Exponer para que otros flujos IA (foto de ticket, importar Excel) puedan
+  // pedir el consentimiento si el usuario aún no lo dio.
+  useEffect(() => {
+    window.__zafiRequestAiConsent = () => setAiConsentOpen(true);
+    return () => { window.__zafiRequestAiConsent = null; };
+  }, []);
+  const openAssistant = (opts) => {
+    setChatVoice(!!(opts && opts.voice));
+    if (!window.__zafiAiConsent) { setAiConsentOpen(true); return; }
+    setChatOpen(true);
+  };
   const [chatVoice, setChatVoice] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -9817,7 +9913,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       <BottomNav
         tab={tab}
         setTab={setTab}
-        onOpenAssistant={(opts) => { setChatVoice(!!(opts && opts.voice)); setChatOpen(true); }}
+        onOpenAssistant={openAssistant}
         hidden={overlayOpen}
       />
 
@@ -9875,6 +9971,17 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
         />
       )}
 
+      {aiConsentOpen && (
+        <AIConsentSheet
+          onAccept={() => {
+            grantAiConsent();
+            saveConfig((prev) => ({ ...prev, aiConsent: true }));
+            setAiConsentOpen(false);
+            setChatOpen(true);
+          }}
+          onDecline={() => setAiConsentOpen(false)}
+        />
+      )}
       {chatOpen && (
         <Assistant
           config={config}
