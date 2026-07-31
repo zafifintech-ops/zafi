@@ -6042,14 +6042,19 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
 
   const save = async () => {
     if (!name.trim()) { setErr(t("enterName")); return; }
-    if (!age || Number(age) < 1) { setErr(t("enterValidAge")); return; }
-    if (!gender) { setErr(t("selectGender")); return; }
+    // Guideline 5.1.1(v): edad, género y país son OPCIONALES — Apple prohíbe
+    // exigir datos personales que no sean esenciales para la funcionalidad.
+    // Si el usuario escribe una edad, que al menos sea válida; vacía está bien.
+    if (age && Number(age) < 1) { setErr(t("enterValidAge")); return; }
     setBusy(true); setErr("");
     try {
       const avatarId = defaultAvatarForGender(gender);
       const profileData = {
-        userName: name.trim(), userGender: gender, userAge: Number(age),
-        userCountry: country, ...(avatarId ? { avatarId } : {}),
+        userName: name.trim(),
+        ...(gender ? { userGender: gender } : {}),
+        ...(age ? { userAge: Number(age) } : {}),
+        ...(country ? { userCountry: country } : {}),
+        ...(avatarId ? { avatarId } : {}),
       };
       // Patrón funcional: merge sobre el ÚLTIMO config real, no el prop del
       // closure — con Apple Sign-In (autenticación en dos fases) el prop puede
@@ -6101,12 +6106,12 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             <input style={inp} type="text" placeholder="¿Cómo te llamamos?" value={name} onChange={e=>setName(e.target.value)} />
           </div>
           <div>
-            <label style={lbl}>Edad</label>
+            <label style={lbl}>Edad (opcional)</label>
             <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
               onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
           </div>
           <div>
-            <label style={lbl}>Género</label>
+            <label style={lbl}>Género (opcional)</label>
             <div style={{ display:"flex", gap:9 }}>
               {[["male","Masculino"],["female","Femenino"],["other","Otro"]].map(([k,l])=>{
                 const isOn = gender === k;
@@ -6131,7 +6136,7 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
             </div>
           </div>
           <div>
-            <label style={lbl}>País</label>
+            <label style={lbl}>País (opcional)</label>
             <div style={{ position:"relative" }}>
               <select value={country} onChange={e => setCountry(e.target.value)}
                 style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
