@@ -6029,32 +6029,22 @@ function AuthScreen() {
 /* ===================== PROFILE SETUP (post-auth for Google/Apple) ======= */
 function ProfileSetup({ user, config, saveConfig, onDone }) {
   const FONT = "'Montserrat', sans-serif";
-  // Guideline 4 (Sign in with Apple): si el proveedor ya entregó el nombre
-  // (Apple/Google lo dan en displayName), pre-llenarlo — Apple rechaza pedir
-  // de nuevo información que su framework ya proporcionó. Queda editable.
+  // Pantalla mínima (solo para login con correo/contraseña): pide únicamente
+  // el nombre y es opcional. Con Apple/Google esta pantalla ni se muestra —
+  // el nombre del proveedor se guarda automático. Edad/género/país viven en
+  // Configuración → Perfil (guidelines 4 y 5.1.1(v)).
   const [name, setName] = useState(user?.displayName?.trim() || "");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [country, setCountry] = useState("Mexico");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const selCountry = COUNTRIES.find(c => c.name === country) || COUNTRIES[0];
 
   const save = async () => {
-    if (!name.trim()) { setErr(t("enterName")); return; }
-    // Guideline 5.1.1(v): edad, género y país son OPCIONALES — Apple prohíbe
-    // exigir datos personales que no sean esenciales para la funcionalidad.
-    // Si el usuario escribe una edad, que al menos sea válida; vacía está bien.
-    if (age && Number(age) < 1) { setErr(t("enterValidAge")); return; }
     setBusy(true); setErr("");
     try {
-      const avatarId = defaultAvatarForGender(gender);
       const profileData = {
-        userName: name.trim(),
-        ...(gender ? { userGender: gender } : {}),
-        ...(age ? { userAge: Number(age) } : {}),
-        ...(country ? { userCountry: country } : {}),
-        ...(avatarId ? { avatarId } : {}),
+        ...(name.trim() ? { userName: name.trim() } : {}),
+        // Marca de perfil completado: sin ella, un perfil vacío haría que
+        // hasProfile fuera false y se re-pidiera esta pantalla siempre.
+        profileDone: true,
       };
       // Patrón funcional: merge sobre el ÚLTIMO config real, no el prop del
       // closure — con Apple Sign-In (autenticación en dos fases) el prop puede
@@ -6102,53 +6092,8 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:18, marginTop:28 }}>
           <div>
-            <label style={lbl}>Tu nombre</label>
+            <label style={lbl}>Tu nombre (opcional)</label>
             <input style={inp} type="text" placeholder="¿Cómo te llamamos?" value={name} onChange={e=>setName(e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Edad (opcional)</label>
-            <input style={{ ...inp, width:120 }} type="text" inputMode="numeric" placeholder="00" value={age}
-              onChange={e=>setAge(e.target.value.replace(/[^0-9]/g,"").slice(0,3))} />
-          </div>
-          <div>
-            <label style={lbl}>Género (opcional)</label>
-            <div style={{ display:"flex", gap:9 }}>
-              {[["male","Masculino"],["female","Femenino"],["other","Otro"]].map(([k,l])=>{
-                const isOn = gender === k;
-                return (
-                <button key={k} type="button" onClick={()=>setGender(k)}
-                  style={{ flex:1, padding:"13px 8px", borderRadius:14, cursor:"pointer", fontFamily:FONT,
-                    fontSize:14, fontWeight:isOn?600:500,
-                    background: isOn
-                      ? (dark ? "#F5F5F7" : "#1B2230")
-                      : (dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.7)"),
-                    color: isOn
-                      ? (dark ? "#1B2230" : "#fff")
-                      : (dark ? "#F5F5F7" : "#1B2230"),
-                    border:`1px solid ${isOn
-                      ? (dark ? "#F5F5F7" : "#1B2230")
-                      : (dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.08)")}`,
-                    transition:"background .15s, color .15s" }}>
-                  {l}
-                </button>
-                );
-              })}
-            </div>
-          </div>
-          <div>
-            <label style={lbl}>País (opcional)</label>
-            <div style={{ position:"relative" }}>
-              <select value={country} onChange={e => setCountry(e.target.value)}
-                style={{ width:"100%", padding:"12px 0", fontSize:16, fontWeight:600,
-                  fontFamily:FONT, color:"transparent", background:"transparent",
-                  border:"none", borderBottom:`1px solid ${dark ? "rgba(255,255,255,.15)" : "rgba(27,34,48,.15)"}`,
-                  outline:"none", appearance:"none", cursor:"pointer", position:"relative", zIndex:1 }}>
-                {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.flag}  {c.name}</option>)}
-              </select>
-              <div style={{ position:"absolute", top:12, left:0, fontSize:16, fontWeight:600, color:inkColor, pointerEvents:"none" }}>
-                {selCountry.flag} {selCountry.name}
-              </div>
-            </div>
           </div>
         </div>
         {err && <div style={{ fontSize:13, color:"#B5453A", fontWeight:500, marginTop:16 }}>{err}</div>}
@@ -8416,8 +8361,9 @@ export default function App() {
           setTxs(t);
         }
         // Check if user has completed profile (stored in config)
-        // Also accept existing users who have setupComplete but no userName yet
-        const hasProfile = !!(c && (c.userName || c.setupComplete));
+        // profileDone cubre perfiles donde el usuario dejó todo vacío (los
+        // campos son opcionales); userName/setupComplete cubren usuarios previos.
+        const hasProfile = !!(c && (c.profileDone || c.userName || c.setupComplete));
         if (!cancelled) setProfileDone(hasProfile);
         // Inicializar el flag de consentimiento IA (5.1.1/5.1.2) desde el
         // config remoto o el respaldo local — antes de que cualquier función
@@ -8664,9 +8610,33 @@ export default function App() {
       </div>
     );
 
-  // Si el usuario no tiene perfil (Google/Apple sin nombre), pedir datos
-  if (!profileDone)
+  // Perfil: si el proveedor de login (Apple/Google) ya entregó el nombre, lo
+  // guardamos automáticamente y NOS SALTAMOS la pantalla de perfil por
+  // completo (guidelines 4 y 5.1.1(v): no pedir información que el framework
+  // ya dio, ni exigir datos personales no esenciales). Edad/género/país viven
+  // en Configuración → Perfil para quien quiera darlos después.
+  if (!profileDone) {
+    const providerName = user?.displayName?.trim();
+    if (providerName) {
+      saveConfig((prev) => ({
+        ...(prev || {}),
+        ...(prev?.userName ? {} : { userName: providerName }),
+        profileDone: true,
+      }));
+      setProfileDone(true);
+      return (
+        <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh",
+            background: isDarkTheme ? "#0D0F14" : "#DCE1E8" }}>
+          <style>{STYLE}</style>
+          <ZafiLoader />
+        </div>
+      );
+    }
+    // Sin nombre del proveedor (email/contraseña): pantalla mínima, solo
+    // nombre y explícitamente opcional.
     return <ProfileSetup user={user} config={config} saveConfig={saveConfig} onDone={() => setProfileDone(true)} />;
+  }
 
   // Candado biométrico: si el usuario activó Face ID como candado y aún no
   // desbloqueó en esta apertura, tapamos todo hasta que pase Face ID. La sesión
