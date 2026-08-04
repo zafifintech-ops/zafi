@@ -1860,8 +1860,10 @@ function resolveRange(range) {
     case "month": {
       const m = r.anchor ? new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12) : firstOfMonth(td);
       const last = new Date(m.getFullYear(), m.getMonth() + 1, 0, 12);
-      const end = iso(last) > t ? t : iso(last);
-      return { from: iso(m), to: end };
+      // Hasta el fin del mes REAL (no recortado a hoy): así los movimientos
+      // futuros programados dentro del mes (ej. un pago de mañana) sí aparecen
+      // en Historial, Categorías y Estadísticas.
+      return { from: iso(m), to: iso(last) };
     }
     case "last-month": {
       const prev = new Date(td.getFullYear(), td.getMonth() - 1, 15, 12);
@@ -1869,25 +1871,30 @@ function resolveRange(range) {
     }
     case "3m": {
       const start = new Date(td.getFullYear(), td.getMonth() - 2, 1, 12);
-      return { from: iso(start), to: t };
+      const endM = new Date(td.getFullYear(), td.getMonth() + 1, 0, 12);
+      return { from: iso(start), to: iso(endM) };
     }
     case "6m": {
       const start = new Date(td.getFullYear(), td.getMonth() - 5, 1, 12);
-      return { from: iso(start), to: t };
+      const endM = new Date(td.getFullYear(), td.getMonth() + 1, 0, 12);
+      return { from: iso(start), to: iso(endM) };
     }
     case "year": {
       const y = r.anchor ? anchor.getFullYear() : td.getFullYear();
-      const endY = `${y}-12-31`;
-      return { from: `${y}-01-01`, to: endY > t ? t : endY };
+      // Año completo: incluye el resto del año (movimientos futuros del año).
+      return { from: `${y}-01-01`, to: `${y}-12-31` };
     }
     case "last-year": {
       const y = td.getFullYear() - 1;
       return { from: `${y}-01-01`, to: `${y}-12-31` };
     }
-    case "all": return { from: "1970-01-01", to: t };
+    case "all": return { from: "1970-01-01", to: "2999-12-31" };
     case "custom":
       return { from: r.from || t, to: r.to || t };
-    default: return { from: iso(firstOfMonth(td)), to: t };
+    default: {
+      const endM = new Date(td.getFullYear(), td.getMonth() + 1, 0, 12);
+      return { from: iso(firstOfMonth(td)), to: iso(endM) };
+    }
   }
 }
 
@@ -9760,7 +9767,20 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
     showToast(`Transferencia de ${fromAcc.name} a ${toAcc.name}`);
   };
 
-  const dateRange = config.dateRange || DEFAULT_RANGE;
+  // Rango por defecto inteligente: normalmente el mes actual, PERO si el mes
+  // actual no tiene ningún movimiento y sí existen movimientos en otros meses
+  // (ej. recién reinstalado, o importados de meses pasados), arrancamos en
+  // "todos" para que el usuario vea su historial en vez de un falso vacío.
+  const smartDefaultRange = useMemo(() => {
+    if (config.dateRange) return config.dateRange;
+    if (!txs || txs.length === 0) return DEFAULT_RANGE;
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const hayEsteMes = txs.some((t) => (t.date || "").startsWith(ym));
+    return hayEsteMes ? DEFAULT_RANGE : { preset: "all" };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.dateRange, txs.length]);
+  const dateRange = config.dateRange || smartDefaultRange;
   const setDateRange = (newRange) => {
     saveConfigWrapped({ ...config, dateRange: newRange });
   };
@@ -12632,8 +12652,12 @@ function FinancialScoreCard({ config, txs, dateRange, accView, saveConfig, onOpe
   const baseData = (() => {
     // statTxs excluye los pass-through reales (con flag passThrough) que se cancelan
     // También excluimos el saldo inicial (id __initial_*) que no es ingreso del período
+    const hoy = today();
     let filtered = statTxs(txsInRange(txs, dateRange)).all
-      .filter(t => !(t.synthetic && String(t.id).startsWith("__initial_")));
+      .filter(t => !(t.synthetic && String(t.id).startsWith("__initial_")))
+      // La calificación mide lo que YA ocurrió: excluir movimientos futuros
+      // programados (ej. un pago de mañana) para no distorsionar el score.
+      .filter(t => (t.date || "") <= hoy);
     // Filtro por cuenta según la vista
     if (scoreAccView !== "all") {
       filtered = filtered.filter(t => t.accountId === scoreAccView);
