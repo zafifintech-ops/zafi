@@ -3424,7 +3424,8 @@ function buildChart(spec, config, txs) {
   if (groupBy === "day") {
     const d0 = new Date(dateFrom + "T12:00:00");
     const d1 = new Date(dateTo + "T12:00:00");
-    for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+    let _bg = 0;
+    for (let d = new Date(d0); d <= d1 && _bg < 1100; d.setDate(d.getDate() + 1), _bg++) {
       const k = d.toISOString().slice(0, 10);
       buckets.push({ key: k, label: `${d.getDate()}` });
     }
@@ -20831,8 +20832,20 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   }
   let lastVal = sorted.filter((t) => t.date < rfrom).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
   const startD = new Date(rfrom + "T12:00:00");
-  const endD = new Date(rto + "T12:00:00");
-  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+  // CRÍTICO: no iterar día por día hasta rto si rto es una fecha lejana (los
+  // rangos "todos"/"año" ahora llegan al futuro para incluir movimientos
+  // programados). Acotamos el dibujo al último movimiento real dentro del
+  // rango, o a hoy — lo que sea mayor. Sin esto, un rango a 2999 generaba
+  // ~380 mil iteraciones y CONGELABA la app al abrir Estadísticas.
+  const hoyIso = today();
+  const ultimoTxIso = sorted.length ? sorted[sorted.length - 1].date : hoyIso;
+  const drawEndIso = [rto, hoyIso].reduce((a, b) => (a < b ? a : b)); // min(rto, hoy)
+  const realEndIso = ultimoTxIso > drawEndIso ? (ultimoTxIso < rto ? ultimoTxIso : rto) : drawEndIso;
+  const endD = new Date(realEndIso + "T12:00:00");
+  // Salvaguarda dura: nunca más de ~1100 puntos (3 años de días) para el eje.
+  const MAX_DAYS = 1100;
+  let _dayGuard = 0;
+  for (let d = new Date(startD); d <= endD && _dayGuard < MAX_DAYS; d.setDate(d.getDate() + 1), _dayGuard++) {
     const k = d.toISOString().slice(0, 10);
     if (dayMap.has(k)) lastVal = dayMap.get(k);
     balancePoints.push({ date: k, val: lastVal });
@@ -20862,7 +20875,8 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   const incomeAccPoints = [];
   const expenseAccPoints = [];
   let lastInc = 0, lastExp = 0;
-  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+  let _dayGuard2 = 0;
+  for (let d = new Date(startD); d <= endD && _dayGuard2 < MAX_DAYS; d.setDate(d.getDate() + 1), _dayGuard2++) {
     const k = d.toISOString().slice(0, 10);
     if (incAccByDay.has(k)) lastInc = incAccByDay.get(k);
     if (expAccByDay.has(k)) lastExp = expAccByDay.get(k);
