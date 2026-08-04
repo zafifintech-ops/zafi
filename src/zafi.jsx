@@ -1072,8 +1072,8 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 /* --------------------------- datos por defecto --------------------------- */
 const DEFAULT_CATS = [
   { name: "Sueldo", emoji: "💼", icon: "briefcase", color: "teal", type: "income" },
-  { name: "Negocio", emoji: "🏢", icon: "building", color: "teal", type: "income" },
-  { name: "Freelance", emoji: "💻", icon: "laptop", color: "teal", type: "income" },
+  { name: "Negocio", emoji: "🏢", icon: "building", color: "blue", type: "income" },
+  { name: "Freelance", emoji: "💻", icon: "laptop", color: "indigo", type: "income" },
   { name: "Otros ingresos", emoji: "💰", icon: "wallet", color: "green", type: "income" },
   { name: "Súper / Despensa", emoji: "🛒", icon: "cart", color: "amber", type: "expense" },
   { name: "Restaurantes", emoji: "🍔", icon: "burger", color: "coral", type: "expense" },
@@ -9176,14 +9176,13 @@ function catIcon(cat) {
   return iconForText(cat.name || "");
 }
 
-/* Mapa de color de categoría → par [fondo suave, trazo] para el badge.
-   Reusa la paleta que ya existe en la app; default gris. */
+/* Paleta premium: tonos vivos y sofisticados. Cada color → [fondo suave, trazo]. */
 const CAT_ICON_COLORS = {
-  coral:  ["#FAECE7", "#D85A30"], amber: ["#FAEEDA", "#BA7517"],
-  green:  ["#EAF3DE", "#639922"], teal:  ["#E1F5EE", "#0F6E56"],
-  blue:   ["#E6F1FB", "#185FA5"], indigo:["#EEEDFE", "#534AB7"],
-  pink:   ["#FBEAF0", "#D4537E"], navy:  ["#E6EDF5", "#1E3A5F"],
-  gray:   ["#F1EFE8", "#5F5E5A"],
+  coral:  ["#FCE9E4", "#E0502F"], amber:  ["#FDF0D9", "#E8940C"],
+  green:  ["#E4F5E9", "#1F9D57"], teal:   ["#DBF3F0", "#0E9C8E"],
+  blue:   ["#E4EEFC", "#2563C9"], indigo: ["#ECE9FB", "#6B4EE6"],
+  pink:   ["#FCE7F0", "#D6357F"], navy:   ["#E7EBF0", "#334155"],
+  gray:   ["#ECEBE6", "#5F5E5A"],
 };
 function catColorPair(color) {
   return CAT_ICON_COLORS[color] || CAT_ICON_COLORS.gray;
@@ -9208,8 +9207,8 @@ function CategoryBadge({ cat, size = 40, radius }) {
 function AccountBadge({ account, size = 34, all = false }) {
   return (
     <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.28),
-      background: "#E6EDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      <span style={{ color: "#1E3A5F", display: "flex" }}>
+      background: "#E7EBF0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <span style={{ color: "#334155", display: "flex" }}>
         <ZIcon name={all || account?.id === "all" ? "globe" : "bank"} size={Math.round(size * 0.56)} />
       </span>
     </div>
@@ -18387,7 +18386,10 @@ const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
   const [icon, setIcon] = useState(cat.icon || (cat.name ? iconForText(cat.name) : "tag"));
   // Si el usuario eligió ícono a mano, dejamos de auto-cambiarlo al escribir.
   const [iconLocked, setIconLocked] = useState(!!cat.icon);
-  const [color, setColor] = useState(cat.color || "teal");
+  // Color por defecto: varía según el nombre para que categorías nuevas no
+  // salgan todas del mismo color. El usuario puede cambiarlo.
+  const autoColor = CAT_COLOR_OPTIONS[((cat.name || "z").charCodeAt(0) || 0) % CAT_COLOR_OPTIONS.length];
+  const [color, setColor] = useState(cat.color || autoColor);
   const [type, setType] = useState(cat.type || "expense");
   const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
   const [libOpen, setLibOpen] = useState(false);
@@ -20097,9 +20099,9 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {(() => { const rc = catCat(r.categoryId);
                       return rc ? <CategoryBadge cat={rc} size={36} />
-                        : <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E6EDF5",
+                        : <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E7EBF0",
                             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <span style={{ color: "#1E3A5F", display: "flex" }}><ZIcon name="repeat" size={20} /></span>
+                            <span style={{ color: "#334155", display: "flex" }}><ZIcon name="repeat" size={20} /></span>
                           </div>; })()}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", letterSpacing: "-.01em" }}>{r.description}</div>
