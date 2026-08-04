@@ -6574,7 +6574,7 @@ const GOAL_WIZARDS = {
 
 const GOAL_ESTIMATORS = {
   casa: {
-    emoji: "🏠", name: "Casa",
+    emoji: "🏠", icon: "home", name: "Casa",
     // opciones que se le preguntan al usuario
     fields: [
       { key: "tipo", label: "¿Qué tipo de vivienda?", options: [
@@ -6596,7 +6596,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   auto: {
-    emoji: "🚗", name: "Auto",
+    emoji: "🚗", icon: "car", name: "Auto",
     fields: [
       { key: "tipo", label: "¿Qué tipo de auto?", options: [
         { v: "usado", label: "Usado económico", base: 180000 },
@@ -6616,7 +6616,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   viaje: {
-    emoji: "✈️", name: "Viaje",
+    emoji: "✈️", icon: "plane", name: "Viaje",
     fields: [
       { key: "tipo", label: "¿Qué tipo de viaje?", options: [
         { v: "nacional", label: "Nacional", base: 15000 },
@@ -6637,7 +6637,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   emergencias: {
-    emoji: "🛡️", name: "Fondo de emergencia",
+    emoji: "🛡️", icon: "shield", name: "Fondo de emergencia",
     // El fondo se calcula sobre los gastos mensuales reales del usuario
     dynamic: true,
     fields: [
@@ -6654,7 +6654,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   inversion: {
-    emoji: "📈", name: "Empezar a invertir",
+    emoji: "📈", icon: "trendingUp", name: "Empezar a invertir",
     fields: [
       { key: "tipo", label: "¿Cuánto quieres invertir?", options: [
         { v: "inicio", label: "Para empezar", base: 10000 },
@@ -6670,7 +6670,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   retiro: {
-    emoji: "🌴", name: "Ahorro para el retiro",
+    emoji: "🌴", icon: "palm", name: "Ahorro para el retiro",
     fields: [
       { key: "tipo", label: "¿Qué tan cómodo lo quieres?", options: [
         { v: "basico", label: "Básico", base: 1500000 },
@@ -6685,7 +6685,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   educacion: {
-    emoji: "🎓", name: "Educación",
+    emoji: "🎓", icon: "graduation", name: "Educación",
     fields: [
       { key: "tipo", label: "¿Para qué nivel?", options: [
         { v: "curso", label: "Curso / diplomado", base: 40000 },
@@ -6701,7 +6701,7 @@ const GOAL_ESTIMATORS = {
     ],
   },
   otro: {
-    emoji: "🎯", name: "Otro objetivo",
+    emoji: "🎯", icon: "target", name: "Otro objetivo",
     custom: true,
     fields: [
       { key: "plazo", label: "¿Para cuándo?", options: [
@@ -6931,7 +6931,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
 
   const createEmergencyGoal = (plan) => {
     onCreateGoal({
-      type: "emergencias", emoji: "🛡️", name: "Fondo de emergencia",
+      type: "emergencias", emoji: "🛡️", icon: "shield", name: "Fondo de emergencia",
       target: efTarget, monthly: plan.perMonth, months: plan.months,
       trackingMode: "manual",
       accountId: goalAccount,
@@ -7698,7 +7698,7 @@ function GoalPlannerModal({ config, monthlyExpenses, monthlyIncome, currentSavin
         {stage === "quote" && est && (
           <div className="cc-onboard-step">
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 500, color: ink, marginBottom: 4 }}>
-              {est.emoji} {est.name}
+              <span style={{ display:"inline-flex", alignItems:"center", gap:8 }}><span style={{ color:"var(--gold)", display:"flex" }}><ZIcon name={est.icon || "target"} size={20} /></span>{est.name}</span>
             </div>
             <p style={{ fontSize: 13, color: inkSoft, marginBottom: 20, lineHeight: 1.5, fontFamily: FONT }}>
               {city && (goalType === "casa" || goalType === "auto" || goalType === "viaje") ? `Estimando para ${city}. ` : ""}Responde para calcular tu plan.
@@ -8991,6 +8991,26 @@ const ICON_PATHS = {
   sparkles: '<path d="M12 3l1.5 5L19 9.5 13.5 11 12 16l-1.5-5L5 9.5 10.5 8 12 3zM19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z"/>',
   circle: '<circle cx="12" cy="12" r="8"/>',
   dots: '<circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/>',
+
+  bank: '<path d="M3 10l9-6 9 6M4 10v9M20 10v9M8 10v9M16 10v9M12 10v9M3 21h18"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 6 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-6-3.5-9s1-6.5 3.5-9z"/>',
+  creditCard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+  fileText: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6z"/><path d="M14 3v6h6M9 13h6M9 17h6"/>',
+  vault: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="4"/><path d="M12 10v2l1.5 1"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/>',
+  umbrella: '<path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9zM12 12v7a2 2 0 0 0 4 0"/>',
+  palm: '<path d="M12 21V10M12 10c-3-3-7-2-8 0 2-1 5 0 8 0zM12 10c3-3 7-2 8 0-2-1-5 0-8 0zM12 10c0-4 2-6 4-7-3 0-4 2-4 4"/>',
+  robot: '<rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 4v4M9 4h6M8 17h8"/>',
+  alert: '<path d="M12 4l9 16H3L12 4z"/><path d="M12 10v4M12 17v.01"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>',
+  cameraAlt: '<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 7l1.5-3h5L16 7"/>',
+  arrowDownCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12l4 4 4-4"/>',
+  arrowUpCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 16V8M8 12l4-4 4 4"/>',
+  clipboardList: '<rect x="6" y="4" width="12" height="17" rx="1"/><path d="M9 4V3h6v1M9 9h6M9 13h6M9 17h3"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 17v.01"/>',
+  link: '<path d="M9 15l6-6M8 12l-2 2a3 3 0 0 0 4 4l2-2M16 12l2-2a3 3 0 0 0-4-4l-2 2"/>',
 };
 
 /* Comodines: rotan según la inicial para que dos categorías sin match no
@@ -9179,6 +9199,18 @@ function CategoryBadge({ cat, size = 40, radius }) {
       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
       <span style={{ color: fg, display: "flex" }}>
         <ZIcon name={catIcon(cat)} size={Math.round(size * 0.56)} />
+      </span>
+    </div>
+  );
+}
+
+/* Badge de cuenta: usa el ícono de banco (o globo para "todas"). */
+function AccountBadge({ account, size = 34, all = false }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.28),
+      background: "#E6EDF5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <span style={{ color: "#1E3A5F", display: "flex" }}>
+        <ZIcon name={all || account?.id === "all" ? "globe" : "bank"} size={Math.round(size * 0.56)} />
       </span>
     </div>
   );
@@ -11434,7 +11466,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                         border: `1px solid ${isOn ? "rgba(30,111,224,.4)" : "var(--line)"}`,
                         borderRadius: 12, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s" }}>
-                      <span style={{ fontSize: 20 }}>{a.id === "all" ? "🌐" : "🏦"}</span>
+                      <AccountBadge account={a} size={30} all={a.id === "all"} />
                       <div style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--ink)",
                         fontFamily: "'Montserrat', sans-serif" }}>{a.name || a.id === "all" ? (a.name || "General") : a.name}</div>
                       <div style={{ width: 22, height: 22, borderRadius: 6,
@@ -13388,7 +13420,7 @@ INSTRUCCIONES CRÍTICAS:
   if (error) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
-        <div className="cc-label" style={{ marginBottom: 8 }}>⭐ Calificación financiera</div>
+        <div className="cc-label" style={{ marginBottom: 8, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="star" size={15} /> Calificación financiera</div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{error}</div>
       </div>
     );
@@ -13397,7 +13429,7 @@ INSTRUCCIONES CRÍTICAS:
   if (loading || !data) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
-        <div className="cc-label" style={{ marginBottom: 12 }}>⭐ Calificación financiera</div>
+        <div className="cc-label" style={{ marginBottom: 12, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="star" size={15} /> Calificación financiera</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="cc-dots"><span /><span /><span /></div>
           <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Analizando tu situación…</span>
@@ -13633,7 +13665,7 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
   if (error) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
-        <div className="cc-label" style={{ marginBottom: 8 }}>💡 Consejos financieros</div>
+        <div className="cc-label" style={{ marginBottom: 8, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="lightbulb" size={15} /> Consejos financieros</div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{error}</div>
       </div>
     );
@@ -13642,7 +13674,7 @@ Genera 5 consejos prácticos y específicos. Si hay filtro activo, indícalo en 
   if (loading || !tips) {
     return (
       <div className="cc-card" style={{ padding: 20 }}>
-        <div className="cc-label" style={{ marginBottom: 12 }}>💡 Consejos financieros</div>
+        <div className="cc-label" style={{ marginBottom: 12, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="lightbulb" size={15} /> Consejos financieros</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="cc-dots"><span /><span /><span /></div>
           <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>Generando consejos para ti…</span>
@@ -15083,7 +15115,7 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
       {(streak.current > 0 || doneToday) && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 14,
           borderTop: `1px solid ${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}` }}>
-          <span style={{ fontSize: 22 }}>🔥</span>
+          <span style={{ color:"#D85A30", display:"flex" }}><ZIcon name="fire" size={22} /></span>
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: ink, fontFamily: FONT, lineHeight: 1 }}>
               {streak.current} {streak.current === 1 ? "día" : "días"}
@@ -15534,7 +15566,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
   const monthsToFree = strategy.totalMin > strategy.monthlyInterest && strategy.totalMin > 0
     ? Math.ceil(strategy.totalDebt / (strategy.totalMin - strategy.monthlyInterest))
     : 0;
-  const debtTypeEmoji = { card: "💳", loan: "🏦", financing: "🚗", other: "📄" };
+  const debtTypeIcon = { card: "creditCard", loan: "bank", financing: "car", other: "fileText" };
 
   return (
     <div className={`cc-card ${className}`} style={{ padding: "16px 18px" }}>
@@ -15802,7 +15834,7 @@ function GoalsCard({ config, saveConfig, monthlyExpenses, monthlyIncome, current
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(226,53,53,.1)",
                         display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                        {debtTypeEmoji[d.debtType] || "💳"}
+                        <span style={{ color:"var(--coral)", display:"flex" }}><ZIcon name={debtTypeIcon[d.debtType] || "creditCard"} size={22} /></span>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: ink, fontFamily: FONT, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
@@ -16078,7 +16110,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
     .slice(0, 6);
   const maxCat = rows.length ? rows[0][1] : 1;
   const catOf = (id) => id === UNCAT_ID
-    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", type: "expense" }
+    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray", type: "expense" }
     : config.categories.find((c) => c.id === id);
   const dashExpRows = Object.entries(byCat)
     .map(([id, amt]) => ({ cat: catOf(id), amt }))
@@ -16236,7 +16268,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <button key={a.id} className={`cc-acc-card ${active ? "on" : ""}`}
                   onClick={() => (config.accounts.length > 1 && hasFeature(config, "account_toggle")) ? setView(a.id) : null}
                   style={{ opacity: 1, cursor: config.accounts.length > 1 ? "pointer" : "default" }}>
-                  <div className="cc-acc-icon">🏦</div>
+                  <div className="cc-acc-icon"><AccountBadge size={34} /></div>
                   <div className="cc-acc-label">Cuenta</div>
                   <div className="cc-acc-name">{a.name}</div>
                   <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : "var(--ink)" }}>
@@ -16269,7 +16301,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               );
               if (!canAdd) return (
                 <div className="cc-acc-card" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:130, borderStyle:"dashed", color:"var(--ink-faint)", opacity:.5, cursor:"default" }}>
-                  <div style={{ fontSize:24, marginBottom:4 }}>🔒</div>
+                  <div style={{ marginBottom:4, display:"flex", justifyContent:"center", color:"var(--ink-soft)" }}><ZIcon name="lock" size={24} /></div>
                   <div style={{ fontWeight:600, fontSize:12 }}>Máx. 3 cuentas</div>
                   <div style={{ fontSize:10.5, color:"var(--ink-faint)", marginTop:2 }}>Plan Lite</div>
                 </div>
@@ -17138,7 +17170,7 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
                   <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10,
                     padding: "10px 12px", borderRadius: 12, border: "1px solid var(--line)",
                     background: "var(--paper)", opacity: isOn ? 1 : 0.55, transition: "opacity .15s" }}>
-                    <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{a.emoji || "🏦"}</span>
+                    <AccountBadge account={a} size={28} />
                     <span style={{ flex: 1, fontWeight: 500, fontSize: 14,
                       color: "var(--ink)", fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
                     <button onClick={() => onToggleAccountCard && onToggleAccountCard(a.id)}
@@ -17305,7 +17337,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
           margin: "0 -10px", paddingLeft: 10, paddingRight: 10, borderRadius: selected ? 8 : 0 }}>
         <input type="checkbox" checked={!!selected} readOnly
           style={{ width: 19, height: 19, accentColor: "var(--green)" }} />
-        <div className="cc-emoji" style={{ fontSize: 22, width: 28, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+        <div style={{ width: 34, display:"flex", justifyContent:"center" }}>{c ? <CategoryBadge cat={c} size={34} /> : <span style={{ color:"var(--ink-faint)", display:"flex" }}><ZIcon name="help" size={22} /></span>}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {t.description || (c ? c.name : "Movimiento")}
@@ -17579,7 +17611,7 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
             {config.accounts.map((a) => (
               <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
                 style={{ minWidth: 100 }}>
-                <div className="cc-acc-label">🏦</div>
+                <div className="cc-acc-label"><AccountBadge size={30} /></div>
                 <div className="cc-acc-name">{a.name}</div>
               </button>
             ))}
@@ -17926,7 +17958,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
             {config.accounts.map((a) => (
               <button key={a.id} className={`cc-acc-card ${accView === a.id ? "on" : ""}`} onClick={() => setAccView(a.id)}
                 style={{ minWidth: 100 }}>
-                <div className="cc-acc-label">🏦</div>
+                <div className="cc-acc-label"><AccountBadge size={30} /></div>
                 <div className="cc-acc-name">{a.name}</div>
               </button>
             ))}
@@ -17938,7 +17970,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
       <div className="cc-card" style={{ padding: 18 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🔁</span>
+            <span style={{ color:"var(--ink-soft)", display:"flex" }}><ZIcon name="repeat" size={20} /></span>
             <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>Movimientos recurrentes</span>
           </div>
           <button className="cc-btn" style={{ padding: "5px 11px", fontSize: 12 }} onClick={() => setRecurringOpen(true)}>
@@ -17992,7 +18024,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
         return (
           <div key={acc.id} className="cc-card" style={{ padding: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>🏦</span>
+              <AccountBadge size={30} />
               <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>{acc.name}</span>
             </div>
             {[["expense", "Gastos"], ["income", "Ingresos"]].map(([type, label]) => {
@@ -18046,7 +18078,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
       {hasUncat && (
         <div className="cc-card" style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 18 }}>❔</span>
+            <span style={{ color:"var(--ink-faint)", display:"flex" }}><ZIcon name="help" size={20} /></span>
             <span className="cc-serif" style={{ fontSize: 17, fontWeight: 600 }}>Sin categoría</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 4 }}>
@@ -18065,7 +18097,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                     borderRadius: 8, transition: "background .15s" }}
                   onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
                   onMouseLeave={(e) => e.currentTarget.style.background = ""}>
-                  <span className="cc-emoji" style={{ fontSize: 19 }}>❔</span>
+                  <span style={{ color:"var(--ink-faint)", display:"flex" }}><ZIcon name="help" size={22} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>
                       {uncatTxs[type].length} movimiento{uncatTxs[type].length === 1 ? "" : "s"}
@@ -18581,13 +18613,13 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
           if (plan === "free") return (
             <div style={{ marginTop:16, padding:14, borderRadius:14, border:"1px solid var(--line)",
               background:"var(--surface-2)", textAlign:"center" }}>
-              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Las cuentas múltiples son Lite o Pro</div>
+              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="lock" size={15} /> Las cuentas múltiples son Lite o Pro</div>
             </div>
           );
           if (!canAdd) return (
             <div style={{ marginTop:16, padding:14, borderRadius:14, border:"1px solid var(--line)",
               background:"var(--surface-2)", textAlign:"center" }}>
-              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500 }}>🔒 Máximo 3 cuentas en el plan Lite</div>
+              <div style={{ fontSize:13, color:"var(--ink-soft)", fontWeight:500, display:"flex", alignItems:"center", gap:6 }}><ZIcon name="lock" size={15} /> Máximo 3 cuentas en el plan Lite</div>
             </div>
           );
           return (
@@ -18638,7 +18670,7 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
               {archivedAccounts.map((a) => (
                 <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 0", borderBottom: "1px solid var(--line-soft)" }}>
-                  <span style={{ fontSize: 16, opacity: 0.6 }}>📦</span>
+                  <span style={{ opacity: 0.6, display:"flex", color:"var(--ink-soft)" }}><ZIcon name="box" size={18} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink-soft)" }}>{a.name}</div>
                   </div>
@@ -18727,7 +18759,7 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
                   style={{ padding: "16px 14px", textAlign: "left", cursor: "pointer",
                     border: "1.5px solid var(--gold)", display: "flex", gap: 12, alignItems: "flex-start",
                     fontFamily: "inherit", width: "100%" }}>
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>🧮</span>
+                  <span style={{ color:"var(--ink-soft)", display:"flex" }}><ZIcon name="chart" size={22} /></span>
                   <span>
                     <span style={{ display: "block", fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>
                       Todas mis cuentas juntas
@@ -18741,7 +18773,7 @@ function AccountsModal({ config, rawConfig, txs, rawTxs, saveConfig, saveConfigR
                   style={{ padding: "16px 14px", textAlign: "left", cursor: "pointer",
                     border: "1px solid var(--line)", display: "flex", gap: 12, alignItems: "flex-start",
                     fontFamily: "inherit", width: "100%" }}>
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>🗂️</span>
+                  <span style={{ color:"var(--ink-soft)", display:"flex" }}><ZIcon name="clipboardList" size={22} /></span>
                   <span>
                     <span style={{ display: "block", fontWeight: 600, fontSize: 14.5, color: "var(--ink)" }}>
                       Cada cuenta por separado
@@ -19069,7 +19101,7 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
               <button type="button" onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick("auto")}
                 className={`cc-combobox-opt ${value === "auto" ? "is-active" : ""}`}>
-                <span style={{ fontSize: 14 }}>✨</span>
+                <span style={{ color:"var(--gold)", display:"flex" }}><ZIcon name="sparkles" size={16} /></span>
                 <span>Detectar automáticamente</span>
               </button>
             )}
@@ -20038,7 +20070,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
   };
 
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
-  const catEmoji = (id) => config.categories.find((c) => c.id === id)?.emoji || "🔁";
+  const catCat = (id) => config.categories.find((c) => c.id === id);
 
   // ===== Vista LISTA =====
   if (view === "list") {
@@ -20063,10 +20095,12 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
               {rules.map((r) => (
                 <div key={r.id} className="cc-card" style={{ padding: "12px 14px", opacity: isRecActive(r) ? 1 : 0.5 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="cc-emoji" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface)",
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                      {catEmoji(r.categoryId)}
-                    </div>
+                    {(() => { const rc = catCat(r.categoryId);
+                      return rc ? <CategoryBadge cat={rc} size={36} />
+                        : <div style={{ width: 36, height: 36, borderRadius: 10, background: "#E6EDF5",
+                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ color: "#1E3A5F", display: "flex" }}><ZIcon name="repeat" size={20} /></span>
+                          </div>; })()}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", letterSpacing: "-.01em" }}>{r.description}</div>
                       <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginTop: 2 }}>
@@ -20194,7 +20228,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
               boxShadow:"0 20px 60px rgba(0,0,0,.3)",
               fontFamily:"'Montserrat', sans-serif",
             }}>
-              <div style={{ fontSize:40, textAlign:"center", marginBottom:14 }}>✨</div>
+              <div style={{ textAlign:"center", marginBottom:14, display:"flex", justifyContent:"center", color:"var(--gold)" }}><ZIcon name="sparkles" size={40} /></div>
               <div style={{ fontSize:20, fontWeight:700, color:"var(--ink)", textAlign:"center", marginBottom:10, letterSpacing:"-.01em" }}>
                 Los recurrentes están en Lite
               </div>
@@ -20516,7 +20550,7 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
           <button className="cc-card" onClick={() => inputRef.current?.click()}
             style={{ width: "100%", padding: 26, textAlign: "center", border: "2px dashed var(--line)",
               background: "var(--surface-2)", cursor: "pointer", marginBottom: 14 }}>
-            <div style={{ fontSize: 30, marginBottom: 6 }}>📷</div>
+            <div style={{ marginBottom: 6, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="camera" size={30} /></div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Toca para elegir imágenes</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
               También puedes seleccionar varias a la vez
@@ -20559,7 +20593,7 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
         <div className="cc-sheet" style={{ padding: "40px 18px" }}>
           <div className="cc-grip" />
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 36, marginBottom: 14 }}>🔍</div>
+            <div style={{ marginBottom: 14, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="search" size={36} /></div>
             <div className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>
               Leyendo tus movimientos…
             </div>
@@ -21202,9 +21236,9 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
   });
   const INITIAL_ID = "__initial_balance__";
   const catOfGlobal = (id) => id === UNCAT_ID
-    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", type: null }
+    ? { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray", type: null }
     : id === INITIAL_ID
-    ? { id: INITIAL_ID, name: "Saldo inicial", emoji: "🏦", type: null }
+    ? { id: INITIAL_ID, name: "Saldo inicial", emoji: "🏦", icon: "bank", color: "navy", type: null }
     : config.categories.find((c) => c.id === id);
   const expRows = Object.entries(expByCat)
     .map(([id, amt]) => ({ cat: config.categories.find((c) => c.id === id), amt }))
@@ -21367,7 +21401,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
           {config.accounts.map((a) => (
             <button key={a.id} className={`cc-acc-card ${view === a.id ? "on" : ""}`} onClick={() => setView(a.id)}
               style={{ minWidth: 120 }}>
-              <div className="cc-acc-label">🏦 Cuenta</div>
+              <div className="cc-acc-label" style={{ display:"flex", alignItems:"center", gap:6 }}><AccountBadge size={24} /> Cuenta</div>
               <div className="cc-acc-name">{a.name}</div>
             </button>
           ))}
@@ -21376,7 +21410,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
 
       {rangeTxs.length === 0 ? (
         <div className="cc-card" style={{ padding: 26, textAlign: "center" }}>
-          <div style={{ fontSize: 30, marginBottom: 8 }}>📊</div>
+          <div style={{ marginBottom: 8, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="chart" size={30} /></div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>Sin movimientos en {showName}</div>
           <div style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 6 }}>
             Para el periodo: <b>{rangeLabel(dateRange)}</b>. Cambia el rango arriba o registra movimientos.
@@ -22651,7 +22685,7 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                           borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                           cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
                           width: "100%" }}>
-                        <span style={{ fontSize: 18 }}>🏦</span>
+                        <AccountBadge size={30} />
                         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
                           fontFamily: "'Montserrat', sans-serif" }}>{a.name}</div>
                         <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--ink-soft)",
@@ -22687,7 +22721,7 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                     <div key={a.id} style={{ marginBottom: 22 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
                         paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
-                        <span style={{ fontSize: 14 }}>🏦</span>
+                        <AccountBadge size={26} />
                         <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
                           fontFamily: "'Montserrat', sans-serif" }}>{a.name}</span>
                       </div>
@@ -22703,21 +22737,21 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
                     paddingBottom: 6, borderBottom: "1px solid var(--line-soft)" }}>
-                    <span style={{ fontSize: 14 }}>❔</span>
+                    <span style={{ color:"var(--ink-faint)", display:"flex" }}><ZIcon name="help" size={18} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)",
                       fontFamily: "'Montserrat', sans-serif" }}>Otros (todas las cuentas)</span>
                   </div>
                   <CatListGroup label="Ingresos" color="var(--green)"
                     cats={[
-                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
-                      ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray" },
+                      ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦", icon: "bank", color: "navy" }] : []),
                     ]}
                     selected={new Set([...incSelected, "__initial__"])} onToggle={(id) => id === "__initial__" ? null : toggleUncatInc()}
                     amounts={{ [UNCAT_ID]: uncatAmounts.income, "__initial__": uncatAmounts.initialIncome }} />
                   <CatListGroup label="Gastos" color="var(--coral)"
                     cats={[
-                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
-                      ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                      { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray" },
+                      ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦", icon: "bank", color: "navy" }] : []),
                     ]}
                     selected={new Set([...expSelected, "__initial__"])} onToggle={(id) => id === "__initial__" ? null : toggleUncatExp()}
                     amounts={{ [UNCAT_ID]: uncatAmounts.expense, "__initial__": uncatAmounts.initialExpense }} last />
@@ -22728,16 +22762,16 @@ function GlobalCustomizeModal({ config, txs, dateRange, accView, onClose, saveCo
                 <CatListGroup label="Ingresos" color="var(--green)"
                   cats={[
                     ...incomeCats,
-                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
-                    ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray" },
+                    ...(uncatAmounts.initialIncome > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦", icon: "bank", color: "navy" }] : []),
                   ]}
                   selected={new Set([...incSelected, "__initial__"])} onToggle={(id) => id === UNCAT_ID ? toggleUncatInc() : id === "__initial__" ? null : toggleInc(id)}
                   amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.income, "__initial__": uncatAmounts.initialIncome }} />
                 <CatListGroup label="Gastos" color="var(--coral)"
                   cats={[
                     ...expenseCats,
-                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔" },
-                    ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦" }] : []),
+                    { id: UNCAT_ID, name: "Sin categoría", emoji: "❔", icon: "help", color: "gray" },
+                    ...(uncatAmounts.initialExpense > 0 ? [{ id: "__initial__", name: "Saldo inicial", emoji: "🏦", icon: "bank", color: "navy" }] : []),
                   ]}
                   selected={new Set([...expSelected, "__initial__"])} onToggle={(id) => id === UNCAT_ID ? toggleUncatExp() : id === "__initial__" ? null : toggleExp(id)}
                   amounts={{ ...catAmounts, [UNCAT_ID]: uncatAmounts.expense, "__initial__": uncatAmounts.initialExpense }} last />
@@ -22873,7 +22907,7 @@ function ChartAccountsModal({ config, hiddenIds, accView, title, desc, onClose, 
                   background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   transition: "all .15s" }}>
-                <span className="cc-emoji" style={{ fontSize: 20 }}>🏦</span>
+                <AccountBadge size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
                     fontFamily: "'Montserrat', sans-serif" }}>{a.name}</div>
@@ -24964,7 +24998,7 @@ REGLAS:
           <button className="cc-card" onClick={() => inputRef.current?.click()}
             style={{ width: "100%", padding: 26, textAlign: "center", border: "2px dashed var(--line)",
               background: "var(--surface-2)", cursor: "pointer", marginBottom: 14 }}>
-            <div style={{ fontSize: 30, marginBottom: 6 }}>📄</div>
+            <div style={{ marginBottom: 6, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="fileText" size={30} /></div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>
               {file ? file.name : "Toca para elegir tu archivo"}
             </div>
@@ -24996,7 +25030,7 @@ REGLAS:
         <div className="cc-sheet" style={{ padding: "40px 18px" }}>
           <div className="cc-grip" />
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 36, marginBottom: 14 }}>🔍</div>
+            <div style={{ marginBottom: 14, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="search" size={36} /></div>
             <div className="cc-serif" style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>
               Analizando tu archivo…
             </div>
@@ -25084,7 +25118,7 @@ function ReviewScreen({ drafts, updateDraft, accCats, onBack, onSave, onClose, s
         {dupCount > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 13px",
             background: "#FFF6E0", border: "1px solid #E8C97A", borderRadius: 12, marginBottom: 14, fontSize: 13 }}>
-            <span style={{ fontSize: 17 }}>⚠️</span>
+            <span style={{ color:"#BA7517", display:"flex" }}><ZIcon name="alert" size={18} /></span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>
                 Detecté {dupCount} posible{dupCount === 1 ? "" : "s"} duplicado{dupCount === 1 ? "" : "s"}
@@ -25271,7 +25305,7 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
           border: "1px solid var(--line)", borderRadius: 12, background: "var(--surface)", padding: "4px 14px" }}>
           {list.length === 0 ? (
             <div style={{ padding: "26px 4px", textAlign: "center", color: "var(--ink-soft)", fontSize: 14 }}>
-              <div style={{ fontSize: 28, marginBottom: 6 }}>🔍</div>
+              <div style={{ marginBottom: 6, display:"flex", justifyContent:"center", color:"var(--ink-faint)" }}><ZIcon name="search" size={28} /></div>
               No hay movimientos que coincidan.
               {query && <div style={{ fontSize: 12, marginTop: 4 }}>Prueba con otros términos o quita los filtros.</div>}
             </div>
@@ -25343,7 +25377,7 @@ function LinkPickRow({ t, config, selected, onPick }) {
         borderRadius: selected ? 8 : 0, transition: ".12s" }}
       onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--surface-2)"; }}
       onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}>
-      <div style={{ fontSize: 22, width: 30, textAlign: "center" }}>{c ? c.emoji : "❔"}</div>
+      <div style={{ width: 34, display:"flex", justifyContent:"center" }}>{c ? <CategoryBadge cat={c} size={34} /> : <span style={{ color:"var(--ink-faint)", display:"flex" }}><ZIcon name="help" size={22} /></span>}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {t.description || (c ? c.name : "Movimiento")}
@@ -25411,7 +25445,7 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
           return (
             <div key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4,
               background: "var(--surface-2)", padding: "3px 8px", borderRadius: 99 }}>
-              <span style={{ fontSize: 12 }}>{c ? c.emoji : "❔"}</span>
+              {c ? <CategoryBadge cat={c} size={24} /> : <ZIcon name="help" size={16} />}
               <span style={{ fontWeight: 600 }}>{c ? c.name : "Sin cat"}</span>
               <span style={{ color: "var(--ink-soft)" }}>{pct}%</span>
             </div>
