@@ -4873,27 +4873,35 @@ async function loadAll(userOverride) {
   const u = sdkUser || restUser;
   if (!u) return { config: null, txs: [] };
   let config = null, txs = [];
-  // Try SDK con timeout de 4s (en Capacitor puede colgarse indefinidamente)
+  let gotConfig = false, gotTxs = false; // ¿cada documento se leyó de verdad?
+  // Try SDK con timeout (en Capacitor puede colgarse indefinidamente)
   if (sdkUser) {
     try {
       const snap = await withTimeout(getDoc(doc(db, "users", u.uid, "data", "config")), 1500);
-      if (snap.exists()) config = snap.data().value;
+      if (snap.exists()) { config = snap.data().value; gotConfig = true; }
     } catch (e) { console.error("loadAll config SDK", e.message); }
     try {
       const snap = await withTimeout(getDoc(doc(db, "users", u.uid, "data", "txs")), 1500);
-      if (snap.exists()) txs = snap.data().value || [];
+      if (snap.exists()) { txs = snap.data().value || []; gotTxs = true; }
     } catch (e) { console.error("loadAll txs SDK", e.message); }
-    if (config !== null) return { config, txs };
+    // Solo tomar el atajo si AMBOS se leyeron. Antes bastaba con config y se
+    // retornaba con txs=[] cuando la lectura de txs fallaba — el usuario veía
+    // sus totales pero NINGÚN movimiento (bug al reinstalar en modo REST).
+    if (gotConfig && gotTxs) return { config, txs };
   }
-  // Fallback REST: usa sdkUser si restUser no disponible
+  // Fallback REST — recupera SOLO lo que el SDK no logró leer.
   try {
     const tokenUser = restUser || sdkUser;
     const idToken = await withTimeout(tokenUser?.getIdToken(), 3000);
     if (!idToken) return { config, txs };
-    const configDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/config`);
-    if (configDoc?.value !== undefined) config = configDoc.value;
-    const txsDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/txs`);
-    if (txsDoc?.value !== undefined) txs = txsDoc.value || [];
+    if (!gotConfig) {
+      const configDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/config`);
+      if (configDoc?.value !== undefined) config = configDoc.value;
+    }
+    if (!gotTxs) {
+      const txsDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/txs`);
+      if (txsDoc?.value !== undefined) txs = txsDoc.value || [];
+    }
   } catch (e) { console.error("loadAll REST", e.message); }
   return { config, txs };
 }
