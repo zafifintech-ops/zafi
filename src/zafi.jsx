@@ -1071,19 +1071,19 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 
 /* --------------------------- datos por defecto --------------------------- */
 const DEFAULT_CATS = [
-  { name: "Sueldo", emoji: "💼", type: "income" },
-  { name: "Negocio", emoji: "🏢", type: "income" },
-  { name: "Freelance", emoji: "💻", type: "income" },
-  { name: "Otros ingresos", emoji: "💰", type: "income" },
-  { name: "Súper / Despensa", emoji: "🛒", type: "expense" },
-  { name: "Restaurantes", emoji: "🍔", type: "expense" },
-  { name: "Transporte / Gasolina", emoji: "⛽", type: "expense" },
-  { name: "Casa / Renta", emoji: "🏠", type: "expense" },
-  { name: "Servicios", emoji: "💡", type: "expense" },
-  { name: "Salud", emoji: "🏥", type: "expense" },
-  { name: "Entretenimiento", emoji: "🎬", type: "expense" },
-  { name: "Suscripciones", emoji: "📱", type: "expense" },
-  { name: "Otros gastos", emoji: "📦", type: "expense" },
+  { name: "Sueldo", emoji: "💼", icon: "briefcase", color: "teal", type: "income" },
+  { name: "Negocio", emoji: "🏢", icon: "building", color: "teal", type: "income" },
+  { name: "Freelance", emoji: "💻", icon: "laptop", color: "teal", type: "income" },
+  { name: "Otros ingresos", emoji: "💰", icon: "wallet", color: "green", type: "income" },
+  { name: "Súper / Despensa", emoji: "🛒", icon: "cart", color: "amber", type: "expense" },
+  { name: "Restaurantes", emoji: "🍔", icon: "burger", color: "coral", type: "expense" },
+  { name: "Transporte / Gasolina", emoji: "⛽", icon: "gasStation", color: "blue", type: "expense" },
+  { name: "Casa / Renta", emoji: "🏠", icon: "home", color: "indigo", type: "expense" },
+  { name: "Servicios", emoji: "💡", icon: "lightbulb", color: "amber", type: "expense" },
+  { name: "Salud", emoji: "🏥", icon: "health", color: "pink", type: "expense" },
+  { name: "Entretenimiento", emoji: "🎬", icon: "film", color: "pink", type: "expense" },
+  { name: "Suscripciones", emoji: "📱", icon: "subscription", color: "blue", type: "expense" },
+  { name: "Otros gastos", emoji: "📦", icon: "box", color: "gray", type: "expense" },
 ];
 
 const SEED_KW = {
@@ -8866,6 +8866,324 @@ const SUGGESTED_EXPENSE = [
 ];
 
 /* Lista de emojis comunes para el picker */
+/* ═══════════════════════════════════════════════════════════════════
+   SISTEMA DE ÍCONOS DE ZAFI
+   - Outline fino (estilo Tabler), un solo trazo, currentColor.
+   - Cada ícono se pinta del color de la categoría.
+   - Auto-match en español mientras el usuario escribe (como Structured).
+   - Comodines cuando no hay coincidencia.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Cada entrada: clave → path(s) SVG en viewBox 24x24, stroke, sin fill.
+   Trazos con stroke-width 1.75, linecap/linejoin round (se aplica en el
+   componente <ZIcon>). Curados a mano para cubrir finanzas MX. */
+const ICON_PATHS = {
+  // ─── Dinero / ingresos ───
+  wallet: '<path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6"/><circle cx="16" cy="12" r="1"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M5 9v6M19 9v6"/>',
+  coin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 9.5h3.5a1.5 1.5 0 0 1 0 3h-2a1.5 1.5 0 0 0 0 3H14"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+  building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M9 16h.01M15 16h.01"/>',
+  laptop: '<rect x="3" y="5" width="18" height="12" rx="1"/><path d="M2 20h20"/>',
+  trendingUp: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>',
+  piggyBank: '<path d="M19 11c0-3.3-3.1-6-7-6s-7 2.7-7 6c0 1.7.8 3.2 2 4.3V19h3v-2h4v2h3v-3.7c1.2-1.1 2-2.6 2-4.3z"/><circle cx="9" cy="11" r=".8"/><path d="M5 11H3"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9M12 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 0a3 3 0 1 1 3-3 3 3 0 0 1-3 3z"/>',
+  banknote: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/>',
+  handCoin: '<circle cx="16" cy="7" r="3"/><path d="M4 14l3-1 5 2 4-1a1.5 1.5 0 0 1 0 3l-5 2-4-1v-4z"/>',
+  chartPie: '<path d="M12 3a9 9 0 1 0 9 9h-9V3z"/><path d="M14 3a7 7 0 0 1 7 7h-7V3z"/>',
+  percent: '<path d="M5 19L19 5"/><circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/>',
+  refund: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/>',
+  repeat: '<path d="M4 9a5 5 0 0 1 5-5h7l-2-2M20 15a5 5 0 0 1-5 5H8l2 2"/><path d="M18 6l2-2-2-2M6 22l-2-2 2-2"/>',
+  receipt: '<path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+
+  // ─── Comida ───
+  cart: '<circle cx="8" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h2l2.5 13h12l2-9H6"/>',
+  burger: '<path d="M4 10a8 8 0 0 1 16 0zM3 14h18M4 14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2"/>',
+  coffee: '<path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8z"/><path d="M17 9h2a2 2 0 0 1 0 4h-2M6 2v2M10 2v2M14 2v2"/>',
+  restaurant: '<path d="M5 3v7a2 2 0 0 0 4 0V3M7 10v11M16 3c-1.5 0-3 2-3 5s1 4 3 4v9"/>',
+  pizza: '<path d="M12 3L3 20h18L12 3z"/><circle cx="10" cy="13" r=".8"/><circle cx="13" cy="15" r=".8"/><circle cx="12" cy="10" r=".8"/>',
+  beer: '<path d="M6 5h9v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5z"/><path d="M15 8h3a2 2 0 0 1 0 6h-3"/>',
+  wine: '<path d="M8 3h8l-1 6a3 3 0 0 1-6 0L8 3zM12 12v6M9 21h6"/>',
+  cake: '<path d="M4 21v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7M4 16h16M12 8V6M12 4v.01"/>',
+  bottle: '<path d="M9 3h6v3l1 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l1-3V3z"/>',
+
+  // ─── Transporte ───
+  gasStation: '<path d="M4 20V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15M3 20h13M4 10h10"/><path d="M14 9h3a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',
+  car: '<path d="M5 13l1.5-5a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 13M3 13h18v4H3z"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/>',
+  taxi: '<path d="M5 13l1.5-5a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 13M3 13h18v4H3zM9 6V4h6v2"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/>',
+  bus: '<rect x="4" y="4" width="16" height="13" rx="2"/><path d="M4 11h16M8 17v2M16 17v2"/><circle cx="8" cy="14" r=".8"/><circle cx="16" cy="14" r=".8"/>',
+  plane: '<path d="M10 3l1 8-8 4v2l8-1 1 5-2 1v1l3-1 3 1v-1l-2-1 1-5 8 1v-2l-8-4 1-8a1.5 1.5 0 0 0-3 0z"/>',
+  motorcycle: '<circle cx="5" cy="17" r="2.5"/><circle cx="19" cy="17" r="2.5"/><path d="M7 17h8l-3-6H8m4 0l3-3h2M5 11h3"/>',
+  parking: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 16V8h3.5a2.5 2.5 0 0 1 0 5H9"/>',
+  road: '<path d="M4 20L8 4M20 20L16 4M12 6v2M12 11v2M12 16v2"/>',
+
+  // ─── Casa / hogar ───
+  home: '<path d="M4 11l8-7 8 7M6 10v10h12V10"/><path d="M10 20v-6h4v6"/>',
+  bed: '<path d="M3 8v11M3 12h18v7M21 12v-2a2 2 0 0 0-2-2H8v4"/><circle cx="7" cy="10" r="1.5"/>',
+  lightbulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.6.5-1 1.2-1 2h-6c0-.8-.4-1.5-1-2A6 6 0 0 1 12 3z"/>',
+  couch: '<path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3M2 12a2 2 0 0 1 2 2v3h16v-3a2 2 0 0 1 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2v1H6v-1a2 2 0 0 0-2-2 2 2 0 0 0-2 2zM5 17v2M19 17v2"/>',
+  tools: '<path d="M14 7a3.5 3.5 0 0 0-5 4.5L3 17l3 3 5.5-6a3.5 3.5 0 0 0 4.5-5l-2.5 2.5-2-2L14 7z"/>',
+  droplet: '<path d="M12 3l5 7a5 5 0 1 1-10 0l5-7z"/>',
+  fire: '<path d="M12 3c1 3 4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-2.5C9 10 9 8 12 3z"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  wrench: '<path d="M14 7a3.5 3.5 0 0 0-5 4.5L3 17l3 3 5.5-6a3.5 3.5 0 0 0 4.5-5l-2.5 2.5-2-2L14 7z"/>',
+  key: '<circle cx="8" cy="8" r="4"/><path d="M11 11l8 8M16 16l2-2M19 19l1-1"/>',
+
+  // ─── Salud ───
+  health: '<path d="M4 12h4l2-5 4 10 2-5h4"/>',
+  hospital: '<rect x="4" y="7" width="16" height="14" rx="1"/><path d="M9 7V4h6v3M12 11v6M9 14h6"/>',
+  pill: '<rect x="4" y="8" width="16" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M9 9l6 6"/>',
+  stethoscope: '<path d="M6 3v6a4 4 0 0 0 8 0V3M6 3H4M14 3h2M10 17a4 4 0 0 0 8 0v-3"/><circle cx="18" cy="12" r="2"/>',
+  firstAid: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M12 10v6M9 13h6M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>',
+  tooth: '<path d="M12 5c-2-2-6-1-6 3 0 3 1 4 1.5 8 .5 3 3 3 3-2 0-2 1-2 1-2s1 0 1 2c0 5 2.5 5 3 2 .5-4 1.5-5 1.5-8 0-4-4-5-6-3z"/>',
+
+  // ─── Ropa / compras ───
+  shirt: '<path d="M8 4L4 6l2 4 2-1v11h8V9l2 1 2-4-4-2-4 3-4-3z"/>',
+  shoppingBag: '<path d="M6 8h12l1 12H5L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  dress: '<path d="M9 3l3 4 3-4M9 3l-1 5 4 3 4-3-1-5M8 8l-2 13h12L16 8"/>',
+  shoe: '<path d="M3 16v-4l4-1 3 3h8a2 2 0 0 1 2 2v2H3z"/><path d="M7 11l1-2"/>',
+  glasses: '<circle cx="6" cy="14" r="3"/><circle cx="18" cy="14" r="3"/><path d="M9 13c1-1 5-1 6 0M3 11l2-3M21 11l-2-3"/>',
+  watch: '<circle cx="12" cy="12" r="5"/><path d="M9 4l1-2h4l1 2M9 20l1 2h4l1-2M12 10v2l1.5 1.5"/>',
+  jewel: '<path d="M6 3h12l3 5-9 13L3 8l3-5z"/><path d="M3 8h18M9 3l3 5 3-5M12 8v13"/>',
+
+  // ─── Entretenimiento / hobbies ───
+  film: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M3 15h18M8 4v16M16 4v16"/>',
+  music: '<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
+  ball: '<circle cx="12" cy="12" r="9"/><path d="M12 3l3 5-3 3-3-3 3-5zM3 12l5-1 2 4-3 3-4-6zM21 12l-5-1-2 4 3 3 4-6z"/>',
+  game: '<rect x="2" y="7" width="20" height="10" rx="3"/><path d="M7 11v2M6 12h2M15 11h.01M18 13h.01"/>',
+  palette: '<path d="M12 3a9 9 0 0 0 0 18c1 0 2-1 2-2s-1-1-1-2 1-2 2-2h2a4 4 0 0 0 4-4c0-3.9-4-8-9-8z"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="16" cy="10" r="1"/>',
+  book: '<path d="M5 4h11a2 2 0 0 1 2 2v14a1 1 0 0 0-1-1H5V4z"/><path d="M5 4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1"/>',
+  ticket: '<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M14 6v12"/>',
+  camera: '<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 7l1.5-3h5L16 7"/>',
+  dumbbell: '<path d="M6 8v8M4 9v6M18 8v8M20 9v6M6 12h12"/>',
+
+  // ─── Suscripciones / tech ───
+  phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  wifi: '<path d="M5 12a10 10 0 0 1 14 0M8 15a6 6 0 0 1 8 0"/><circle cx="12" cy="18" r="1"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.5-1.5A3.5 3.5 0 0 1 18 18H7z"/>',
+  subscription: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 14h4"/>',
+
+  // ─── Educación / trabajo ───
+  graduation: '<path d="M12 4L2 9l10 5 10-5-10-5zM6 11v4c0 1 3 2 6 2s6-1 6-2v-4M22 9v5"/>',
+  pencil: '<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z"/><path d="M14 7l3 3"/>',
+  chart: '<path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6"/>',
+  clipboard: '<rect x="6" y="4" width="12" height="17" rx="1"/><path d="M9 4V3h6v1M9 9h6M9 13h6M9 17h3"/>',
+
+  // ─── Mascotas / naturaleza ───
+  dog: '<path d="M10 5L8 3v4l-2 2v6a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V9l-2-2V3l-2 2M9 12h.01M15 12h.01M11 15h2"/>',
+  cat: '<path d="M5 4l2 4M19 4l-2 4M7 8h10l1 6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5l1-6zM9 13h.01M15 13h.01"/>',
+  paw: '<circle cx="7" cy="9" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="17" cy="9" r="1.5"/><path d="M8 15a4 4 0 0 1 8 0 3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/>',
+  tree: '<path d="M12 3l5 7h-3l3 5h-4v6h-2v-6H7l3-5H7l5-7z"/>',
+  plant: '<path d="M12 21v-8M12 13c0-3-2-5-5-5 0 3 2 5 5 5zM12 13c0-4 3-6 6-6 0 4-3 6-6 6z"/>',
+  flower: '<circle cx="12" cy="9" r="2"/><path d="M12 9a3 3 0 0 0-3-3 3 3 0 0 0 3-3 3 3 0 0 0 3 3 3 3 0 0 0-3 3zM12 9a3 3 0 0 1 3 3 3 3 0 0 1 3-3M12 9a3 3 0 0 0-3 3 3 3 0 0 0-3-3M12 12v9"/>',
+
+  // ─── Personas / familia ───
+  user: '<circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3.5 3.5 0 0 1 0 7M17 20a6 6 0 0 0-3-5"/>',
+  baby: '<circle cx="12" cy="7" r="3"/><path d="M9 7h.01M15 7h.01M6 21v-4a6 6 0 0 1 12 0v4M9 14l3 2 3-2"/>',
+  heart: '<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5C19 15.5 12 20 12 20z"/>',
+
+  // ─── Genéricos / comodines ───
+  box: '<path d="M3 8l9-5 9 5v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  star: '<path d="M12 3l2.5 6 6.5.5-5 4 1.5 6.5L12 16.5 6 20l1.5-6.5-5-4 6.5-.5L12 3z"/>',
+  sparkles: '<path d="M12 3l1.5 5L19 9.5 13.5 11 12 16l-1.5-5L5 9.5 10.5 8 12 3zM19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
+  dots: '<circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/>',
+};
+
+/* Comodines: rotan según la inicial para que dos categorías sin match no
+   queden idénticas. */
+const WILDCARDS = ["tag", "box", "star", "circle", "sparkles", "dots"];
+
+/* Diccionario español → clave de ícono. Palabras y sinónimos MX.
+   El matcher busca por inclusión de subcadena, así "gasol" ya cae en
+   gasStation antes de terminar "gasolina". Orden importa: primero las
+   más específicas. */
+const ICON_KEYWORDS = [
+  // ingresos
+  [["sueldo","salario","nomina","nómina","quincena","paga"], "briefcase"],
+  [["negocio","empresa","emprendimiento","local"], "building"],
+  [["freelance","freelanceo","proyecto","cliente"], "laptop"],
+  [["inversion","inversión","rendimiento","dividendo","accion","acción","bolsa"], "trendingUp"],
+  [["ahorro","ahorros","fondo","emergencia","meta"], "piggyBank"],
+  [["propina","propinas","bono","aguinaldo","comision","comisión"], "handCoin"],
+  [["renta ingreso","alquiler ingreso"], "coin"],
+  [["reembolso","devolucion","devolución","retorno"], "refund"],
+  [["ingreso","ingresos","deposito","depósito","entrada","abono"], "wallet"],
+  // comida
+  [["super","súper","despensa","mandado","supermercado","abarrotes","mercado"], "cart"],
+  [["restaurante","restaurantes","comer fuera","fonda","antojito"], "restaurant"],
+  [["taco","tacos","hamburguesa","burger","comida rapida","comida rápida","lonche","torta"], "burger"],
+  [["cafe","café","cafeteria","cafetería","starbucks"], "coffee"],
+  [["pizza","pizzas"], "pizza"],
+  [["cerveza","chela","beer","bar","cantina","michelada"], "beer"],
+  [["vino","copas","licor","tequila","mezcal"], "wine"],
+  [["pastel","postre","dulce","reposteria","repostería","cumpleaños"], "cake"],
+  [["refresco","agua","bebida","soda"], "bottle"],
+  [["comida","despensa comida","alimento","alimentos","almuerzo","cena","desayuno"], "burger"],
+  // transporte
+  [["gasolina","gas","combustible","gasol","diesel","magna","premium"], "gasStation"],
+  [["uber","didi","taxi","viaje","raite"], "taxi"],
+  [["camion","camión","bus","autobus","autobús","transporte publico","transporte público","metro","pesero"], "bus"],
+  [["avion","avión","vuelo","aerolinea","aerolínea","viaje avion"], "plane"],
+  [["moto","motocicleta","motoneta"], "motorcycle"],
+  [["estacionamiento","parking","pension auto","parquimetro","parquímetro"], "parking"],
+  [["caseta","casetas","peaje","autopista"], "road"],
+  [["carro","auto","coche","vehiculo","vehículo","carro pago","mecanico","mecánico","taller"], "car"],
+  [["transporte"], "car"],
+  // casa
+  [["renta","alquiler","hipoteca","mensualidad casa"], "home"],
+  [["casa","hogar","depa","departamento","vivienda"], "home"],
+  [["luz","electricidad","cfe","recibo luz"], "lightbulb"],
+  [["agua","recibo agua","servicio agua"], "droplet"],
+  [["gas casa","gas tanque","estacionario"], "fire"],
+  [["mueble","muebles","sofa","sofá","sala","recamara","recámara","cama"], "couch"],
+  [["reparacion","reparación","herramienta","herramientas","arreglo","mantenimiento"], "tools"],
+  [["basura","limpieza casa"], "trash"],
+  [["servicio","servicios"], "lightbulb"],
+  // salud
+  [["doctor","medico","médico","consulta","clinica","clínica"], "stethoscope"],
+  [["hospital","cirugia","cirugía","urgencias"], "hospital"],
+  [["medicina","medicamento","pastilla","farmacia","remedio"], "pill"],
+  [["dentista","dental","muela","diente"], "tooth"],
+  [["seguro medico","seguro médico","gastos medicos","gastos médicos"], "firstAid"],
+  [["salud","bienestar"], "health"],
+  // ropa / compras
+  [["ropa","camisa","playera","pantalon","pantalón","vestido"], "shirt"],
+  [["zapato","zapatos","tenis","calzado"], "shoe"],
+  [["lentes","gafas","anteojos"], "glasses"],
+  [["reloj","accesorio","accesorios"], "watch"],
+  [["joyeria","joyería","anillo","collar","oro"], "jewel"],
+  [["compras","compra","shopping","tienda","mall","plaza"], "shoppingBag"],
+  // entretenimiento
+  [["cine","pelicula","película","peliculas","películas","teatro"], "film"],
+  [["musica","música","spotify","concierto","disco"], "music"],
+  [["futbol","fútbol","soccer","deporte","balon","balón","pelota"], "ball"],
+  [["videojuego","videojuegos","juego","xbox","playstation","nintendo","gaming"], "game"],
+  [["arte","pintura","manualidad","dibujo","hobby"], "palette"],
+  [["libro","libros","lectura","curso libro"], "book"],
+  [["boleto","boletos","evento","entrada evento","festival"], "ticket"],
+  [["foto","fotografia","fotografía","camara","cámara"], "camera"],
+  [["gym","gimnasio","ejercicio","pesas","crossfit","entrenamiento"], "dumbbell"],
+  [["entretenimiento","diversion","diversión","salida","fiesta"], "sparkles"],
+  // suscripciones / tech
+  [["netflix","disney","hbo","streaming","suscripcion tv","suscripción tv"], "tv"],
+  [["celular","telefono","teléfono","movil","móvil","plan celular","recarga"], "phone"],
+  [["internet","wifi","modem","módem","fibra"], "wifi"],
+  [["nube","icloud","drive","dropbox","almacenamiento"], "cloud"],
+  [["suscripcion","suscripción","suscripciones","membresia","membresía"], "subscription"],
+  // educación / trabajo
+  [["escuela","colegiatura","universidad","educacion","educación","estudios"], "graduation"],
+  [["papeleria","papelería","utiles","útiles","cuaderno"], "pencil"],
+  [["trabajo","oficina","chamba","laboral"], "briefcase"],
+  [["reporte","estadistica","estadística","finanzas"], "chart"],
+  [["tramite","trámite","documento","papeles"], "clipboard"],
+  // mascotas / naturaleza
+  [["perro","perrito","mascota perro","veterinario perro"], "dog"],
+  [["gato","gatito","mascota gato"], "cat"],
+  [["mascota","mascotas","veterinario","vet","croquetas"], "paw"],
+  [["planta","plantas","jardin","jardín","jardineria","jardinería"], "plant"],
+  [["flor","flores","ramo"], "flower"],
+  [["arbol","árbol","naturaleza","campo"], "tree"],
+  // personas / familia
+  [["familia","hijos","papas","papás","padres"], "users"],
+  [["bebe","bebé","pañal","pañales","guarderia","guardería"], "baby"],
+  [["regalo","regalos","obsequio"], "gift"],
+  [["pareja","novia","novio","amor","cita"], "heart"],
+  [["persona","personal","yo"], "user"],
+  // dinero genérico
+  [["deuda","deudas","prestamo","préstamo","credito","crédito","tarjeta"], "banknote"],
+  [["dinero","efectivo","cash","pago","pagos"], "cash"],
+  [["recurrente","mensual","fijo","recurrentes"], "repeat"],
+  [["ticket","recibo","factura","comprobante"], "receipt"],
+];
+
+/* Devuelve la clave de ícono que mejor coincide con el texto (auto-match).
+   Si nada coincide, un comodín estable según la inicial. */
+function iconForText(text) {
+  const t = (text || "").toLowerCase().trim();
+  if (!t) return WILDCARDS[0];
+  for (const [words, key] of ICON_KEYWORDS) {
+    for (const w of words) {
+      if (t.includes(w) || w.includes(t)) {
+        if (ICON_PATHS[key]) return key;
+      }
+    }
+  }
+  // Comodín estable: depende de la primera letra para variar entre categorías.
+  const code = t.charCodeAt(0) || 0;
+  return WILDCARDS[code % WILDCARDS.length];
+}
+
+/* Todas las claves agrupadas para el picker manual. */
+const ICON_GROUPS = [
+  ["Dinero", ["wallet","cash","coin","banknote","piggyBank","handCoin","chartPie","percent","refund","repeat","receipt","briefcase","building","laptop","trendingUp","gift"]],
+  ["Comida", ["cart","restaurant","burger","coffee","pizza","beer","wine","cake","bottle"]],
+  ["Transporte", ["gasStation","car","taxi","bus","plane","motorcycle","parking","road"]],
+  ["Casa", ["home","bed","lightbulb","droplet","fire","couch","tools","wrench","key","trash"]],
+  ["Salud", ["health","hospital","pill","stethoscope","firstAid","tooth"]],
+  ["Ropa y compras", ["shirt","shoppingBag","dress","shoe","glasses","watch","jewel"]],
+  ["Ocio", ["film","music","ball","game","palette","book","ticket","camera","dumbbell"]],
+  ["Tech", ["phone","tv","wifi","cloud","subscription"]],
+  ["Escuela y trabajo", ["graduation","pencil","chart","clipboard"]],
+  ["Mascotas y naturaleza", ["dog","cat","paw","tree","plant","flower"]],
+  ["Personas", ["user","users","baby","heart"]],
+  ["Otros", ["box","tag","star","sparkles","circle","dots"]],
+];
+
+
+/* Componente de ícono: pinta la clave con el color heredado (currentColor).
+   size en px. Usa outline fino. Si la clave no existe, cae al comodín tag. */
+function ZIcon({ name, size = 24, style = {} }) {
+  const paths = ICON_PATHS[name] || ICON_PATHS.tag;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"
+      strokeLinejoin="round" style={style}
+      dangerouslySetInnerHTML={{ __html: paths }} />
+  );
+}
+
+
+/* Resuelve la clave de ícono de una categoría:
+   1) su campo `icon` si ya lo tiene, 2) auto-match por nombre, 3) comodín.
+   Retrocompatible: categorías viejas (solo emoji) obtienen ícono por nombre. */
+function catIcon(cat) {
+  if (!cat) return "tag";
+  if (cat.icon && ICON_PATHS[cat.icon]) return cat.icon;
+  return iconForText(cat.name || "");
+}
+
+/* Mapa de color de categoría → par [fondo suave, trazo] para el badge.
+   Reusa la paleta que ya existe en la app; default gris. */
+const CAT_ICON_COLORS = {
+  coral:  ["#FAECE7", "#D85A30"], amber: ["#FAEEDA", "#BA7517"],
+  green:  ["#EAF3DE", "#639922"], teal:  ["#E1F5EE", "#0F6E56"],
+  blue:   ["#E6F1FB", "#185FA5"], indigo:["#EEEDFE", "#534AB7"],
+  pink:   ["#FBEAF0", "#D4537E"], navy:  ["#E6EDF5", "#1E3A5F"],
+  gray:   ["#F1EFE8", "#5F5E5A"],
+};
+function catColorPair(color) {
+  return CAT_ICON_COLORS[color] || CAT_ICON_COLORS.gray;
+}
+
+/* Badge circular de categoría: ícono outline pintado del color, sobre fondo
+   suave del mismo tono. size = diámetro. */
+function CategoryBadge({ cat, size = 40, radius }) {
+  const [bg, fg] = catColorPair(cat?.color);
+  const r = radius != null ? radius : Math.round(size * 0.28);
+  return (
+    <div style={{ width: size, height: size, borderRadius: r, background: bg,
+      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <span style={{ color: fg, display: "flex" }}>
+        <ZIcon name={catIcon(cat)} size={Math.round(size * 0.56)} />
+      </span>
+    </div>
+  );
+}
+
 const EMOJI_PICKER = [
   "💼","💻","🏢","🛍️","🏘️","📈","🎁","💸","💝","🔁","🧾","↩️","👵","💰","🪙","💵","💳",
   "🛒","🍔","☕","⛽","🚕","🏠","💡","🏥","📱","🎬","👕","📚","🐶","✈️","📦","🍕","🎨",
@@ -9078,7 +9396,7 @@ function ManualOnboarding({ onDone }) {
                   cursor:"pointer", textAlign:"left", fontFamily:FONT,
                   transition:"all .12s ease",
                 }}>
-                <span style={{ fontSize:20, lineHeight:1 }}>{c.emoji}</span>
+                <CategoryBadge cat={c} size={34} />
                 <span style={{ flex:1, fontSize:14, fontWeight:c.on?600:500, color:inkColor }}>
                   {c.name}
                 </span>
@@ -11145,7 +11463,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 16, lineHeight: 1.6 }}>
                 {_lang === "es" ? "Selecciona el idioma de la app." : "Select the app language."}
               </div>
-              {CHIP_ROW([["es", "🇲🇽 Español"], ["en", "🇺🇸 English"]], lang, saveLang)}
+              {CHIP_ROW([["es", "Español"], ["en", "English"]], lang, saveLang)}
             </div>
           </>
         )}
@@ -14686,7 +15004,7 @@ Responde SOLO con la acción (con o sin marcador al inicio), sin comillas ni mar
                           background: sel ? (dark ? "rgba(224,128,16,.14)" : "rgba(224,128,16,.08)")
                             : (dark ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.55)"),
                           WebkitTapHighlightColor: "transparent" }}>
-                        <span style={{ fontSize: 17, flexShrink: 0 }}>{cat?.emoji || "💸"}</span>
+                        <CategoryBadge cat={cat} size={30} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: ink,
                             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -17695,7 +18013,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                           borderRadius: 8, transition: "background .15s" }}
                         onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
                         onMouseLeave={(e) => e.currentTarget.style.background = ""}>
-                        <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>
+                        <CategoryBadge cat={c} size={38} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                           {total > 0 && (
@@ -17908,7 +18226,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                         border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
                         borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <span style={{ fontSize: 18 }}>{c.emoji}</span>
+                      <CategoryBadge cat={c} size={34} />
                       <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
                       <div style={{ width: 20, height: 20, borderRadius: 5,
                         border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
@@ -17941,7 +18259,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                         border: `1px solid ${isOn ? "rgba(30,111,224,.35)" : "var(--line)"}`,
                         borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                         cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
-                      <span style={{ fontSize: 18 }}>{c.emoji}</span>
+                      <CategoryBadge cat={c} size={34} />
                       <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
                       <div style={{ width: 20, height: 20, borderRadius: 5,
                         border: `2px solid ${isOn ? "#1E6FE0" : "var(--line)"}`,
@@ -17974,13 +18292,86 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
 }
 
 
+/* Biblioteca completa de íconos: buscador + secciones. Pinta cada ícono del
+   color elegido. Al tocar uno, lo selecciona y cierra. */
+function IconPickerModal({ current, color, onPick, onClose }) {
+  const [q, setQ] = useState("");
+  const dark = useDarkMode();
+  const [bg, fg] = catColorPair(color);
+  const query = q.toLowerCase().trim();
+  // Filtrado: por nombre de sección, por clave, o por keywords del diccionario.
+  const matchKeys = (() => {
+    if (!query) return null;
+    const set = new Set();
+    for (const [words, key] of ICON_KEYWORDS) {
+      if (words.some((w) => w.includes(query) || query.includes(w))) set.add(key);
+    }
+    Object.keys(ICON_PATHS).forEach((k) => { if (k.toLowerCase().includes(query)) set.add(k); });
+    return set;
+  })();
+  return createPortal(
+    <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} style={{ zIndex: 100006 }} onClick={onClose}>
+      <div className="cc-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="cc-grip" />
+        <div className="cc-sheet-top">
+          <h2>Elige un ícono</h2>
+          <button className="cc-sheet-close" onClick={onClose}>×</button>
+        </div>
+        <input className="cc-input" value={q} placeholder="Buscar ícono..."
+          onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 14 }} />
+        {ICON_GROUPS.map(([label, keys]) => {
+          const shown = matchKeys ? keys.filter((k) => matchKeys.has(k)) : keys;
+          if (!shown.length) return null;
+          return (
+            <div key={label} style={{ marginBottom: 16 }}>
+              <div className="cc-label" style={{ marginBottom: 8 }}>{label}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+                {shown.map((k) => (
+                  <button key={k} onClick={() => onPick(k)}
+                    style={{ aspectRatio: "1", borderRadius: 12, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: current === k ? bg : "var(--surface-2)",
+                      border: current === k ? `1.5px solid ${fg}` : "1.5px solid transparent" }}>
+                    <span style={{ color: current === k ? fg : "var(--ink-soft)", display: "flex" }}>
+                      <ZIcon name={k} size={22} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+const CAT_COLOR_OPTIONS = ["coral", "amber", "green", "teal", "blue", "indigo", "pink", "gray"];
+
 const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
   const [name, setName] = useState(cat.name || "");
-  const [emoji, setEmoji] = useState(cat.emoji || "📦");
+  // Ícono: usa el guardado, o auto-match por el nombre inicial.
+  const [icon, setIcon] = useState(cat.icon || (cat.name ? iconForText(cat.name) : "tag"));
+  // Si el usuario eligió ícono a mano, dejamos de auto-cambiarlo al escribir.
+  const [iconLocked, setIconLocked] = useState(!!cat.icon);
+  const [color, setColor] = useState(cat.color || "teal");
   const [type, setType] = useState(cat.type || "expense");
   const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
   const dark = useDarkMode();
+
+  // Auto-match mientras escribe (como Structured), salvo que el usuario haya
+  // elegido un ícono manualmente.
+  const onName = (v) => {
+    setName(v);
+    if (!iconLocked) setIcon(iconForText(v));
+  };
+  const pickIcon = (k) => { setIcon(k); setIconLocked(true); setLibOpen(false); };
+
+  const [bg, fg] = catColorPair(color);
+  // Sugerencias rápidas: el auto-match + unos genéricos.
+  const quick = [...new Set([iconForText(name), "cash", "cart", "home", "heart", "star", "gift", "car", "phone", "box"])].slice(0, 6);
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onClose}>
@@ -17990,43 +18381,55 @@ const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
           <h2>{cat.id ? "Editar categoría" : "Nueva categoría"}</h2>
           <button className="cc-sheet-close" onClick={onClose}>×</button>
         </div>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "flex-end" }}>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "flex-end" }}>
           <div style={{ width: 76, flexShrink: 0 }}>
-            <label className="cc-label">Emoji</label>
-            {/* Botón que abre el picker visual — evita tener que buscar el
-               emoji en el teclado del sistema, que era tedioso. */}
-            <button
-              onClick={() => setPickerOpen((v) => !v)}
-              className="cc-input"
-              style={{ textAlign: "center", fontSize: 22, cursor: "pointer",
-                width: "100%", lineHeight: 1, padding: "10px 0",
-                border: pickerOpen ? "1.5px solid var(--gold)" : undefined }}>
-              {emoji}
+            <label className="cc-label">Ícono</label>
+            <button onClick={() => setLibOpen(true)} title="Ver todos los íconos"
+              style={{ width: 56, height: 56, borderRadius: 16, background: bg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", border: "none" }}>
+              <span style={{ color: fg, display: "flex" }}><ZIcon name={icon} size={30} /></span>
             </button>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <label className="cc-label">Nombre</label>
-            <input className="cc-input" value={name} placeholder="Ej. Mascotas" onChange={(e) => setName(e.target.value)} />
+            <input className="cc-input" value={name} placeholder="Ej. Mascotas" onChange={(e) => onName(e.target.value)} />
           </div>
         </div>
 
-        {pickerOpen && (
-          <div style={{ marginBottom: 14, padding: 10, borderRadius: 12,
-            background: "var(--surface-2)", border: "1px solid var(--line)",
-            display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 4,
-            maxHeight: 168, overflowY: "auto" }}>
-            {EMOJI_PICKER.map((e, i) => (
-              <button key={`${e}-${i}`}
-                onClick={() => { setEmoji(e); setPickerOpen(false); }}
-                style={{ fontSize: 20, padding: "6px 0", borderRadius: 8, cursor: "pointer",
-                  border: emoji === e ? "1.5px solid var(--gold)" : "1.5px solid transparent",
-                  background: emoji === e ? "rgba(30,111,224,.10)" : "transparent",
-                  lineHeight: 1 }}>
-                {e}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Sugerencias rápidas + acceso a la biblioteca completa */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+          {quick.map((k) => (
+            <button key={k} onClick={() => pickIcon(k)}
+              style={{ width: 38, height: 38, borderRadius: 10, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: icon === k ? bg : "var(--surface-2)",
+                border: icon === k ? `1.5px solid ${fg}` : "1.5px solid transparent" }}>
+              <span style={{ color: icon === k ? fg : "var(--ink-soft)", display: "flex" }}>
+                <ZIcon name={k} size={20} />
+              </span>
+            </button>
+          ))}
+          <button onClick={() => setLibOpen(true)}
+            style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: "var(--gold)",
+              background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+            Ver todos
+          </button>
+        </div>
+
+        {/* Color de la categoría */}
+        <label className="cc-label" style={{ marginTop: 8 }}>Color</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          {CAT_COLOR_OPTIONS.map((c) => {
+            const [cbg, cfg] = catColorPair(c);
+            return (
+              <button key={c} onClick={() => setColor(c)}
+                style={{ width: 30, height: 30, borderRadius: "50%", background: cfg,
+                  cursor: "pointer", border: color === c ? "2.5px solid var(--ink)" : "2.5px solid transparent" }} />
+            );
+          })}
+        </div>
 
         {accounts.length > 1 && (
           <div style={{ marginBottom: 14 }}>
@@ -18044,10 +18447,16 @@ const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
         </div>
         <button className="cc-btn cc-btn-green" style={{ width: "100%", padding: 13 }}
           disabled={!name.trim()}
-          onClick={() => onSave({ ...cat, name: name.trim(), emoji, type, accountId })}>
+          onClick={() => onSave({ ...cat, name: name.trim(), icon, color, type, accountId,
+            emoji: cat.emoji })}>
           Guardar
         </button>
       </div>
+
+      {libOpen && (
+        <IconPickerModal current={icon} color={color}
+          onPick={pickIcon} onClose={() => setLibOpen(false)} />
+      )}
     </div>,
     document.body
   );
@@ -18671,7 +19080,7 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
                 <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()}
                   className={`cc-combobox-opt ${value === c.id ? "is-active" : ""}`}
                   onClick={() => pick(c.id)}>
-                  <span className="cc-emoji" style={{ fontSize: 16 }}>{c.emoji}</span>
+                  <CategoryBadge cat={c} size={30} />
                   <span>{c.name}</span>
                 </button>
               ))
@@ -18909,7 +19318,7 @@ function AddModal({ config, tx, txs, saveConfig, onClose, onSave, onConvertToRec
                   background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14,
                   boxShadow: "var(--shadow-xs)", WebkitTapHighlightColor: "transparent",
                   position: "relative", zIndex: 1 }}>
-                <span className="cc-emoji" style={{ fontSize: 19 }}>{c.emoji}</span>{c.name}
+                <CategoryBadge cat={c} size={30} /><span style={{ marginLeft: 8 }}>{c.name}</span>
               </button>
             ))}
           </div>
@@ -20250,7 +20659,7 @@ function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart
                     borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
                     transition: "background .12s" }}>
                   <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
-                  <span className="cc-emoji" style={{ fontSize: 15 }}>{d.cat.emoji}</span>
+                  <CategoryBadge cat={d.cat} size={28} />
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.cat.name}</span>
                   <span className="cc-num" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 400, fontSize: 13, color: accentColor }}>
                     {fmtBare(d.amt)}
@@ -20280,7 +20689,7 @@ function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                  <span className="cc-emoji">{d.cat.emoji}</span>
+                  <CategoryBadge cat={d.cat} size={28} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>{d.cat.name}</div>
@@ -20554,7 +20963,7 @@ function CategoryAreaChart({ data, total, accentColor, onPick }) {
                 background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
-              <span className="cc-emoji" style={{ fontSize: 15 }}>{d.cat.emoji}</span>
+              <CategoryBadge cat={d.cat} size={28} />
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.cat.name}</span>
               <span className="cc-num" style={{ fontSize: 13, color: accentColor }}>{fmtBare(d.amt)}</span>
               <span style={{ fontSize: 10.5, color: "var(--ink-faint)", width: 30, textAlign: "right" }}>{pct}%</span>
@@ -21166,7 +21575,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
                   </div>
                   {topCat ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span className="cc-emoji" style={{ fontSize: 32 }}>{topCat.cat.emoji}</span>
+                      <CategoryBadge cat={topCat.cat} size={48} />
                       <div style={{ flex: 1 }}>
                         <div className="cc-serif" style={{ fontSize: 19, fontWeight: 600 }}>{topCat.cat.name}</div>
                         <div className="cc-num" style={{ fontSize: 14, color: "var(--ink-soft)" }}>
@@ -21460,7 +21869,7 @@ function CategoryFilterModal({ mode, config, rows, accView, onClose, onSave }) {
                   background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                   transition: "all .15s" }}>
-                <span className="cc-emoji" style={{ fontSize: 20 }}>{c.emoji}</span>
+                <CategoryBadge cat={c} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
                     fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
@@ -22371,7 +22780,7 @@ function CatListGroup({ label, color, cats, selected, onToggle, amounts, last })
                 borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
                 width: "100%" }}>
-              <span style={{ fontSize: 18 }}>{c.emoji || "📂"}</span>
+              <CategoryBadge cat={c} size={34} />
               <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
                 fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
               {amt !== null && (
@@ -22538,7 +22947,7 @@ function IncVsExpCatsModal({ config, accView, incHidden, expHidden, onClose, onS
           borderRadius: 10, background: isOn ? "rgba(30,111,224,.08)" : "var(--paper)",
           cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .15s",
           width: "100%" }}>
-        <span style={{ fontSize: 18 }}>{cat.emoji || "📂"}</span>
+        <CategoryBadge cat={cat} size={34} />
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)",
           fontFamily: "'Montserrat', sans-serif" }}>{cat.name}</div>
         <div style={{ width: 20, height: 20, borderRadius: 5,
@@ -22717,7 +23126,7 @@ function ReportFilterModal({ config, incRowsAll, expRowsAll, accView, onClose, o
                 background: isOn ? color + "12" : "var(--paper)",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                 transition: "all .15s" }}>
-              <span className="cc-emoji" style={{ fontSize: 18 }}>{c.emoji}</span>
+              <CategoryBadge cat={c} size={34} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)",
                   fontFamily: "'Montserrat', sans-serif" }}>{c.name}</div>
