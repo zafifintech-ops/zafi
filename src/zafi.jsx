@@ -854,7 +854,10 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
   color:var(--ink);
-  overflow-x:hidden;overscroll-behavior:contain;
+  overflow:hidden;overscroll-behavior:none;
+  /* Bloquea que un gesto sobre el área oscura (fuera del sheet) haga scroll
+     del fondo. El sheet re-habilita pan-y para su propio scroll interno. */
+  touch-action:none;
   -webkit-font-smoothing:antialiased;}
 @keyframes ccFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes ccTourPop{0%{opacity:0;transform:scale(.92) translateY(8px);}100%{opacity:1;transform:scale(1) translateY(0);}}
@@ -881,7 +884,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   overscroll-behavior:contain;overscroll-behavior-x:none;-webkit-overflow-scrolling:touch;
   touch-action:pan-y;}
 /* Cuando hay un modal abierto, bloquear scroll del body */
-body.cc-modal-open{overflow:hidden;position:fixed;width:100%;}
+body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
+  top:0;left:0;overscroll-behavior:none;touch-action:none;}
 @keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
 @keyframes ccChartDraw{from{stroke-dashoffset:1;}to{stroke-dashoffset:0;}}
 @keyframes ccChartFadeIn{from{opacity:0;}to{opacity:1;}}
@@ -1903,18 +1907,9 @@ function resolveRange(range) {
    luego llama al onClose real cuando termina la animación (~250ms). */
 function useSheetClose(onClose) {
   const [closing, setClosing] = useState(false);
-  // Bloquear el scroll del body mientras el modal esté abierto.
-  // Guardamos el scrollY actual para restaurarlo al cerrar (iOS pierde la posición).
-  useEffect(() => {
-    const scrollY = window.scrollY;
-    document.body.classList.add("cc-modal-open");
-    document.body.style.top = `-${scrollY}px`;
-    return () => {
-      document.body.classList.remove("cc-modal-open");
-      document.body.style.top = "";
-      window.scrollTo(0, scrollY);
-    };
-  }, []);
+  // El bloqueo de scroll del body (clase cc-modal-open + preservar posición)
+  // lo maneja un ÚNICO efecto global en Main que observa cualquier overlay.
+  // Antes se hacía también aquí y ambos se pisaban al haber varios modales.
   const close = () => {
     if (closing) return;
     setClosing(true);
@@ -6095,7 +6090,9 @@ function ProfileSetup({ user, config, saveConfig, onDone }) {
         <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
           ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }} />
       </div>
-      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+      <div style={{ flex:1, minHeight:0, display:"flex", alignItems:"flex-start", justifyContent:"center",
+        overflowY:"auto", WebkitOverflowScrolling:"touch",
+        padding:"max(40px, calc(40px + env(safe-area-inset-top))) 24px max(40px, calc(40px + env(safe-area-inset-bottom)))" }}>
         <div style={{ width:"100%", maxWidth:400, background:cardBg,
           backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
           borderRadius:28, padding:"36px 28px", border:"1px solid rgba(255,255,255,.15)" }}>
@@ -8394,6 +8391,39 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user]); // re-corre cuando cambia el usuario
 
+  // Global: mientras exista CUALQUIER overlay/modal en pantalla, fijar el body
+  // para eliminar el "scroll-bleed" (que al scrollear dentro del modal se mueva
+  // el fondo). Cubre también los modales que no usan useSheetClose (consent IA,
+  // date picker, etc.). Observa el DOM porque los modales montan/desmontan.
+  useEffect(() => {
+    let raf = 0;
+    const sync = () => {
+      const hayModal = document.querySelector(".cc-overlay");
+      const yaFijo = document.body.classList.contains("cc-modal-open");
+      if (hayModal && !yaFijo) {
+        // Guardar la posición antes de fijar el body, y compensarla con top
+        // negativo para que no salte al inicio.
+        const y = window.scrollY;
+        document.body.dataset.scrollY = String(y);
+        document.body.classList.add("cc-modal-open");
+        document.body.style.top = `-${y}px`;
+      } else if (!hayModal && yaFijo) {
+        const y = parseInt(document.body.dataset.scrollY || "0", 10);
+        document.body.classList.remove("cc-modal-open");
+        document.body.style.top = "";
+        window.scrollTo(0, y);
+      }
+    };
+    const obs = new MutationObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(sync);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    sync();
+    return () => { obs.disconnect(); cancelAnimationFrame(raf);
+      document.body.classList.remove("cc-modal-open"); document.body.style.top = ""; };
+  }, []);
+
   // Global: deslizar hacia abajo para cerrar cualquier modal (cc-sheet)
   useEffect(() => {
     let startY = 0, currentDy = 0, sheet = null, dragging = false;
@@ -8960,14 +8990,20 @@ function ManualOnboarding({ onDone }) {
         <video src={bgVideoSrc} autoPlay muted loop playsInline preload="auto"
           ref={(el) => { if (el) { el.muted = true; el.loop = true; el.play().catch(() => {}); } }} />
       </div>
-      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+      {/* Contenedor SCROLLEABLE: alignItems flex-start + overflowY auto para que
+         cuando el contenido sea más alto que la pantalla (iPad, listas largas),
+         el usuario SIEMPRE pueda scrollear hasta el botón del fondo. Antes el
+         centrado + 100vh dejaba el botón fuera de pantalla sin scroll posible
+         (rechazo Apple Guideline 4). */}
+      <div style={{ flex:1, minHeight:0, display:"flex", alignItems:"flex-start", justifyContent:"center",
+        overflowY:"auto", WebkitOverflowScrolling:"touch",
         padding:"20px 20px",
-        paddingTop:"calc(28px + env(safe-area-inset-top))",
-        paddingBottom:"calc(20px + env(safe-area-inset-bottom))" }}>
+        paddingTop:"max(28px, calc(28px + env(safe-area-inset-top)))",
+        paddingBottom:"max(28px, calc(28px + env(safe-area-inset-bottom)))" }}>
         <div style={{ width:"100%", maxWidth:440, background:cardBg,
           backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
           borderRadius:28, padding:"32px 24px", border:"1px solid rgba(255,255,255,.15)",
-          maxHeight:"calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 56px)", display:"flex", flexDirection:"column" }}>
+          display:"flex", flexDirection:"column" }}>
 
           {/* Indicador de paso */}
           <div style={{ display:"flex", gap:6, marginBottom:18 }}>
@@ -9028,7 +9064,7 @@ function ManualOnboarding({ onDone }) {
 
           {/* Lista scrollable (solo step 1 y 2) */}
           {step !== 0 && (
-          <div ref={listScrollRef} style={{ overflowY:"auto", flex:1, marginBottom:14, paddingRight:4 }}>
+          <div ref={listScrollRef} style={{ marginBottom:14, paddingRight:4 }}>
             {cats.map(c => (
               <button key={c.name} onClick={() => toggleCat(step === 1 ? "income" : "expense", c.name)}
                 style={{
