@@ -17646,15 +17646,15 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <select className="cc-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
                 style={{ flex: 1, fontSize: 12.5, padding: "6px 10px" }}>
-                <option value="date-desc">📅 Más reciente primero</option>
-                <option value="date-asc">📅 Más antiguo primero</option>
-                <option value="amount-desc">💰 Mayor monto</option>
-                <option value="amount-asc">💰 Menor monto</option>
+                <option value="date-desc">Más reciente primero</option>
+                <option value="date-asc">Más antiguo primero</option>
+                <option value="amount-desc">Mayor monto</option>
+                <option value="amount-asc">Menor monto</option>
                 {config.accounts.length > 1 && accView === "all" && (
-                  <option value="account">🏦 Por cuenta</option>
+                  <option value="account">Por cuenta</option>
                 )}
                 {accView !== "all" && (
-                  <option value="category">📂 Por categoría</option>
+                  <option value="category">Por categoría</option>
                 )}
               </select>
               <span style={{ fontSize: 11, color: "var(--ink-faint)", whiteSpace: "nowrap", fontWeight: 500 }}>
@@ -25469,8 +25469,8 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
             textTransform: "uppercase", letterSpacing: ".05em" }}>Ingresos</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500, color: "var(--ink)", lineHeight: 1.1, wordBreak: "break-word" }}>
-            {fmtBare(totalIn)}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500, color: "var(--ink)", lineHeight: 1.15 }}>
+            <span style={{ wordBreak: "break-all" }}>{fmtBare(totalIn)}</span><span style={{ fontSize: 9.5, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3, whiteSpace: "nowrap" }}>mxn</span>
           </div>
         </div>
       )}
@@ -25479,8 +25479,8 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
           paddingLeft: showIn ? 10 : 0, borderLeft: showIn ? "1px solid var(--line-soft)" : "none" }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
             textTransform: "uppercase", letterSpacing: ".05em" }}>Gastos</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500, color: "var(--coral)", lineHeight: 1.1, wordBreak: "break-word" }}>
-            {fmtBare(totalOut)}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500, color: "var(--coral)", lineHeight: 1.15 }}>
+            <span style={{ wordBreak: "break-all" }}>{fmtBare(totalOut)}</span><span style={{ fontSize: 9.5, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3, whiteSpace: "nowrap" }}>mxn</span>
           </div>
         </div>
       )}
@@ -25489,9 +25489,9 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
           paddingLeft: 10, borderLeft: "1px solid var(--line-soft)" }}>
           <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
             textTransform: "uppercase", letterSpacing: ".05em" }}>Flujo neto</div>
-          <div className="cc-serif cc-num" style={{ fontSize: 18, fontWeight: 500,
-            color: net >= 0 ? "var(--ink)" : "var(--coral)", lineHeight: 1.1, wordBreak: "break-word" }}>
-            {net >= 0 ? "+" : "−"}{fmtBare(Math.abs(net))}<span style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3 }}>mxn</span>
+          <div className="cc-serif cc-num" style={{ fontSize: 17, fontWeight: 500,
+            color: net >= 0 ? "var(--ink)" : "var(--coral)", lineHeight: 1.15 }}>
+            <span style={{ wordBreak: "break-all" }}>{net >= 0 ? "+" : "−"}{fmtBare(Math.abs(net))}</span><span style={{ fontSize: 9.5, fontWeight: 400, color: "var(--ink-faint)", marginLeft: 3, whiteSpace: "nowrap" }}>mxn</span>
           </div>
         </div>
       )}
