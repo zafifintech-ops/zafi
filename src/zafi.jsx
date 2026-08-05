@@ -2381,7 +2381,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
             fontSize: 12, lineHeight: 1.55,
             color: dark ? "rgba(245,245,247,.7)" : "rgba(26,26,31,.65)",
           }}>
-            <strong style={{ color: "#1E6FE0" }}>📦 Archivar:</strong> la cuenta y sus movimientos quedan guardados y ocultos. Si subes a un plan superior se restauran automáticamente. Nada se borra.
+            <strong style={{ color: "#1E6FE0" }}>Archivar:</strong> la cuenta y sus movimientos quedan guardados y ocultos. Si subes a un plan superior se restauran automáticamente. Nada se borra.
           </div>
         </div>
 
@@ -16471,10 +16471,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   return (
                     <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 0",
                       borderBottom: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                        {c ? c.emoji : "❔"}
-                      </div>
+                      {c ? <CategoryBadge cat={c} size={34} /> : <div style={{ width: 34, height: 34, borderRadius: 10, background: "#ECEBE6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ color: "var(--ink-faint)", display: "flex" }}><ZIcon name="help" size={20} /></span></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", letterSpacing: "-.01em" }}>
                           {c ? c.name : "Sin categoría"}
@@ -17402,12 +17399,7 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
             transition: swiping ? "none" : "transform .25s cubic-bezier(.2,.8,.3,1)",
             cursor: "pointer",
           }}>
-          <div className="cc-emoji"
-            style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 17, flexShrink: 0 }}>
-            {c ? c.emoji : "❔"}
-          </div>
+          {c ? <CategoryBadge cat={c} size={34} /> : <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "#ECEBE6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ color: "var(--ink-faint)", display: "flex" }}><ZIcon name="help" size={20} /></span></div>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -17454,10 +17446,10 @@ function TxRow({ t, config, onEdit, onDelete, selectable, selected, onToggle }) 
       <div
         onClick={() => onEdit && onEdit(t)}
         className="cc-emoji"
-        style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
+        style={{ width: 34, height: 34, borderRadius: 10,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 17, flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
-        {c ? c.emoji : "❔"}
+          flexShrink: 0, cursor: onEdit ? "pointer" : "default" }}>
+        {c ? <CategoryBadge cat={c} size={34} /> : <span style={{ color: "var(--ink-faint)", display: "flex" }}><ZIcon name="help" size={20} /></span>}
       </div>
       {/* text */}
       <div
@@ -17909,6 +17901,14 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
   const allRecurring = config.recurring || [];
   const recurring = accView === "all" ? allRecurring : allRecurring.filter((r) => r.accountId === accView);
   const activeRec = recurring.filter((r) => isRecActive(r));
+  // Normaliza cada recurrente a su equivalente MENSUAL. Los anuales se dividen
+  // entre 12, los semanales/quincenales/diarios se multiplican por su factor.
+  const monthlyEquiv = (r) => {
+    const f = { daily: 30.44, weekly: 4.35, biweekly: 2.17, monthly: 1, yearly: 1 / 12 };
+    return (r.amount || 0) * (f[r.freq] || 1);
+  };
+  const recMonthlyIncome = activeRec.filter((r) => r.type === "income").reduce((s, r) => s + monthlyEquiv(r), 0);
+  const recMonthlyExpense = activeRec.filter((r) => r.type === "expense").reduce((s, r) => s + monthlyEquiv(r), 0);
   const accName = (id) => config.accounts.find((a) => a.id === id)?.name || "—";
   const catFor = (id) => config.categories.find((c) => c.id === id);
 
@@ -17932,6 +17932,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
       kind: type,
       label: "Sin categoría",
       emoji: "❔",
+      icon: "help",
       color: type === "income" ? "var(--green)" : "var(--coral)",
       txs: uncatTxs[type],
       total: uncatTotal(type),
@@ -17990,10 +17991,12 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
                     background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
                     cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
                     opacity: isRecActive(r) ? 1 : 0.5 }}>
-                  <div className="cc-emoji" style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface)",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
-                    {c ? c.emoji : "🔁"}
-                  </div>
+                  {(() => { const rc = catFor(r.categoryId);
+                    return rc ? <CategoryBadge cat={rc} size={34} />
+                      : <div style={{ width: 34, height: 34, borderRadius: 10, background: "#E7EBF0",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <span style={{ color: "#334155", display: "flex" }}><ZIcon name="repeat" size={19} /></span>
+                        </div>; })()}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, color: "var(--ink)", letterSpacing: "-.01em" }}>
                       {r.description}{!isRecActive(r) && <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}> · pausado</span>}
@@ -18010,8 +18013,25 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
               );
             })}
             {activeRec.length > 0 && (
-              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10 }}>
-                {activeRec.length} activo{activeRec.length === 1 ? "" : "s"} · se generan solos en su fecha
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: "var(--ink-soft)", fontWeight: 500 }}>Estimado por mes</span>
+                  <span style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                    {recMonthlyIncome > 0 && (
+                      <span className="cc-num" style={{ fontSize: 13, fontWeight: 500, color: "var(--green)" }}>
+                        +{fmtBare(Math.round(recMonthlyIncome))}
+                      </span>
+                    )}
+                    {recMonthlyExpense > 0 && (
+                      <span className="cc-num" style={{ fontSize: 13, fontWeight: 500, color: "var(--coral)" }}>
+                        −{fmtBare(Math.round(recMonthlyExpense))}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 4 }}>
+                  {activeRec.length} activo{activeRec.length === 1 ? "" : "s"} · anuales prorrateados a 12 meses
+                </div>
               </div>
             )}
           </div>
@@ -18126,7 +18146,7 @@ function Categorias({ config, txs, dateRange, saveConfig, showToast, saveRecurri
       {confirmDel && (
         <ConfirmDialog
           title="¿Eliminar esta categoría?"
-          message={<>La categoría <b>{confirmDel.emoji} {confirmDel.name}</b> se eliminará. Los movimientos asociados quedarán sin categoría (no se borran).</>}
+          message={<>La categoría <b>{confirmDel.name}</b> se eliminará. Los movimientos asociados quedarán sin categoría (no se borran).</>}
           confirmLabel="Eliminar"
           danger
           onCancel={() => setConfirmDel(null)}
@@ -19051,7 +19071,7 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
   }, [open]);
 
   const selected = value === "auto" || !value ? null : categories.find((c) => c.id === value);
-  const selectedDisplay = selected ? `${selected.emoji} ${selected.name}` : "";
+  const selectedDisplay = selected ? selected.name : "";
 
   const filtered = categories.filter((c) =>
     !query || c.name.toLowerCase().includes(query.toLowerCase())
@@ -19072,16 +19092,28 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
   // Placeholder: si hay detección automática en vivo, mostrarla; si no, default
   const placeholder = selected
     ? ""
-    : (detectedCat ? `${detectedCat.emoji} ${detectedCat.name}` : "✨ Automático");
+    : (detectedCat ? detectedCat.name : "Automático");
+  // Categoría cuyo ícono mostrar como badge al lado izquierdo del input:
+  // la seleccionada, o la detectada en vivo (mientras el usuario escribe).
+  const badgeCat = selected || (!open && detectedCat ? detectedCat : null);
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
+      {/* Badge del ícono a la izquierda: refleja la categoría seleccionada o
+         la auto-detectada. Si no hay, muestra el sparkles de "automático". */}
+      <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+        zIndex: 1, pointerEvents: "none", display: "flex" }}>
+        {badgeCat
+          ? <CategoryBadge cat={badgeCat} size={26} />
+          : <span style={{ color: "var(--gold)", display: "flex" }}><ZIcon name="sparkles" size={18} /></span>}
+      </div>
       <input ref={inputRef}
         className={`cc-input ${detectedCat && !selected ? "cc-input-detected" : ""}`}
         value={inputValue}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
+        style={{ paddingLeft: 44 }}
         onFocus={() => { setOpen(true); setQuery(""); }}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
         onKeyDown={(e) => {
@@ -20126,6 +20158,30 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
               ))}
             </div>
           )}
+
+          {(() => {
+            const active = rules.filter((r) => isRecActive(r));
+            if (!active.length) return null;
+            const f = { daily: 30.44, weekly: 4.35, biweekly: 2.17, monthly: 1, yearly: 1 / 12 };
+            const me = (r) => (r.amount || 0) * (f[r.freq] || 1);
+            const inc = active.filter((r) => r.type === "income").reduce((s, r) => s + me(r), 0);
+            const exp = active.filter((r) => r.type === "expense").reduce((s, r) => s + me(r), 0);
+            return (
+              <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 12,
+                background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                  <span style={{ fontSize: 13, color: "var(--ink)", fontWeight: 600 }}>Estimado por mes</span>
+                  <span style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
+                    {inc > 0 && <span className="cc-num" style={{ fontSize: 15, fontWeight: 600, color: "var(--green)" }}>+{fmtBare(Math.round(inc))}</span>}
+                    {exp > 0 && <span className="cc-num" style={{ fontSize: 15, fontWeight: 600, color: "var(--coral)" }}>−{fmtBare(Math.round(exp))}</span>}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--ink-faint)" }}>
+                  Los recurrentes anuales se prorratean a 12 meses.
+                </div>
+              </div>
+            );
+          })()}
 
           <button className="cc-btn cc-btn-primary" style={{ width: "100%", padding: 13 }}
             onClick={startNew}>＋ Nuevo recurrente</button>
@@ -21344,11 +21400,11 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     if (kind === "income") {
       const list = rangeStat.filter((t) => t.type === "income");
       setDetail({ kind: "income", label: "Todos los ingresos", color: "var(--green)",
-        emoji: "📥", txs: list, total: rangeIncome });
+        emoji: "📥", icon: "arrowDownCircle", txs: list, total: rangeIncome });
     } else if (kind === "expense") {
       const list = rangeStat.filter((t) => t.type === "expense");
       setDetail({ kind: "expense", label: "Todos los gastos", color: "var(--coral)",
-        emoji: "📤", txs: list, total: rangeExpense });
+        emoji: "📤", icon: "arrowUpCircle", txs: list, total: rangeExpense });
     }
   }
   function openCategoryDetail(catId) {
@@ -21357,7 +21413,7 @@ function Estadisticas({ config, txs, dateRange, onEdit, saveConfig, accView, set
     const list = rangeStat.filter((t) => t.categoryId === catId);
     const total = list.reduce((s, t) => s + t.amount, 0);
     setDetail({ kind: "category", label: c.name, color: c.type === "income" ? "var(--green)" : "var(--coral)",
-      emoji: c.emoji, txs: list, total });
+      emoji: c.emoji, cat: c, txs: list, total });
   }
 
   return (
@@ -23656,10 +23712,10 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -2, marginBottom: 10,
           fontFamily: "'Montserrat', sans-serif" }}>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1E6FE0",
-            background: "rgba(30,111,224,.1)", padding: "3px 9px", borderRadius: 99 }}>📅 {rangeName}</span>
+            background: "rgba(30,111,224,.1)", padding: "3px 9px", borderRadius: 99, display:"inline-flex", alignItems:"center", gap:5 }}><ZIcon name="chart" size={13} /> {rangeName}</span>
           {accountLabel && (
             <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-soft)",
-              background: "var(--surface)", padding: "3px 9px", borderRadius: 99 }}>🏦 {accountLabel}</span>
+              background: "var(--surface)", padding: "3px 9px", borderRadius: 99, display:"inline-flex", alignItems:"center", gap:5 }}><ZIcon name="bank" size={13} /> {accountLabel}</span>
           )}
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 0, marginBottom: 12,
@@ -23679,7 +23735,9 @@ function SankeyModal({ incRows, expRows, rangeName, accountLabel, onClose }) {
         }}>
           {activeInfo ? (
             <>
-              <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{activeInfo.emoji}</span>
+              <span style={{ color: activeInfo.color, display: "flex", flexShrink: 0 }}>
+                <ZIcon name={iconForText(activeInfo.name || "")} size={26} />
+              </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeInfo.name}</div>
@@ -25403,7 +25461,7 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
   const showOut = filter === "all" || filter === "expense";
   const net = totalIn - totalOut;
   if (locked) return (
-    <LockedSection label="Resumen mensual detallado" icon="📊" plan="pro" onUpgrade={onUpgrade || (() => {})} />
+    <LockedSection label="Resumen mensual detallado" icon="chart" plan="pro" onUpgrade={onUpgrade || (() => {})} />
   );
   const inner = <>
     <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
@@ -25473,7 +25531,7 @@ function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
       <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="cc-grip" />
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
-          <div className="cc-emoji" style={{ fontSize: 32, lineHeight: 1, marginTop: 2 }}>{detail.emoji}</div>
+          <div style={{ marginTop: 2 }}>{detail.cat ? <CategoryBadge cat={detail.cat} size={44} /> : <div style={{ width:44, height:44, borderRadius:12, background:"#ECEBE6", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ color:"var(--ink-soft)", display:"flex" }}><ZIcon name={detail.icon || iconForText(detail.label || "")} size={24} /></span></div>}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 className="cc-serif" style={{ fontSize: 21, fontWeight: 600, marginBottom: 2 }}>{detail.label}</h2>
             <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
