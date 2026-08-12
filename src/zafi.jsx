@@ -881,7 +881,11 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   /* Sheet FLOTANTE (estilo Apple Maps): separado de las orillas por todos
      lados, con las 4 esquinas redondeadas, en vez de pegado al borde inferior. */
   --cc-sheet-side: 10px;
-  --cc-sheet-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px));
+  /* Margen inferior CHICO y fijo: antes sumaba toda la safe-area (~34px en
+     iPhone con home indicator) y dejaba un hueco grande donde se veía el
+     fondo. El aire para el indicador se da con padding interno, no con
+     margen, para que el sheet se vea flotando apenas despegado. */
+  --cc-sheet-bottom: 10px;
   border-radius:26px;
   width:calc(100% - var(--cc-sheet-side) * 2);max-width:760px;
   margin:0 var(--cc-sheet-side) var(--cc-sheet-bottom);
@@ -889,13 +893,16 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   /* El sheet nunca debe invadir la barra de estado (hora / Dynamic Island).
      En el WebView de Capacitor env(safe-area-inset-top) a veces devuelve 0px,
      así que NO podemos depender solo de él: usamos max() para garantizar un
-     tope mínimo aunque el safe-area falle. 84px = isla (~59px) + aire real
-     debajo. Si el safe-area sí reporta, sumamos 24px de margen visible.
+     tope mínimo aunque el safe-area falle. 110px = isla (~59px) + aire real
+     debajo; con 84px el sheet quedaba casi rozando la hora.
      Al flotar hay que restar también el margen inferior. */
-  --cc-sheet-gap: max(84px, calc(env(safe-area-inset-top, 0px) + 24px));
+  --cc-sheet-gap: max(110px, calc(env(safe-area-inset-top, 0px) + 46px));
   max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
   max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
-  overflow-y:auto;overflow-x:hidden;padding:10px 20px 24px;
+  /* padding-top 4px: el grip ya aporta su propio margen (12px). El aire para
+     el home indicator va aquí abajo, no como margen externo. */
+  overflow-y:auto;overflow-x:hidden;
+  padding:4px 20px calc(18px + env(safe-area-inset-bottom, 0px));
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border:1px solid rgba(255,255,255,.7);
   box-shadow:0 8px 40px rgba(0,0,0,.16), 0 2px 10px rgba(0,0,0,.06);
@@ -995,9 +1002,9 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 .cc-auth-rise{animation:ccAuthRise .5s cubic-bezier(.2,.8,.3,1) both;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
-.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:12px auto 16px;cursor:grab;flex-shrink:0;}
+.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:8px auto 10px;cursor:grab;flex-shrink:0;}
 .cc-sheet{transition:transform .25s ease;}
-.cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-top:2px;}
 .cc-sheet-top h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;color:var(--ink);}
 .cc-sheet-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface);
   display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);
@@ -9638,8 +9645,8 @@ function ManualOnboarding({ onDone }) {
               backdropFilter:"blur(24px) saturate(160%)", WebkitBackdropFilter:"blur(24px) saturate(160%)",
               // Flotante, igual que los .cc-sheet: separado de las orillas y
               // con las 4 esquinas redondeadas.
-              borderRadius:26, margin:"0 10px max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px))",
-              padding:"24px 22px 26px",
+              borderRadius:26, margin:"0 10px 10px",
+              padding:"20px 22px calc(18px + env(safe-area-inset-bottom, 0px))",
               boxShadow: dark ? "0 8px 40px rgba(0,0,0,.5)" : "0 8px 40px rgba(0,0,0,.16)",
               maxHeight:"calc(82dvh - var(--cc-kb, 0px))", overflowY:"auto",
               // El sheet sí scrollea, pero su rebote no se propaga al padre.
