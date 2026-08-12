@@ -389,7 +389,7 @@ body{
   --page-fade:#13161D;
   --page-fade-0:rgba(19,22,29,0);
 }
-.cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border-top:1px solid rgba(255,255,255,.08);}
+.cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
@@ -867,26 +867,35 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(30,111,224,.7), 0 0 24px rgba(30,111,224,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(30,111,224,.9), 0 0 32px rgba(30,111,224,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
 .cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
-  border-radius:24px 24px 0 0;width:100%;max-width:760px;
+  /* Sheet FLOTANTE (estilo Apple Maps): separado de las orillas por todos
+     lados, con las 4 esquinas redondeadas, en vez de pegado al borde inferior. */
+  --cc-sheet-side: 10px;
+  --cc-sheet-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px));
+  border-radius:26px;
+  width:calc(100% - var(--cc-sheet-side) * 2);max-width:760px;
+  margin:0 var(--cc-sheet-side) var(--cc-sheet-bottom);
   min-height:40vh;
   /* El sheet nunca debe invadir la barra de estado (hora / Dynamic Island).
      En el WebView de Capacitor env(safe-area-inset-top) a veces devuelve 0px,
      así que NO podemos depender solo de él: usamos max() para garantizar un
      tope mínimo aunque el safe-area falle. 84px = isla (~59px) + aire real
-     debajo. Si el safe-area sí reporta, sumamos 24px de margen visible. */
+     debajo. Si el safe-area sí reporta, sumamos 24px de margen visible.
+     Al flotar hay que restar también el margen inferior. */
   --cc-sheet-gap: max(84px, calc(env(safe-area-inset-top, 0px) + 24px));
-  max-height:calc(100vh - var(--cc-sheet-gap));
-  max-height:calc(100dvh - var(--cc-sheet-gap));
-  overflow-y:auto;overflow-x:hidden;padding:10px 20px 28px;
+  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  overflow-y:auto;overflow-x:hidden;padding:10px 20px 24px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
-  border-top:1px solid rgba(255,255,255,.7);
-  box-shadow:0 -4px 24px rgba(0,0,0,.06);
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 8px 40px rgba(0,0,0,.16), 0 2px 10px rgba(0,0,0,.06);
   overscroll-behavior:contain;overscroll-behavior-x:none;-webkit-overflow-scrolling:touch;
   touch-action:pan-y;}
+/* Pantallas anchas: no dejar que el sheet flotante se pegue a los lados. */
+@media (min-width:820px){.cc-sheet{--cc-sheet-side:20px;}}
 /* Cuando hay un modal abierto, bloquear scroll del body */
 body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
   top:0;left:0;overscroll-behavior:none;touch-action:none;}
-@keyframes ccSheet{from{transform:translateY(100%);}to{transform:none;}}
+@keyframes ccSheet{from{transform:translateY(calc(100% + var(--cc-sheet-bottom, 10px)));}to{transform:none;}}
 @keyframes ccChartDraw{from{stroke-dashoffset:1;}to{stroke-dashoffset:0;}}
 @keyframes ccChartFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes ccChartScaleIn{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}
@@ -946,7 +955,7 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 /* slices del donut: fade + scale desde centro */
 .cc-chart-slice{transform-origin:center;transform-box:fill-box;animation:ccChartScaleIn .5s cubic-bezier(.3,1,.4,1) backwards;}
 @keyframes ccFadeOut{from{opacity:1;}to{opacity:0;}}
-@keyframes ccSheetOut{from{transform:none;}to{transform:translateY(100%);}}
+@keyframes ccSheetOut{from{transform:none;}to{transform:translateY(calc(100% + var(--cc-sheet-bottom, 10px)));}}
 .cc-overlay.is-closing{animation:ccFadeOut .25s ease both;}
 .cc-overlay.is-closing .cc-sheet{animation:ccSheetOut .25s cubic-bezier(.4,0,.6,1) both;}
 @keyframes ccSlideInRight{from{transform:translateX(8%);opacity:0;}to{transform:none;opacity:1;}}
@@ -2255,7 +2264,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
   };
 
   return createPortal(
-    <div style={{
+    <div className="cc-overlay" style={{
       position: "fixed", inset: 0, zIndex: 99999999,
       background: "rgba(0,0,0,.85)",
       display: "flex", alignItems: "center", justifyContent: "center",
@@ -2311,7 +2320,10 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
         </div>
 
         {/* Lista de cuentas con acciones */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+        {/* pan-y: el .cc-overlay padre pone touch-action:none para bloquear el
+            scroll del fondo, así que hay que re-habilitarlo aquí. */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px",
+          touchAction: "pan-y", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: dark ? "rgba(245,245,247,.5)" : "rgba(26,26,31,.5)",
             letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 10 }}>
             Mantener activas ({keepCount}/{max})
@@ -2444,7 +2456,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
         const summary = accountSummaries.find((s) => s.account.id === confirmingDelete);
         if (!summary) return null;
         return (
-          <div style={{
+          <div className="cc-overlay" style={{
             position: "fixed", inset: 0, zIndex: 999999999,
             display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(0,0,0,.6)",
@@ -9592,17 +9604,25 @@ function ManualOnboarding({ onDone }) {
       {showAddModal && (() => {
         const [nbg, nfg] = catColorPair(newColor);
         const quick = [...new Set([iconForText(newName), "cash", "cart", "home", "heart", "star", "gift", "car", "phone", "box"])].slice(0, 6);
-        return (
-        <div style={{ position:"fixed", inset:0, zIndex:99999,
+        // Va en un portal a document.body y con la clase `cc-overlay`: el
+        // observador global de la app detecta los modales buscando esa clase
+        // y sólo entonces fija el body. Sin ella, al abrir el teclado iOS
+        // scrolleaba el documento entero y "levantaba" la pantalla de atrás.
+        return createPortal(
+        <div className="cc-overlay" style={{ position:"fixed", inset:0, zIndex:99999,
           display:"flex", alignItems:"flex-end", justifyContent:"center",
           background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)",
           // El área oscura no debe transmitir el gesto al fondo.
           overflow:"hidden", overscrollBehavior:"none", touchAction:"none" }}
           onClick={() => setShowAddModal(false)}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width:"100%", maxWidth:440, background: dark ? "#1c1e22" : "#fff",
-              borderRadius:"24px 24px 0 0", padding:"24px 22px 32px",
-              maxHeight:"85vh", overflowY:"auto",
+            style={{ width:"calc(100% - 20px)", maxWidth:440, background: dark ? "#1c1e22" : "#fff",
+              // Flotante, igual que los .cc-sheet: separado de las orillas y
+              // con las 4 esquinas redondeadas.
+              borderRadius:26, margin:"0 10px max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px))",
+              padding:"24px 22px 26px",
+              boxShadow: dark ? "0 8px 40px rgba(0,0,0,.5)" : "0 8px 40px rgba(0,0,0,.16)",
+              maxHeight:"82vh", overflowY:"auto",
               // El sheet sí scrollea, pero su rebote no se propaga al padre.
               overscrollBehavior:"contain", WebkitOverflowScrolling:"touch",
               touchAction:"pan-y" }}>
@@ -9675,7 +9695,8 @@ function ManualOnboarding({ onDone }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
         );
       })()}
 
@@ -20456,7 +20477,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
 
         {/* Mensaje de upgrade para Free */}
         {showUpgrade && (
-          <div onClick={(e) => e.stopPropagation()}
+          <div className="cc-overlay" onClick={(e) => e.stopPropagation()}
             style={{
               position:"fixed", inset:0, zIndex:99999,
               background:"rgba(0,0,0,.55)", backdropFilter:"blur(6px)",
