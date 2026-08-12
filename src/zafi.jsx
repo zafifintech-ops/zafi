@@ -847,22 +847,18 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;left:0;right:0;background:rgba(0,0,0,.14);
+.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.14);
   backdrop-filter:none;-webkit-backdrop-filter:none;
-  /* ALTURA REAL VISIBLE, no 100%. En el WebView de Capacitor la página puede
-     ser MÁS ALTA que la pantalla (barras, teclado, dvh mal reportado), y con
-     inset:0 el sheet quedaba anclado al fondo del documento — es decir, con
-     su borde inferior redondeado fuera de la pantalla. --cc-vvh la mantiene
-     al día un efecto global con la Visual Viewport API, así que esto también
-     cubre el caso del teclado abierto. */
-  /* top:0 fijo. El body está bloqueado mientras hay un modal, así que el
-     documento no puede desplazarse: sumar el offset del visual viewport solo
-     agregaba otra variable que se desincronizaba al reabrir el teclado. */
-  top:0;
-  height:var(--cc-vvh, 100%);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease both;
-  transition:height .22s cubic-bezier(.2,.8,.3,1);
+  /* Deja libre el espacio del teclado. NO se toca la altura del overlay: se
+     intentó anclarlo al alto del visual viewport (--cc-vvh) y provocaba que
+     el modal apareciera arriba y cortado al reabrir el teclado, porque en el
+     WebView esa medida llega desfasada durante la animación del teclado.
+     inset:0 + padding es estable: el overlay siempre cubre la pantalla y solo
+     cambia dónde se apoya el sheet. */
+  padding-bottom:var(--cc-kb, 0px);
+  transition:padding-bottom .22s cubic-bezier(.2,.8,.3,1);
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
   color:var(--ink);
@@ -912,12 +908,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
      debajo; con 84px el sheet quedaba casi rozando la hora.
      Al flotar hay que restar también el margen inferior. */
   --cc-sheet-gap: max(110px, calc(env(safe-area-inset-top, 0px) + 46px));
-  /* Se mide contra el alto visible real (--cc-vvh), no contra dvh: el overlay
-     ya tiene esa altura, así que el sheet nunca se sale por abajo. Los dos
-     fallbacks son para navegadores sin Visual Viewport API. */
-  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
-  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
-  max-height:calc(var(--cc-vvh, 100dvh) - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
+  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
   /* padding-top 4px: el grip ya aporta su propio margen (12px). El aire para
      el home indicator va aquí abajo, no como margen externo. */
   overflow-y:auto;overflow-x:hidden;
@@ -8509,19 +8501,17 @@ export default function App() {
       document.body.classList.remove("cc-modal-open"); document.body.style.top = ""; };
   }, []);
 
-  // Global: publicar el tamaño REAL del viewport visible en CSS vars.
-  // --cc-vvh = alto visible (ya descuenta el teclado y las barras del sistema)
-  // --cc-kb  = alto que tapa el teclado (para los overlays inline con padding)
-  // Los overlays se anclan a estas medidas en vez de a 100dvh, porque en el
-  // WebView de Capacitor el documento puede ser más alto que la pantalla y el
-  // sheet terminaba con su borde inferior fuera de vista.
+  // Global: mantener --cc-kb con la altura del teclado en pantalla. Los
+  // overlays la usan como padding-bottom para que el sheet no quede escondido
+  // detrás del teclado (con el body fijo, iOS ya no puede scrollear para
+  // revelarlo). Es lo único que se deriva del visual viewport: intentar
+  // además fijar la ALTURA del overlay con esta API resultó inestable.
   useEffect(() => {
     const vv = window.visualViewport;
     const root = document.documentElement;
     if (!vv) return;
     let raf = 0;
     const apply = () => {
-      root.style.setProperty("--cc-vvh", `${Math.round(vv.height)}px`);
       // Alto oculto por el teclado = ventana - (viewport visible + su offset).
       const hidden = Math.round(window.innerHeight - vv.height - vv.offsetTop);
       // Umbral de 80px: filtra las barras del navegador y el ruido de rebote,
@@ -8537,7 +8527,6 @@ export default function App() {
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
       root.style.removeProperty("--cc-kb");
-      root.style.removeProperty("--cc-vvh");
     };
   }, []);
 
@@ -9672,11 +9661,8 @@ function ManualOnboarding({ onDone }) {
               borderRadius:42, margin:"0 12px 12px",
               padding:"20px 22px calc(18px + env(safe-area-inset-bottom, 0px))",
               boxShadow: dark ? "0 8px 40px rgba(0,0,0,.5)" : "0 8px 40px rgba(0,0,0,.16)",
-              // Contra --cc-vvh (alto visible real), NO contra dvh menos el teclado:
-              // eran dos medidas de lo mismo y al cerrar y reabrir el teclado se
-              // desincronizaban, el modal quedaba más alto que el overlay y se
-              // desbordaba hacia arriba, fuera de la pantalla.
-              maxHeight:"calc(var(--cc-vvh, 82dvh) - 24px)", overflowY:"auto",
+              // Misma fórmula que .cc-sheet, para que no haya dos medidas distintas.
+              maxHeight:"calc(100dvh - 110px - 12px - var(--cc-kb, 0px))", overflowY:"auto",
               // El sheet sí scrollea, pero su rebote no se propaga al padre.
               overscrollBehavior:"contain", WebkitOverflowScrolling:"touch",
               touchAction:"pan-y" }}>
