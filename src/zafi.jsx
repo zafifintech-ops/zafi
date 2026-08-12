@@ -851,6 +851,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
   backdrop-filter:none;-webkit-backdrop-filter:none;
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease both;
+  /* Deja libre el espacio del teclado: --cc-kb la mantiene actualizada un
+     efecto global con la Visual Viewport API. Como el sheet está anclado
+     abajo (flex-end), este padding lo levanta justo encima del teclado en
+     lugar de dejarlo escondido detrás. */
+  padding-bottom:var(--cc-kb, 0px);
+  transition:padding-bottom .22s cubic-bezier(.2,.8,.3,1);
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
   color:var(--ink);
@@ -882,8 +888,8 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
      debajo. Si el safe-area sí reporta, sumamos 24px de margen visible.
      Al flotar hay que restar también el margen inferior. */
   --cc-sheet-gap: max(84px, calc(env(safe-area-inset-top, 0px) + 24px));
-  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
-  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
+  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
   overflow-y:auto;overflow-x:hidden;padding:10px 20px 24px;
   animation:ccSheet .3s cubic-bezier(.16,1,.3,1);
   border:1px solid rgba(255,255,255,.7);
@@ -1955,32 +1961,6 @@ function useSheetClose(onClose) {
   return [closing, close];
 }
 
-/* Ajusta un ref de sheet cuando aparece el teclado en iOS/Capacitor.
-   El teclado reduce el viewport visual, y sin esto el sheet (anclado abajo)
-   se sube y choca con la barra de estado. Usamos la Visual Viewport API para
-   fijar la altura del sheet al espacio realmente visible. */
-function useKeyboardSafeSheet(sheetRef) {
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const apply = () => {
-      const el = sheetRef.current;
-      if (!el) return;
-      // Altura visible real (descontando el teclado)
-      const visible = vv.height;
-      // Limitamos el alto del sheet al 92% del área visible actual
-      el.style.maxHeight = `${Math.round(visible * 0.92)}px`;
-    };
-    apply();
-    vv.addEventListener("resize", apply);
-    vv.addEventListener("scroll", apply);
-    return () => {
-      vv.removeEventListener("resize", apply);
-      vv.removeEventListener("scroll", apply);
-    };
-  }, [sheetRef]);
-}
-
 /* Lee si la app está en modo oscuro mirando la clase del .cc-root.
    Útil para modales montados via createPortal en document.body, que
    no heredan el contexto de .cc-dark. */
@@ -2268,7 +2248,9 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
       position: "fixed", inset: 0, zIndex: 99999999,
       background: "rgba(0,0,0,.85)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 16,
+      // padding-bottom respeta el teclado (--cc-kb); un shorthand `padding`
+      // pisaría el de .cc-overlay y el modal quedaría tapado.
+      padding: "16px 16px calc(16px + var(--cc-kb, 0px))",
       backdropFilter: "blur(8px)",
       WebkitBackdropFilter: "blur(8px)",
       animation: "ccFadeIn .3s ease",
@@ -2461,7 +2443,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
             display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(0,0,0,.6)",
             backdropFilter: "blur(4px)",
-            padding: 20,
+            padding: "20px 20px calc(20px + var(--cc-kb, 0px))",
             animation: "ccFadeIn .2s ease",
           }} onClick={() => setConfirmingDelete(null)}>
             <div onClick={(e) => e.stopPropagation()} style={{
@@ -8494,6 +8476,34 @@ export default function App() {
       document.body.classList.remove("cc-modal-open"); document.body.style.top = ""; };
   }, []);
 
+  // Global: mantener --cc-kb con la altura del teclado en pantalla. Los
+  // overlays la usan como padding-bottom para que el sheet no quede escondido
+  // detrás del teclado (antes iOS scrolleaba el documento para revelarlo, pero
+  // con el body fijo ya no puede, y el modal quedaba tapado).
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    if (!vv) return;
+    let raf = 0;
+    const apply = () => {
+      // Alto oculto por el teclado = ventana - (viewport visible + su offset).
+      const hidden = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+      // Umbral de 80px: filtra las barras del navegador y el ruido de rebote,
+      // que no son un teclado.
+      root.style.setProperty("--cc-kb", hidden > 80 ? `${hidden}px` : "0px");
+    };
+    const onChange = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(apply); };
+    apply();
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+      root.style.removeProperty("--cc-kb");
+    };
+  }, []);
+
   // Global: deslizar hacia abajo para cerrar cualquier modal (cc-sheet)
   useEffect(() => {
     let startY = 0, currentDy = 0, sheet = null, dragging = false;
@@ -9622,7 +9632,7 @@ function ManualOnboarding({ onDone }) {
               borderRadius:26, margin:"0 10px max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px))",
               padding:"24px 22px 26px",
               boxShadow: dark ? "0 8px 40px rgba(0,0,0,.5)" : "0 8px 40px rgba(0,0,0,.16)",
-              maxHeight:"82vh", overflowY:"auto",
+              maxHeight:"calc(82dvh - var(--cc-kb, 0px))", overflowY:"auto",
               // El sheet sí scrollea, pero su rebote no se propaga al padre.
               overscrollBehavior:"contain", WebkitOverflowScrolling:"touch",
               touchAction:"pan-y" }}>
@@ -15315,7 +15325,6 @@ function GoalUpdateModal({ goal, onClose, onApply, onDelete }) {
 
   const pct = goal.target > 0 ? Math.min(100, Math.round((newSaved / goal.target) * 100)) : 0;
   const sheetRef = useRef(null);
-  useKeyboardSafeSheet(sheetRef);
 
   const apply = () => {
     if (mode !== "set" && num <= 0) return;
@@ -15485,7 +15494,6 @@ function DebtPaymentModal({ debt, onClose, onApply }) {
 
   const num = parseFloat(String(amount).replace(/[^\d]/g, "")) || 0;
   const sheetRef = useRef(null);
-  useKeyboardSafeSheet(sheetRef);
 
   // El "objetivo" de una deuda es llegar a 0. El progreso es lo ya pagado.
   const original = debt.original && debt.original > 0 ? debt.original : debt.balance;
@@ -20481,7 +20489,8 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
             style={{
               position:"fixed", inset:0, zIndex:99999,
               background:"rgba(0,0,0,.55)", backdropFilter:"blur(6px)",
-              display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              padding:"24px 24px calc(24px + var(--cc-kb, 0px))",
             }}>
             <div style={{
               maxWidth:380, width:"100%",
