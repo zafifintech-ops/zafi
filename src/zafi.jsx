@@ -389,7 +389,7 @@ body{
   --page-fade:#13161D;
   --page-fade-0:rgba(19,22,29,0);
 }
-.cc-dark .cc-sheet{background:rgba(28,30,34,.86);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);}
+.cc-dark .cc-sheet{--cc-sheet-bg:rgba(28,30,34,.86);background:var(--cc-sheet-bg);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);}
 .cc-dark .cc-overlay{background:rgba(0,0,0,.28);backdrop-filter:none;-webkit-backdrop-filter:none;}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
@@ -847,16 +847,19 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.14);
+.cc-overlay{position:fixed;left:0;right:0;background:rgba(0,0,0,.14);
   backdrop-filter:none;-webkit-backdrop-filter:none;
+  /* ALTURA REAL VISIBLE, no 100%. En el WebView de Capacitor la página puede
+     ser MÁS ALTA que la pantalla (barras, teclado, dvh mal reportado), y con
+     inset:0 el sheet quedaba anclado al fondo del documento — es decir, con
+     su borde inferior redondeado fuera de la pantalla. --cc-vvh y --cc-vvtop
+     las mantiene al día un efecto global con la Visual Viewport API, así que
+     esto también cubre el caso del teclado abierto. */
+  top:var(--cc-vvtop, 0px);
+  height:var(--cc-vvh, 100%);
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease both;
-  /* Deja libre el espacio del teclado: --cc-kb la mantiene actualizada un
-     efecto global con la Visual Viewport API. Como el sheet está anclado
-     abajo (flex-end), este padding lo levanta justo encima del teclado en
-     lugar de dejarlo escondido detrás. */
-  padding-bottom:var(--cc-kb, 0px);
-  transition:padding-bottom .22s cubic-bezier(.2,.8,.3,1);
+  transition:height .22s cubic-bezier(.2,.8,.3,1);
   font-family:'Montserrat',-apple-system,sans-serif;
   font-weight:300;
   color:var(--ink);
@@ -876,7 +879,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
    atrás sin necesidad de oscurecerla con un velo fuerte. La opacidad se
    mantiene alta (.86) para que el texto siga siendo legible sobre cualquier
    contenido. */
-.cc-sheet{background:rgba(246,247,249,.86);
+.cc-sheet{--cc-sheet-bg:rgba(246,247,249,.86);background:var(--cc-sheet-bg);
   backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);
   /* Sheet FLOTANTE (estilo Apple Maps): separado de las orillas por todos
      lados, con las 4 esquinas redondeadas, en vez de pegado al borde inferior. */
@@ -897,8 +900,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
      debajo; con 84px el sheet quedaba casi rozando la hora.
      Al flotar hay que restar también el margen inferior. */
   --cc-sheet-gap: max(110px, calc(env(safe-area-inset-top, 0px) + 46px));
-  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
-  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom) - var(--cc-kb, 0px));
+  /* Se mide contra el alto visible real (--cc-vvh), no contra dvh: el overlay
+     ya tiene esa altura, así que el sheet nunca se sale por abajo. Los dos
+     fallbacks son para navegadores sin Visual Viewport API. */
+  max-height:calc(100vh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  max-height:calc(100dvh - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
+  max-height:calc(var(--cc-vvh, 100dvh) - var(--cc-sheet-gap) - var(--cc-sheet-bottom));
   /* padding-top 4px: el grip ya aporta su propio margen (12px). El aire para
      el home indicator va aquí abajo, no como margen externo. */
   overflow-y:auto;overflow-x:hidden;
@@ -1002,9 +1009,20 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 .cc-auth-rise{animation:ccAuthRise .5s cubic-bezier(.2,.8,.3,1) both;}
 .cc-settings-section{animation:ccSlideInRight .26s cubic-bezier(.2,.7,.2,1) both;}
 .cc-settings-section.is-menu{animation:ccSlideInLeft .26s cubic-bezier(.2,.7,.2,1) both;}
-.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:8px auto 10px;cursor:grab;flex-shrink:0;}
+.cc-grip{width:36px;height:4px;background:rgba(0,0,0,.15);border-radius:99px;margin:6px auto 8px;cursor:grab;flex-shrink:0;}
 .cc-sheet{transition:transform .25s ease;}
-.cc-sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-top:2px;}
+/* Header pegajoso estilo Apple Maps: al scrollear el contenido pasa por
+   debajo difuminado y el título se mantiene visible arriba. Los márgenes
+   negativos lo extienden hasta las orillas del sheet (que tiene 20px de
+   padding lateral) para que el blur cubra todo el ancho. */
+.cc-sheet-top{position:sticky;top:-6px;z-index:6;
+  display:flex;align-items:center;justify-content:space-between;
+  margin:0 -20px 14px;padding:8px 20px 10px;
+  background:var(--cc-sheet-bg, rgba(246,247,249,.86));
+  backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
+  border-bottom:1px solid transparent;transition:border-color .2s ease;}
+/* La línea sutil solo aparece cuando ya hay contenido pasando por debajo. */
+.cc-sheet.is-scrolled .cc-sheet-top{border-bottom-color:var(--line);}
 .cc-sheet-top h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;color:var(--ink);}
 .cc-sheet-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface);
   display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);
@@ -8490,16 +8508,21 @@ export default function App() {
       document.body.classList.remove("cc-modal-open"); document.body.style.top = ""; };
   }, []);
 
-  // Global: mantener --cc-kb con la altura del teclado en pantalla. Los
-  // overlays la usan como padding-bottom para que el sheet no quede escondido
-  // detrás del teclado (antes iOS scrolleaba el documento para revelarlo, pero
-  // con el body fijo ya no puede, y el modal quedaba tapado).
+  // Global: publicar el tamaño REAL del viewport visible en CSS vars.
+  // --cc-vvh  = alto visible (ya descuenta el teclado y las barras del sistema)
+  // --cc-vvtop= desplazamiento desde arriba del documento
+  // --cc-kb   = alto que tapa el teclado (para los modales inline con padding)
+  // Los overlays se anclan a estas medidas en vez de a 100dvh, porque en el
+  // WebView de Capacitor el documento puede ser más alto que la pantalla y el
+  // sheet terminaba con su borde inferior fuera de vista.
   useEffect(() => {
     const vv = window.visualViewport;
     const root = document.documentElement;
     if (!vv) return;
     let raf = 0;
     const apply = () => {
+      root.style.setProperty("--cc-vvh", `${Math.round(vv.height)}px`);
+      root.style.setProperty("--cc-vvtop", `${Math.round(vv.offsetTop)}px`);
       // Alto oculto por el teclado = ventana - (viewport visible + su offset).
       const hidden = Math.round(window.innerHeight - vv.height - vv.offsetTop);
       // Umbral de 80px: filtra las barras del navegador y el ruido de rebote,
@@ -8515,7 +8538,22 @@ export default function App() {
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
       root.style.removeProperty("--cc-kb");
+      root.style.removeProperty("--cc-vvh");
+      root.style.removeProperty("--cc-vvtop");
     };
+  }, []);
+
+  // Global: marcar los sheets que ya se scrollearon, para que el header
+  // pegajoso muestre su línea divisoria solo cuando hay contenido debajo.
+  useEffect(() => {
+    const onScroll = (e) => {
+      const el = e.target;
+      if (!el || !el.classList || !el.classList.contains("cc-sheet")) return;
+      el.classList.toggle("is-scrolled", el.scrollTop > 4);
+    };
+    // Captura: los eventos de scroll no burbujean.
+    document.addEventListener("scroll", onScroll, true);
+    return () => document.removeEventListener("scroll", onScroll, true);
   }, []);
 
   // Global: deslizar hacia abajo para cerrar cualquier modal (cc-sheet)
