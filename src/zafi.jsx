@@ -12,7 +12,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence,
   onAuthStateChanged, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendPasswordResetEmail, signInWithCredential, GoogleAuthProvider,
+  sendPasswordResetEmail, signInWithCredential, signInWithPopup, GoogleAuthProvider,
   OAuthProvider, deleteUser, sendEmailVerification, reload } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 
@@ -957,6 +957,10 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 .cc-auth-form.back{animation:ccAuthSwitchBack .4s cubic-bezier(.2,.8,.3,1) both;}
 .cc-auth-title{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;display:inline-block;}
 .cc-onboard-step{animation:ccAuthSwitch .4s cubic-bezier(.2,.8,.3,1) both;}
+/* Evita que iOS, al llevar el input enfocado a la vista sobre el teclado,
+   scrollee tan arriba que el título quede tapado por el status bar
+   (rechazo Guideline 4 / bug reportado: "se sube demasiado la pantalla"). */
+.cc-onboard-input{scroll-margin-top:max(120px, calc(120px + env(safe-area-inset-top)));}
 /* Botones con efecto de presión (feedback táctil) */
 .cc-press{transition:transform .12s cubic-bezier(.3,.8,.3,1), opacity .2s ease, box-shadow .2s ease;}
 .cc-press:active:not(:disabled){transform:scale(.96);}
@@ -1101,7 +1105,31 @@ const SEED_KW = {
 };
 
 /* ------------------------------ utilidades ------------------------------- */
-const uid = () => Math.random().toString(36).slice(2, 10);
+/* ID único ORDENABLE POR TIEMPO: 8 chars de timestamp en base36 + 6 aleatorios.
+   Antes era Math.random() puro, así que ordenar por id dentro de un mismo día
+   daba un orden arbitrario: al registrar un movimiento nuevo, no aparecía
+   arriba de los del mismo día sino en cualquier posición. Con el prefijo de
+   timestamp, comparar ids lexicográficamente = orden cronológico real.
+   La longitud del prefijo se mantiene en 8 chars hasta el año 2059, por lo
+   que localeCompare es estable. */
+const uid = () => Date.now().toString(36).padStart(8, "0") + Math.random().toString(36).slice(2, 8);
+/* Momento de creación de un registro, en ms, para ordenar dentro de un mismo
+   día. Lee `createdAt` si existe; si no, extrae el timestamp del id nuevo
+   (14 chars). Los registros viejos (id aleatorio de 8 chars) devuelven 0 y
+   quedan al fondo de su día — es lo correcto: se crearon antes que cualquier
+   movimiento nuevo, y su orden real ya no es recuperable. */
+function txSeq(t) {
+  if (!t) return 0;
+  if (typeof t.createdAt === "number" && t.createdAt > 0) return t.createdAt;
+  const id = t.id || "";
+  if (id.length === 14) {
+    const ms = parseInt(id.slice(0, 8), 36);
+    // Rango sano: entre 2020 y 2059. Descarta ids viejos que por azar parseen.
+    if (Number.isFinite(ms) && ms > 1577836800000 && ms < 2820000000000) return ms;
+  }
+  return 0;
+}
+
 const today = () => {
   // Usar fecha local (no UTC) para que en zonas horarias negativas no muestre el día siguiente
   const d = new Date();
@@ -4462,7 +4490,7 @@ function assistantSystem(config, txs) {
       .map((c) => ({ id: c.id, nombre: c.name, emoji: c.emoji, tipo: c.type })),
   }));
   // hasta 100 movimientos recientes (de los más nuevos)
-  const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+  const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date) || (txSeq(b) - txSeq(a)) || (b.id || "").localeCompare(a.id || ""));
   const recent = sorted.slice(0, 100).map((t) => ({
     id: t.id, tipo: t.type, monto: t.amount, concepto: t.description,
     categoria: (config.categories.find((c) => c.id === t.categoryId) || {}).name || null,
@@ -5195,7 +5223,7 @@ async function autoCategorize(desc, type, accountId, config) {
 /* categorías por defecto para una cuenta nueva */
 function defaultCatsForAccount(accId) {
   return DEFAULT_CATS.map((t) => ({
-    id: uid(), name: t.name, emoji: t.emoji, type: t.type, accountId: accId,
+    id: uid(), name: t.name, icon: t.icon, color: t.color, type: t.type, accountId: accId,
     keywords: SEED_KW[norm(t.name).trim()] ? [...SEED_KW[norm(t.name).trim()]] : [],
   }));
 }
@@ -5208,19 +5236,25 @@ function buildConfig(raw) {
   }));
   if (!accounts.length) accounts = [{ id: uid(), name: "Principal", initialBalance: 0, createdAt: today() }];
 
+  // Las categorías que llegan del chatbot no traen ícono ni color: se los
+  // asignamos aquí (auto-match por nombre + color variado) para que ninguna
+  // cuenta nazca con categorías grises y sin ícono.
   let templates = (raw.categories || []).map((c) => ({
-    name: c.name || "Categoría", emoji: c.emoji || "📦",
+    name: c.name || "Categoría",
+    icon: c.icon && ICON_PATHS[c.icon] ? c.icon : iconForText(c.name || ""),
+    color: c.color && CAT_ICON_COLORS[c.color] ? c.color
+      : autoCatColor(c.name),
     type: c.type === "income" ? "income" : "expense",
   }));
-  if (!templates.some((c) => c.type === "income")) templates.push({ name: "Otros ingresos", emoji: "💰", type: "income" });
-  if (!templates.some((c) => c.type === "expense")) templates.push({ name: "Otros gastos", emoji: "📦", type: "expense" });
+  if (!templates.some((c) => c.type === "income")) templates.push({ name: "Otros ingresos", icon: "cash", color: "green", type: "income" });
+  if (!templates.some((c) => c.type === "expense")) templates.push({ name: "Otros gastos", icon: "box", color: "gray", type: "expense" });
 
   // cada cuenta arranca con su propia copia de las categorías
   const categories = [];
   accounts.forEach((acc) => {
     templates.forEach((t) => {
       categories.push({
-        id: uid(), name: t.name, emoji: t.emoji, type: t.type, accountId: acc.id,
+        id: uid(), name: t.name, icon: t.icon, color: t.color, type: t.type, accountId: acc.id,
         keywords: SEED_KW[norm(t.name).trim()] ? [...SEED_KW[norm(t.name).trim()]] : [],
       });
     });
@@ -5667,6 +5701,17 @@ function AuthScreen() {
   async function doGoogleSignIn() {
     setBusy(true); setErr("");
     try {
+      // En el navegador (zafi.vercel.app) NO hay plugin nativo: el flujo
+      // correcto es el popup del SDK web de Firebase. El pipeline de abajo
+      // (plugin → credential → REST) es exclusivo de Capacitor.
+      if (!Capacitor.isNativePlatform()) {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        const res = await signInWithPopup(auth, provider);
+        window.__zafiCurrentUser = res.user;
+        if (window.__zafiSetUser) window.__zafiSetUser(res.user);
+        return;
+      }
       // Usar FirebaseAuthentication plugin de Capacitor
       const result = await FirebaseAuthentication.signInWithGoogle();
       const credential = GoogleAuthProvider.credential(result.credential?.idToken);
@@ -5726,6 +5771,18 @@ function AuthScreen() {
   async function doAppleSignIn() {
     setBusy(true); setErr("");
     try {
+      // Navegador: popup del SDK web. Apple requiere pedir explícitamente los
+      // scopes de email y nombre, y que zafi.vercel.app esté como dominio
+      // autorizado en Firebase Auth y como Return URL en el Service ID de Apple.
+      if (!Capacitor.isNativePlatform()) {
+        const provider = new OAuthProvider("apple.com");
+        provider.addScope("email");
+        provider.addScope("name");
+        const res = await signInWithPopup(auth, provider);
+        window.__zafiCurrentUser = res.user;
+        if (window.__zafiSetUser) window.__zafiSetUser(res.user);
+        return;
+      }
       // Usar FirebaseAuthentication plugin de Capacitor
       const result = await FirebaseAuthentication.signInWithApple();
       // Apple usa OAuthProvider con nonce para verificar el idToken
@@ -8839,30 +8896,30 @@ function OnboardingChoice({ onPickAssistant, onPickManual }) {
 
 /* ─── Categorías sugeridas (12-15 cada tipo) ─── */
 const SUGGESTED_INCOME = [
-  { name:"Sueldo", emoji:"💼" },
-  { name:"Freelance", emoji:"💻" },
-  { name:"Negocio propio", emoji:"🏢" },
-  { name:"Ventas", emoji:"🛍️" },
-  { name:"Rentas", emoji:"🏘️" },
-  { name:"Inversiones", emoji:"📈" },
-  { name:"Bonos / Comisiones", emoji:"🎁" },
-  { name:"Aguinaldo / PTU", emoji:"💸" },
-  { name:"Regalo / Apoyo familiar", emoji:"💝" },
-  { name:"Pensión", emoji:"👵" },
-  { name:"Otros ingresos", emoji:"💰" },
+  { name:"Sueldo", icon:"briefcase", color:"green" },
+  { name:"Freelance", icon:"laptop", color:"teal" },
+  { name:"Negocio propio", icon:"building", color:"indigo" },
+  { name:"Ventas", icon:"shoppingBag", color:"amber" },
+  { name:"Rentas", icon:"key", color:"blue" },
+  { name:"Inversiones", icon:"trendingUp", color:"teal" },
+  { name:"Bonos / Comisiones", icon:"gift", color:"pink" },
+  { name:"Aguinaldo / PTU", icon:"banknote", color:"amber" },
+  { name:"Regalo / Apoyo familiar", icon:"heart", color:"coral" },
+  { name:"Pensión", icon:"user", color:"navy" },
+  { name:"Otros ingresos", icon:"cash", color:"gray" },
 ];
 
 const SUGGESTED_EXPENSE = [
-  { name:"Súper / Despensa", emoji:"🛒" },
-  { name:"Restaurantes", emoji:"🍔" },
-  { name:"Transporte / Gasolina", emoji:"⛽" },
-  { name:"Casa / Renta", emoji:"🏠" },
-  { name:"Servicios (luz, agua, internet)", emoji:"💡" },
-  { name:"Salud / Médico", emoji:"🏥" },
-  { name:"Suscripciones", emoji:"📱" },
-  { name:"Entretenimiento", emoji:"🎬" },
-  { name:"Ropa / Compras", emoji:"👕" },
-  { name:"Otros gastos", emoji:"📦" },
+  { name:"Súper / Despensa", icon:"cart", color:"amber" },
+  { name:"Restaurantes", icon:"restaurant", color:"coral" },
+  { name:"Transporte / Gasolina", icon:"gasStation", color:"blue" },
+  { name:"Casa / Renta", icon:"home", color:"indigo" },
+  { name:"Servicios (luz, agua, internet)", icon:"lightbulb", color:"teal" },
+  { name:"Salud / Médico", icon:"health", color:"coral" },
+  { name:"Suscripciones", icon:"subscription", color:"navy" },
+  { name:"Entretenimiento", icon:"film", color:"pink" },
+  { name:"Ropa / Compras", icon:"shirt", color:"amber" },
+  { name:"Otros gastos", icon:"box", color:"gray" },
 ];
 
 /* Lista de emojis comunes para el picker */
@@ -9188,6 +9245,22 @@ function catColorPair(color) {
   return CAT_ICON_COLORS[color] || CAT_ICON_COLORS.gray;
 }
 
+/* Colores elegibles para una categoría (orden del selector). */
+const CAT_COLOR_OPTIONS = ["coral", "amber", "green", "teal", "blue", "indigo", "pink", "gray"];
+
+/* Color automático para una categoría sin color asignado. Usa un hash del
+   nombre completo (no solo la inicial: eso hacía que "Comida", "Casa" y
+   "Coche" cayeran todas en el mismo tono) para repartir la paleta de forma
+   estable — el mismo nombre siempre da el mismo color. */
+function autoCatColor(name) {
+  const s = String(name || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  // "gray" se reserva para los genéricos ("Otros..."), no se reparte al azar.
+  const pool = CAT_COLOR_OPTIONS.filter((c) => c !== "gray");
+  return pool[h % pool.length];
+}
+
 /* Badge circular de categoría: ícono outline pintado del color, sobre fondo
    suave del mismo tono. size = diámetro. */
 function CategoryBadge({ cat, size = 40, radius }) {
@@ -9215,12 +9288,6 @@ function AccountBadge({ account, size = 34, all = false }) {
   );
 }
 
-const EMOJI_PICKER = [
-  "💼","💻","🏢","🛍️","🏘️","📈","🎁","💸","💝","🔁","🧾","↩️","👵","💰","🪙","💵","💳",
-  "🛒","🍔","☕","⛽","🚕","🏠","💡","🏥","📱","🎬","👕","📚","🐶","✈️","📦","🍕","🎨",
-  "🎵","⚽","🎮","🛏️","🧴","💊","🚗","🏍️","✂️","💄","🍷","🎂","🌳","⚡","💻","📷",
-];
-
 /* ─── Pantalla manual: ingresos → gastos → fin ─── */
 function ManualOnboarding({ onDone }) {
   const FONT = "'Montserrat', sans-serif";
@@ -9245,10 +9312,13 @@ function ManualOnboarding({ onDone }) {
     if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
   }, [step]);
 
-  // Modal para agregar categoría custom
+  // Modal para agregar categoría custom (mismo sistema de íconos que CatModal)
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState("💰");
+  const [newIcon, setNewIcon] = useState("tag");
+  const [newIconLocked, setNewIconLocked] = useState(false);
+  const [newColor, setNewColor] = useState("blue");
+  const [libOpen, setLibOpen] = useState(false);
   const [newIsPassthrough, setNewIsPassthrough] = useState(false);
 
   const toggleCat = (type, name) => {
@@ -9258,15 +9328,31 @@ function ManualOnboarding({ onDone }) {
 
   const openAdd = () => {
     setNewName("");
-    setNewEmoji(step === 1 ? "💰" : "🛒");
+    setNewIcon(step === 1 ? "cash" : "cart");
+    setNewIconLocked(false);
+    setNewColor(step === 1 ? "green" : "coral");
     setNewIsPassthrough(false);
+    setLibOpen(false);
     setShowAddModal(true);
   };
+
+  // Auto-match del ícono mientras escribe (como en CatModal), salvo que el
+  // usuario ya haya elegido uno a mano.
+  const onNewName = (v) => {
+    setNewName(v);
+    if (!newIconLocked) {
+      setNewIcon(iconForText(v));
+      // Color automático variado según la primera letra, para que las
+      // categorías nuevas no salgan todas del mismo tono.
+      setNewColor(autoCatColor(v));
+    }
+  };
+  const pickNewIcon = (k) => { setNewIcon(k); setNewIconLocked(true); setLibOpen(false); };
 
   const addCustom = () => {
     const name = newName.trim();
     if (!name) return;
-    const newCat = { name, emoji: newEmoji, on: true, custom: true, ...(step === 1 && newIsPassthrough ? { passThrough: true } : {}) };
+    const newCat = { name, icon: newIcon, color: newColor, on: true, custom: true, ...(step === 1 && newIsPassthrough ? { passThrough: true } : {}) };
     if (step === 1) setIncomeCats(prev => [...prev, newCat]);
     else setExpenseCats(prev => [...prev, newCat]);
     setShowAddModal(false);
@@ -9283,7 +9369,8 @@ function ManualOnboarding({ onDone }) {
     const finalIncome = incomeCats.filter(c => c.on).map(c => ({
       id: uid(),
       name: c.name,
-      emoji: c.emoji,
+      icon: c.icon || iconForText(c.name),
+      color: c.color || autoCatColor(c.name),
       type: "income",
       accountId: mainAccountId,
       keywords: SEED_KW[norm(c.name).trim()] ? [...SEED_KW[norm(c.name).trim()]] : [],
@@ -9292,14 +9379,15 @@ function ManualOnboarding({ onDone }) {
     const finalExpense = expenseCats.filter(c => c.on).map(c => ({
       id: uid(),
       name: c.name,
-      emoji: c.emoji,
+      icon: c.icon || iconForText(c.name),
+      color: c.color || autoCatColor(c.name),
       type: "expense",
       accountId: mainAccountId,
       keywords: SEED_KW[norm(c.name).trim()] ? [...SEED_KW[norm(c.name).trim()]] : [],
     }));
     // Asegurar al menos una de cada
-    if (finalIncome.length === 0) finalIncome.push({ id: uid(), name: "Otros ingresos", emoji: "💰", type: "income", accountId: mainAccountId });
-    if (finalExpense.length === 0) finalExpense.push({ id: uid(), name: "Otros gastos", emoji: "📦", type: "expense", accountId: mainAccountId });
+    if (finalIncome.length === 0) finalIncome.push({ id: uid(), name: "Otros ingresos", icon: "cash", color: "gray", type: "income", accountId: mainAccountId });
+    if (finalExpense.length === 0) finalExpense.push({ id: uid(), name: "Otros gastos", icon: "box", color: "gray", type: "expense", accountId: mainAccountId });
 
     // Secciones del dashboard por default (Free)
     const defaultSections = [
@@ -9346,7 +9434,11 @@ function ManualOnboarding({ onDone }) {
          centrado + 100vh dejaba el botón fuera de pantalla sin scroll posible
          (rechazo Apple Guideline 4). */}
       <div style={{ flex:1, minHeight:0, display:"flex", alignItems:"flex-start", justifyContent:"center",
-        overflowY:"auto", WebkitOverflowScrolling:"touch",
+        // Cuando el modal está abierto, congelamos el scroll del contenedor de
+        // fondo: si no, arrastrar el modal hacia abajo para cerrarlo movía la
+        // pantalla de atrás (scroll-bleed).
+        overflowY: showAddModal ? "hidden" : "auto", WebkitOverflowScrolling:"touch",
+        touchAction: showAddModal ? "none" : "auto",
         padding:"20px 20px",
         paddingTop:"max(28px, calc(28px + env(safe-area-inset-top)))",
         paddingBottom:"max(28px, calc(28px + env(safe-area-inset-bottom)))" }}>
@@ -9385,7 +9477,7 @@ function ManualOnboarding({ onDone }) {
             <div style={{ flex:1, display:"flex", flexDirection:"column", gap:18, marginBottom:14 }}>
               <div>
                 <label style={lbl}>Nombre de la cuenta</label>
-                <input style={inp} type="text" placeholder='Ej: "Principal", "Banamex", "Efectivo"'
+                <input className="cc-onboard-input" style={inp} type="text" placeholder='Ej: "Principal", "Banamex", "Efectivo"'
                   value={accountName} onChange={e => setAccountName(e.target.value)} maxLength={30} />
                 <div style={{ fontSize:11.5, color:inkSoft, marginTop:6, lineHeight:1.5 }}>
                   Dale un nombre que reconozcas fácil.
@@ -9396,14 +9488,10 @@ function ManualOnboarding({ onDone }) {
                 <div style={{ position:"relative" }}>
                   <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)",
                     fontSize:15, color:inkSoft, pointerEvents:"none" }}>$</span>
-                  <input style={{ ...inp, paddingLeft:28 }} type="text" inputMode="decimal"
+                  <input className="cc-onboard-input" style={{ ...inp, paddingLeft:28 }} type="text" inputMode="decimal"
                     placeholder="0.00"
-                    value={accountBalance}
-                    onChange={e => {
-                      // Permite dígitos, punto y coma. Limpia formato.
-                      const v = e.target.value.replace(/[^\d.,-]/g, "");
-                      setAccountBalance(v);
-                    }} />
+                    value={formatAmtInput(accountBalance)}
+                    onChange={e => setAccountBalance(parseAmtInput(e.target.value))} />
                 </div>
                 <div style={{ fontSize:11.5, color:inkSoft, marginTop:6, lineHeight:1.5 }}>
                   Cuánto dinero tienes ahora mismo en esa cuenta. Puedes dejarlo en 0 si prefieres.
@@ -9498,42 +9586,79 @@ function ManualOnboarding({ onDone }) {
         </div>
       </div>
 
-      {/* Modal agregar categoría */}
-      {showAddModal && (
+      {/* Modal agregar categoría — mismo sistema de íconos que en la app:
+          auto-match en español mientras escribe, sugerencias rápidas,
+          biblioteca completa y selector de color. Sin emojis. */}
+      {showAddModal && (() => {
+        const [nbg, nfg] = catColorPair(newColor);
+        const quick = [...new Set([iconForText(newName), "cash", "cart", "home", "heart", "star", "gift", "car", "phone", "box"])].slice(0, 6);
+        return (
         <div style={{ position:"fixed", inset:0, zIndex:99999,
           display:"flex", alignItems:"flex-end", justifyContent:"center",
-          background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)" }}
+          background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)",
+          // El área oscura no debe transmitir el gesto al fondo.
+          overflow:"hidden", overscrollBehavior:"none", touchAction:"none" }}
           onClick={() => setShowAddModal(false)}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ width:"100%", maxWidth:440, background: dark ? "#1c1e22" : "#fff",
               borderRadius:"24px 24px 0 0", padding:"24px 22px 32px",
-              maxHeight:"85vh", overflowY:"auto" }}>
+              maxHeight:"85vh", overflowY:"auto",
+              // El sheet sí scrollea, pero su rebote no se propaga al padre.
+              overscrollBehavior:"contain", WebkitOverflowScrolling:"touch",
+              touchAction:"pan-y" }}>
             <div style={{ width:40, height:4, borderRadius:99, background:dark?"rgba(255,255,255,.2)":"rgba(0,0,0,.15)", margin:"0 auto 20px" }} />
             <div style={{ fontSize:18, fontWeight:700, color:inkColor, marginBottom:18, letterSpacing:"-.01em" }}>
               Nueva categoría {step === 1 ? "de ingreso" : "de gasto"}
             </div>
 
-            <label style={lbl}>Nombre</label>
-            <input style={{ ...inp, marginBottom:18 }} type="text" placeholder="Ej: Mascotas"
-              value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+            {/* Ícono (auto-detectado) + nombre */}
+            <div style={{ display:"flex", gap:12, marginBottom:12, alignItems:"flex-end" }}>
+              <div style={{ flexShrink:0 }}>
+                <label style={lbl}>Ícono</label>
+                <button type="button" onClick={() => setLibOpen(true)} title="Ver todos los íconos"
+                  style={{ width:54, height:54, borderRadius:16, background:nbg, border:"none",
+                    display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                  <span style={{ color:nfg, display:"flex" }}><ZIcon name={newIcon} size={28} /></span>
+                </button>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <label style={lbl}>Nombre</label>
+                <input style={inp} type="text" placeholder="Ej: Mascotas"
+                  value={newName} onChange={e => onNewName(e.target.value)} autoFocus />
+              </div>
+            </div>
 
-            <label style={lbl}>Emoji</label>
-            <div style={{
-              display:"grid", gridTemplateColumns:"repeat(8, 1fr)", gap:6,
-              marginBottom:18, maxHeight:180, overflowY:"auto",
-              padding:8, borderRadius:12,
-              background: dark ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.03)",
-            }}>
-              {EMOJI_PICKER.map((e, i) => (
-                <button key={`${e}-${i}`} onClick={() => setNewEmoji(e)} type="button"
-                  style={{
-                    aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:22, lineHeight:1, padding:0,
-                    background: newEmoji === e ? "rgba(30,111,224,.2)" : "transparent",
-                    border:`2px solid ${newEmoji === e ? "#1E6FE0" : "transparent"}`,
-                    borderRadius:10, cursor:"pointer",
-                  }}>{e}</button>
+            {/* Sugerencias rápidas + biblioteca completa */}
+            <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
+              {quick.map((k) => (
+                <button key={k} type="button" onClick={() => pickNewIcon(k)}
+                  style={{ width:36, height:36, borderRadius:10, cursor:"pointer", flexShrink:0,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    background: newIcon === k ? nbg : (dark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.04)"),
+                    border: newIcon === k ? `1.5px solid ${nfg}` : "1.5px solid transparent" }}>
+                  <span style={{ color: newIcon === k ? nfg : inkSoft, display:"flex" }}>
+                    <ZIcon name={k} size={19} />
+                  </span>
+                </button>
               ))}
+              <button type="button" onClick={() => setLibOpen(true)}
+                style={{ marginLeft:"auto", fontSize:13, fontWeight:600, color:"#1E6FE0",
+                  background:"none", border:"none", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
+                Ver todos
+              </button>
+            </div>
+
+            {/* Color */}
+            <label style={lbl}>Color</label>
+            <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
+              {CAT_COLOR_OPTIONS.map((c) => {
+                const [, cfg] = catColorPair(c);
+                return (
+                  <button key={c} type="button" onClick={() => { setNewColor(c); setNewIconLocked(true); }}
+                    style={{ width:30, height:30, borderRadius:"50%", background:cfg, cursor:"pointer",
+                      border: newColor === c ? `2.5px solid ${inkColor}` : "2.5px solid transparent" }} />
+                );
+              })}
             </div>
 
             <div style={{ display:"flex", gap:10 }}>
@@ -9551,6 +9676,13 @@ function ManualOnboarding({ onDone }) {
             </div>
           </div>
         </div>
+        );
+      })()}
+
+      {/* Biblioteca completa de íconos (buscador + secciones) */}
+      {showAddModal && libOpen && (
+        <IconPickerModal current={newIcon} color={newColor}
+          onPick={pickNewIcon} onClose={() => setLibOpen(false)} />
       )}
     </div>
   );
@@ -17531,8 +17663,10 @@ function Movimientos({ config, txs, dateRange, saveTxs, showToast, onEdit, accVi
     return false;
   });
   const list = [...filtered].sort((a, b) => {
-    if (sortBy === "date-desc") return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
-    if (sortBy === "date-asc")  return a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+    // Dentro del mismo día, el más reciente primero (txSeq), y el id como
+    // último desempate para que el orden sea estable entre renders.
+    if (sortBy === "date-desc") return b.date.localeCompare(a.date) || (txSeq(b) - txSeq(a)) || b.id.localeCompare(a.id);
+    if (sortBy === "date-asc")  return a.date.localeCompare(b.date) || (txSeq(a) - txSeq(b)) || a.id.localeCompare(b.id);
     if (sortBy === "amount-desc") return b.amount - a.amount;
     if (sortBy === "amount-asc")  return a.amount - b.amount;
     if (sortBy === "account") {
@@ -18174,7 +18308,10 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
   const [customCats, setCustomCats] = useState([]); // categorías nuevas agregadas aquí
   const [addingType, setAddingType] = useState(null); // "income" | "expense" | null
   const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState("📦");
+  const [newIcon, setNewIcon] = useState("box");
+  const [newIconLocked, setNewIconLocked] = useState(false);
+  const [newColor, setNewColor] = useState("gray");
+  const [libOpen, setLibOpen] = useState(false);
 
   const toggleInc = (id) => {
     const next = new Set(incSelected);
@@ -18187,16 +18324,28 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
     setExpSelected(next);
   };
 
+  // Auto-match del ícono y color mientras escribe (sistema de íconos, sin emojis)
+  const onNewName = (v) => {
+    setNewName(v);
+    if (!newIconLocked) {
+      setNewIcon(iconForText(v));
+      setNewColor(autoCatColor(v));
+    }
+  };
+  const pickNewIcon = (k) => { setNewIcon(k); setNewIconLocked(true); setLibOpen(false); };
+
+  const resetNew = () => { setNewName(""); setNewIcon("box"); setNewIconLocked(false); setNewColor("gray"); setLibOpen(false); };
+
   const addCustom = () => {
     if (!newName.trim() || !addingType) return;
     const cat = {
-      id: uid(), name: newName.trim(), emoji: newEmoji || "📦",
+      id: uid(), name: newName.trim(), icon: newIcon, color: newColor,
       type: addingType, accountId, keywords: [],
     };
     setCustomCats((prev) => [...prev, cat]);
     if (addingType === "income") setIncSelected((prev) => new Set(prev).add(cat.id));
     else setExpSelected((prev) => new Set(prev).add(cat.id));
-    setNewName(""); setNewEmoji("📦"); setAddingType(null);
+    resetNew(); setAddingType(null);
   };
 
   const finish = () => {
@@ -18210,16 +18359,23 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
     onClose();
   };
 
-  const AddRow = ({ type }) => (
+  /* Se renderiza como función (no como <AddRow/>) a propósito: como componente
+     inline React lo remontaba en cada tecla y el input perdía el foco. */
+  const renderAddRow = (type) => {
+    const [nbg, nfg] = catColorPair(newColor);
+    return (
     addingType === type ? (
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-        <input value={newEmoji} onChange={(e) => setNewEmoji(e.target.value.slice(0, 2) || "📦")}
-          style={{ width: 44, textAlign: "center", fontSize: 18, padding: "8px 4px",
-            borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)" }} />
-        <input value={newName} onChange={(e) => setNewName(e.target.value)}
+        {/* Ícono auto-detectado por el nombre; tap para abrir la biblioteca */}
+        <button type="button" onClick={() => setLibOpen(true)} title="Elegir ícono"
+          style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: nbg,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <span style={{ color: nfg, display: "flex" }}><ZIcon name={newIcon} size={20} /></span>
+        </button>
+        <input value={newName} onChange={(e) => onNewName(e.target.value)}
           placeholder="Nombre de categoría" autoFocus
           onKeyDown={(e) => e.key === "Enter" && addCustom()}
-          style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)",
+          style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)",
             background: "var(--paper)", fontSize: 13.5, fontFamily: "'Montserrat', sans-serif" }} />
         <button onClick={addCustom} disabled={!newName.trim()}
           style={{ padding: "8px 12px", borderRadius: 8, border: "none",
@@ -18227,14 +18383,14 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
             cursor: newName.trim() ? "pointer" : "not-allowed", opacity: newName.trim() ? 1 : 0.5 }}>
           +
         </button>
-        <button onClick={() => { setAddingType(null); setNewName(""); }}
+        <button onClick={() => { setAddingType(null); resetNew(); }}
           style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)",
             background: "transparent", color: "var(--ink-soft)", fontSize: 13, cursor: "pointer" }}>
           ×
         </button>
       </div>
     ) : (
-      <button onClick={() => setAddingType(type)}
+      <button onClick={() => { resetNew(); setAddingType(type); }}
         style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8,
           border: "1px dashed var(--line)", background: "transparent",
           color: "#1E6FE0", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
@@ -18242,7 +18398,8 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
         + Agregar categoría de {type === "income" ? "ingreso" : "gasto"}
       </button>
     )
-  );
+    );
+  };
 
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""} ${closing ? "is-closing" : ""}`} style={{ zIndex: 100000000 }}>
@@ -18290,7 +18447,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                   );
                 })}
               </div>
-              <AddRow type="income" />
+              {renderAddRow("income")}
             </div>
 
             <div style={{ marginBottom: 8 }}>
@@ -18323,7 +18480,7 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
                   );
                 })}
               </div>
-              <AddRow type="expense" />
+              {renderAddRow("expense")}
             </div>
           </div>
 
@@ -18337,6 +18494,11 @@ function NewAccountCategoriesModal({ config, accountId, accountName, saveConfig,
           </button>
         </div>
       </div>
+      {/* Biblioteca completa de íconos para la categoría que se está creando */}
+      {libOpen && (
+        <IconPickerModal current={newIcon} color={newColor}
+          onPick={pickNewIcon} onClose={() => setLibOpen(false)} />
+      )}
     </div>,
     document.body
   );
@@ -18398,7 +18560,6 @@ function IconPickerModal({ current, color, onPick, onClose }) {
   );
 }
 
-const CAT_COLOR_OPTIONS = ["coral", "amber", "green", "teal", "blue", "indigo", "pink", "gray"];
 
 const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
   const [name, setName] = useState(cat.name || "");
@@ -18408,7 +18569,7 @@ const CatModal = memo(function CatModal({ cat, accounts, onClose, onSave }) {
   const [iconLocked, setIconLocked] = useState(!!cat.icon);
   // Color por defecto: varía según el nombre para que categorías nuevas no
   // salgan todas del mismo color. El usuario puede cambiarlo.
-  const autoColor = CAT_COLOR_OPTIONS[((cat.name || "z").charCodeAt(0) || 0) % CAT_COLOR_OPTIONS.length];
+  const autoColor = autoCatColor(cat.name);
   const [color, setColor] = useState(cat.color || autoColor);
   const [type, setType] = useState(cat.type || "expense");
   const [accountId, setAccountId] = useState(cat.accountId || accounts[0].id);
@@ -18965,8 +19126,8 @@ function MonetaryInput({ value, onChange, placeholder = "0", currencyCode = "mxn
 
 function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, className = "cc-input", inputProps = {} }) {
   const [open, setOpen] = useState(false);
-  const [focused, setFocused] = useState(false);
   const containerRef = useRef(null);
+  const blurTimer = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -18980,6 +19141,9 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
       document.removeEventListener("touchstart", onDoc);
     };
   }, [open]);
+
+  // Limpia el cierre diferido si el componente se desmonta a media pulsación.
+  useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
 
   const filtered = (() => {
     if (disabled) return [];
@@ -18999,6 +19163,7 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
   })();
 
   const pick = (s) => {
+    if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
     onChange(s);
     setOpen(false);
   };
@@ -19010,8 +19175,18 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
         value={value}
         placeholder={placeholder}
         autoComplete="off"
-        onFocus={() => { setFocused(true); if (!disabled) setOpen(true); }}
-        onBlur={() => setFocused(false)}
+        onFocus={() => {
+          if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
+          if (!disabled) setOpen(true);
+        }}
+        // El popup NO se desmonta en el instante del blur: en iOS, tocar una
+        // sugerencia dispara el blur del input ANTES de que llegue el click,
+        // así que la lista desaparecía a media pulsación y el tap se perdía.
+        // Cerramos con un retardo corto, que `pick` cancela si el tap sí llegó.
+        onBlur={() => {
+          if (blurTimer.current) clearTimeout(blurTimer.current);
+          blurTimer.current = setTimeout(() => { setOpen(false); blurTimer.current = null; }, 220);
+        }}
         onChange={(e) => { onChange(e.target.value); if (!disabled) setOpen(true); }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
@@ -19021,11 +19196,15 @@ function TypeaheadInput({ value, onChange, suggestions, placeholder, disabled, c
         }}
         {...inputProps}
       />
-      {!disabled && open && focused && filtered.length > 0 && (
+      {!disabled && open && filtered.length > 0 && (
         <div className="cc-combobox-popup">
           <div className="cc-combobox-list">
             {filtered.map((s) => (
-              <button key={s} type="button" onMouseDown={(e) => e.preventDefault()}
+              <button key={s} type="button"
+                // pointerdown cubre táctil; mousedown queda como respaldo en
+                // navegadores viejos. Ambos evitan que el input pierda el foco.
+                onPointerDown={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(s)}
                 className="cc-combobox-opt">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -19132,7 +19311,9 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
         <div className="cc-combobox-popup">
           <div className="cc-combobox-list">
             {showAuto && (
-              <button type="button" onMouseDown={(e) => e.preventDefault()}
+              <button type="button"
+                onPointerDown={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick("auto")}
                 className={`cc-combobox-opt ${value === "auto" ? "is-active" : ""}`}>
                 <span style={{ color:"var(--gold)", display:"flex" }}><ZIcon name="sparkles" size={16} /></span>
@@ -19143,7 +19324,9 @@ function CategoryCombobox({ value, categories, onChange, disabled, detectedCat }
               <div className="cc-combobox-empty">No hay categorías que coincidan</div>
             ) : (
               filtered.map((c) => (
-                <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()}
+                <button key={c.id} type="button"
+                  onPointerDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                   className={`cc-combobox-opt ${value === c.id ? "is-active" : ""}`}
                   onClick={() => pick(c.id)}>
                   <CategoryBadge cat={c} size={30} />
@@ -22170,7 +22353,7 @@ function ReportsCard({ config, txs, dateRange, incRows: incRowsRaw, expRows: exp
     const visibleExpCatIds2 = new Set(expRows.map(r => r.cat?.id).filter(Boolean));
     const allTxs = txsInRange(txs, dateRange)
       .filter(t => { if (t.type==="income"&&t.categoryId) return visibleIncCatIds2.has(t.categoryId); if (t.type==="expense"&&t.categoryId) return visibleExpCatIds2.has(t.categoryId); return true; })
-      .sort((a,b) => b.date.localeCompare(a.date));
+      .sort((a,b) => b.date.localeCompare(a.date) || (txSeq(b) - txSeq(a)));
 
     // ── Generar análisis con IA ──────────────────────────────────────────
     let analysisHtml = "";
@@ -25299,7 +25482,7 @@ function LinkPickerModal({ config, txs, currentType, currentAccountId, excludeId
       return desc.includes(q) || amt.includes(q) || catName.includes(q) || t.date.includes(query.trim());
     });
   }
-  list = [...list].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+  list = [...list].sort((a, b) => b.date.localeCompare(a.date) || (txSeq(b) - txSeq(a)) || (b.id || "").localeCompare(a.id || ""));
 
   const accMulti = config.accounts.length > 1;
   const toggle = (id) => {
@@ -25521,7 +25704,7 @@ function SummaryCard({ filter, totalIn, totalOut, topCatRows, topTotal, config, 
 /* ============= MODAL DETALLE: drill-down de ingresos/gastos/categoría ==== */
 function DetailModal({ config, detail, dateRange, onClose, onEditTx }) {
   // ordenar más recientes primero, agrupar por día
-  const list = [...(detail.txs || [])].sort((a, b) => b.date.localeCompare(a.date) || (b.id || "").localeCompare(a.id || ""));
+  const list = [...(detail.txs || [])].sort((a, b) => b.date.localeCompare(a.date) || (txSeq(b) - txSeq(a)) || (b.id || "").localeCompare(a.id || ""));
   const count = list.length;
   const [closing, close] = useSheetClose(onClose);
   const dark = useDarkMode();
