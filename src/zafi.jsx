@@ -389,8 +389,8 @@ body{
   --page-fade:#13161D;
   --page-fade-0:rgba(19,22,29,0);
 }
-.cc-dark .cc-sheet{background:#1c1e22;backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);}
-.cc-dark .cc-overlay{background:rgba(0,0,0,.5);backdrop-filter:none;-webkit-backdrop-filter:none;}
+.cc-dark .cc-sheet{background:rgba(28,30,34,.86);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 40px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);}
+.cc-dark .cc-overlay{background:rgba(0,0,0,.28);backdrop-filter:none;-webkit-backdrop-filter:none;}
 .cc-dark .cc-input{background:rgba(255,255,255,.06);color:var(--ink);border-color:rgba(255,255,255,.1);}
 .cc-dark .cc-input:focus{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);}
 .cc-dark .cc-input::placeholder{color:rgba(255,255,255,.3);}
@@ -847,7 +847,7 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 .cc-day-totals .neg{color:var(--coral);}
 
 /* ============== MODAL ============== */
-.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);
+.cc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.14);
   backdrop-filter:none;-webkit-backdrop-filter:none;
   z-index:10000;display:flex;align-items:flex-end;justify-content:center;
   animation:ccFadeIn .2s ease both;
@@ -872,7 +872,12 @@ textarea.cc-input{font-family:inherit;overflow-y:auto;}
 @keyframes ccTourBorderPulse{0%,100%{box-shadow:0 0 0 3px rgba(30,111,224,.85), 0 0 24px rgba(30,111,224,.6);}50%{box-shadow:0 0 0 4px rgba(30,111,224,1), 0 0 32px rgba(30,111,224,.8);}}
 @keyframes ccTourPulse{0%,100%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 3px rgba(30,111,224,.7), 0 0 24px rgba(30,111,224,.5);}50%{box-shadow:0 0 0 9999px rgba(0,0,0,.45), 0 0 0 4px rgba(30,111,224,.9), 0 0 32px rgba(30,111,224,.7);}}
 @keyframes ccTourDotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
-.cc-sheet{background:#f5f6f8;backdrop-filter:none;-webkit-backdrop-filter:none;
+/* Fondo translúcido + blur propio: el modal deja entrever la pantalla de
+   atrás sin necesidad de oscurecerla con un velo fuerte. La opacidad se
+   mantiene alta (.86) para que el texto siga siendo legible sobre cualquier
+   contenido. */
+.cc-sheet{background:rgba(246,247,249,.86);
+  backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);
   /* Sheet FLOTANTE (estilo Apple Maps): separado de las orillas por todos
      lados, con las 4 esquinas redondeadas, en vez de pegado al borde inferior. */
   --cc-sheet-side: 10px;
@@ -2246,7 +2251,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
   return createPortal(
     <div className="cc-overlay" style={{
       position: "fixed", inset: 0, zIndex: 99999999,
-      background: "rgba(0,0,0,.85)",
+      background: "rgba(0,0,0,.22)",
       display: "flex", alignItems: "center", justifyContent: "center",
       // padding-bottom respeta el teclado (--cc-kb); un shorthand `padding`
       // pisaría el de .cc-overlay y el modal quedaría tapado.
@@ -2257,7 +2262,8 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
     }}>
       <div style={{
         width: "100%", maxWidth: 480, maxHeight: "calc(100vh - env(safe-area-inset-top) - 24px)",
-        background: dark ? "#1c1e22" : "#fff",
+        background: dark ? "rgba(28,30,34,.86)" : "rgba(255,255,255,.86)",
+        backdropFilter: "blur(24px) saturate(160%)", WebkitBackdropFilter: "blur(24px) saturate(160%)",
         borderRadius: 24, overflow: "hidden",
         display: "flex", flexDirection: "column",
         fontFamily: "'Montserrat', sans-serif",
@@ -2441,14 +2447,15 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
           <div className="cc-overlay" style={{
             position: "fixed", inset: 0, zIndex: 999999999,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,.6)",
-            backdropFilter: "blur(4px)",
+            background: "rgba(0,0,0,.18)",
+            backdropFilter: "blur(2px)",
             padding: "20px 20px calc(20px + var(--cc-kb, 0px))",
             animation: "ccFadeIn .2s ease",
           }} onClick={() => setConfirmingDelete(null)}>
             <div onClick={(e) => e.stopPropagation()} style={{
               maxWidth: 360, width: "100%",
-              background: dark ? "#1c1e22" : "#fff",
+              background: dark ? "rgba(28,30,34,.88)" : "rgba(255,255,255,.88)",
+              backdropFilter: "blur(24px) saturate(160%)", WebkitBackdropFilter: "blur(24px) saturate(160%)",
               borderRadius: 18, padding: "22px 22px 18px",
               boxShadow: "0 20px 60px rgba(0,0,0,.4)",
             }}>
@@ -9621,12 +9628,14 @@ function ManualOnboarding({ onDone }) {
         return createPortal(
         <div className="cc-overlay" style={{ position:"fixed", inset:0, zIndex:99999,
           display:"flex", alignItems:"flex-end", justifyContent:"center",
-          background:"rgba(0,0,0,.5)", backdropFilter:"blur(4px)",
+          background:"rgba(0,0,0,.14)", backdropFilter:"blur(2px)",
           // El área oscura no debe transmitir el gesto al fondo.
           overflow:"hidden", overscrollBehavior:"none", touchAction:"none" }}
           onClick={() => setShowAddModal(false)}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width:"calc(100% - 20px)", maxWidth:440, background: dark ? "#1c1e22" : "#fff",
+            style={{ width:"calc(100% - 20px)", maxWidth:440,
+              background: dark ? "rgba(28,30,34,.86)" : "rgba(246,247,249,.86)",
+              backdropFilter:"blur(24px) saturate(160%)", WebkitBackdropFilter:"blur(24px) saturate(160%)",
               // Flotante, igual que los .cc-sheet: separado de las orillas y
               // con las 4 esquinas redondeadas.
               borderRadius:26, margin:"0 10px max(10px, calc(env(safe-area-inset-bottom, 0px) + 6px))",
@@ -20488,13 +20497,14 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
           <div className="cc-overlay" onClick={(e) => e.stopPropagation()}
             style={{
               position:"fixed", inset:0, zIndex:99999,
-              background:"rgba(0,0,0,.55)", backdropFilter:"blur(6px)",
+              background:"rgba(0,0,0,.18)", backdropFilter:"blur(2px)",
               display:"flex", alignItems:"center", justifyContent:"center",
               padding:"24px 24px calc(24px + var(--cc-kb, 0px))",
             }}>
             <div style={{
               maxWidth:380, width:"100%",
-              background: dark ? "#1c1e22" : "#fff",
+              background: dark ? "rgba(28,30,34,.88)" : "rgba(255,255,255,.88)",
+              backdropFilter:"blur(24px) saturate(160%)", WebkitBackdropFilter:"blur(24px) saturate(160%)",
               borderRadius:24, padding:"28px 24px",
               boxShadow:"0 20px 60px rgba(0,0,0,.3)",
               fontFamily:"'Montserrat', sans-serif",
