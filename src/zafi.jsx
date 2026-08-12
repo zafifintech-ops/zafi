@@ -2282,7 +2282,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
         width: "100%", maxWidth: 480, maxHeight: "calc(100vh - env(safe-area-inset-top) - 24px)",
         background: dark ? "rgba(28,30,34,.86)" : "rgba(255,255,255,.86)",
         backdropFilter: "blur(24px) saturate(160%)", WebkitBackdropFilter: "blur(24px) saturate(160%)",
-        borderRadius: 24, overflow: "hidden",
+        borderRadius: 26, overflow: "hidden",
         display: "flex", flexDirection: "column",
         fontFamily: "'Montserrat', sans-serif",
         boxShadow: "0 20px 60px rgba(0,0,0,.5)",
@@ -2474,7 +2474,7 @@ function PlanDowngradeModal({ config, txs, saveConfig, saveTxs, accView, setAccV
               maxWidth: 360, width: "100%",
               background: dark ? "rgba(28,30,34,.88)" : "rgba(255,255,255,.88)",
               backdropFilter: "blur(24px) saturate(160%)", WebkitBackdropFilter: "blur(24px) saturate(160%)",
-              borderRadius: 18, padding: "22px 22px 18px",
+              borderRadius: 26, padding: "22px 22px 18px",
               boxShadow: "0 20px 60px rgba(0,0,0,.4)",
             }}>
               <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600,
@@ -5037,15 +5037,34 @@ async function persist(key, val) {
    y (3) obtenga permiso explícito. La política de privacidad sola NO basta.
    El flag vive en window.__zafiAiConsent (respaldado en localStorage y en
    config.aiConsent) y callClaude/callClaudeVision lo exigen. */
-function initAiConsent(config) {
+/* La clave del respaldo local va POR USUARIO. Antes era una sola clave global
+   ("zafi_ai_consent") y localStorage no se limpia al cerrar sesión: cualquier
+   cuenta nueva creada en ese teléfono heredaba el consentimiento que había
+   dado otra cuenta, y el modal nunca aparecía. Eso incumple 5.1.1(i), que
+   exige permiso explícito DE CADA USUARIO. */
+function aiConsentKey(uid) {
+  return uid ? `zafi_ai_consent_${uid}` : null;
+}
+function initAiConsent(config, uid) {
+  // La fuente de verdad es config.aiConsent (por usuario, en Firestore). El
+  // respaldo local solo aplica al MISMO uid, para funcionar sin conexión.
   try {
+    const key = aiConsentKey(uid);
     window.__zafiAiConsent = config?.aiConsent === true
-      || localStorage.getItem("zafi_ai_consent") === "1";
+      || (!!key && localStorage.getItem(key) === "1");
   } catch (_) { window.__zafiAiConsent = config?.aiConsent === true; }
 }
-function grantAiConsent() {
+function grantAiConsent(uid) {
   window.__zafiAiConsent = true;
-  try { localStorage.setItem("zafi_ai_consent", "1"); } catch (_) {}
+  try {
+    const key = aiConsentKey(uid);
+    if (key) localStorage.setItem(key, "1");
+  } catch (_) {}
+}
+/* Al cerrar sesión el flag en memoria debe volver a false: si no, la siguiente
+   cuenta que entre en la misma sesión de app arrancaría con permiso heredado. */
+function resetAiConsent() {
+  window.__zafiAiConsent = false;
 }
 
 function AIConsentSheet({ onAccept, onDecline }) {
@@ -8457,11 +8476,11 @@ export default function App() {
         // Inicializar el flag de consentimiento IA (5.1.1/5.1.2) desde el
         // config remoto o el respaldo local — antes de que cualquier función
         // IA pueda dispararse.
-        initAiConsent(c);
+        initAiConsent(c, user?.uid);
       } catch (e) {
         console.error("load error", e);
         if (!cancelled) setProfileDone(false);
-        initAiConsent(null);
+        initAiConsent(null, user?.uid);
       }
       if (!cancelled) setLoaded(true);
     })();
@@ -8797,6 +8816,7 @@ export default function App() {
     const lockSignOut = async () => {
       try { await signOut(auth); } catch (e) {}
       window.__zafiCurrentUser = null;
+      resetAiConsent();
       if (window.__zafiClearChat) window.__zafiClearChat();
       window.location.reload();
     };
@@ -10556,7 +10576,8 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       {aiConsentOpen && (
         <AIConsentSheet
           onAccept={() => {
-            grantAiConsent();
+            // Main no recibe `user`; el uid de la sesión vive en este global.
+            grantAiConsent(window.__zafiCurrentUser?.uid);
             saveConfig((prev) => ({ ...prev, aiConsent: true }));
             setAiConsentOpen(false);
             setChatOpen(true);
@@ -11250,6 +11271,9 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
     setBusy(true);
     try { await withTimeout(signOut(auth), 3000); } catch (e) {}
     window.__zafiCurrentUser = null;
+    // El consentimiento de IA es POR USUARIO (5.1.1(i)): al salir se limpia el
+    // flag en memoria para que la siguiente cuenta no lo herede.
+    resetAiConsent();
     // Limpiar chat al cerrar sesión
     if (window.__zafiClearChat) window.__zafiClearChat();
     // NO borramos las credenciales de Face ID: cerrar sesión no debe desactivarlo.
@@ -18008,8 +18032,14 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", danger, onC
   const dark = useDarkMode();
   return createPortal(
     <div className={`cc-overlay ${dark ? "cc-dark" : ""}`} onClick={onCancel} style={{ alignItems: "center", padding: "0 32px" }}>
+      {/* Mismo fondo y radio que los .cc-sheet: usaba var(--bg) (#DCE1E8, el
+          azul-gris del fondo de la app) y desentonaba con el resto de modales. */}
       <div onClick={(e) => e.stopPropagation()}
-        style={{ background: "var(--bg)", borderRadius: 20, maxWidth: 320, width: "100%", padding: "24px 22px", animation: "ccUp .25s" }}>
+        style={{ background: dark ? "rgba(28,30,34,.94)" : "rgba(248,249,251,.94)",
+          backdropFilter: "blur(24px) saturate(160%)", WebkitBackdropFilter: "blur(24px) saturate(160%)",
+          border: dark ? "1px solid rgba(255,255,255,.08)" : "1px solid rgba(255,255,255,.7)",
+          boxShadow: dark ? "0 8px 40px rgba(0,0,0,.5)" : "0 8px 40px rgba(0,0,0,.16)",
+          borderRadius: 26, maxWidth: 320, width: "100%", padding: "24px 22px", animation: "ccUp .25s" }}>
         <h3 className="cc-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, lineHeight: 1.25 }}>{title}</h3>
         {message && <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 20, lineHeight: 1.5 }}>{message}</p>}
         <div style={{ display: "flex", gap: 8 }}>
@@ -20526,7 +20556,7 @@ function RecurringModal({ config, prefill, onClose, onSave, onUpgrade, accView =
               maxWidth:380, width:"100%",
               background: dark ? "rgba(28,30,34,.88)" : "rgba(255,255,255,.88)",
               backdropFilter:"blur(24px) saturate(160%)", WebkitBackdropFilter:"blur(24px) saturate(160%)",
-              borderRadius:24, padding:"28px 24px",
+              borderRadius:26, padding:"28px 24px",
               boxShadow:"0 20px 60px rgba(0,0,0,.3)",
               fontFamily:"'Montserrat', sans-serif",
             }}>
