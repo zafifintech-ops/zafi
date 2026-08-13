@@ -8477,6 +8477,17 @@ export default function App() {
         // config remoto o el respaldo local — antes de que cualquier función
         // IA pueda dispararse.
         initAiConsent(c, user?.uid);
+        // Foto de perfil del proveedor (Google / Apple). Se guarda una sola
+        // vez y NO pisa una foto o avatar que el usuario haya elegido.
+        const providerPhoto = user?.photoURL || window.__zafiCurrentUser?.photoURL;
+        if (!cancelled && providerPhoto) {
+          setConfig((prev) => {
+            if (!prev || prev.avatarUrl || prev.avatarData || prev.avatarId) return prev;
+            const next = { ...prev, avatarUrl: providerPhoto };
+            persist("cc:config", next);
+            return next;
+          });
+        }
       } catch (e) {
         console.error("load error", e);
         if (!cancelled) setProfileDone(false);
@@ -11047,6 +11058,74 @@ function defaultAvatarForGender(gender) {
   return null; // "other" → solo inicial
 }
 
+/* ── Avatar automático a partir del nombre ────────────────────────────────
+   El onboarding ya no pregunta el género (Guideline 5.1.1(v): los datos
+   personales son opcionales), así que cuando no hay foto de Google ni avatar
+   elegido, inferimos a partir del nombre de pila. Si el nombre NO es claro,
+   se usa un avatar SIN cara — nunca se adivina. */
+
+// Nombres de pila frecuentes en México/LatAm que la regla de terminación no
+// resuelve bien (masculinos en -a, femeninos que no terminan en -a, etc.).
+/* Unisex en México/LatAm: NUNCA se adivina el género con estos, aunque la
+   regla de terminación tenga una opinión. Van primero en la comprobación. */
+const NAMES_AMBIGUOUS = new Set(["guadalupe","lupe","ariel","rene","renee","alex","alexis","cruz","refugio","trinidad","guille","sam","kim","chris","jean","robin","dani","gabi","charlie","andrea","jose maria","angel","reyes","paz","nieves","socorro","amparo","remedios","concepcion","asuncion","natividad","rosario","carmen","yael","noa","ale","fran","max","teo","leo"]);
+
+const NAMES_FEMALE = new Set(["ana","eva","sol","mia","lia","ivy","abril","alma","aurora","blanca","clara","diana","elena","emma","erika","frida","gloria","irma","julia","karla","laura","leticia","lucia","luisa","marta","martha","nancy","norma","olga","patricia","rosa","sandra","sara","silvia","sonia","teresa","valeria","vanessa","veronica","victoria","viviana","ximena","regina","renata","fernanda","daniela","gabriela","mariana","alejandra","adriana","paola","camila","valentina","isabella","natalia","andrea","monica","rebeca","raquel","isabel","raquel","beatriz","mercedes","dolores","soledad","pilar","rosario","consuelo","asuncion","concepcion","inmaculada","esther","judith","ruth","abigail","noemi","miriam","ester","esther","itzel","xochitl","guadalupe","lourdes","maribel","anabel","claudel","yaretzi","citlali","mitzy","yamileth","jazmin","carmen","belen","irene","ines","mercedes","nieves","montserrat","monserrat","montse","aime","aimee","ingrid","ainhoa","noelia","rocio","yolotzin","tonantzin","perla","flor","luz","cruz","paz","fe","esperanza","caridad","amparo","remedios","angeles","socorro","refugio","altagracia","anahi","yatzil","dulce","mayte","maite","yaneth","janeth","yazmin","lizbeth","lisbeth","elizabeth","marisol","mariel","meztli","citlalli"]);
+const NAMES_MALE = new Set(["luis","juan","carlos","antonio","francisco","alberto","alejandro","eduardo","ernesto","felix","fernando","diego","emilio","ricardo","roberto","sergio","victor","alfonso","armando","arnulfo","benjamin","cristobal","david","eliseo","enrique","everardo","filiberto","gonzalo","hilario","jaime","joel","leonardo","lorenzo","luca","lucas","elias","tobias","matias","mathias","zacarias","jeremias","isaias","nicolas","andres","jesus","josue","noe","enrique","felipe","jose","jorge","javier","xavier","ivan","adrian","julian","fabian","sebastian","cristian","christian","damian","emiliano","santiago","joaquin","agustin","martin","valentin","ruben","efrain","aaron","hector","cesar","oscar","omar","edgar","rafael","gabriel","daniel","miguel","angel","manuel","samuel","ismael","ezequiel","abel","axel","dylan","kevin","brian","erick","derek","yael","uriel","emmanuel","noel","abraham","adan","alan","aldo","alexis","amado","amir","anibal","arturo","baltazar","benito","bruno","camilo","carlo","dante","dario","dante","eliseo","esteban","eugenio","fausto","fermin","fidel","gaspar","genaro","gerardo","german","gilberto","gregorio","guillermo","gustavo","heriberto","hugo","humberto","ignacio","isidro","israel","leonel","lisandro","macario","marcelo","mateo","mauro","maximo","nestor","octavio","pablo","pedro","porfirio","ramiro","raul","reynaldo","rigoberto","rodolfo","rodrigo","rolando","romulo","salvador","saul","severo","teodoro","timoteo","tomas","ulises","vicente","virgilio","waldo","wilfrido","zeferino","nicolas","matteo","thiago","tiago","ian","liam","noah","ethan","logan","mason","nolan","owen","ryan","evan","gael","jared","jaziel","yahir"]);
+
+function normalizeName(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/* Devuelve "female", "male" o null (no se pudo determinar con confianza). */
+function guessGenderFromName(fullName) {
+  const clean = normalizeName(fullName).replace(/[^a-z\s]/g, " ").trim();
+  if (!clean) return null;
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+
+  // Compuestos: "Maria José" es mujer, "José María" es hombre — manda el primero.
+  const first = parts[0];
+
+  // Unisex declarado: se responde "no sé" aunque la terminación sugiera algo.
+  if (NAMES_AMBIGUOUS.has(first)) return null;
+  // "José María" es hombre; "María José" es mujer — decide el primero, pero
+  // hay que mirar el segundo cuando el primero es el comodín "maria".
+  if ((first === "maria" || first === "mari") && parts[1] && NAMES_MALE.has(parts[1])
+      && !NAMES_FEMALE.has(parts[1])) return "female";
+
+  if (NAMES_FEMALE.has(first)) return "female";
+  if (NAMES_MALE.has(first)) return "male";
+
+  if (first === "maria" || first === "mari") return "female";
+
+  // Heurística por terminación, SOLO si la lista de excepciones no aplicó.
+  // Nombres cortos (≤3 letras) son demasiado ambiguos para arriesgarse.
+  if (first.length <= 3) return null;
+  if (/(?:a|ia|na|ina|ela|isa|ita)$/.test(first)) return "female";
+  if (/(?:o|os|io|iel|ael|an|in|on|ur|er|ar)$/.test(first)) return "male";
+
+  return null;
+}
+
+/* Elige uno de los avatares sin cara, de forma estable para el mismo nombre,
+   para cuando no se puede determinar el género. */
+const FACELESS_AVATARS = ["option-beanie", "option-hoodie"];
+function facelessAvatarFor(name) {
+  const s = normalizeName(name);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return FACELESS_AVATARS[h % FACELESS_AVATARS.length];
+}
+
+/* Avatar automático: por género si el nombre es claro, si no uno sin cara. */
+function autoAvatarIdFor(name) {
+  const g = guessGenderFromName(name);
+  if (g === "female") return "female-default";
+  if (g === "male") return "male-default";
+  return facelessAvatarFor(name);
+}
+
 // Resizes an image file to a small square base64 for storage
 function resizeImageToBase64(file, size = 200) {
   return new Promise((resolve) => {
@@ -11068,13 +11147,22 @@ function resizeImageToBase64(file, size = 200) {
   });
 }
 
+/* Orden de prioridad:
+   1. Foto que el usuario subió       (avatarData)
+   2. Avatar que el usuario eligió    (avatarId)
+   3. Foto de su cuenta de Google     (avatarUrl)
+   4. Avatar automático por nombre    — género si el nombre es claro,
+      si no uno SIN cara. Antes se devolvía null y quedaba solo la inicial. */
 function getAvatarSrc(config) {
-  if (config.avatarData) return config.avatarData; // custom photo
+  if (!config) return null;
+  if (config.avatarData) return config.avatarData;
   if (config.avatarId) {
     const av = AVATAR_STYLES.find(a => a.id === config.avatarId);
-    return av ? av.url : null;
+    if (av) return av.url;
   }
-  return null;
+  if (config.avatarUrl) return config.avatarUrl;
+  const auto = AVATAR_STYLES.find(a => a.id === autoAvatarIdFor(config.userName));
+  return auto ? auto.url : null;
 }
 
 function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
@@ -11103,7 +11191,10 @@ function AvatarPickerModal({ config, saveConfig, onClose, showToast }) {
   };
 
   const clear = () => {
-    const { avatarId, avatarData, ...rest } = config;
+    // Quita también la foto del proveedor: si no, "Eliminar" no hacía nada
+    // visible cuando la foto mostrada venía de Google. Tras esto queda el
+    // avatar automático por nombre.
+    const { avatarId, avatarData, avatarUrl, ...rest } = config;
     saveConfig(rest);
     showToast(t("avatarRemoved"));
     onClose();
@@ -12390,6 +12481,9 @@ function loadSections(config, accView) {
 function TourGuide({ step, onAdvance, onSkip, onClose }) {
   const [targetRect, setTargetRect] = useState(null);
   const [mounted, setMounted] = useState(false);
+  // Cuando hay un modal abierto el tooltip se ancla arriba y tapa parte del
+  // modal (título, monto). Se puede plegar a una pastilla para ver debajo.
+  const [collapsed, setCollapsed] = useState(false);
   const [tooltipHeight, setTooltipHeight] = useState(220);
   const tooltipRef = useRef(null);
   const dark = useDarkMode();
@@ -12541,6 +12635,8 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
     }
   }, [targetRect, current.targetSelector]);
 
+  useEffect(() => { setCollapsed(false); }, [step]);
+
   // Medir altura real del tooltip cuando cambia el paso
   useEffect(() => {
     if (tooltipRef.current) {
@@ -12557,10 +12653,16 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
   const tooltipWidth = Math.min(320, window.innerWidth - 32);
   // Default: si hay modal abierto, anclar al top (no estorbar el modal de abajo).
   // Si no hay modal y tampoco target, centrar.
+  // Con modal abierto se ancla arriba, PERO por debajo de la barra de estado:
+  // antes usaba un 6% del alto y en iPhone quedaba encima de la hora.
   let tooltipTop = hasOpenModal
-    ? Math.max(20, window.innerHeight * 0.06)
+    ? null // se resuelve con calc() y env(safe-area-inset-top) en el estilo
     : window.innerHeight / 2 - 100;
-  let tooltipLeft = (window.innerWidth - tooltipWidth) / 2;
+  // En pantallas anchas (iPad) el tooltip centrado cae justo encima del título
+  // del modal; se recuesta a la derecha para dejar el modal legible.
+  let tooltipLeft = (hasOpenModal && window.innerWidth >= 820)
+    ? window.innerWidth - tooltipWidth - 24
+    : (window.innerWidth - tooltipWidth) / 2;
   let arrowSide = null; // top | bottom | none
 
   // Si hay un modal abierto, no apuntar al target (queda tapado) — anclar arriba
@@ -12672,7 +12774,10 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       {/* Tooltip flotante */}
       <div ref={tooltipRef} style={{
         position: "fixed",
-        top: tooltipTop, left: tooltipLeft, width: tooltipWidth,
+        top: tooltipTop === null
+          ? "calc(env(safe-area-inset-top, 0px) + 12px)"
+          : tooltipTop,
+        left: tooltipLeft, width: tooltipWidth,
         background: dark ? "#1c1e22" : "#fff",
         borderRadius: 18,
         boxShadow: "0 20px 60px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.15)",
@@ -12702,7 +12807,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
           }} />
         )}
 
-        <div style={{ padding: "20px 22px 18px", position: "relative" }}>
+        <div style={{ padding: hasOpenModal && collapsed ? "14px 22px 10px" : "20px 22px 18px", position: "relative" }}>
           {/* Indicador de paso */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 4 }}>
@@ -12714,15 +12819,31 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
                 }} />
               ))}
             </div>
-            <button onClick={onSkip} style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600,
-              fontFamily: "inherit", letterSpacing: ".01em",
-              padding: "4px 8px", borderRadius: 6,
-            }}>
-              Saltar tour
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Plegar: con un modal abierto el tooltip tapa el título y los
+                  primeros campos; esto lo reduce a la barra de pasos. */}
+              {hasOpenModal && (
+                <button onClick={() => setCollapsed((v) => !v)}
+                  aria-label={collapsed ? "Mostrar ayuda" : "Ocultar ayuda"}
+                  style={{
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: 11.5, color: "#1E6FE0", fontWeight: 600,
+                    fontFamily: "inherit", padding: "4px 8px", borderRadius: 6,
+                  }}>
+                  {collapsed ? "Mostrar" : "Ocultar"}
+                </button>
+              )}
+              <button onClick={onSkip} style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600,
+                fontFamily: "inherit", letterSpacing: ".01em",
+                padding: "4px 8px", borderRadius: 6,
+              }}>
+                Saltar tour
+              </button>
+            </div>
           </div>
+          {!(hasOpenModal && collapsed) && (<>
 
           {/* Título */}
           <div style={{
@@ -12784,6 +12905,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
               </button>
             </div>
           )}
+          </>)}
         </div>
       </div>
     </>,
