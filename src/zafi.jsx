@@ -12667,6 +12667,9 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
 
   // Si hay un modal abierto, no apuntar al target (queda tapado) — anclar arriba
   const showHalo = targetRect && !hasOpenModal;
+  // Alto reservado para la barra de estado / Dynamic Island. env() no es
+  // fiable en el WebView, así que se usa un valor fijo prudente.
+  const TOP_SAFE = 78;
 
   if (showHalo) {
     const padding = 16;
@@ -12681,6 +12684,12 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       if (tooltipTop + tooltipHeight > window.innerHeight - 16) {
         tooltipTop = targetRect.top - tooltipHeight - padding;
         arrowSide = "bottom";
+        // Si arriba tampoco cabe sin meterse en la barra de estado, se deja
+        // abajo aunque tape un poco: es mejor que quedar bajo la hora.
+        if (tooltipTop < TOP_SAFE) {
+          tooltipTop = Math.min(targetRect.bottom + padding, window.innerHeight - tooltipHeight - 16);
+          arrowSide = "top";
+        }
       }
     } else if (current.placement === "top") {
       tooltipTop = targetRect.top - tooltipHeight - padding;
@@ -12689,7 +12698,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
         targetRect.left + targetRect.width / 2 - tooltipWidth / 2
       ));
       arrowSide = "bottom";
-      if (tooltipTop < 16) {
+      if (tooltipTop < TOP_SAFE) {
         tooltipTop = targetRect.bottom + padding;
         arrowSide = "top";
       }
@@ -12774,8 +12783,12 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
       {/* Tooltip flotante */}
       <div ref={tooltipRef} style={{
         position: "fixed",
+        // max(): en el WebView de Capacitor env(safe-area-inset-top) devuelve
+        // 0px a veces, así que no se puede depender solo de él — sin el piso
+        // de 78px el tooltip quedaba encima de la hora y la Dynamic Island.
+        // Es el mismo patrón que usa --cc-sheet-gap en el CSS.
         top: tooltipTop === null
-          ? "calc(env(safe-area-inset-top, 0px) + 12px)"
+          ? "max(78px, calc(env(safe-area-inset-top, 0px) + 14px))"
           : tooltipTop,
         left: tooltipLeft, width: tooltipWidth,
         background: dark ? "#1c1e22" : "#fff",
