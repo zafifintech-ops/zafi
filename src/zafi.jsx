@@ -4615,6 +4615,14 @@ PATRONES FRECUENTES (últimos 2 meses):
 ${patronesFrecuentes.length > 0 ? JSON.stringify(patronesFrecuentes) : "Ninguno detectado aún."}
 Si hay patrones frecuentes que NO son recurrentes aún (esRecurrente=false), puedes sugerirle al usuario crear una recurrencia para automatizar esos movimientos. Si esAnual=true, el patrón se repite también el año pasado (mismo periodo). Ejemplo: "Noté que registras 'Spotify' cada mes por $189. ¿Quieres que lo haga recurrente para que se registre solo?" o "El año pasado también pagaste 'Seguro auto' por esta fecha por $12,000 — ¿quieres que te recuerde?" Pero NO insistas si el usuario no quiere.
 
+📷 IMÁGENES (tickets, recibos, capturas de estado de cuenta):
+El usuario puede adjuntar fotos. Cuando recibas una imagen:
+1. Lee el total, el comercio y la fecha. Si hay varios conceptos, registra el TOTAL como un solo movimiento, salvo que el usuario pida el desglose.
+2. Genera la acción add_transaction correspondiente (normalmente un gasto), eligiendo la categoría existente que mejor encaje en la cuenta que corresponda.
+3. Si la imagen está borrosa o no es un ticket, dilo en "message" y devuelve "actions":[].
+4. Si no distingues la fecha, usa la de hoy.
+AUNQUE la entrada sea una imagen, la respuesta SIGUE siendo el mismo objeto JSON descrito abajo — nunca texto suelto.
+
 RESPONDE SIEMPRE con UN SOLO objeto JSON válido, sin markdown ni texto fuera del JSON:
 {"message":"texto breve para el usuario","actions":[ ... ]}
 
@@ -5153,6 +5161,37 @@ async function callClaudeVision(system, userText, imagesB64) {
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
 }
 
+/* Reduce una imagen antes de mandarla a la IA. Las fotos del iPhone salen a
+   ~12MP: en base64 pesan varios MB y la petición se rechaza o tarda muchísimo.
+   1568px es el lado máximo que la API aprovecha, más resolución no mejora la
+   lectura del ticket. Devuelve un dataURL JPEG. */
+function compressImageForAI(file, maxSide = 1568, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width: w, height: h } = img;
+          const scale = Math.min(1, maxSide / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, w, h); // evita fondo negro si el origen tiene alfa
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (err) { reject(err); }
+      };
+      img.onerror = () => reject(new Error("no se pudo leer la imagen"));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("no se pudo leer el archivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /* leer File como base64 (sin el prefijo data:...) */
 function fileToB64(file) {
   return new Promise((resolve, reject) => {
@@ -5169,11 +5208,13 @@ function fileToB64(file) {
 }
 
 /* llamada a Claude */
-async function callClaude(system, messages) {
+async function callClaude(system, messages, maxTokens = 1000) {
   // Guideline 5.1.2(i): sin consentimiento explícito, no se envía nada a
   // Anthropic. Los llamadores caen a sus fallbacks locales.
   if (!window.__zafiAiConsent) throw new Error("AI_CONSENT_REQUIRED");
-  const body = { model: "claude-sonnet-4-6", max_tokens: 1000, system, messages };
+  // Con imágenes hace falta mucho más margen: con 1000 la respuesta se cortaba
+  // a media llave y parseJSON reventaba, cayendo al mensaje genérico de error.
+  const body = { model: "claude-sonnet-4-6", max_tokens: maxTokens, system, messages };
   const isCapacitor = typeof window !== "undefined" && window.location.protocol === "capacitor:";
 
   // En Capacitor usar CapacitorHttp (red nativa) — el fetch del WebView falla con CORS
@@ -20117,14 +20158,19 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
   const scroller = useRef(null);
   const imgInputRef = useRef(null);
 
-  const handleImgPick = (e) => {
+  const handleImgPick = async (e) => {
     const files = Array.from(e.target.files || []);
-    files.forEach(f => {
-      const reader = new FileReader();
-      reader.onload = () => setAttachedImgs(prev => [...prev, { src: reader.result, name: f.name }]);
-      reader.readAsDataURL(f);
-    });
     e.target.value = "";
+    for (const f of files) {
+      try {
+        // Comprimida: a resolución completa el payload superaba el límite de
+        // la API y la petición fallaba (salía el error genérico del chat).
+        const src = await compressImageForAI(f);
+        setAttachedImgs(prev => [...prev, { src, name: f.name }]);
+      } catch (err) {
+        console.error("no se pudo preparar la imagen:", err);
+      }
+    }
   };
   const removeImg = (idx) => setAttachedImgs(prev => prev.filter((_, i) => i !== idx));
 
@@ -20235,10 +20281,23 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
       if (match) content.push({ type: "image", source: { type: "base64", media_type: match[1], data: match[2] } });
     });
     content.push({ type: "text", text: userText || "¿Qué ves en esta imagen?" });
-    history.current.push({ role: "user", content: content.length === 1 ? userText : content });
+    const hasImages = content.length > 1;
+    history.current.push({ role: "user", content: hasImages ? content : userText });
     try {
-      const raw = await callClaude(assistantSystem(config, txs), history.current);
+      // Con imágenes se necesita más presupuesto de salida (leer el ticket +
+      // devolver el JSON de acciones).
+      const raw = await callClaude(assistantSystem(config, txs), history.current, hasImages ? 4000 : 1000);
       const parsed = parseJSON(raw);
+      // Una vez procesada, la imagen se sustituye en el historial por una nota
+      // de texto: si no, cada mensaje siguiente reenviaba el base64 completo,
+      // el payload crecía sin control y las llamadas acababan fallando.
+      if (hasImages) {
+        const idx = history.current.length - 1;
+        history.current[idx] = {
+          role: "user",
+          content: `${userText || "(imagen adjunta)"} [el usuario envió ${imgs.length} imagen(es), ya analizadas]`,
+        };
+      }
       history.current.push({ role: "assistant", content: parsed.message || raw });
       let log = [], charts = [];
       if (Array.isArray(parsed.actions) && parsed.actions.length) {
@@ -20259,10 +20318,22 @@ function Assistant({ config, txs, saveConfig, saveTxs, onClose, onOpenImport, au
       }
       setMsgs((m) => [...m, { role: "bot", text: parsed.message || "Listo.", log, charts }]);
     } catch (e) {
-      setMsgs((m) => [
-        ...m,
-        { role: "bot", text: "Tuve un problema para procesar eso. ¿Me lo dices de otra forma?" },
-      ]);
+      // El mensaje genérico ocultaba la causa real (payload muy grande, red,
+      // respuesta cortada). Se registra el motivo y se distinguen los casos
+      // que el usuario sí puede resolver.
+      console.error("assistant error:", e);
+      const msg = String(e?.message || e);
+      let text = "Tuve un problema para procesar eso. ¿Me lo dices de otra forma?";
+      if (msg.includes("AI_CONSENT_REQUIRED")) {
+        text = "Necesito tu permiso para usar la IA. Ábrelo desde el botón del asistente para aceptarlo.";
+      } else if (hasImages) {
+        text = "No pude leer esa imagen. Intenta con una foto más nítida, de cerca y con buena luz — o registra el movimiento manualmente.";
+      } else if (/network|fetch|CapacitorHttp|Failed/i.test(msg)) {
+        text = "No pude conectarme. Revisa tu conexión e inténtalo de nuevo.";
+      }
+      // La imagen no debe quedarse en el historial tras un fallo.
+      if (hasImages && history.current.length) history.current.pop();
+      setMsgs((m) => [...m, { role: "bot", text }]);
     }
     setBusy(false);
   }
@@ -20868,7 +20939,14 @@ function ImportModal({ config, txs, onClose, onSave }) {
     setError(null);
     setPhase("processing");
     try {
-      const imagesB64 = await Promise.all(files.map((f) => fileToB64(f.file)));
+      // Mismo tratamiento que en el chat: comprimir antes de enviar.
+      const imagesB64 = await Promise.all(files.map(async (f) => {
+        try {
+          const dataUrl = await compressImageForAI(f.file);
+          const [meta, data] = dataUrl.split(",");
+          return { mediaType: (meta.match(/data:([^;]+)/) || [])[1] || "image/jpeg", data };
+        } catch (_) { return await fileToB64(f.file); }
+      }));
       const acc = config.accounts.find((a) => a.id === defaultAccountId);
       const cats = config.categories
         .filter((c) => c.accountId === defaultAccountId)
