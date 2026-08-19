@@ -12403,12 +12403,12 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
-  { id: "dailyAction", label: "Acción de hoy", on: true },
   { id: "catRanking", label: "Tus categorías", on: true },
-  { id: "opportunities", label: "Áreas de oportunidad", on: true },
+  { id: "dailyAction", label: "Acción de hoy", on: false },
+  { id: "opportunities", label: "Áreas de oportunidad", on: false },
   { id: "debts", label: "Deudas", on: true },
   { id: "goals", label: "Metas y planes", on: true },
-  { id: "financialScore", label: "Calificación financiera (IA)", on: true },
+  { id: "financialScore", label: "Calificación financiera (IA)", on: false },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
 
@@ -12444,20 +12444,20 @@ function adaptiveSectionOrder(score, allSections, ctx = {}) {
     // Rescate: ACCIÓN protagonista. Qué hago hoy para salir de esto.
     // Luego lo urgente (deudas/oportunidades), después contexto.
     if (hasDebt) {
-      order = ["dailyAction", "debts", "opportunities", "financialScore", "balance", "goals", "financialTips"];
+      order = ["dailyAction", "debts", "catRanking", "opportunities", "financialScore", "balance", "goals", "financialTips"];
     } else {
-      order = ["dailyAction", "opportunities", "financialScore", "balance", "goals", "debts", "financialTips"];
+      order = ["dailyAction", "catRanking", "opportunities", "financialScore", "balance", "goals", "debts", "financialTips"];
     }
   } else if (score < 65) {
     // Mejora: CALIFICACIÓN protagonista (motivación de progreso), luego acción.
     if (hasDebt) {
-      order = ["financialScore", "dailyAction", "debts", "opportunities", "goals", "balance", "financialTips"];
+      order = ["financialScore", "dailyAction", "debts", "catRanking", "opportunities", "goals", "balance", "financialTips"];
     } else {
-      order = ["financialScore", "dailyAction", "opportunities", "goals", "balance", "debts", "financialTips"];
+      order = ["financialScore", "dailyAction", "catRanking", "opportunities", "goals", "balance", "debts", "financialTips"];
     }
   } else {
     // Crecimiento: METAS protagonistas (hacia dónde voy), luego acción y refuerzo.
-    order = ["goals", "dailyAction", "financialScore", "balance", "opportunities", "financialTips", "debts"];
+    order = ["goals", "catRanking", "dailyAction", "financialScore", "balance", "opportunities", "financialTips", "debts"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -21129,61 +21129,64 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
 const CHART_PALETTE = ["#1E6FE0", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
 
-/* Ranking de categorías en columnas verticales — ícono del sistema debajo de
-   cada barra, altura animada, scroll horizontal. Pensado para el dashboard:
-   de un vistazo se ve en qué se va el dinero, sin abrir Estadísticas. */
-function CategoryColumnChart({ rows, type, onPick, maxBars = 8 }) {
+/* Ranking de categorías: tarjetas-cápsula horizontales, coloreadas con el
+   color real de cada categoría (no un tono plano genérico). El ícono va en
+   un círculo blanco fijo arriba — nunca se solapa con nada, sin importar el
+   monto. La barra de proporción es horizontal y va HASTA ABAJO, así se ve
+   claramente distinto a las barras de Estadísticas (que son horizontales
+   con ícono a la izquierda) o la dona/árbol. */
+function CategoryColumnChart({ rows, type, maxBars = 8 }) {
   if (!rows || !rows.length) return null;
   const data = rows.slice(0, maxBars);
   const maxAmt = data[0].amt || 1;
-  const barColor = type === "income" ? "var(--green)" : "var(--bar-fill)";
-  const trackColor = "var(--surface-2)";
 
   return (
     <div className="cc-catcol-scroll" style={{
       display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden",
-      padding: "2px 2px 4px", WebkitOverflowScrolling: "touch",
+      padding: "2px 2px 6px", WebkitOverflowScrolling: "touch",
       scrollSnapType: "x proximity",
     }}>
       {data.map((d, i) => {
-        const pctOfMax = maxAmt ? Math.max(6, Math.round((d.amt / maxAmt) * 100)) : 6;
         const [bg, fg] = catColorPair(d.cat.color);
+        const pct = maxAmt ? Math.max(10, Math.round((d.amt / maxAmt) * 100)) : 10;
         return (
-          <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
-            style={{
-              flex: "0 0 auto", width: 68, display: "flex", flexDirection: "column",
-              alignItems: "center", gap: 8, background: "transparent", border: "none",
-              cursor: "pointer", fontFamily: "inherit", scrollSnapAlign: "start",
-              padding: "4px 0 0",
-            }}>
-            {/* Pista fija de altura + barra que crece desde abajo (scaleY),
-                igual patrón que ccChartGrowY ya usa el resto de la app. */}
-            <div style={{ position: "relative", width: "100%", height: 132,
-              borderRadius: 16, background: trackColor, overflow: "hidden",
-              display: "flex", alignItems: "flex-end" }}>
-              <div style={{
-                width: "100%", height: `${pctOfMax}%`, borderRadius: 16,
-                background: barColor, transformOrigin: "bottom center",
-                animation: "ccChartGrowY .6s cubic-bezier(.3,1,.4,1) backwards",
-                animationDelay: `${i * 0.06}s`,
-              }} />
-            </div>
-            {/* Ícono del sistema, no emoji — a caballo entre la barra y su cifra */}
+          <div key={d.cat.id} style={{
+            flex: "0 0 auto", width: 92, borderRadius: 18, background: bg,
+            padding: "14px 10px 12px", display: "flex", flexDirection: "column",
+            alignItems: "center", gap: 7, scrollSnapAlign: "start",
+            animation: "ccChartFadeIn .45s ease backwards",
+            animationDelay: `${i * 0.06}s`,
+          }}>
+            {/* Círculo blanco fijo: el ícono SIEMPRE se ve completo, sin
+                importar qué tan chico sea el monto de esta categoría. */}
             <div style={{
-              width: 34, height: 34, borderRadius: 11, background: bg,
+              width: 38, height: 38, borderRadius: 12, background: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
-              marginTop: -25, flexShrink: 0,
-              boxShadow: "0 2px 6px rgba(0,0,0,.18)",
-              animation: "ccChartFadeIn .4s ease backwards",
-              animationDelay: `${i * 0.06 + 0.25}s`,
+              boxShadow: "0 1px 3px rgba(0,0,0,.1)", flexShrink: 0,
             }}>
-              <span style={{ color: fg, display: "flex" }}><ZIcon name={catIcon(d.cat)} size={18} /></span>
+              <span style={{ color: fg, display: "flex" }}><ZIcon name={catIcon(d.cat)} size={19} /></span>
             </div>
-            <div className="cc-num" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)",
-              fontFamily: "'Montserrat', sans-serif", letterSpacing: "-.01em", whiteSpace: "nowrap" }}>
+            <div className="cc-num" style={{ fontSize: 14.5, fontWeight: 800, color: fg,
+              fontFamily: "'Montserrat', sans-serif", letterSpacing: "-.01em" }}>
               {fmtCompact(d.amt)}
             </div>
-          </button>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: fg, opacity: .8,
+              textAlign: "center", lineHeight: 1.25, maxWidth: "100%",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {d.cat.name}
+            </div>
+            {/* Barra de proporción respecto a la categoría más alta — crece
+                de izquierda a derecha, con el color de acento de la categoría. */}
+            <div style={{ width: "100%", height: 5, borderRadius: 99,
+              background: "rgba(255,255,255,.55)", overflow: "hidden", marginTop: 1 }}>
+              <div style={{
+                height: "100%", width: `${pct}%`, borderRadius: 99, background: fg,
+                transformOrigin: "left center",
+                animation: "ccChartGrowX .6s cubic-bezier(.3,1,.4,1) backwards",
+                animationDelay: `${i * 0.06 + 0.18}s`,
+              }} />
+            </div>
+          </div>
         );
       })}
     </div>
