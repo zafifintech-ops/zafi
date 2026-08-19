@@ -12406,8 +12406,8 @@ const DEFAULT_SECTIONS = [
   { id: "catRanking", label: "Tus categorías", on: true },
   { id: "dailyAction", label: "Acción de hoy", on: false },
   { id: "opportunities", label: "Áreas de oportunidad", on: false },
-  { id: "debts", label: "Deudas", on: true },
-  { id: "goals", label: "Metas y planes", on: true },
+  { id: "debts", label: "Deudas", on: false },
+  { id: "goals", label: "Metas y planes", on: false },
   { id: "financialScore", label: "Calificación financiera (IA)", on: false },
   { id: "financialTips", label: "Consejos financieros (IA)", on: false },
 ];
@@ -16897,7 +16897,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   Sin gastos este mes todavía.
                 </div>
               ) : (
-                <CategoryColumnChart rows={dashExpRows} type="expense" />
+                <CategoryColumnChart rows={dashExpRows} />
               )}
             </div>
           );
@@ -21129,62 +21129,64 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
 const CHART_PALETTE = ["#1E6FE0", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
 
-/* Ranking de categorías: tarjetas-cápsula horizontales, coloreadas con el
-   color real de cada categoría (no un tono plano genérico). El ícono va en
-   un círculo blanco fijo arriba — nunca se solapa con nada, sin importar el
-   monto. La barra de proporción es horizontal y va HASTA ABAJO, así se ve
-   claramente distinto a las barras de Estadísticas (que son horizontales
-   con ícono a la izquierda) o la dona/árbol. */
-function CategoryColumnChart({ rows, type, maxBars = 8 }) {
+/* Ranking de categorías en columnas verticales: cada barra tiene la altura
+   proporcional a su monto, con el color real de la categoría. El ícono va
+   SIEMPRE abajo, fuera de la pista de la barra — así nunca se solapa, aunque
+   la barra sea mínima (que fue el bug del primer intento). */
+function CategoryColumnChart({ rows, maxBars = 8 }) {
   if (!rows || !rows.length) return null;
   const data = rows.slice(0, maxBars);
   const maxAmt = data[0].amt || 1;
+  const TRACK_H = 116; // alto de la zona de barras, fijo para todas
 
   return (
     <div className="cc-catcol-scroll" style={{
-      display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden",
+      display: "flex", gap: 12, overflowX: "auto", overflowY: "hidden",
       padding: "2px 2px 6px", WebkitOverflowScrolling: "touch",
-      scrollSnapType: "x proximity",
+      scrollSnapType: "x proximity", alignItems: "flex-end",
     }}>
       {data.map((d, i) => {
         const [bg, fg] = catColorPair(d.cat.color);
-        const pct = maxAmt ? Math.max(10, Math.round((d.amt / maxAmt) * 100)) : 10;
+        // Mínimo 14% para que una categoría chica siga siendo visible y
+        // legible como barra, no como una rayita.
+        const hPct = Math.max(14, Math.round((d.amt / maxAmt) * 100));
         return (
           <div key={d.cat.id} style={{
-            flex: "0 0 auto", width: 92, borderRadius: 18, background: bg,
-            padding: "14px 10px 12px", display: "flex", flexDirection: "column",
-            alignItems: "center", gap: 7, scrollSnapAlign: "start",
-            animation: "ccChartFadeIn .45s ease backwards",
-            animationDelay: `${i * 0.06}s`,
+            flex: "0 0 auto", width: 62, display: "flex", flexDirection: "column",
+            alignItems: "center", gap: 8, scrollSnapAlign: "start",
           }}>
-            {/* Círculo blanco fijo: el ícono SIEMPRE se ve completo, sin
-                importar qué tan chico sea el monto de esta categoría. */}
+            {/* Monto arriba de la barra */}
+            <div className="cc-num" style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)",
+              fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap",
+              animation: "ccChartFadeIn .4s ease backwards",
+              animationDelay: `${i * 0.06 + 0.3}s` }}>
+              {fmtCompact(d.amt)}
+            </div>
+            {/* Pista de altura fija: las barras se alinean abajo y crecen
+                hacia arriba, así se comparan de un vistazo. */}
+            <div style={{ height: TRACK_H, width: "100%", display: "flex",
+              alignItems: "flex-end", justifyContent: "center" }}>
+              <div style={{
+                width: "100%", height: `${hPct}%`, borderRadius: 14,
+                background: fg, transformOrigin: "bottom center",
+                animation: "ccChartGrowY .6s cubic-bezier(.3,1,.4,1) backwards",
+                animationDelay: `${i * 0.06}s`,
+              }} />
+            </div>
+            {/* Ícono debajo, en su propio espacio — nunca encima de la barra */}
             <div style={{
-              width: 38, height: 38, borderRadius: 12, background: "#fff",
+              width: 36, height: 36, borderRadius: 12, background: bg,
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 1px 3px rgba(0,0,0,.1)", flexShrink: 0,
+              flexShrink: 0,
+              animation: "ccChartFadeIn .4s ease backwards",
+              animationDelay: `${i * 0.06 + 0.2}s`,
             }}>
               <span style={{ color: fg, display: "flex" }}><ZIcon name={catIcon(d.cat)} size={19} /></span>
             </div>
-            <div className="cc-num" style={{ fontSize: 14.5, fontWeight: 800, color: fg,
-              fontFamily: "'Montserrat', sans-serif", letterSpacing: "-.01em" }}>
-              {fmtCompact(d.amt)}
-            </div>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: fg, opacity: .8,
-              textAlign: "center", lineHeight: 1.25, maxWidth: "100%",
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-soft)",
+              textAlign: "center", lineHeight: 1.2, maxWidth: "100%",
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {d.cat.name}
-            </div>
-            {/* Barra de proporción respecto a la categoría más alta — crece
-                de izquierda a derecha, con el color de acento de la categoría. */}
-            <div style={{ width: "100%", height: 5, borderRadius: 99,
-              background: "rgba(255,255,255,.55)", overflow: "hidden", marginTop: 1 }}>
-              <div style={{
-                height: "100%", width: `${pct}%`, borderRadius: 99, background: fg,
-                transformOrigin: "left center",
-                animation: "ccChartGrowX .6s cubic-bezier(.3,1,.4,1) backwards",
-                animationDelay: `${i * 0.06 + 0.18}s`,
-              }} />
             </div>
           </div>
         );
