@@ -9453,6 +9453,32 @@ function catColorPair(color) {
   return CAT_ICON_COLORS[color] || CAT_ICON_COLORS.gray;
 }
 
+/* Convierte el hex de la paleta a rgba con transparencia. Sirve para pintar
+   las barras del dashboard en pastel translúcido: el mismo color de la
+   categoría pero suave, y que además se adapta al fondo (claro u oscuro)
+   porque deja pasar lo que hay detrás. */
+function hexToRgba(hex, alpha = 1) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return `rgba(128,128,128,${alpha})`;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* Los acentos de CAT_ICON_COLORS están calibrados para fondos CLAROS; sobre
+   el fondo oscuro varios pierden contraste (navy se va a ~1.8:1, ilegible).
+   Esto los aclara mezclándolos con blanco solo en tema oscuro, para que el
+   ícono y el monto se lean bien en ambos temas sin cambiar la paleta. */
+function catAccentForTheme(hex, dark) {
+  if (!dark) return hex;
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return hex;
+  const mix = (c) => Math.round(c + (255 - c) * 0.45);
+  const [r, g, b] = [0, 2, 4].map((i) => mix(parseInt(h.slice(i, i + 2), 16)));
+  return `rgb(${r},${g},${b})`;
+}
+
 /* Colores elegibles para una categoría (orden del selector). */
 const CAT_COLOR_OPTIONS = ["coral", "amber", "green", "teal", "blue", "indigo", "pink", "gray"];
 
@@ -16909,12 +16935,16 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "catRanking") {
           const catRankNode = (
-            <div className="cc-card" style={{ padding: "18px 12px 18px 18px" }}>
-              <div className="cc-label" style={{ marginBottom: 12, paddingLeft: 6 }}>
+            /* Sin cc-card: esta sección es la protagonista del dashboard, va
+               a sangre y no dentro de una tarjeta. Los paddings laterales los
+               pone el propio carrusel para que las barras puedan salirse del
+               borde al hacer scroll. */
+            <div style={{ marginLeft: -18, marginRight: -18 }}>
+              <div className="cc-label" style={{ marginBottom: 14, paddingLeft: 18 }}>
                 Tus categorías · {rangeLabel(dateRange)}
               </div>
               {dashExpRows.length === 0 ? (
-                <div style={{ color: "var(--ink-soft)", fontSize: 14, paddingLeft: 6 }}>
+                <div style={{ color: "var(--ink-soft)", fontSize: 14, paddingLeft: 18 }}>
                   Sin gastos este mes todavía.
                 </div>
               ) : (
@@ -21228,64 +21258,59 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
 const CHART_PALETTE = ["#1E6FE0", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
 
-/* Ranking de categorías en columnas verticales: cada barra tiene la altura
-   proporcional a su monto, con el color real de la categoría. El ícono va
-   SIEMPRE abajo, fuera de la pista de la barra — así nunca se solapa, aunque
-   la barra sea mínima (que fue el bug del primer intento). */
+/* Ranking de categorías: barras verticales GRANDES, protagonistas del
+   dashboard. Cada barra usa el color de su categoría en pastel translúcido
+   (rgba), lo que hace que funcione igual en tema claro y oscuro — deja pasar
+   el fondo en vez de imponer un tono fijo. El ícono y el monto van DENTRO de
+   la barra, abajo; por eso la barra tiene un alto mínimo garantizado que
+   siempre alcanza para contenerlos. */
 function CategoryColumnChart({ rows, maxBars = 8 }) {
+  const dark = useDarkMode();
   if (!rows || !rows.length) return null;
   const data = rows.slice(0, maxBars);
   const maxAmt = data[0].amt || 1;
-  const TRACK_H = 116; // alto de la zona de barras, fijo para todas
+  const MAX_H = 300;  // alto de la barra más alta
+  const MIN_H = 132;  // suficiente para ícono + monto dentro, sin apretarlos
 
   return (
     <div className="cc-catcol-scroll" style={{
       display: "flex", gap: 12, overflowX: "auto", overflowY: "hidden",
-      padding: "2px 2px 6px", WebkitOverflowScrolling: "touch",
+      padding: "4px 18px 8px", WebkitOverflowScrolling: "touch",
       scrollSnapType: "x proximity", alignItems: "flex-end",
     }}>
       {data.map((d, i) => {
-        const [bg, fg] = catColorPair(d.cat.color);
-        // Mínimo 14% para que una categoría chica siga siendo visible y
-        // legible como barra, no como una rayita.
-        const hPct = Math.max(14, Math.round((d.amt / maxAmt) * 100));
+        const [, fgBase] = catColorPair(d.cat.color);
+        const fg = catAccentForTheme(fgBase, dark);
+        // El alto se interpola entre MIN_H y MAX_H según la proporción, en vez
+        // de un porcentaje puro: así la más chica sigue siendo una barra usable
+        // y no una rayita donde no cabe nada.
+        const ratio = maxAmt ? d.amt / maxAmt : 0;
+        const h = Math.round(MIN_H + (MAX_H - MIN_H) * ratio);
         return (
           <div key={d.cat.id} style={{
-            flex: "0 0 auto", width: 62, display: "flex", flexDirection: "column",
-            alignItems: "center", gap: 8, scrollSnapAlign: "start",
+            flex: "0 0 auto", width: 96, height: h, borderRadius: 28,
+            background: hexToRgba(fgBase, dark ? 0.22 : 0.16),
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "flex-end", gap: 10, padding: "0 8px 20px",
+            scrollSnapAlign: "start", transformOrigin: "bottom center",
+            animation: "ccChartGrowY .7s cubic-bezier(.22,1,.36,1) backwards",
+            animationDelay: `${i * 0.07}s`,
           }}>
-            {/* Monto arriba de la barra */}
-            <div className="cc-num" style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)",
-              fontFamily: "'Montserrat', sans-serif", whiteSpace: "nowrap",
-              animation: "ccChartFadeIn .4s ease backwards",
-              animationDelay: `${i * 0.06 + 0.3}s` }}>
-              {fmtCompact(d.amt)}
-            </div>
-            {/* Pista de altura fija: las barras se alinean abajo y crecen
-                hacia arriba, así se comparan de un vistazo. */}
-            <div style={{ height: TRACK_H, width: "100%", display: "flex",
-              alignItems: "flex-end", justifyContent: "center" }}>
-              <div style={{
-                width: "100%", height: `${hPct}%`, borderRadius: 14,
-                background: fg, transformOrigin: "bottom center",
-                animation: "ccChartGrowY .6s cubic-bezier(.3,1,.4,1) backwards",
-                animationDelay: `${i * 0.06}s`,
-              }} />
-            </div>
-            {/* Ícono debajo, en su propio espacio — nunca encima de la barra */}
+            {/* El contenido entra después de que la barra terminó de crecer,
+                para que no se vea estirado durante la animación. */}
             <div style={{
-              width: 36, height: 36, borderRadius: 12, background: bg,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-              animation: "ccChartFadeIn .4s ease backwards",
-              animationDelay: `${i * 0.06 + 0.2}s`,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              animation: "ccChartFadeIn .45s ease backwards",
+              animationDelay: `${i * 0.07 + 0.35}s`,
             }}>
-              <span style={{ color: fg, display: "flex" }}><ZIcon name={catIcon(d.cat)} size={19} /></span>
-            </div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-soft)",
-              textAlign: "center", lineHeight: 1.2, maxWidth: "100%",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {d.cat.name}
+              <span style={{ color: fg, display: "flex" }}>
+                <ZIcon name={catIcon(d.cat)} size={30} />
+              </span>
+              <div className="cc-num" style={{ fontSize: 17, fontWeight: 800, color: fg,
+                fontFamily: "'Montserrat', sans-serif", letterSpacing: "-.02em",
+                whiteSpace: "nowrap" }}>
+                {fmtCompact(d.amt)}
+              </div>
             </div>
           </div>
         );
