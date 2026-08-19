@@ -12428,8 +12428,8 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 
 /* secciones disponibles del inicio */
 const DEFAULT_SECTIONS = [
-  { id: "balance", label: "Saldo destacado", on: true },
   { id: "catRanking", label: "Tus categorías", on: true },
+  { id: "balance", label: "Flujo neto", on: false },
   { id: "dailyAction", label: "Acción de hoy", on: false },
   { id: "opportunities", label: "Áreas de oportunidad", on: false },
   { id: "debts", label: "Deudas", on: false },
@@ -12470,20 +12470,20 @@ function adaptiveSectionOrder(score, allSections, ctx = {}) {
     // Rescate: ACCIÓN protagonista. Qué hago hoy para salir de esto.
     // Luego lo urgente (deudas/oportunidades), después contexto.
     if (hasDebt) {
-      order = ["dailyAction", "debts", "catRanking", "opportunities", "financialScore", "balance", "goals", "financialTips"];
+      order = ["catRanking", "dailyAction", "debts", "opportunities", "financialScore", "balance", "goals", "financialTips"];
     } else {
-      order = ["dailyAction", "catRanking", "opportunities", "financialScore", "balance", "goals", "debts", "financialTips"];
+      order = ["catRanking", "dailyAction", "opportunities", "financialScore", "balance", "goals", "debts", "financialTips"];
     }
   } else if (score < 65) {
     // Mejora: CALIFICACIÓN protagonista (motivación de progreso), luego acción.
     if (hasDebt) {
-      order = ["financialScore", "dailyAction", "debts", "catRanking", "opportunities", "goals", "balance", "financialTips"];
+      order = ["catRanking", "financialScore", "dailyAction", "debts", "opportunities", "goals", "balance", "financialTips"];
     } else {
-      order = ["financialScore", "dailyAction", "catRanking", "opportunities", "goals", "balance", "debts", "financialTips"];
+      order = ["catRanking", "financialScore", "dailyAction", "opportunities", "goals", "balance", "debts", "financialTips"];
     }
   } else {
     // Crecimiento: METAS protagonistas (hacia dónde voy), luego acción y refuerzo.
-    order = ["goals", "catRanking", "dailyAction", "financialScore", "balance", "opportunities", "financialTips", "debts"];
+    order = ["catRanking", "goals", "dailyAction", "financialScore", "balance", "opportunities", "financialTips", "debts"];
   }
   // Construir la lista respetando el on/off de cada sección
   const result = [];
@@ -16598,7 +16598,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           {/* Barra de control: [ • filtrar ] [ cápsula con la cuenta activa ] [ • personalizar ]
               La cápsula abre un menú para cambiar de cuenta o agregar una nueva. */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
-            gap: 10, marginBottom: config.hideAccountCards === false ? 12 : 0 }}>
+            gap: 10, marginBottom: 4 }}>
             {(() => {
               const globalAccH = getPersonalize(config, "globalAccountsHidden", accView) || [];
               const globalIncH = getPersonalize(config, "globalIncCatsHidden", accView) || [];
@@ -16608,7 +16608,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <button onClick={() => setGlobalCustomizeOpen(true)}
                   title="Filtrar qué cuentas y categorías entran en las gráficas"
                   style={{ position: "relative", width: 44, height: 44, borderRadius: "50%",
-                    border: "none", background: "var(--ink)", color: "var(--paper)",
+                    border: "none", background: "var(--ink)", color: "var(--paper-solid)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", flexShrink: 0, padding: 0 }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -16632,7 +16632,7 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             {/* Cápsula central: cuenta activa + menú desplegable */}
             <button onClick={() => setAccMenuOpen(true)} data-tour="account-selector"
               style={{ flex: 1, minWidth: 0, maxWidth: 280, height: 44, borderRadius: 99,
-                border: "none", background: "var(--ink)", color: "var(--paper)",
+                border: "none", background: "var(--ink)", color: "var(--paper-solid)",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 cursor: "pointer", padding: "0 18px", fontFamily: "'Montserrat', sans-serif" }}>
               <span style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-.01em",
@@ -16649,88 +16649,14 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             <button onClick={() => setConfiguring(true)} data-tour="personalize-btn"
               title="Personalizar el inicio"
               style={{ width: 44, height: 44, borderRadius: "50%", border: "none",
-                background: "var(--ink)", color: "var(--paper)", display: "flex",
+                background: "var(--ink)", color: "var(--paper-solid)", display: "flex",
                 alignItems: "center", justifyContent: "center", cursor: "pointer",
                 flexShrink: 0, padding: 0 }}>
               <IconGear />
             </button>
           </div>
-          {/* Tarjetas de cuentas: ocultas por defecto. La cápsula de arriba ya
-              hace de selector; mostrarlas además duplicaba la misma función.
-              `hideAccountCards !== false` mantiene la preferencia de quien ya
-              las tenía visibles a propósito. */}
-          {config.hideAccountCards === false && <ScrollFadeRow>
-            {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
-            {config.accounts.length > 1 && !(config.hiddenAccountCards || []).includes("all") && (
-              <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
-                <div className="cc-acc-icon">∑</div>
-                <div className="cc-acc-label">Total</div>
-                <div className="cc-acc-name">General</div>
-                <div className="cc-acc-bal cc-num" style={{ color: balance < 0 ? "var(--coral)" : "var(--ink)" }}>
-                  {fmtBare(balance)} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 }}>mxn</span>
-                </div>
-                <div className="cc-acc-sub">{config.accounts.length} cuenta{config.accounts.length === 1 ? "" : "s"}</div>
-              </button>
-            )}
-            {/* tarjetas por cuenta — solo las visibles */}
-            {config.accounts.filter((a) => !(config.hiddenAccountCards || []).includes(a.id)).map((a) => {
-              const b = accountBalance(config, txs, a.id);
-              const accTxs = txs.filter((t) => t.accountId === a.id);
-              const rangeAccStat = statTxs(txsInRange(accTxs, dateRange)).all;
-              const rangeFlow = rangeAccStat.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
-              const active = view === a.id;
-              return (
-                <button key={a.id} className={`cc-acc-card ${active ? "on" : ""}`}
-                  onClick={() => (config.accounts.length > 1 && hasFeature(config, "account_toggle")) ? setView(a.id) : null}
-                  style={{ opacity: 1, cursor: config.accounts.length > 1 ? "pointer" : "default" }}>
-                  <div className="cc-acc-icon"><AccountBadge size={34} /></div>
-                  <div className="cc-acc-label">Cuenta</div>
-                  <div className="cc-acc-name">{a.name}</div>
-                  <div className="cc-acc-bal cc-num" style={{ color: b < 0 ? "var(--coral)" : "var(--ink)" }}>
-                    {fmtBare(b)} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 400 }}>mxn</span>
-                  </div>
-                </button>
-              );
-            })}
-            {/* tarjeta agregar / gestionar — Free: editar; Lite hasta 3; Pro ilimitado */}
-            {(() => {
-              const plan = getUserPlan(config);
-              const numAccounts = config.accounts.length;
-              const canAdd = plan === "pro" || (plan === "lite" && numAccounts < 3);
-              // En Free: mostrar botón "Editar cuenta" para que el usuario pueda gestionar la suya
-              if (plan === "free") return (
-                <button className="cc-acc-card" onClick={onAddAccount}
-                  style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                    minWidth:130, borderStyle:"dashed", color:"var(--ink-soft)" }}>
-                  <div style={{ width:32, height:32, marginBottom:6, color:"var(--ink-soft)",
-                    display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 20h9"/>
-                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
-                    </svg>
-                  </div>
-                  <div style={{ fontWeight:600, fontSize:13 }}>Editar cuenta</div>
-                  <div style={{ fontSize:10.5, color:"var(--ink-faint)", marginTop:2 }}>+ con Lite</div>
-                </button>
-              );
-              if (!canAdd) return (
-                <div className="cc-acc-card" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:130, borderStyle:"dashed", color:"var(--ink-faint)", opacity:.5, cursor:"default" }}>
-                  <div style={{ marginBottom:4, display:"flex", justifyContent:"center", color:"var(--ink-soft)" }}><ZIcon name="lock" size={24} /></div>
-                  <div style={{ fontWeight:600, fontSize:12 }}>Máx. 3 cuentas</div>
-                  <div style={{ fontSize:10.5, color:"var(--ink-faint)", marginTop:2 }}>Plan Lite</div>
-                </div>
-              );
-              return (
-                <button className="cc-acc-card" onClick={onAddAccount}
-                  style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                    minWidth:130, borderStyle:"dashed", color:"var(--ink-soft)" }}>
-                  <div style={{ fontSize:30, lineHeight:1, marginBottom:6, color:"var(--gold)" }}>＋</div>
-                  <div style={{ fontWeight:600, fontSize:13 }}>Agregar cuenta</div>
-                </button>
-              );
-            })()}
-          </ScrollFadeRow>}
+          {/* Las tarjetas de cuentas se quitaron: la cápsula de arriba ya
+              hace de selector de cuenta y mostrarlas duplicaba la función. */}
         </div>
       )}
 
@@ -16935,16 +16861,16 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "catRanking") {
           const catRankNode = (
-            /* Sin cc-card: esta sección es la protagonista del dashboard, va
-               a sangre y no dentro de una tarjeta. Los paddings laterales los
-               pone el propio carrusel para que las barras puedan salirse del
-               borde al hacer scroll. */
-            <div style={{ marginLeft: -18, marginRight: -18 }}>
-              <div className="cc-label" style={{ marginBottom: 14, paddingLeft: 18 }}>
+            /* Sin cc-card: es la sección protagonista, no va dentro de una
+               tarjeta. Antes llevaba márgenes negativos para ir "a sangre",
+               pero eso cancelaba el padding del contenedor y la primera y
+               última barra quedaban cortadas contra el borde de la pantalla. */
+            <div>
+              <div className="cc-label" style={{ marginBottom: 14 }}>
                 Tus categorías · {rangeLabel(dateRange)}
               </div>
               {dashExpRows.length === 0 ? (
-                <div style={{ color: "var(--ink-soft)", fontSize: 14, paddingLeft: 18 }}>
+                <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>
                   Sin gastos este mes todavía.
                 </div>
               ) : (
@@ -21269,13 +21195,13 @@ function CategoryColumnChart({ rows, maxBars = 8 }) {
   if (!rows || !rows.length) return null;
   const data = rows.slice(0, maxBars);
   const maxAmt = data[0].amt || 1;
-  const MAX_H = 300;  // alto de la barra más alta
-  const MIN_H = 132;  // suficiente para ícono + monto dentro, sin apretarlos
+  const MAX_H = 240;  // alto de la barra más alta
+  const MIN_H = 118;  // suficiente para ícono + monto dentro, sin apretarlos
 
   return (
     <div className="cc-catcol-scroll" style={{
-      display: "flex", gap: 12, overflowX: "auto", overflowY: "hidden",
-      padding: "4px 18px 8px", WebkitOverflowScrolling: "touch",
+      display: "flex", gap: 11, overflowX: "auto", overflowY: "hidden",
+      padding: "4px 2px 8px", WebkitOverflowScrolling: "touch",
       scrollSnapType: "x proximity", alignItems: "flex-end",
     }}>
       {data.map((d, i) => {
