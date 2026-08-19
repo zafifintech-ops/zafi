@@ -16608,7 +16608,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                 <button onClick={() => setGlobalCustomizeOpen(true)}
                   title="Filtrar qué cuentas y categorías entran en las gráficas"
                   style={{ position: "relative", width: 44, height: 44, borderRadius: "50%",
-                    border: "none", background: "var(--ink)", color: "var(--paper-solid)",
+                    background: "var(--glass)", border: "1px solid var(--glass-border)",
+                    backdropFilter: "var(--blur)", WebkitBackdropFilter: "var(--blur)",
+                    color: "var(--ink)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", flexShrink: 0, padding: 0 }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -16632,7 +16634,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
             {/* Cápsula central: cuenta activa + menú desplegable */}
             <button onClick={() => setAccMenuOpen(true)} data-tour="account-selector"
               style={{ flex: 1, minWidth: 0, maxWidth: 280, height: 44, borderRadius: 99,
-                border: "none", background: "var(--ink)", color: "var(--paper-solid)",
+                background: "var(--glass)", border: "1px solid var(--glass-border)",
+                backdropFilter: "var(--blur)", WebkitBackdropFilter: "var(--blur)",
+                color: "var(--ink)",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                 cursor: "pointer", padding: "0 18px", fontFamily: "'Montserrat', sans-serif" }}>
               <span style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-.01em",
@@ -16648,8 +16652,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
             <button onClick={() => setConfiguring(true)} data-tour="personalize-btn"
               title="Personalizar el inicio"
-              style={{ width: 44, height: 44, borderRadius: "50%", border: "none",
-                background: "var(--ink)", color: "var(--paper-solid)", display: "flex",
+              style={{ width: 44, height: 44, borderRadius: "50%",
+                background: "var(--glass)", border: "1px solid var(--glass-border)",
+                backdropFilter: "var(--blur)", WebkitBackdropFilter: "var(--blur)",
+                color: "var(--ink)", display: "flex",
                 alignItems: "center", justifyContent: "center", cursor: "pointer",
                 flexShrink: 0, padding: 0 }}>
               <IconGear />
@@ -16677,7 +16683,10 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
         // Nivel de presencia visual según prioridad:
         // Jerarquía por posición: protagonista (idx 0), medio (1-2), tenue (3+).
         // El color NO va en el fondo — vive dentro de cada tarjeta (números, badges, barras).
-        const lvlClass = idx === 0 ? "cc-lvl-top" : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint");
+        // catRanking va SIN fondo: es un carrusel de barras a la vista, no una
+        // tarjeta. Si recibe cc-lvl-* le pintan el rectángulo blanco detrás.
+        const lvlClass = s.id === "catRanking" ? ""
+          : (idx === 0 ? "cc-lvl-top" : (idx <= 2 ? "cc-lvl-mid" : "cc-lvl-faint"));
         const isSolidHero = idx === 0;
         const applyLvl = (node) => {
           if (!node || !node.props) return node;
@@ -21195,8 +21204,11 @@ function CategoryColumnChart({ rows, maxBars = 8 }) {
   if (!rows || !rows.length) return null;
   const data = rows.slice(0, maxBars);
   const maxAmt = data[0].amt || 1;
-  const MAX_H = 240;  // alto de la barra más alta
-  const MIN_H = 118;  // suficiente para ícono + monto dentro, sin apretarlos
+  // Ocupan buena parte del alto útil: es la sección protagonista y así el
+  // dashboard no se ve vacío. Medido contra iPhone (header + controles +
+  // barra inferior dejan ~534pt libres).
+  const MAX_H = 380;  // alto de la barra más alta
+  const MIN_H = 150;  // suficiente para ícono + monto dentro, sin apretarlos
 
   return (
     <div className="cc-catcol-scroll" style={{
