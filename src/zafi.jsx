@@ -10670,7 +10670,7 @@ function Main({ config: rawConfig, txs: rawTxs, saveConfig, saveTxs, showToast, 
       <div className="cc-wrap">
         <EmailVerifyBanner />
         <div key={tab} className="cc-page">
-          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={true} />}
+          {tab === "inicio" && <Dashboard config={config} txs={txs} balance={balance} dateRange={dateRange} onEdit={setEditingTx} onAddAccount={() => setAccountsOpen(true)} onOpenAdd={() => setAddMenuOpen(true)} saveConfig={saveConfigWrapped} saveTxs={saveTxsWrapped} onConfiguringChange={setCustomizeHomeOpen} accView={accView} setAccView={setAccView} dataLoaded={true} />}
           {tab === "movs" && <Movimientos config={config} txs={txs} dateRange={dateRange} saveTxs={saveTxsWrapped} showToast={showToast} onEdit={setEditingTx} accView={accView} setAccView={setAccView} />}
           {tab === "cats" && <Categorias config={config} txs={txs} dateRange={dateRange} saveConfig={saveConfigWrapped} showToast={showToast} saveRecurring={saveRecurring} accView={accView} setAccView={setAccView} onEdit={setEditingTx} />}
           {tab === "stats" && <Estadisticas config={config} txs={txs} dateRange={dateRange} onEdit={setEditingTx} saveConfig={saveConfigWrapped} accView={accView} setAccView={setAccView} />}
@@ -16375,7 +16375,7 @@ function CollapsedSection({ icon, iconTone = "green", text, subtext, dark, expan
   );
 }
 
-function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, saveConfig, saveTxs, onConfiguringChange, accView, setAccView, dataLoaded = true }) {
+function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, onOpenAdd, saveConfig, saveTxs, onConfiguringChange, accView, setAccView, dataLoaded = true }) {
   // Compat: la sección usa internamente `view` pero ahora viene del prop compartido
   const view = accView;
   const setView = setAccView;
@@ -16650,15 +16650,18 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
               </svg>
             </button>
 
-            <button onClick={() => setConfiguring(true)} data-tour="personalize-btn"
-              title="Personalizar el inicio"
+            <button onClick={() => onOpenAdd && onOpenAdd()}
+              aria-label="Nueva transacción"
               style={{ width: 44, height: 44, borderRadius: "50%",
                 background: "var(--glass)", border: "1px solid var(--glass-border)",
                 backdropFilter: "var(--blur)", WebkitBackdropFilter: "var(--blur)",
                 color: "var(--ink)", display: "flex",
                 alignItems: "center", justifyContent: "center", cursor: "pointer",
                 flexShrink: 0, padding: 0 }}>
-              <IconGear />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.2" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
             </button>
           </div>
           {/* Las tarjetas de cuentas se quitaron: la cápsula de arriba ya
@@ -16870,14 +16873,9 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
 
         if (s.id === "catRanking") {
           const catRankNode = (
-            /* Sin cc-card: es la sección protagonista, no va dentro de una
-               tarjeta. Antes llevaba márgenes negativos para ir "a sangre",
-               pero eso cancelaba el padding del contenedor y la primera y
-               última barra quedaban cortadas contra el borde de la pantalla. */
+            /* Sin cc-card ni título: las barras hablan solas y son la sección
+               protagonista del dashboard. */
             <div>
-              <div className="cc-label" style={{ marginBottom: 14 }}>
-                Tus categorías · {rangeLabel(dateRange)}
-              </div>
               {dashExpRows.length === 0 ? (
                 <div style={{ color: "var(--ink-soft)", fontSize: 14 }}>
                   Sin gastos este mes todavía.
@@ -17300,6 +17298,22 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 22, fontWeight: 300, flexShrink: 0 }}>+</div>
                 <div style={{ fontSize: 14.5, fontWeight: 600, color: "#1E6FE0" }}>Agregar cuenta</div>
+              </button>
+              {/* Personalizar vive aquí desde que su botón del dashboard se
+                  reemplazó por el "+": si no, quedaría sin ningún acceso. */}
+              <button onClick={() => { setAccMenuOpen(false); setConfiguring(true); }}
+                data-tour="personalize-btn"
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 6px",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left", width: "100%",
+                  borderTop: "1px solid var(--line-soft)", marginTop: 4 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 12,
+                  background: "var(--surface)", color: "var(--ink-soft)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0 }}>
+                  <IconGear />
+                </div>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Personalizar inicio</div>
               </button>
             </div>
           </div>
@@ -21207,8 +21221,10 @@ function CategoryColumnChart({ rows, maxBars = 8 }) {
   // Ocupan buena parte del alto útil: es la sección protagonista y así el
   // dashboard no se ve vacío. Medido contra iPhone (header + controles +
   // barra inferior dejan ~534pt libres).
-  const MAX_H = 380;  // alto de la barra más alta
-  const MIN_H = 150;  // suficiente para ícono + monto dentro, sin apretarlos
+  // Sin el título encima queda más alto libre, así que las barras crecen para
+  // ocupar la pantalla. ~534pt útiles en iPhone (header + controles + tab bar).
+  const MAX_H = 470;  // alto de la barra más alta
+  const MIN_H = 170;  // suficiente para ícono + monto dentro, sin apretarlos
 
   return (
     <div className="cc-catcol-scroll" style={{
