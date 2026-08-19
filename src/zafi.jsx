@@ -981,6 +981,8 @@ body.cc-modal-open{overflow:hidden;position:fixed;width:100%;height:100%;
 .cc-chart-bar-y{transform-origin:center bottom;transform-box:fill-box;animation:ccChartGrowY .55s cubic-bezier(.3,1,.4,1) backwards;}
 /* barras horizontales que crecen desde la izquierda */
 .cc-chart-bar-x{transform-origin:left center;transform-box:fill-box;animation:ccChartGrowX .55s cubic-bezier(.3,1,.4,1) backwards;}
+.cc-catcol-scroll{scrollbar-width:none;-ms-overflow-style:none;}
+.cc-catcol-scroll::-webkit-scrollbar{display:none;}
 /* slices del donut: fade + scale desde centro */
 .cc-chart-slice{transform-origin:center;transform-box:fill-box;animation:ccChartScaleIn .5s cubic-bezier(.3,1,.4,1) backwards;}
 @keyframes ccFadeOut{from{opacity:1;}to{opacity:0;}}
@@ -1650,6 +1652,20 @@ const fmtBare = (n) => {
 };
 const fmt = (n) => `${fmtBare(n)} mxn`;
 const fmtMxn = (n) => fmt(n);
+/* Formato corto para espacios chicos (columnas del dashboard): 1.2K, 45K, 3.1M.
+   Bajo $1,000 muestra el número completo — truncar "$850" a "0.9K" pierde
+   más de lo que gana en espacio. */
+const fmtCompact = (n) => {
+  const v = Math.abs(n || 0);
+  const sign = n < 0 ? "-" : "";
+  if (v < 1000) return `${sign}$${Math.round(v)}`;
+  if (v < 1_000_000) {
+    const k = v / 1000;
+    return `${sign}$${(k >= 100 ? Math.round(k) : Math.round(k * 10) / 10)}K`;
+  }
+  const m = v / 1_000_000;
+  return `${sign}$${(m >= 100 ? Math.round(m) : Math.round(m * 10) / 10)}M`;
+};
 const norm = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ");
 const monthLabel = (mk) => {
@@ -3152,15 +3168,20 @@ function useDarkMode() {
 }
 
 /* Devuelve "free" | "lite" | "pro" */
+/* ═══ APP 100% GRATIS — sin planes, sin límites ═══
+   getUserPlan/getMaxAccountsForPlan/hasFeature/planMeets son los 4 puntos
+   por los que TODO el sistema de planes decide qué permitir. En vez de
+   cazar cada llamador uno por uno, se redefinen aquí para que siempre
+   concedan acceso completo. Así needsAccountDowngrade() nunca es true,
+   el paywall nunca encuentra un feature bloqueado, y el resto del código
+   (que sigue intacto) simplemente nunca activa sus ramas de restricción. */
 function getUserPlan(config) {
-  return config?.plan || "free";
+  return "pro";
 }
 
-/* Devuelve el límite de cuentas activas (no archivadas) según el plan */
+/* Sin límite de cuentas para nadie. */
 function getMaxAccountsForPlan(plan) {
-  if (plan === "pro") return Infinity;
-  if (plan === "lite") return 3;
-  return 1; // free
+  return Infinity;
 }
 
 /* Devuelve la lista de cuentas activas (no archivadas) */
@@ -3226,34 +3247,14 @@ function applyPlanChange(prevConfig, newPlan, allTxs) {
   };
 }
 
-/* Devuelve true si el plan tiene acceso al feature */
+/* Todos los features disponibles para todos. */
 function hasFeature(config, feature) {
-  const plan = getUserPlan(config);
-  const FREE = ["basic_stats", "manual_capture", "custom_categories", "ai_5",
-                "auto_category",
-                "dashboard_kpis", "dashboard_by_category", "customize_sections",
-                "stats_summary", "sankey"];
-  const LITE = [...FREE, "recurring", "ai_suggestions", "all_charts",
-                "unlimited_txs", "3_accounts", "excel_export", "full_stats",
-                "dashboard_recent", "dashboard_balance",
-                "date_week", "date_year",
-                "stats_full", "account_toggle",
-                "stats_expCats", "stats_trend", "reports"];
-  const PRO = [...LITE, "unlimited_accounts", "photo_capture", "ai_unlimited",
-               "income_vs_expense",
-               "dashboard_top_expenses", "dashboard_trend", "dashboard_incvsexp",
-               "dashboard_kpis", "dashboard_topcats", "account_toggle",
-               "date_all", "date_custom",
-               "stats_kpis", "stats_topcats", "stats_cattrendv2"];
-  if (plan === "pro") return PRO.includes(feature);
-  if (plan === "lite") return LITE.includes(feature);
-  return FREE.includes(feature);
+  return true;
 }
 
-/* Devuelve true si el plan del usuario alcanza el plan requerido */
+/* Cualquier plan "alcanza" cualquier plan requerido. */
 function planMeets(userPlan, requiredPlan) {
-  const order = { free: 0, lite: 1, pro: 2 };
-  return (order[userPlan] ?? 0) >= (order[requiredPlan] ?? 0);
+  return true;
 }
 
 /* ====== FaceIDSettings — candado biométrico opcional de la app ======
@@ -3903,9 +3904,6 @@ async function scheduleAllNotifications(config, txs) {
   if (!granted) return;
 
   const prefs = config.notificationPrefs || {};
-  const plan  = getUserPlan(config); // "free" | "lite" | "pro"
-  const isLite = plan === "lite" || plan === "pro";
-  const isPro  = plan === "pro";
 
   const notifications = [];
   const idsToCancel = [NOTIF_ID_WEEKLY, NOTIF_ID_NO_ACTIVITY, NOTIF_ID_TIP];
@@ -3934,7 +3932,7 @@ async function scheduleAllNotifications(config, txs) {
   }
 
   // 2. Resumen semanal — Lite+
-  if (isLite && prefs.weeklySummary !== false) {
+  if (prefs.weeklySummary !== false) {
     const now = new Date();
     const dow = now.getDay();
     const daysSinceMonday = dow === 0 ? 6 : dow - 1;
@@ -3977,7 +3975,7 @@ async function scheduleAllNotifications(config, txs) {
   }
 
   // 4. Consejo financiero (IA) — solo Pro
-  if (isPro && prefs.tips !== false) {
+  if (prefs.tips !== false) {
     const tipText = getCachedAiTip() || pickRotatingTip();
     const at = new Date();
     at.setDate(at.getDate() + 3);
@@ -3992,7 +3990,7 @@ async function scheduleAllNotifications(config, txs) {
 
   // 5. Ideas de ingreso extra — Lite+ (personalizada por zona)
   idsToCancel.push(NOTIF_ID_EXTRA_INCOME);
-  if (isLite && prefs.extraIncome !== false) {
+  if (prefs.extraIncome !== false) {
     const city = config.userCity || config.userCountry || "";
     const ideas = extraIncomeIdeasFor(city);
     // Rotar según el día del año para variar la idea
@@ -4925,11 +4923,54 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+/* Fusiona dos versiones del config uniendo por id, en vez de que una
+   reemplace a la otra. Sin esto, dos dispositivos con estados distintos se
+   pisaban: el último en escribir borraba las cuentas del otro. */
+function mergeById(localArr, remoteArr) {
+  const out = [];
+  const seen = new Set();
+  for (const item of [...(remoteArr || []), ...(localArr || [])]) {
+    if (!item || !item.id) continue;
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push(item);
+  }
+  return out;
+}
+
+/* Une el config remoto con el local SIN perder cuentas, categorías ni
+   movimientos de ninguno de los dos. El remoto manda en los campos escalares
+   (es la copia compartida); las colecciones se unen por id. */
+function mergeConfigs(local, remote) {
+  if (!local) return remote;
+  if (!remote) return local;
+  const merged = { ...local, ...remote };
+  merged.accounts = mergeById(local.accounts, remote.accounts);
+  merged.categories = mergeById(local.categories, remote.categories);
+  if (local.recurring || remote.recurring) {
+    merged.recurring = mergeById(local.recurring, remote.recurring);
+  }
+  if (local.goals || remote.goals) merged.goals = mergeById(local.goals, remote.goals);
+  if (local.debts || remote.debts) merged.debts = mergeById(local.debts, remote.debts);
+  // Solo se considera archivada una cuenta que ambos lados tengan archivada:
+  // así un dispositivo desactualizado no oculta cuentas del otro.
+  const la = new Set(local.archivedAccountIds || []);
+  const ra = new Set(remote.archivedAccountIds || []);
+  merged.archivedAccountIds = [...ra].filter((id) => la.has(id));
+  // Datos personales: se conserva el que exista, nunca se borra con un vacío.
+  merged.userName = remote.userName || local.userName;
+  merged.avatarId = remote.avatarId || local.avatarId;
+  merged.avatarData = remote.avatarData || local.avatarData;
+  merged.avatarUrl = remote.avatarUrl || local.avatarUrl;
+  merged.aiConsent = !!(remote.aiConsent || local.aiConsent);
+  return merged;
+}
+
 async function loadAll(userOverride) {
   const sdkUser = userOverride || auth.currentUser;
   const restUser = window.__zafiCurrentUser;
   const u = sdkUser || restUser;
-  if (!u) return { config: null, txs: [] };
+  if (!u) return { config: null, txs: [], readOk: false };
   let config = null, txs = [];
   let gotConfig = false, gotTxs = false; // ¿cada documento se leyó de verdad?
   // Try SDK con timeout (en Capacitor puede colgarse indefinidamente)
@@ -4945,13 +4986,13 @@ async function loadAll(userOverride) {
     // Solo tomar el atajo si AMBOS se leyeron. Antes bastaba con config y se
     // retornaba con txs=[] cuando la lectura de txs fallaba — el usuario veía
     // sus totales pero NINGÚN movimiento (bug al reinstalar en modo REST).
-    if (gotConfig && gotTxs) return { config, txs };
+    if (gotConfig && gotTxs) return { config, txs, readOk: true };
   }
   // Fallback REST — recupera SOLO lo que el SDK no logró leer.
   try {
     const tokenUser = restUser || sdkUser;
     const idToken = await withTimeout(tokenUser?.getIdToken(), 3000);
-    if (!idToken) return { config, txs };
+    if (!idToken) return { config, txs, readOk: gotConfig && gotTxs };
     if (!gotConfig) {
       const configDoc = await firestoreGet(u.uid, idToken, `users/${u.uid}/data/config`);
       if (configDoc?.value !== undefined) config = configDoc.value;
@@ -4961,7 +5002,12 @@ async function loadAll(userOverride) {
       if (txsDoc?.value !== undefined) txs = txsDoc.value || [];
     }
   } catch (e) { console.error("loadAll REST", e.message); }
-  return { config, txs };
+  // readOk distingue "el usuario NO tiene datos" de "NO pude leerlos". Antes
+  // ambos casos devolvían config:null, la app trataba al usuario como nuevo,
+  // lo mandaba al onboarding y el config recién creado SOBREESCRIBÍA en
+  // Firestore todas sus cuentas. Pasó de verdad: al abrir la app en un
+  // segundo dispositivo con la red lenta (el timeout es de 1.5s).
+  return { config, txs, readOk: gotConfig && gotTxs };
 }
 
 // Contador global de escrituras a Firestore en curso. Se usa para (a) mostrar
@@ -4997,6 +5043,18 @@ async function persist(key, val) {
     ? window.__zafiCurrentUser : null;
   if (!u && !restUser) return;
   const field = key === "cc:config" ? "config" : "txs";
+  // Red de última línea: nunca escribir un config SIN cuentas encima de uno
+  // que sí las tenía. Un config vacío solo puede venir de un estado a medio
+  // inicializar; escribirlo destruye los datos del usuario en la nube.
+  if (field === "config") {
+    const nAcc = val?.accounts?.length || 0;
+    const prevN = window.__zafiLastAccountCount || 0;
+    if (nAcc === 0 && prevN > 0) {
+      console.error("persist BLOQUEADO: se intentó guardar un config sin cuentas teniendo", prevN);
+      return;
+    }
+    if (nAcc > 0) window.__zafiLastAccountCount = nAcc;
+  }
   bumpPending(1);
   // Sanitizar: Firestore RECHAZA la escritura COMPLETA del documento si CUALQUIER
   // campo anidado es `undefined` (a diferencia de `null`, que sí es válido). Con un
@@ -8322,6 +8380,10 @@ function DebtModal(props) { return <DebtWizard {...props} />; }
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // true cuando Firestore no respondió: se muestra una pantalla de reintento
+  // en vez de asumir que el usuario es nuevo (asumirlo borraba sus datos).
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [config, setConfig] = useState(null);
   const [txs, setTxs] = useState([]);
   const [toast, setToast] = useState(null);
@@ -8476,8 +8538,18 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const { config: c, txs: t } = await loadAll(user);
+        const { config: c, txs: t, readOk } = await loadAll(user);
         if (cancelled) return;
+        // Si NO se pudo leer Firestore (red lenta, timeout), no se puede saber
+        // si el usuario es nuevo. Tratarlo como nuevo lo manda al onboarding y
+        // el config que cree ahí SOBREESCRIBE sus cuentas reales en la nube.
+        // En ese caso: se avisa y se reintenta, sin tocar nada.
+        if (!readOk && !c) {
+          setLoadError(true);
+          if (!cancelled) setLoaded(true);
+          return;
+        }
+        setLoadError(false);
         if (c) {
           const m = migrate(c, t || []);
           const r = processRecurring(m.config, m.txs);
@@ -8486,20 +8558,29 @@ export default function App() {
           // que aún no tiene lo que el usuario acaba de guardar localmente
           // (ej. su nombre en ProfileSetup → quedaba "User"). Si el local ya
           // tiene userName y el remoto no, conservamos el local.
+          // FUSIÓN, no reemplazo. Antes esto solo rescataba `userName` del
+          // config local y descartaba todo lo demás: si el local tenía cuentas
+          // que el remoto no (o al revés), se perdían. Ahora se unen por id.
+          let mergedConfig = r.config;
           setConfig((prevLocal) => {
-            if (prevLocal?.userName && !r.config?.userName) {
-              return { ...r.config, userName: prevLocal.userName,
-                userGender: prevLocal.userGender, userAge: prevLocal.userAge,
-                userCountry: prevLocal.userCountry,
-                ...(prevLocal.avatarId ? { avatarId: prevLocal.avatarId } : {}) };
-            }
-            return r.config;
+            mergedConfig = mergeConfigs(prevLocal, r.config);
+            return mergedConfig;
           });
-          setTxs(r.txs);
-          const configChanged = m.config !== c || r.generated > 0;
-          const txsChanged = m.txs !== t || r.generated > 0;
-          if (configChanged) persist("cc:config", r.config);
-          if (txsChanged) persist("cc:txs", r.txs);
+          // Los movimientos también se unen por id, nunca se reemplazan.
+          let mergedTxs = r.txs;
+          setTxs((prevTxs) => {
+            mergedTxs = mergeById(prevTxs, r.txs);
+            return mergedTxs;
+          });
+          // Si la fusión aportó algo que el remoto no tenía, se sube; así el
+          // otro dispositivo también recupera lo que le faltaba.
+          const configChanged = m.config !== c || r.generated > 0
+            || (mergedConfig?.accounts?.length || 0) !== (r.config?.accounts?.length || 0)
+            || (mergedConfig?.categories?.length || 0) !== (r.config?.categories?.length || 0);
+          const txsChanged = m.txs !== t || r.generated > 0
+            || (mergedTxs?.length || 0) !== (r.txs?.length || 0);
+          if (configChanged) persist("cc:config", mergedConfig);
+          if (txsChanged) persist("cc:txs", mergedTxs);
           if (r.generated > 0) {
             setTimeout(() => {
               setToast(`Se aplicaron ${r.generated} movimiento${r.generated === 1 ? "" : "s"} de recurrencias`);
@@ -8537,7 +8618,7 @@ export default function App() {
       if (!cancelled) setLoaded(true);
     })();
     return () => { cancelled = true; };
-  }, [user]); // re-corre cuando cambia el usuario
+  }, [user, reloadKey]); // re-corre cuando cambia el usuario o al reintentar
 
   // Global: mientras exista CUALQUIER overlay/modal en pantalla, fijar el body
   // para eliminar el "scroll-bleed" (que al scrollear dentro del modal se mueva
@@ -8713,45 +8794,9 @@ export default function App() {
     document.documentElement.style.backgroundColor = bg;
   }, [isDarkTheme]);
 
-  /* Sincronizar el plan con RevenueCat.
-     RevenueCat es la fuente de verdad: si el usuario canceló, se le venció la
-     tarjeta o pidió reembolso, su entitlement desaparece y hay que bajarlo a
-     free. Si compró en otro dispositivo, hay que subirlo. Solo tocamos
-     config.plan cuando RevenueCat responde con certeza (no en web, no si falla).
-     OJO: este hook DEBE estar antes de los `return` condicionales de abajo;
-     si no, React ve distinto número de hooks entre renders y truena. */
-  useEffect(() => {
-    if (!user || !config) return;
-    let vivo = true;
-    (async () => {
-      try {
-        const listo = await rcInicializar(user.uid);
-        if (!listo || !vivo) return;
-        const planReal = await rcPlanActual();
-        if (!vivo || planReal === null) return; // null = no sabemos, no degradar
-        if (planReal !== getUserPlan(config)) {
-          setConfig((prev) => {
-            // Usar applyPlanChange para que, al subir de plan, se restauren las
-            // cuentas archivadas que ahora caben. Antes solo cambiaba el plan y
-            // dejaba las cuentas archivadas ocultas para siempre.
-            const result = applyPlanChange(prev, planReal, txsRef.current || []);
-            const next = result.config;
-            persist("cc:config", next);
-            if (result.restoredCount > 0) {
-              setTimeout(() => {
-                setToast(`Se restauraron ${result.restoredCount} cuenta${result.restoredCount === 1 ? "" : "s"} con tu plan`);
-                setTimeout(() => setToast(null), 3000);
-              }, 800);
-            }
-            return next;
-          });
-        }
-      } catch (e) {
-        console.error("Fallo la sincronización de plan:", e);
-      }
-    })();
-    return () => { vivo = false; };
-  }, [user?.uid, config?.plan]);
+  /* App 100% gratis: no hay plan que sincronizar con RevenueCat. Se quitó la
+     llamada — ya no tiene sentido pedirle a un SDK de compras el estado de
+     una suscripción que no existe. */
 
   // Síncrono: garantiza que el fondo esté pintado antes del primer paint de
   // cualquier loader, así no aparece un "cuadrado" de otro color un instante.
@@ -8819,6 +8864,9 @@ export default function App() {
     }
     setConfig(null);
     setTxs([]);
+    // El borrado aquí SÍ es intencional: se limpia el contador para que el
+    // guard de persist() no bloquee el config nuevo del onboarding.
+    window.__zafiLastAccountCount = 0;
     showToast("Listo, empezamos desde cero");
   };
 
@@ -8831,6 +8879,46 @@ export default function App() {
         <ZafiLoader />
       </div>
     );
+
+  // No se pudo leer Firestore: NUNCA seguir al onboarding desde aquí. Si el
+  // usuario ya tenía datos, crear un config nuevo los sobreescribiría.
+  if (loadError) {
+    return (
+      <div className={`cc-root ${isDarkTheme ? "cc-dark" : ""}`}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center",
+          height: "100vh", padding: 28, textAlign: "center",
+          background: isDarkTheme ? "#0D0F14" : "#DCE1E8" }}>
+        <style>{STYLE}</style>
+        <div style={{ maxWidth: 380 }}>
+          <div className="cc-serif" style={{ fontSize: 22, fontWeight: 600, marginBottom: 10 }}>
+            No pudimos cargar tus datos
+          </div>
+          <div style={{ fontSize: 14.5, color: "var(--ink-soft)", lineHeight: 1.55, marginBottom: 22 }}>
+            Revisa tu conexión e inténtalo de nuevo. Tus movimientos están a salvo:
+            no se modifica nada hasta que la carga termine bien.
+          </div>
+          <button onClick={() => { setLoaded(false); setLoadError(false); setReloadKey((k) => k + 1); }}
+            style={{ width: "100%", padding: 14, borderRadius: 12, border: "none",
+              background: "rgba(26,24,21,.92)", color: "#fff", fontSize: 15, fontWeight: 600,
+              fontFamily: "'Montserrat', sans-serif", cursor: "pointer", marginBottom: 10 }}>
+            Reintentar
+          </button>
+          <button onClick={async () => {
+              try { await signOut(auth); } catch (_) {}
+              window.__zafiCurrentUser = null;
+              resetAiConsent();
+              window.location.reload();
+            }}
+            style={{ width: "100%", padding: 12, borderRadius: 12,
+              border: "1px solid var(--line)", background: "transparent",
+              color: "var(--ink-soft)", fontSize: 14, fontFamily: "'Montserrat', sans-serif",
+              cursor: "pointer" }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Perfil: si el proveedor de login (Apple/Google) ya entregó el nombre, lo
   // guardamos automáticamente y NOS SALTAMOS la pantalla de perfil por
@@ -9874,19 +9962,18 @@ REGLAS DE RESPUESTA:
       };
     }
 
-    // Sobre Lite/Pro/planes
-    if (t.includes("lite") || t.includes("plan") || t.includes("pro ") || t.includes("upgrade") || t.includes("actualizar") || t.includes("saber más") || t.includes("saber mas") || t.includes("cuéntame de pro") || t.includes("cuentame de pro")) {
+    // App 100% gratis: ya no hay planes de pago que explicar.
+    if (t.includes("lite") || t.includes("plan") || t.includes("pro ") || t.includes("upgrade") || t.includes("actualizar") || t.includes("saber más") || t.includes("saber mas")) {
       return {
-        msg: "✨ Zafi Lite te da:\n\n• Hasta 3 cuentas\n• Movimientos recurrentes (renta, sueldo, suscripciones)\n• Exportar a Excel y PDF\n• Categorización automática\n• Estadísticas completas\n• Sugerencias inteligentes\n\nY Zafi Pro suma cuentas ilimitadas, análisis con IA y reportes completos. Puedes activar el plan después desde Configuración. Por ahora arranquemos con Free, ¿te parece?",
-        suggs: ["Sí, arranquemos con Free", "Cuéntame de Pro"],
-        upgradeBtn: true,
+        msg: "Zafi es completamente gratis: cuentas ilimitadas, todas las funciones y el asistente de IA sin costo. ¿Seguimos configurando tu cuenta?",
+        suggs: [],
       };
     }
     // Cuentas
     if (t.includes("cuenta") || /\b(2|3|4|5|dos|tres|cuatro|cinco|varias|múltiples|multiples)\b/.test(t)) {
       return {
-        msg: "En el plan Free puedes tener 1 cuenta. Con Lite tienes hasta 3 cuentas y con Pro son ilimitadas. Por ahora arranquemos con una cuenta principal — siempre puedes activar Lite después. ¿Te parece?",
-        suggs: ["Sí, una cuenta", "Quiero saber más de Lite"],
+        msg: "Puedes tener todas las cuentas que necesites, sin límite. Por ahora arranquemos con una cuenta principal — agregas las demás cuando quieras desde la app. ¿Te parece?",
+        suggs: ["Sí, una cuenta"],
       };
     }
     // Categorías sugeridas
@@ -11063,8 +11150,7 @@ function StickyHeader({ config, saveConfig, balance, dateRange, onOpenRange, onO
               {avatarSrc ? <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div className={`cc-profile-name ${getUserPlan(config) === "pro" ? "pro" : ""}`}>{displayName}</div>
-              <div className="cc-profile-plan"><PlanBadge plan={getUserPlan(config)} /></div>
+              <div className="cc-profile-name">{displayName}</div>
             </div>
           </button>
           <div style={{ flex: 1 }} />
@@ -11406,6 +11492,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
     // El consentimiento de IA es POR USUARIO (5.1.1(i)): al salir se limpia el
     // flag en memoria para que la siguiente cuenta no lo herede.
     resetAiConsent();
+    window.__zafiLastAccountCount = 0; // el guard es por usuario, no global
     // Limpiar chat al cerrar sesión
     if (window.__zafiClearChat) window.__zafiClearChat();
     // NO borramos las credenciales de Face ID: cerrar sesión no debe desactivarlo.
@@ -11425,6 +11512,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
         try { await deleteDoc(doc(db, "users", user.uid, "data", "profile")); } catch (e) {}
       }
       // borrar la cuenta de Firebase Auth
+      window.__zafiLastAccountCount = 0; // borrado intencional de cuenta
       if (user) await deleteUser(user);
       // La cuenta ya no existe → limpiar credenciales de Face ID del llavero,
       // si no, el Face ID automático intentaría entrar con una cuenta muerta.
@@ -11541,7 +11629,6 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
               </button>
               <div style={{ fontWeight: 600, fontSize: 18, color: "var(--ink)" }}>{userName || t("user")}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                <PlanBadge plan={getUserPlan(config)} />
                 <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>{email}</span>
               </div>
             </div>
@@ -11550,9 +11637,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
             <div style={{ display: "flex", flexDirection: "column" }}>
 
               {GROUP("Cuenta")}
-              {ROW(() => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
-                "Mi plan", getUserPlan(config) === "pro" ? "✦ Pro" : getUserPlan(config) === "lite" ? "Lite" : "Free",
-                () => setSection("plan"))}
+              {/* Fila "Mi plan" quitada: la app es 100% gratis, sin planes. */}
               {ROW(IconPerson, t("personalInfo"), "", () => setSection("personal"))}
               {ROW(IconShield, "Face ID / Biometría", "", () => setSection("faceid"))}
 
@@ -11696,103 +11781,7 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
           </>
         )}
 
-        {section === "plan" && (
-          <>
-            {BACK("Mi plan")}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {["free", "lite", "pro"].map(p => {
-                const isCurrent = getUserPlan(config) === p;
-                const labels = { free: "Free", lite: "Lite", pro: "✦ Pro" };
-                const prices = { free: "Gratis", lite: "$59/mes · $499/año", pro: "$129/mes · $999/año" };
-                const feats = {
-                  free: ["1 cuenta", "Transacciones ilimitadas", "Categoría automática", "Saldo y Acción de hoy", "Áreas de oportunidad", "Diagrama Sankey"],
-                  lite: ["3 cuentas", "Deudas y Metas", "Movimientos recurrentes", "Sugerencias IA", "Estadísticas completas", "Reportes Excel y PDF"],
-                  pro: ["Cuentas ilimitadas", "Calificación financiera IA", "Consejos con IA", "Captura por foto", "IA ilimitada", "Rangos personalizados"],
-                };
-                return (
-                  <div key={p} style={{ borderRadius: 16, border: `1.5px solid ${isCurrent ? "#1E6FE0" : "var(--line)"}`,
-                    background: isCurrent ? "rgba(30,111,224,.05)" : "var(--surface)", padding: "16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <PlanBadge plan={p} />
-                        {isCurrent && <span style={{ fontSize: 11, color: "#1E6FE0", fontWeight: 600 }}>Plan actual</span>}
-                      </div>
-                      <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{prices[p]}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {feats[p].map((f, i) => (
-                        <div key={i} style={{ fontSize: 12.5, color: "var(--ink-soft)", display: "flex", gap: 6 }}>
-                          <span style={{ color: p === "pro" ? "#C9A84C" : "#1E6FE0" }}>✓</span> {f}
-                        </div>
-                      ))}
-                    </div>
-                    {!isCurrent && (() => {
-                      const planActual = getUserPlan(config);
-                      const orden = { free: 0, lite: 1, pro: 2 };
-                      // ¿Este plan (p) es INFERIOR al que ya tiene el usuario?
-                      const esBajada = orden[p] < orden[planActual];
-                      // Cambiar a un plan de pago inferior (ej: Pro→Lite) o a Free
-                      // teniendo suscripción activa: en Apple esto se hace desde
-                      // Ajustes (aplica al final del periodo pagado). No compramos
-                      // de nuevo ni cambiamos el plan aquí.
-                      const requiereAjustesApple = esBajada && planActual !== "free" && esAppNativa();
-
-                      const handleClick = () => {
-                        if (requiereAjustesApple) {
-                          showToast("Tu cambio de plan se aplica al terminar tu periodo actual. Gestiónalo en Ajustes de Apple.");
-                          window.open("https://apps.apple.com/account/subscriptions", "_blank");
-                          return;
-                        }
-                        if (p === "free") {
-                          if (planActual !== "free" && esAppNativa()) {
-                            showToast("Gestiona tu suscripción en Ajustes de Apple");
-                            window.open("https://apps.apple.com/account/subscriptions", "_blank");
-                            return;
-                          }
-                          const saver = saveConfigRaw || saveConfig;
-                          let restoredCount = 0;
-                          saver((prev) => {
-                            const result = applyPlanChange(prev, p, rawTxs || []);
-                            restoredCount = result.restoredCount;
-                            return result.config;
-                          });
-                          showToast(restoredCount > 0
-                            ? `Plan Free activado · ${restoredCount} cuenta${restoredCount === 1 ? "" : "s"} restaurada${restoredCount === 1 ? "" : "s"}`
-                            : "Plan Free activado");
-                          setSection("menu");
-                        } else {
-                          // Upgrade a un plan de pago superior → paywall de compra.
-                          setUpgradeFeature(p);
-                        }
-                      };
-
-                      // Etiqueta del botón según sea subida, bajada o Free
-                      let label;
-                      if (requiereAjustesApple) {
-                        label = "Gestionar suscripción";
-                      } else if (p === "pro") {
-                        label = "✦ Activar Pro";
-                      } else if (p === "lite") {
-                        label = "Activar Lite";
-                      } else {
-                        label = planActual !== "free" ? "Gestionar suscripción" : "Cambiar a Free";
-                      }
-
-                      return (
-                        <button onClick={handleClick}
-                          style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "none",
-                            background: requiereAjustesApple ? "rgba(0,0,0,.08)" : p === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : p === "lite" ? "#1E6FE0" : "rgba(0,0,0,.08)",
-                            color: (requiereAjustesApple || p === "free") ? "var(--ink)" : "#fff", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
-                          {label}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+        {/* Sección "Mi plan" eliminada: app 100% gratis, sin planes de pago. */}
 
         {section === "home" && (
           <>
@@ -11923,43 +11912,30 @@ function SettingsModal({ config, rawTxs, saveConfig, saveConfigRaw, onClose, sho
                 {Capacitor.isNativePlatform() ? "" : " Solo disponibles en la app móvil."}
               </div>
               {(() => {
-                const plan = getUserPlan(config);
-                const isLite = plan === "lite" || plan === "pro";
-                const isPro  = plan === "pro";
-                const BADGE = (label) => (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, letterSpacing: ".04em",
-                    padding: "2px 6px", borderRadius: 6, marginLeft: 6,
-                    background: label === "Pro" ? "rgba(30,111,224,.12)" : "rgba(120,80,200,.10)",
-                    color: label === "Pro" ? "#1E6FE0" : "#7C4DBC",
-                  }}>{label}</span>
-                );
                 return [
-                  { key: "recurringReminders", title: "Pagos recurrentes",     desc: "Un día antes de que se registre un pago automático.", allowed: true,    badge: null },
-                  { key: "noActivityReminder", title: "Sin actividad",          desc: "Si llevas varios días sin registrar movimientos.",    allowed: true,    badge: null },
-                  { key: "weeklySummary",       title: "Resumen semanal",        desc: "Cada lunes por la mañana, ingresos y gastos de la semana.", allowed: isLite, badge: "Lite" },
-                  { key: "extraIncome",         title: "Ideas de ingreso extra", desc: "Cada semana, una idea para ganar más según tu zona.", allowed: isLite, badge: "Lite" },
-                  { key: "scoreChange",         title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja.",     allowed: isPro,   badge: "Pro" },
-                  { key: "tips",                title: "Consejos financieros",   desc: "Un consejo cada 3 días, basado en tus finanzas.",    allowed: isPro,   badge: "Pro" },
+                  { key: "recurringReminders", title: "Pagos recurrentes",     desc: "Un día antes de que se registre un pago automático." },
+                  { key: "noActivityReminder", title: "Sin actividad",          desc: "Si llevas varios días sin registrar movimientos." },
+                  { key: "weeklySummary",       title: "Resumen semanal",        desc: "Cada lunes por la mañana, ingresos y gastos de la semana." },
+                  { key: "extraIncome",         title: "Ideas de ingreso extra", desc: "Cada semana, una idea para ganar más según tu zona." },
+                  { key: "scoreChange",         title: "Cambio de calificación", desc: "Cuando tu Calificación financiera sube o baja." },
+                  { key: "tips",                title: "Consejos financieros",   desc: "Un consejo cada 3 días, basado en tus finanzas." },
                 ].map((item) => {
                   const prefs = config.notificationPrefs || {};
-                  const isOn  = item.allowed && prefs[item.key] !== false;
+                  const isOn  = prefs[item.key] !== false;
                   return (
                     <div key={item.key} style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
                       padding: "12px 0", borderBottom: "1px solid var(--line-soft)",
-                      opacity: item.allowed ? 1 : 0.45,
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center" }}>
                           {item.title}
-                          {item.badge && BADGE(item.badge)}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.4 }}>{item.desc}</div>
                       </div>
-                      <label className={`cc-switch ${isOn ? "on" : ""}`} style={{ pointerEvents: item.allowed ? "auto" : "none" }}>
-                        <input type="checkbox" checked={isOn} disabled={!item.allowed}
-                          onChange={() => item.allowed && saveConfig({
+                      <label className={`cc-switch ${isOn ? "on" : ""}`}>
+                        <input type="checkbox" checked={isOn}
+                          onChange={() => saveConfig({
                             ...config,
                             notificationPrefs: { ...prefs, [item.key]: !isOn },
                           })} />
@@ -12428,6 +12404,7 @@ function DateRangeModal({ dateRange, onClose, onSave, config }) {
 const DEFAULT_SECTIONS = [
   { id: "balance", label: "Saldo destacado", on: true },
   { id: "dailyAction", label: "Acción de hoy", on: true },
+  { id: "catRanking", label: "Tus categorías", on: true },
   { id: "opportunities", label: "Áreas de oportunidad", on: true },
   { id: "debts", label: "Deudas", on: true },
   { id: "goals", label: "Metas y planes", on: true },
@@ -12439,6 +12416,7 @@ const DEFAULT_SECTIONS = [
 const HOME_SECTION_PLANS = {
   balance: "free",
   dailyAction: "free",
+  catRanking: "free",
   opportunities: "free",
   debts: "lite",
   goals: "lite",
@@ -12572,7 +12550,7 @@ function TourGuide({ step, onAdvance, onSkip, onClose }) {
     {
       id: "plans",
       title: "Personaliza y desbloquea más",
-      body: "Puedes prender, apagar y reordenar cada sección a tu gusto. Y con Zafi Lite o Pro desbloqueas calificación financiera con IA, recurrentes, reportes y más.",
+      body: "Puedes prender, apagar y reordenar cada sección a tu gusto. Calificación financiera con IA, recurrentes, reportes y más — todo incluido.",
       targetSelector: '[data-tour="personalize-btn"]',
       placement: "bottom",
       waitForAction: false,
@@ -16908,6 +16886,29 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           return <div key={s.id}>{trendNode}</div>;
         }
 
+        if (s.id === "catRanking") {
+          const catRankNode = (
+            <div className="cc-card" style={{ padding: "18px 12px 18px 18px" }}>
+              <div className="cc-label" style={{ marginBottom: 12, paddingLeft: 6 }}>
+                Tus categorías · {rangeLabel(dateRange)}
+              </div>
+              {dashExpRows.length === 0 ? (
+                <div style={{ color: "var(--ink-soft)", fontSize: 14, paddingLeft: 6 }}>
+                  Sin gastos este mes todavía.
+                </div>
+              ) : (
+                <CategoryColumnChart rows={dashExpRows} type="expense" />
+              )}
+            </div>
+          );
+          if (isLocked) return (
+            <LockedBlur key={s.id} plan={requiredPlan} onUpgrade={onLockedClick}>
+              {catRankNode}
+            </LockedBlur>
+          );
+          return <div key={s.id}>{catRankNode}</div>;
+        }
+
         if (s.id === "topExpenses") {
           const topNode = (
             <div className="cc-card" style={{ padding: 20 }}>
@@ -17389,27 +17390,7 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
   const apply = (next) => { setItems(next); onSave(next); };
   const { dragIdx, overIdx, getItemProps, getItemStyle, getGripProps } = useDragSort(items, apply);
 
-  const userPlan = config ? getUserPlan(config) : "free";
-  const isSectionLocked = (id) => {
-    const needed = HOME_SECTION_PLANS[id] || "free";
-    return needed !== "free" && !planMeets(userPlan, needed);
-  };
-
   const toggle = (id) => {
-    if (isSectionLocked(id)) {
-      const item = items.find((s) => s.id === id);
-      const esTeaser = TEASER_SECTIONS.includes(id);
-      // Las teaser se muestran difuminadas en el dashboard. Si el usuario ya la
-      // ve y quiere quitarla, lo dejamos apagarla — es su dashboard. Pero si
-      // está apagada, prenderla equivale a querer la función → upgrade.
-      if (esTeaser && item?.on) {
-        apply(items.map((s) => (s.id === id ? { ...s, on: false } : s)));
-        return;
-      }
-      const needed = HOME_SECTION_PLANS[id] || "free";
-      onUpgrade && onUpgrade(needed);
-      return;
-    }
     apply(items.map((s) => (s.id === id ? { ...s, on: !s.on } : s)));
   };
 
@@ -17501,40 +17482,14 @@ function HomeConfigModal({ sections, adaptiveOrderIds, config, accountLabel, acc
                   color: s.on ? "var(--ink)" : "var(--ink-faint)",
                   letterSpacing: "-.01em",
                   fontFamily: "'Montserrat', sans-serif" }}>{s.label}</span>
-                {(() => {
-                  const planMap = HOME_SECTION_PLANS;
-                  const needed = planMap[s.id] || "free";
-                  const userPlan = config ? getUserPlan(config) : "free";
-                  const hasIt = planMeets(userPlan, needed);
-                  if (needed !== "free" && !hasIt) return (
-                    <span style={{ display:"inline-block", marginLeft:6, fontSize:10, fontWeight:700,
-                      padding:"1px 6px", borderRadius:99, verticalAlign:"middle",
-                      background: needed === "pro" ? "linear-gradient(120deg,#b8860b,#d4a017)" : "rgba(30,111,224,.12)",
-                      color: needed === "pro" ? "#fff" : "#1E6FE0",
-                      fontFamily:"'Montserrat',sans-serif", letterSpacing:".05em" }}>
-                      {needed === "pro" ? "✦ PRO" : "LITE"}
-                    </span>
-                  );
-                  return null;
-                })()}
+                {/* Badge de plan quitado: app 100% gratis, todas las secciones
+                    están siempre disponibles. */}
               </div>
-              {isSectionLocked(s.id) && !(TEASER_SECTIONS.includes(s.id) && s.on) ? (
-                <button onClick={() => toggle(s.id)}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center",
-                    width: 46, height: 27, borderRadius: 99, border: "none", cursor: "pointer",
-                    background: dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)", flexShrink: 0 }}
-                  aria-label="Función bloqueada — mejora tu plan">
-                  <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, stroke: "var(--ink-faint)", fill: "none", strokeWidth: 2 }}>
-                    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ) : (
-                <label className={`cc-switch ${s.on ? "on" : ""}`}>
-                  <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
-                  <span className="cc-switch-track" />
-                  <span className="cc-switch-thumb" />
-                </label>
-              )}
+              <label className={`cc-switch ${s.on ? "on" : ""}`}>
+                <input type="checkbox" checked={s.on} onChange={() => toggle(s.id)} />
+                <span className="cc-switch-track" />
+                <span className="cc-switch-thumb" />
+              </label>
             </div>
           ))}
         </div>
@@ -21173,6 +21128,67 @@ Cuando subo varios screenshots de la misma app, los movimientos se traslapan ent
 /* ============================ ESTADÍSTICAS =============================== */
 /* ===== Gráfica de categorías versátil: pastel / dona / barras ===== */
 const CHART_PALETTE = ["#1E6FE0", "#7C8BF5", "#60A5FA", "#5EEAD4", "#A78BFA", "#F0A868", "#E8849B", "#7E8AA0", "#86B98E", "#C9A24B"];
+
+/* Ranking de categorías en columnas verticales — ícono del sistema debajo de
+   cada barra, altura animada, scroll horizontal. Pensado para el dashboard:
+   de un vistazo se ve en qué se va el dinero, sin abrir Estadísticas. */
+function CategoryColumnChart({ rows, type, onPick, maxBars = 8 }) {
+  if (!rows || !rows.length) return null;
+  const data = rows.slice(0, maxBars);
+  const maxAmt = data[0].amt || 1;
+  const barColor = type === "income" ? "var(--green)" : "var(--bar-fill)";
+  const trackColor = "var(--surface-2)";
+
+  return (
+    <div className="cc-catcol-scroll" style={{
+      display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden",
+      padding: "2px 2px 4px", WebkitOverflowScrolling: "touch",
+      scrollSnapType: "x proximity",
+    }}>
+      {data.map((d, i) => {
+        const pctOfMax = maxAmt ? Math.max(6, Math.round((d.amt / maxAmt) * 100)) : 6;
+        const [bg, fg] = catColorPair(d.cat.color);
+        return (
+          <button key={d.cat.id} onClick={() => onPick && onPick(d.cat.id)}
+            style={{
+              flex: "0 0 auto", width: 68, display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 8, background: "transparent", border: "none",
+              cursor: "pointer", fontFamily: "inherit", scrollSnapAlign: "start",
+              padding: "4px 0 0",
+            }}>
+            {/* Pista fija de altura + barra que crece desde abajo (scaleY),
+                igual patrón que ccChartGrowY ya usa el resto de la app. */}
+            <div style={{ position: "relative", width: "100%", height: 132,
+              borderRadius: 16, background: trackColor, overflow: "hidden",
+              display: "flex", alignItems: "flex-end" }}>
+              <div style={{
+                width: "100%", height: `${pctOfMax}%`, borderRadius: 16,
+                background: barColor, transformOrigin: "bottom center",
+                animation: "ccChartGrowY .6s cubic-bezier(.3,1,.4,1) backwards",
+                animationDelay: `${i * 0.06}s`,
+              }} />
+            </div>
+            {/* Ícono del sistema, no emoji — a caballo entre la barra y su cifra */}
+            <div style={{
+              width: 34, height: 34, borderRadius: 11, background: bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginTop: -25, flexShrink: 0,
+              boxShadow: "0 2px 6px rgba(0,0,0,.18)",
+              animation: "ccChartFadeIn .4s ease backwards",
+              animationDelay: `${i * 0.06 + 0.25}s`,
+            }}>
+              <span style={{ color: fg, display: "flex" }}><ZIcon name={catIcon(d.cat)} size={18} /></span>
+            </div>
+            <div className="cc-num" style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)",
+              fontFamily: "'Montserrat', sans-serif", letterSpacing: "-.01em", whiteSpace: "nowrap" }}>
+              {fmtCompact(d.amt)}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function CategoryChart({ rows, type, onPick, freeOnlyBars = false, onLockedChart }) {
   // rows: [{cat, amt}]
