@@ -16355,6 +16355,8 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
   const setView = setAccView;
   const dark = useDarkMode();
   const [configuring, setConfiguring] = useState(false);
+  // Menú de la cápsula central: cambiar de cuenta o agregar una nueva.
+  const [accMenuOpen, setAccMenuOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
   // La clave incluye la cuenta para que el colapso sea individual por cuenta.
   const expandKey = (id) => `${accView}:${id}`;
@@ -16567,52 +16569,71 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
       {/* === selector de cuentas mejorado === */}
       {config.accounts.length > 0 && (
         <div className="cc-fade">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: config.hideAccountCards ? 0 : 10 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div className="cc-label" style={{ marginBottom:0 }}>Tus cuentas</div>
-              <button onClick={() => saveConfig({ ...config, hideAccountCards: !config.hideAccountCards })}
-                style={{ background:"none", border:"none", padding:"2px 4px", cursor:"pointer",
-                  color:"var(--ink-faint)", display:"flex", alignItems:"center" }}
-                title={config.hideAccountCards ? "Mostrar cuentas" : "Ocultar cuentas"}>
-                {config.hideAccountCards ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
+          {/* Barra de control: [ • filtrar ] [ cápsula con la cuenta activa ] [ • personalizar ]
+              La cápsula abre un menú para cambiar de cuenta o agregar una nueva. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+            gap: 10, marginBottom: config.hideAccountCards === false ? 12 : 0 }}>
+            {(() => {
+              const globalAccH = getPersonalize(config, "globalAccountsHidden", accView) || [];
+              const globalIncH = getPersonalize(config, "globalIncCatsHidden", accView) || [];
+              const globalExpH = getPersonalize(config, "globalExpCatsHidden", accView) || [];
+              const totalHidden = globalAccH.length + globalIncH.length + globalExpH.length;
+              return (
+                <button onClick={() => setGlobalCustomizeOpen(true)}
+                  title="Filtrar qué cuentas y categorías entran en las gráficas"
+                  style={{ position: "relative", width: 44, height: 44, borderRadius: "50%",
+                    border: "none", background: "var(--ink)", color: "var(--paper)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", flexShrink: 0, padding: 0 }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
                   </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
-              </button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {(() => {
-                const globalAccH = getPersonalize(config, "globalAccountsHidden", accView) || [];
-                const globalIncH = getPersonalize(config, "globalIncCatsHidden", accView) || [];
-                const globalExpH = getPersonalize(config, "globalExpCatsHidden", accView) || [];
-                const totalHidden = globalAccH.length + globalIncH.length + globalExpH.length;
-                return (
-                  <button className="cc-gear" onClick={() => setGlobalCustomizeOpen(true)}
-                    title="Elegir qué cuentas y categorías se toman en cuenta en todas las gráficas">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                      <line x1="17" y1="16" x2="23" y2="16" />
-                    </svg>
-                    Filtrar{totalHidden > 0 ? ` (${totalHidden})` : ""}
-                  </button>
-                );
-              })()}
-              <button className="cc-gear" onClick={() => setConfiguring(true)} data-tour="personalize-btn"><IconGear /> Personalizar</button>
-            </div>
+                  {totalHidden > 0 && (
+                    <span style={{ position: "absolute", top: 2, right: 2, minWidth: 16, height: 16,
+                      borderRadius: 99, background: "#1E6FE0", color: "#fff", fontSize: 9.5,
+                      fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: "0 4px", fontFamily: "'Montserrat', sans-serif" }}>{totalHidden}</span>
+                  )}
+                </button>
+              );
+            })()}
+
+            {/* Cápsula central: cuenta activa + menú desplegable */}
+            <button onClick={() => setAccMenuOpen(true)} data-tour="account-selector"
+              style={{ flex: 1, minWidth: 0, maxWidth: 280, height: 44, borderRadius: 99,
+                border: "none", background: "var(--ink)", color: "var(--paper)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                cursor: "pointer", padding: "0 18px", fontFamily: "'Montserrat', sans-serif" }}>
+              <span style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-.01em",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {view === "all" ? "Todas las cuentas"
+                  : (config.accounts.find((a) => a.id === view) || {}).name || "Cuenta"}
+              </span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: .8 }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            <button onClick={() => setConfiguring(true)} data-tour="personalize-btn"
+              title="Personalizar el inicio"
+              style={{ width: 44, height: 44, borderRadius: "50%", border: "none",
+                background: "var(--ink)", color: "var(--paper)", display: "flex",
+                alignItems: "center", justifyContent: "center", cursor: "pointer",
+                flexShrink: 0, padding: 0 }}>
+              <IconGear />
+            </button>
           </div>
-          {!config.hideAccountCards && <ScrollFadeRow>
+          {/* Tarjetas de cuentas: ocultas por defecto. La cápsula de arriba ya
+              hace de selector; mostrarlas además duplicaba la misma función.
+              `hideAccountCards !== false` mantiene la preferencia de quien ya
+              las tenía visibles a propósito. */}
+          {config.hideAccountCards === false && <ScrollFadeRow>
             {/* tarjeta General (Total) — solo cuando hay más de 1 cuenta */}
             {config.accounts.length > 1 && !(config.hiddenAccountCards || []).includes("all") && (
               <button className={`cc-acc-card ${view === "all" ? "on" : ""}`} onClick={() => setView("all")}>
@@ -17241,6 +17262,84 @@ function Dashboard({ config, txs, balance, dateRange, onEdit, onAddAccount, save
           onSave={(newSections) => saveConfig(setPersonalize(config, "homeSections", newSections, accView))}
           onUpgrade={(plan) => { setConfiguring(false); setUpgradeFeature && setUpgradeFeature(plan); }}
         />
+      )}
+
+      {/* Menú de cuentas de la cápsula central */}
+      {accMenuOpen && createPortal(
+        <div className={`cc-overlay ${dark ? "cc-dark" : ""}`}
+          onClick={() => setAccMenuOpen(false)}>
+          <div className="cc-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="cc-grip" />
+            <div className="cc-sheet-top">
+              <h2>Cuentas</h2>
+              <button className="cc-sheet-close" onClick={() => setAccMenuOpen(false)}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", paddingBottom: 4 }}>
+              {config.accounts.length > 1 && (
+                <button onClick={() => { setView("all"); setAccMenuOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 6px",
+                    background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
+                    cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 12, background: "var(--surface)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 18, color: "var(--ink-soft)", flexShrink: 0 }}>∑</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)" }}>Todas las cuentas</div>
+                    <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 1 }}>
+                      {config.accounts.length} cuentas
+                    </div>
+                  </div>
+                  {view === "all" && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E6FE0"
+                      strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              )}
+              {config.accounts.map((a) => {
+                const b = accountBalance(config, txs, a.id);
+                return (
+                  <button key={a.id} onClick={() => { setView(a.id); setAccMenuOpen(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 6px",
+                      background: "transparent", border: "none", borderBottom: "1px solid var(--line-soft)",
+                      cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%" }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 12, background: "var(--surface)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "var(--ink-soft)", flexShrink: 0 }}>
+                      <ZIcon name="bank" size={19} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--ink)",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+                      <div className="cc-num" style={{ fontSize: 12, marginTop: 1,
+                        color: b < 0 ? "var(--coral)" : "var(--ink-faint)" }}>
+                        {fmtBare(b)} mxn
+                      </div>
+                    </div>
+                    {view === a.id && (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E6FE0"
+                        strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+              <button onClick={() => { setAccMenuOpen(false); onAddAccount && onAddAccount(); }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 6px",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontFamily: "inherit", textAlign: "left", width: "100%", marginTop: 4 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 12,
+                  background: "rgba(30,111,224,.1)", color: "#1E6FE0",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22, fontWeight: 300, flexShrink: 0 }}>+</div>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: "#1E6FE0" }}>Agregar cuenta</div>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {catFilter && (
